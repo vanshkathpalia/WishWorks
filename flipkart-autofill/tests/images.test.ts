@@ -179,6 +179,60 @@ describe("squaring", () => {
   });
 });
 
+describe("--border (experimental Meesho shipping lever)", () => {
+  it("keeps the output exactly 1500x1500 — the frame insets, it does not grow the image", async () => {
+    await makeImage("1-raw/P/1.webp", 1200, 1200, { r: 40, g: 40, b: 40 });
+    await run(["--border=20"]);
+    const m = await meta("2-clean/P/1.jpg");
+    expect(m.width).toBe(1500);
+    expect(m.height).toBe(1500);
+  });
+
+  /**
+   * Mean brightness of one patch of an output image.
+   *
+   * The extract MUST be rendered to a buffer before measuring: sharp's .stats() reads the
+   * INPUT image and ignores queued operations, so `sharp(f).extract(...).stats()` silently
+   * measures the whole picture instead of the patch. Same trap square.ts documents.
+   */
+  async function patch(rel: string, left: number, top: number): Promise<number> {
+    const buf = await sharp(path.join(tmp, "images", rel))
+      .extract({ left, top, width: 8, height: 8 })
+      .toBuffer();
+    const { channels } = await sharp(buf).stats();
+    // Mean across RGB, not the red channel alone — the fixture's crimson square reads 220 on
+    // red, indistinguishable from white if you only look at one channel.
+    const rgb = channels.slice(0, 3);
+    return rgb.reduce((sum, c) => sum + c.mean, 0) / rgb.length;
+  }
+
+  it("actually paints a white frame at the edge", async () => {
+    // A dark image: with a border the outer ring must be white, the centre still dark.
+    await makeImage("1-raw/P/1.webp", 1200, 1200, { r: 20, g: 20, b: 20 });
+    await run(["--border=20"]);
+    expect(await patch("2-clean/P/1.jpg", 2, 2)).toBeGreaterThan(200); // white frame
+    expect(await patch("2-clean/P/1.jpg", 700, 700)).toBeLessThan(120); // product untouched
+  });
+
+  it("is off by default — no frame unless asked for", async () => {
+    await makeImage("1-raw/P/1.webp", 1200, 1200, { r: 20, g: 20, b: 20 });
+    await run();
+    expect(await patch("2-clean/P/1.jpg", 2, 2)).toBeLessThan(80);
+  });
+
+  it("rejects a border that would swallow the image", async () => {
+    await makeImage("1-raw/P/1.webp", 1200, 1200);
+    const { out } = await run(["--border=800"]);
+    expect(out).toContain("--border needs a pixel width");
+  });
+
+  it("reports the frame it applied", async () => {
+    await makeImage("1-raw/P/1.webp", 1200, 1200);
+    const { out } = await run(["--border=20"]);
+    expect(out).toContain("20px white border");
+  });
+});
+
 describe("cropping the Meesho tag", () => {
   it("crops every image by default", async () => {
     for (const n of [1, 2, 3]) await makeImage(`1-raw/P/${n}.webp`, 1000, 1000);

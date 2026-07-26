@@ -1,10 +1,14 @@
 {
   "_comment": [
-    "Image descriptions for one product. Marketplace-agnostic — Meesho listings need ONLY this file.",
+    "Image descriptions + Meesho copy for one product. A Meesho listing needs ONLY this file.",
     "The 66 Flipkart listing fields live separately in products/<ID>.json.",
     "Name this file after the product ID: image-meta/ANP-1042.json",
-    "Fill it from the Step 0b prompt in docs/image-playbook.md, then run:",
-    "  npm run images -- --final"
+    "Fill it from THE PROMPT in docs/guides/START-HERE.md Part 3, then run:",
+    "  npm run images -- --final        (or: npm run finish -- --in=\"<folder>\")",
+    "",
+    "title / keywords / images feed the EXIF written into each photo.",
+    "The meesho block is NOT written into any image — Meesho does not read image metadata.",
+    "It is copy you paste by hand into the Supplier Panel. Limits are in START-HERE.md."
   ],
   "title": "Annaprashan Decoration Kit 65 Pcs",
   "keywords": [
@@ -15,5 +19,10 @@
   "images": {
     "1": "Annaprashan rice ceremony decoration kit set up as a wall backdrop in red and gold, with a Shubh Annaprashan banner, heart foil balloons and net curtains.",
     "2": "All 65 pieces of the Annaprashan decoration kit laid out flat - banner, red and golden balloons, heart foils, fairy light, photo props and glue tape."
+  },
+  "meesho": {
+    "title": "Annaprashan Decoration Kit Red Golden Balloons Banner Cutouts LED Light (Set of 65 Pcs)",
+    "description": "Complete 65 piece Annaprashan decoration kit in red and gold, with everything needed to set up the rice ceremony backdrop at home.\n\nWhat you get:\n1 Shubh Annaprashan banner\n40 red and golden metallic balloons\n8 red heart foil balloons\n12 printed ceremony cutout props\n1 LED string light\n1 balloon pump with arch tape and glue dots\n\nPerfect for:\nAnnaprashan, rice ceremony, first food ceremony, naming ceremony, baby milestone photoshoot\n\nBalloons come uninflated and the pump is included, so the whole backdrop goes up in about an hour with nothing else to buy. The banner and printed cutouts are card and can be kept as a keepsake after the day.",
+    "pack_contents": "1 Shubh Annaprashan Banner - 40 Metallic Balloons - 8 Heart Foil Balloons - 12 Printed Cutouts - 1 LED String Light - 1 Balloon Pump - 1 Arch Tape - 1 Glue Dot Roll"
   }
 }

@@ -140,7 +140,7 @@ Do NOT recount from the photos, do NOT adjust, do NOT add anything not listed):
 <PASTE YOUR EXCEL ROWS HERE>
 
 Return ONLY one JSON object — no explanation before or after, no markdown fences — with
-exactly these two halves:
+exactly these THREE parts:
 
 {
   "products": {
@@ -151,7 +151,12 @@ exactly these two halves:
     "title": "<same text as products Model Name>",
     "keywords": [<same list as products Search Keywords>],
     "images": { "1": "", "2": "" },
-    "not_visible": [""]
+    "not_visible": [""],
+    "meesho": {
+      "title": "",
+      "description": "",
+      "pack_contents": ""
+    }
   }
 }
 
@@ -163,6 +168,9 @@ WHERE EACH PART COMES FROM
   specific photo (see the description rules below).
 - "image-meta.title" must equal products Model Name; "image-meta.keywords" must equal
   products Search Keywords (do not write two different versions).
+- "image-meta.meesho" = the copy I paste by hand into the Meesho Supplier Panel. This is
+  DIFFERENT text from the Flipkart fields and from image-meta.title — Meesho and Flipkart
+  rank on different things, so do not copy one into the other. See its own section below.
 - "image-meta.not_visible" = any inventory item you cannot find in ANY photo. Leave empty
   if all are present. This flags a mismatch for me — do not fix it, just report it.
   Work through the INVENTORY one line at a time and search every photo for that line
@@ -260,6 +268,78 @@ Size of the product (numbers only, in inches)
   the piece count for image 2.
 - Natural shopper language. No keyword stuffing, no slogans, no invented items.
 
+=== image-meta.meesho — THE COPY I PASTE INTO THE MEESHO SUPPLIER PANEL ===
+
+Act as an experienced Meesho catalogue seller. Meesho does NOT read image metadata, so
+unlike Flipkart, everything Meesho knows about this product comes from the product name
+and the description text. Search ranking and click-through both hang on this section.
+
+Write for the Meesho buyer specifically: price-conscious, on a phone, scrolling a grid of
+near-identical thumbnails, deciding in about a second. That is a different reader from the
+Flipkart shopper, which is why this text is NOT a copy of the Flipkart fields.
+
+"meesho.title"
+  TARGET 70-95 characters. Treat 120 as the ceiling.
+  Structure, in this order:
+     <product type>  <main colours>  <occasion>  <differentiator>  (Set of N Pcs)
+  Example:
+     "Annaprashan Decoration Kit Red Golden Balloons Banner Cutouts LED Light (Set of 69 Pcs)"
+  Rules:
+  - IT MUST END WITH THE PIECE COUNT IN BRACKETS: "(Set of 69 Pcs)", or "(Pack of 69 Pcs)".
+    Always in brackets, always at the very end, always a numeral, and the number must be the
+    INVENTORY total — the same figure the image "2" description opens with. This is a
+    convention Indian marketplace buyers scan for, and it is a direct instruction from the
+    seller. It is not optional and it does not move somewhere else in the title.
+  - THE FIRST 40 CHARACTERS MUST WORK ALONE. Meesho cuts the name off under the thumbnail
+    on a phone, so the exact search phrase goes first. Everything after character 40 is a
+    bonus, not the hook. Do NOT repeat the piece count up front — it already has its
+    reserved place in the brackets at the end, and repeating it wastes characters.
+  - Open with the exact words a buyer types. "Annaprashan Decoration Kit", never
+    "Premium Celebration Ensemble". Match the query, don't be clever.
+  - No brand name — nobody searches "WishWorks", so it is wasted characters.
+  - No ALL CAPS. No emoji. No symbols like * | # % @. No "best", "cheapest", "premium
+    quality", "100% original", "free delivery", "lowest price". No price. These read as
+    spam and are a common reason catalogues get rejected.
+  - Do not repeat a keyword to game the search. It costs characters you need and Meesho
+    ranks readable titles.
+  - Every single word must be one a buyer would either search for or want to read.
+
+"meesho.description"
+  TARGET 600-900 characters. NEVER one solid paragraph — use short lines.
+  Only the first line or two are visible before the buyer taps "read more", so the whole
+  offer has to land there.
+  Use this shape exactly:
+     Line 1   One sentence naming the product, the piece count and the occasion. It must
+              sell on its own, with nothing below it.
+     (blank)
+     "What you get:" then ONE SHORT LINE PER ITEM GROUP, each with its count, taken from
+              the INVENTORY. Every inventory line must appear here.
+     (blank)
+     "Perfect for:" then 3-5 occasions this genuinely suits. More query surface, and it
+              helps the buyer picture using it.
+     (blank)
+     One or two plain lines on setup, material or reusability — only if true.
+  Rules:
+  - The main search phrase should appear 2-3 times across the whole description, only
+    where it reads naturally. More than that is stuffing, and it reads as spam.
+  - Facts only, every one from the INVENTORY. No guarantees, no delivery or return
+    promises, no MRP, discount or price talk, and never a phone number, email, website
+    or social handle. Any of those can get the catalogue rejected outright.
+  - Commas are fine here. Emoji are not.
+  - State the material and rough size if the INVENTORY gives them.
+
+"meesho.pack_contents"
+  ONE single clean line listing everything in the pack with counts, for the panel's
+  "what is in the packet" field.
+  - Format: "40 Metallic Balloons - 16 Printed Cutouts - 8 Heart Foil Balloons - 1 Banner"
+  - Separate items with " - " (space hyphen space). NO COMMAS.
+  - Taken from the INVENTORY and nothing else.
+  - COLLAPSE ALL WHITESPACE. My inventory is pasted straight out of Excel and arrives full
+    of stray spaces, tabs, line breaks, double spaces and trailing blanks. Output exactly
+    ONE space between words, no leading or trailing space, and NO line break anywhere in
+    this value. It has to be a single clean line I can copy directly into the panel.
+  - The counts here must add up to the same total you used in the image "2" description.
+
 === LEAVE THESE OUT OF products.values ALWAYS ===
 This Flipkart category is shared with hand fans, party blowouts, crackers and
 battery-powered toys. These fields exist on the form but do NOT apply to balloons and
@@ -289,6 +369,19 @@ stock and shipping settings are already configured. Do not include them.
 - Is every entry in "Character" wording that is genuinely printed on an item?
 - Does "Balloon Type" cover every kind of balloon in the pack?
 - Is Model Name free of the word WishWorks, and does image-meta.title match it?
+- Does the Meesho title END with the piece count in brackets — "(Set of 69 Pcs)" — using
+  the INVENTORY total, and is that number the same one the image "2" description opens with?
+- Is the Meesho title 70-95 characters, and do its FIRST 40 carry the search phrase alone?
+- Is the Meesho title free of the brand name, ALL CAPS, emoji, symbols and every
+  promotional word ("best", "premium quality", "free delivery", any price)?
+- Is the Meesho description laid out in short lines with "What you get:" and
+  "Perfect for:", rather than one paragraph?
+- Does the Meesho description contain no phone number, email, website, social handle,
+  guarantee, delivery promise or price?
+- Is meesho.pack_contents ONE line, separated by " - ", with no commas, no line breaks
+  and no double spaces anywhere?
+- Do the counts in meesho.pack_contents add up to the same total as the image "2"
+  description?
 - Is it valid JSON, with every quote and bracket closed?
 ````
 
@@ -301,7 +394,19 @@ Give it a quick read — you know the product better than it does. Two checks:
 - **Colours** against the photos — the one thing the AI still reads from the images.
 
 Then split the reply into its two files: `products/<ID>.json` (the `products` half) and
-`image-meta/<ID>.json` (the `image-meta` half).
+`image-meta/<ID>.json` (the `image-meta` half, `meesho` block included).
+
+**For the Meesho listing**, open `image-meta/<ID>.json` and copy the three values out of its
+`meesho` block into the Supplier Panel by hand — `title`, `description`, `pack_contents`.
+Nothing automates this yet; Meesho has no public API.
+
+> **Check the character limits once, in the panel.** The 70-95 / 120 title target above comes
+> from third-party seller-service blogs, **not** from Meesho's own documentation — we could not
+> find an official figure, and no source at all states a description limit. The Supplier Panel
+> field itself is the real authority: paste a title in once, watch its counter or its rejection,
+> and if it disagrees with this guide, **the panel wins** — tell Claude the real number and
+> correct this file. The targets here are deliberately conservative so they are safe under every
+> figure we found.
 
 ---
 

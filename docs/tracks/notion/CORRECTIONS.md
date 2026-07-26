@@ -946,6 +946,92 @@ work on any Node project on this machine.
 
 ---
 
+## C-034 — Meesho's character limits are not verified, and I said so instead of guessing
+
+**Type.** Fact · flagged 2026-07-26 while writing the Meesho half of the prompt (WW-062).
+
+The prompt needed limits for the Meesho title and description. Searched for them and found:
+*"Keep titles between 50–120 characters"* and *"Meesho recommends concise titles under 100
+characters"* — but **every one of those numbers comes from third-party seller-service blogs**
+(loharstudio, wareiq, jeecart, ecomgrowsupport), not from Meesho's own supplier documentation.
+The two figures do not even agree with each other. For the **description** field, no source
+gave a limit at all; the closest was *"avoid long descriptions to avoid rejection"*.
+
+**What was done instead of asserting a number.** Targets were set conservatively enough to be
+safe under every figure found (title 70-95 with 120 as a ceiling; description 600-900), the
+uncertainty is stated inline in `START-HERE.md`, and the guide names the Supplier Panel's own
+field counter as the authority that overrides the doc.
+
+**Why this is logged as a correction and not just a note.** C-007 and C-008 are both cases of
+quoting a search summary as fact. This is the same shape of situation and the same temptation —
+a confident-sounding number from a blog that reads like documentation. The pattern list below
+says every factual claim needs its source type stated inline, so it is stated: *SEO blogs,
+not Meesho.*
+
+**Open action for Vansh.** One minute of work, and it closes this permanently: paste a title
+into the Supplier Panel, look at what the field's counter or its rejection actually says, and
+tell Claude the real numbers so `START-HERE.md` can be corrected. Also worth confirming the
+partner's underlying claim — that Meesho ranks on title/description text and ignores image
+metadata — since the whole `meesho` block is built on it.
+
+---
+
+## C-035 — A "32 KB max image" instruction that the arithmetic says cannot be followed
+
+**Type.** Fact/spec · found 2026-07-26, before implementing.
+
+The seller passed on three image rules from his partner: images must be 1:1 (already true), must
+carry a 20×20 px border, and must be **no larger than 32 KB** — the last two claimed to lower
+Meesho's shipping fee.
+
+The 32 KB rule was measured before being built. On a real product photo at our 1500×1500 output:
+**JPEG quality 1 — the absolute floor, visibly destroyed — still produces 38 KB.** There is no
+quality setting at 1500×1500 that reaches 32 KB. Getting there requires dropping to roughly
+**300×300**, which would look bad on a phone and works against the click-through the same advice
+exists to improve.
+
+**What was done.** Not implemented. The measurements were written into `SHIPPING-COST.md`, and the
+likely explanations named: the number is misremembered, it refers to a thumbnail rather than the
+uploaded file, or the partner is already working at a much lower resolution. The question goes back
+to Vansh rather than a 32 KB cap silently degrading every image.
+
+**Why this is worth logging.** The instruction was specific, numeric, and came from someone with
+real selling experience — exactly the kind that gets implemented on authority. Two minutes of
+measurement showed it could not be satisfied as stated. **A number being confidently given is not
+evidence it is achievable; check it against the arithmetic before building to it.**
+
+**The neighbouring good outcome.** The other two claims were handled differently *because the
+evidence differed*: the bracketed piece count went straight in (costless, and the seller sees the
+buyers), and the 20 px border was built as an opt-in flag with tests, since it is an axis the
+fourteen shipping tests genuinely never varied. Also checked rather than assumed: the metadata
+probe's five files differ by only **0.3%**, so that test does *not* retire the file-size question
+the way it might appear to. Three claims, three different responses, each matched to what could
+actually be shown.
+
+**Confirmed by looking (same day).** Rendered both routes to 32 KB and inspected them at 1:1.
+1500px at quality 1 is block-artefacted with the banner text barely legible; 300×300 blown up is an
+unreadable blur. Neither is shippable, and both fail on printed text — the thing a buyer zooms in to
+read. Searching also found **no source anywhere** stating a 32 KB rule; the published figures are
+min 400×400, recommended 1000×1000, **max 5 MB**. The nearest claim ("save ₹30-50/order via image
+choices") is an advert for an image-optimisation service, cites nothing, and its stated mechanism —
+perceived size drives the weight slab — was already disproved by our own test 2. Most likely the
+partner is reading the size of the ~150-200px thumbnail **Meesho generates**, not the file he
+uploads.
+
+**A real finding fell out of it.** q20 at **132 KB is visually indistinguishable from our q90 at
+630 KB** — five times smaller for nothing. Unrelated to shipping, but worth acting on. Caveat
+recorded: the sample is flat graphic artwork, which compresses unusually well, so re-test on a
+photographic image before changing the default.
+
+**Second-order lesson, from a bug in the throwaway script that produced those samples.** The first
+run wrote files via `sharp(buf).toFile(...)`, which **re-encodes** the buffer at sharp's default
+quality — so `q01-36KB.jpg` was actually a 78 KB re-encode, and every file was mislabelled. Caught
+by comparing the names against `stat` output before showing anything. *Throwaway scripts written to
+produce evidence need the same scepticism as shipped code — a mislabelled sample is worse than no
+sample, because it gets believed.*
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:

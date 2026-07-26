@@ -22,6 +22,10 @@
  *   Typical real run — crop image 1 (goes to the AI anyway), paint the tag out on the rest:
  *       npm run images -- --crop-bottom=25 --crop-images=1 --erase-tag=150,30 --erase-images=2,3,4
  *       npm run images -- --final              stage 2 (clean → final, writes metadata)
+ *       npm run images -- --final --border=20  stage 2, inset in a 20px white frame
+ *
+ * --border is EXPERIMENTAL and off by default: the seller believes a ~20px frame lowers
+ * Meesho's shipping estimate, which is untested. See docs/guides/SHIPPING-COST.md.
  */
 
 import { readdir, mkdir, writeFile } from "node:fs/promises";
@@ -30,7 +34,7 @@ import sharp from "sharp";
 import { buildExif, composeDescription, descriptionsFor, duplicatePositions, meeshoResidue, type Descriptions } from "./image-meta.js";
 import { encodeJpeg } from "./encode.js";
 import { IMAGES_DIR } from "./paths.js";
-import { squareImage } from "./square.js";
+import { addBorder, squareImage } from "./square.js";
 
 // Image descriptions (image-meta/, products/) are read via ./image-meta.ts, which owns those
 // paths. A Meesho-only product needs an image-meta file and nothing else.
@@ -67,6 +71,7 @@ async function processOne(
   erasePositions: Set<number> | null,
   descs: Descriptions,
   isFinal: boolean,
+  border: number,
 ): Promise<Row> {
   const srcDir = isFinal ? CLEAN : RAW;
   const outDir = isFinal ? FINAL : CLEAN;
@@ -145,9 +150,15 @@ async function processOne(
     notes.push(`SOURCE ONLY ${shortSide}px — will look soft, re-download a larger original`);
   }
 
-  // 4. Resize, force sRGB, encode.
+  // 4. Resize, force sRGB, encode. With --border the picture is inset inside a white frame
+  //    instead, so the output is still exactly TARGET x TARGET (see square.ts / SHIPPING-COST.md).
+  if (border > 0) {
+    img = await addBorder(img, TARGET, border);
+    notes.push(`inset inside a ${border}px white border (outer size still ${TARGET}x${TARGET})`);
+  } else {
+    img = img.resize(TARGET, TARGET, { fit: "fill" });
+  }
   img = img
-    .resize(TARGET, TARGET, { fit: "fill" })
     .toColourspace("srgb")
     .flatten({ background: { r: 255, g: 255, b: 255 } });
 
@@ -236,6 +247,18 @@ async function main() {
     console.log(`\n  Erasing a ${eraseTag[0]}x${eraseTag[1]}px tag at bottom-left of ${which}.`);
   }
 
+  // Opt-in white frame. The seller's claim is that it lowers Meesho's shipping estimate;
+  // that is untested, so it is a flag rather than the default. See docs/guides/SHIPPING-COST.md.
+  const borderArg = process.argv.find((a) => a.startsWith("--border="));
+  const border = borderArg ? parseInt(borderArg.split("=")[1], 10) : 0;
+  if (borderArg && (!Number.isFinite(border) || border < 1 || border * 2 >= TARGET)) {
+    console.error(`✖ --border needs a pixel width between 1 and ${TARGET / 2 - 1}, got "${borderArg}"`);
+    process.exit(1);
+  }
+  if (border > 0) {
+    console.log(`\n  Insetting every image inside a ${border}px white border (output stays ${TARGET}x${TARGET}).`);
+  }
+
   const isFinal = process.argv.includes("--final");
   const srcDir = isFinal ? CLEAN : RAW;
   const srcName = isFinal ? "2-clean" : "1-raw";
@@ -315,7 +338,7 @@ async function main() {
 
     for (let i = 0; i < files.length; i++) {
       try {
-        rows.push(await processOne(product, files[i], i + 1, cropBottom, cropPositions, eraseTag, erasePositions, descs, isFinal));
+        rows.push(await processOne(product, files[i], i + 1, cropBottom, cropPositions, eraseTag, erasePositions, descs, isFinal, border));
       } catch (err) {
         failures.push(`${product}/${files[i]}: ${(err as Error).message}`);
       }

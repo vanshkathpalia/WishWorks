@@ -71,3 +71,28 @@ export async function squareImage(
   });
   return { img: sharp(await cropped.toBuffer(), { failOn: "none" }), method: "centre-cropped" };
 }
+
+/**
+ * Inset the image inside a plain white frame of `px` on every side, keeping the OUTER
+ * dimensions at `side`x`side`. The picture is scaled down to fit, so nothing is cropped.
+ *
+ * Why this exists: the seller's observation is that a ~20px border on the main image lowers
+ * Meesho's shipping estimate. That is UNPROVEN — see docs/guides/SHIPPING-COST.md — so this
+ * is opt-in (`--border=20`) and off by default. It is here so the claim can actually be
+ * tested, and the estimator is deterministic enough that a clean test will settle it.
+ *
+ * Rendered to a buffer and re-opened for the same reason squareImage does it: sharp runs
+ * resize before extend internally, so a queued pad would otherwise land in the wrong order.
+ */
+export async function addBorder(img: Sharp, side: number, px: number): Promise<Sharp> {
+  const inner = side - px * 2;
+  if (inner < 1) throw new Error(`--border=${px} leaves no room inside a ${side}px image`);
+  const framed = img.resize(inner, inner, { fit: "fill" }).extend({
+    top: px,
+    bottom: px,
+    left: px,
+    right: px,
+    background: { r: 255, g: 255, b: 255, alpha: 1 },
+  });
+  return sharp(await framed.toBuffer(), { failOn: "none" });
+}

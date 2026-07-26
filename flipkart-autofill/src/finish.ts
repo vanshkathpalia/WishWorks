@@ -26,8 +26,12 @@
  *       npm run finish -- --in="/path/to/ANP"                every listing under a category
  *       npm run finish -- --in="/path/to/Whatsapp DW"        every listing under every category
  *       npm run finish -- --in="…" --square                  also pad/crop each to 1:1
+ *       npm run finish -- --in="…" --square --border=20      inset in a 20px white frame
  *       npm run finish -- --in="…" --out="~/somewhere"       different flat output folder
  *       npm run finish -- --in="…" --id=ANP-1                force the ID (single folder only)
+ *
+ * --border is EXPERIMENTAL and off by default: the seller believes a ~20px frame lowers
+ * Meesho's shipping estimate, which is untested. See docs/guides/SHIPPING-COST.md.
  */
 
 import { readdir, mkdir, writeFile, stat } from "node:fs/promises";
@@ -39,7 +43,7 @@ import {
   availableMetaIds, NO_DESCRIPTIONS, type Descriptions,
 } from "./image-meta.js";
 import { encodeJpeg } from "./encode.js";
-import { squareImage } from "./square.js";
+import { addBorder, squareImage } from "./square.js";
 
 /** Ask a question on the terminal and return the typed answer. Mirrors connect.ts's `ask`,
  *  kept local so this image tool never imports the browser module. */
@@ -133,6 +137,7 @@ async function finishOne(
   outDir: string,
   descs: Descriptions,
   square: boolean,
+  border: number,
 ): Promise<Row> {
   const src = path.join(srcDir, file);
   const outName = `${id}.${index}.jpg`;
@@ -170,8 +175,22 @@ async function finishOne(
     }
   }
 
-  // Beyond the optional square above, pixels are left as they are — no resize. flatten() only
-  // matters for a transparent PNG, which JPEG can't hold; it fills that transparency with white.
+  // --border: inset the picture inside a white frame, keeping the outer size unchanged. Opt-in,
+  // and unproven — see square.ts and docs/guides/SHIPPING-COST.md. Needs a square to inset into,
+  // so it implies --square; on a non-square image we'd otherwise silently distort it.
+  if (border > 0) {
+    const side = Math.min(w, h);
+    if (w !== h && !square) {
+      notes.push(`SKIPPED --border: ${w}x${h} is not square. Re-run with --square as well`);
+    } else {
+      img = await addBorder(img, side, border);
+      outSize = `${side}x${side} (inset in a ${border}px white border)`;
+      notes.push(`inset inside a ${border}px white border`);
+    }
+  }
+
+  // Beyond the optional square/border above, pixels are left as they are — no resize. flatten()
+  // only matters for a transparent PNG, which JPEG can't hold; it fills transparency with white.
   let pipe = img.flatten({ background: { r: 255, g: 255, b: 255 } });
 
   const own = descs.perImage[String(index)] ?? null;
@@ -203,6 +222,7 @@ async function finishListing(
   outDir: string,
   descs: Descriptions,
   square: boolean,
+  border: number,
   rows: Row[],
   failures: string[],
 ): Promise<void> {
@@ -225,7 +245,7 @@ async function finishListing(
   }
   for (let i = 0; i < files.length; i++) {
     try {
-      rows.push(await finishOne(id, srcDir, files[i], i + 1, outDir, descs, square));
+      rows.push(await finishOne(id, srcDir, files[i], i + 1, outDir, descs, square, border));
     } catch (err) {
       failures.push(`${id}/${files[i]}: ${(err as Error).message}`);
     }
@@ -243,6 +263,7 @@ async function finishTree(
   dir: string,
   outDir: string,
   square: boolean,
+  border: number,
   rows: Row[],
   failures: string[],
 ): Promise<number> {
@@ -256,9 +277,9 @@ async function finishTree(
     if ((await numberedImages(subPath)).length > 0) {
       listings++;
       const id = cleanId(sub);
-      await finishListing(id, subPath, outDir, await descriptionsFor(id), square, rows, failures);
+      await finishListing(id, subPath, outDir, await descriptionsFor(id), square, border, rows, failures);
     } else {
-      listings += await finishTree(subPath, outDir, square, rows, failures);
+      listings += await finishTree(subPath, outDir, square, border, rows, failures);
     }
   }
   return listings;
@@ -281,6 +302,15 @@ async function main() {
   const forcedId = idArg ? idArg.slice("--id=".length) : null;
 
   const square = process.argv.includes("--square");
+
+  // Opt-in white frame around the picture. The seller's claim is that it lowers Meesho's
+  // shipping estimate; that is untested, so it stays a flag. See docs/guides/SHIPPING-COST.md.
+  const borderArg = process.argv.find((a) => a.startsWith("--border="));
+  const border = borderArg ? parseInt(borderArg.slice("--border=".length), 10) : 0;
+  if (borderArg && (!Number.isFinite(border) || border < 1)) {
+    console.error(`\n\u2716 --border needs a positive pixel width, e.g. --border=20\n`);
+    process.exit(1);
+  }
 
   if (!(await stat(inDir).then((s) => s.isDirectory()).catch(() => false))) {
     console.error(`\n✖ Not a folder: ${inDir}\n`);
@@ -313,7 +343,7 @@ async function main() {
       descs = await descriptionsFor(id);
     }
     console.log(`\n  Finishing one listing: ${folderName} → ${id}`);
-    await finishListing(id, inDir, outDir, descs, square, rows, failures);
+    await finishListing(id, inDir, outDir, descs, square, border, rows, failures);
   } else {
     if (forcedId) {
       console.error(`\n✖ --id only works on a single listing folder, but ${inDir}`);
@@ -324,7 +354,7 @@ async function main() {
     // through any category levels, auto-cleaning each listing's ID and using its matching
     // image-meta/<ID>.json if present. To pick a descriptions file, run --in on one listing.
     console.log(`\n  Finishing every listing found under ${path.basename(inDir)}:`);
-    const found = await finishTree(inDir, outDir, square, rows, failures);
+    const found = await finishTree(inDir, outDir, square, border, rows, failures);
     if (found === 0) {
       console.error(`\n✖ No listing folders with numbered images found under ${inDir}\n`);
       process.exit(1);

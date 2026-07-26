@@ -7,6 +7,12 @@
 
 # Meesho shipping fee — tested, closed, don't re-run
 
+> **Update 2026-07-26:** two NEW claims from the seller — a 32 KB file-size cap and a 20 px
+> border — are **not covered** by the tests below and are handled in
+> [their own section](#two-new-claims-from-the-seller-2026-07-26--genuinely-untested-axes).
+> The border is now testable via `--border=20`. The 32 KB figure looks impossible as stated and
+> needs a question answered first. Everything below still stands.
+
 > **Conclusion: there is no usable lever here. Stop.**
 > The main image *does* set the fee — real, proven, and **deterministic** (five byte-identical
 > uploads returned the identical fee). But **fourteen live tests** found no rule that predicts
@@ -118,6 +124,112 @@ would point at a physical-size estimate. M4 moving would mean the description te
 > a false claim loses money rather than saving it, on top of being a lie to the platform.
 
 </details>
+
+## Two NEW claims from the seller (2026-07-26) — genuinely untested axes
+
+These came from Vansh's partner, from real selling experience. **They are not a re-run of the
+fourteen tests above** — both are axes those tests never varied on purpose, so "closed, don't
+re-run" does not apply to them. But neither is proven either, so nothing here is on by default.
+
+### Claim 1 — "keep every image under 32 KB" ⚠️ appears impossible as stated
+
+**Never tested.** File size was never a controlled variable. It is tempting to think the metadata
+probe settled it — five files, one fee — but those five differ by **1,078 bytes, 0.3%**
+(376,975 → 378,053). That is far too small a spread to say anything about a 32 KB target.
+
+**But the number does not survive contact with the maths.** Measured on `photo/1.png` at our
+1500×1500 output:
+
+| JPEG quality at 1500×1500 | File size |
+|---|---|
+| 90 *(our stage-1 default)* | 413 KB |
+| 50 | 177 KB |
+| 20 | 108 KB |
+| 10 | 72 KB |
+| **1** *(the floor)* | **38 KB** |
+
+**Even quality 1 — unusable, visibly destroyed — is still 38 KB, above the 32 KB target.** 32 KB is
+not reachable at 1500×1500 at any quality setting. The only way to reach it is to shrink the
+picture:
+
+| Resolution at quality 80 | File size |
+|---|---|
+| 1000×1000 | 165 KB |
+| 600×600 | 76 KB |
+| 400×400 | 41 KB |
+| **300×300** | **26 KB** ← the first one that fits |
+
+300×300 is far below what a listing image should be, and it would look poor on a phone — which
+works directly against the CTR the same advice is meant to improve.
+
+**So: ask before acting.** Most likely one of these — the figure is remembered wrong; it refers to
+a thumbnail rather than the uploaded image; or the partner is uploading at a much lower resolution
+than 1500×1500 already. Get the real number and the resolution it applies to before changing
+anything. **Do not cap our output at 32 KB on this evidence.**
+
+#### What it actually looks like (2026-07-26, eyes on the pixels)
+
+Rendered from a real listing image and compared at 1:1 — sheet at
+`~/Downloads/wishworks-quality-test/COMPARE-same-detail-1to1.jpg`:
+
+| Variant | Size | Verdict |
+|---|---|---|
+| 1500px q90 *(our default)* | 630 KB | crisp, every printed word sharp |
+| 1500px q20 | 132 KB | **all but indistinguishable from q90** |
+| 1500px q10 | 80 KB | softer, fine detail muddy, still readable |
+| 1500px q1 | 36 KB | **destroyed** — block artefacts, banding, banner text barely legible |
+| 300px q80, shown full size | 29 KB | **unusable** — "Happy Annaprashan Ceremony" is an unreadable blur |
+
+**Neither route to 32 KB is shippable.** Both candidates fail on the same thing: the printed text
+on banners and cutouts, which is exactly what a buyer zooms in to read.
+
+**The genuinely useful finding is elsewhere.** q20 at **132 KB looks the same as q90 at 630 KB** —
+a 79% size cut for no visible loss. Nothing to do with shipping; it just means our default is
+five times larger than it needs to be. Worth considering as a new default, but **test it on a
+photographic image first**: this sample is flat graphic artwork with large areas of solid colour,
+which compresses unusually well. A textured photo will not behave the same way.
+
+#### Where the 32 KB figure probably came from
+
+Searched for it. **No source states it** — not Meesho's own material, not the seller-service blogs.
+What they do say ([meeship.in](https://www.meeship.in/blog/meesho-product-image-size-guidelines-2026),
+[loharstudio](https://www.loharstudio.com/blog/meesho-listing-guidelines-image-size-rules-rejection-reasons),
+[stitchmagic](https://stitchmagic.in/marketplace/meesho-image-guide)) is: minimum 400×400 to 500×500,
+recommended 1000×1000, **maximum 5 MB**, JPEG/PNG, 1:1, white background — no minimum-size rule at all.
+
+One of them does claim image choices save ₹30-50 per order, which is close to the partner's claim.
+Its stated mechanism is that the image changes the *perceived* product size, which changes packing
+and therefore the weight slab. **It cites no evidence and is an advert for that company's own image
+service** — and our own test 2 already disproved the weight half of it (Net Weight `10000 g` on a
+₹54 listing left it at ₹54).
+
+**The likeliest explanation:** those same sources note the main image renders at only about
+**150-200 px wide** on a phone. A thumbnail that size genuinely lands near 32 KB. So the partner is
+probably reading the size of the thumbnail **Meesho generates**, not of the file he uploads —
+in which case it is Meesho's output, not our input, and there is nothing for us to change.
+
+### Claim 2 — "put a 20×20 px border on every image, especially the main one"
+
+**Never tested directly, and cheap to test.** Implemented as an opt-in flag, off by default:
+
+```bash
+npm run images  -- --final --border=20
+npm run finish  -- --in="…" --square --border=20
+```
+
+It insets the picture inside a white frame and **keeps the outer size at 1500×1500**, so the 1:1
+requirement still holds and nothing is cropped. Five tests cover it.
+
+**One caution from the data above.** The nearest thing already tried points the wrong way: **V5**
+was "tiny in frame (~30%), pure white" and came back at **₹69 — more expensive than V1's ₹63**, and
+**V8**, "floating on pure white with no room", was the ₹256 disaster. Making the product smaller
+within the frame has already failed once. A 20 px frame on a 1500 px image is only a 1.3% margin,
+nothing like V5's 30%, so it is not the same test — but do not assume the direction is favourable.
+
+**Why testing this is actually worth it now:** the metadata probe proved the estimator is
+**deterministic and noise-free** (five byte-identical uploads, five identical fees). So a two-image
+A/B — same photo, one with `--border=20`, one without — gives a trustworthy answer in one sitting.
+No averaging, no repeats. **Read the fee before submitting either way.**
 
 ## Declared weight — still set it truthfully
 
