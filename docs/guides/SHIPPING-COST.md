@@ -7,11 +7,12 @@
 
 # Meesho shipping fee — tested, closed, don't re-run
 
-> **Update 2026-07-26:** two NEW claims from the seller — a 32 KB file-size cap and a 20 px
-> border — are **not covered** by the tests below and are handled in
+> **Update 2026-07-26:** two new claims from the seller were raised and one is already settled.
+> **File size: tested live, the fee did not move by one rupee — dead, same as metadata.** The
+> **20 px border** is still untested; it is available as `--border=20` if anyone wants to try it,
+> but after fifteen dead tests the expected value is low. Details in
 > [their own section](#two-new-claims-from-the-seller-2026-07-26--genuinely-untested-axes).
-> The border is now testable via `--border=20`. The 32 KB figure looks impossible as stated and
-> needs a question answered first. Everything below still stands.
+> Everything below still stands.
 
 > **Conclusion: there is no usable lever here. Stop.**
 > The main image *does* set the fee — real, proven, and **deterministic** (five byte-identical
@@ -131,7 +132,19 @@ These came from Vansh's partner, from real selling experience. **They are not a 
 fourteen tests above** — both are axes those tests never varied on purpose, so "closed, don't
 re-run" does not apply to them. But neither is proven either, so nothing here is on by default.
 
-### Claim 1 — "keep every image under 32 KB" ⚠️ appears impossible as stated
+### Claim 1 — "keep every image under 32 KB" ✅ TESTED LIVE, DEAD. Do not revisit.
+
+> **Result (Vansh, 2026-07-26): uploaded the same image at a range of file sizes. The fee did not
+> move by a single rupee.** File size is not an input to the shipping estimate. Closed, exactly
+> like metadata.
+>
+> This is the definitive answer and it came from a live test, not from reasoning. Everything below
+> was the desk analysis done *before* that test; it is kept only because it records why a 32 KB
+> target was never achievable anyway, so nobody re-proposes it from the same blog posts.
+
+<details>
+<summary>The desk analysis that preceded the live test (kept for the numbers, not the conclusion)</summary>
+
 
 **Never tested.** File size was never a controlled variable. It is tempting to think the metadata
 probe settled it — five files, one fee — but those five differ by **1,078 bytes, 0.3%**
@@ -207,6 +220,15 @@ service** — and our own test 2 already disproved the weight half of it (Net We
 **150-200 px wide** on a phone. A thumbnail that size genuinely lands near 32 KB. So the partner is
 probably reading the size of the thumbnail **Meesho generates**, not of the file he uploads —
 in which case it is Meesho's output, not our input, and there is nothing for us to change.
+
+</details>
+
+**Practical upshot for the pipeline: change nothing.** Quality stays at 90. The earlier note about
+q20 being visually identical to q90 was only ever about not shipping files five times larger than
+necessary — and with file size proven irrelevant to the fee, and 662 KB sitting far under Meesho's
+5 MB cap, there is no reason left to touch it. Comparison sheets are in
+`~/Downloads/wishworks-quality-test*/` if anyone ever wants them; they prove only that quality 1 and
+300×300 are both unshippable.
 
 ### Claim 2 — "put a 20×20 px border on every image, especially the main one"
 

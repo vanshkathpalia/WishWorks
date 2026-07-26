@@ -980,6 +980,15 @@ metadata — since the whole `meesho` block is built on it.
 
 **Type.** Fact/spec · found 2026-07-26, before implementing.
 
+> **RESOLVED same day, by Vansh, with a live test: he uploaded the same image at a range of file
+> sizes and the fee did not move by one rupee.** File size is not an input. Dead, like metadata.
+>
+> Worth noting *how* it was resolved. The desk analysis below was correct and useful — it stopped
+> a 32 KB cap being built, and it was right that the target was unreachable. But it could not
+> answer the actual question, which was *does file size move the fee*. One upload did. **When a
+> claim is cheap to test live against the real system, test it — do not out-argue it.** The same
+> lesson as [[verify-before-claiming]], and the reason `metaprobe` exists at all.
+
 The seller passed on three image rules from his partner: images must be 1:1 (already true), must
 carry a 20×20 px border, and must be **no larger than 32 KB** — the last two claimed to lower
 Meesho's shipping fee.
