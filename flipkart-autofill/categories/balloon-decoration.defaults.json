@@ -1,0 +1,41 @@
+{
+  "_comment": [
+    "Defaults for the 'Additional Description' tab (66 attributes).",
+    "Every key here is a REAL field name captured by `npm run scan balloon-decoration`.",
+    "These are the answers that are the same for most WishWorks balloon/party listings —",
+    "a product file only needs to state what differs.",
+    "Multi-value fields take arrays. Fields that don't apply to a given product are simply",
+    "left out (the hand-fan / blowout / cracker / battery attributes below are part of this",
+    "category but irrelevant to balloon kits, so they're deliberately absent).",
+    "DELIBERATELY BLANK (24 fields): Handle*, Hand Fan Type, Animal Type, Guardstick/Rib/Leaf",
+    "Material, Leaf Shape, Printed Text, Mouthpiece/Tube*, Burn Time, Visual Effects, Sound",
+    "Features, Cracker Type, Powered by, Power Requirement, Type/Number of Batteries, Other*.",
+    "This category is shared with hand fans, blowouts, crackers and battery toys — inventing",
+    "values there is how listings fail QC. Blank is the correct answer, not a gap.",
+    "NO COMMAS inside any array value: Flipkart splits multi-value fields on ','."
+  ],
+
+  "Foldable": "No",
+  "Carry Bag Included": "No",
+  "Birthday Ribbon": "No",
+
+  "Ideal For": ["Boys", "Girls", "Men", "Women"],
+  "Material": ["Latex", "Foil"],
+  "Theme": ["Birthday"],
+  "Occasion": ["Birthday", "Anniversary", "Baby Shower"],
+  "Purpose": ["Decoration"],
+  "Hand Crafted": "No",
+  "Gift Pack": "No",
+  "Precautions": [
+    "Keep away from fire and sharp objects",
+    "Not suitable for children under 3 years - choking hazard",
+    "Adult supervision required while inflating"
+  ],
+  "Safety Features": ["Non-toxic", "Made from safe material"],
+  "Domestic Warranty": "0",
+  "International Warranty": "0",
+  "Warranty Summary": "No warranty on decorative items",
+  "Warranty Service Type": "Not Applicable",
+  "Covered in Warranty": "Not Applicable",
+  "Not Covered in Warranty": "Damage due to misuse, over-inflation or normal wear"
+}

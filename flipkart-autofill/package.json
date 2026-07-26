@@ -1,0 +1,29 @@
+{
+  "name": "flipkart-autofill",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/start.ts",
+    "images": "tsx src/images.ts",
+    "finish": "tsx src/finish.ts",
+    "check": "tsx src/check.ts",
+    "login": "tsx src/login.ts",
+    "fill": "tsx src/fill.ts",
+    "scan": "tsx src/scan.ts",
+    "inspect": "tsx src/inspect.ts",
+    "verify": "tsx verify-engine.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "metaprobe": "tsx src/metaprobe.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.61.1",
+    "sharp": "^0.35.3",
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

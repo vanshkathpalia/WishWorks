@@ -1,0 +1,17 @@
+node_modules/
+
+# The tool's own Chrome profile — holds the live Flipkart seller session (cookies, Login
+# Data). Never commit this; anyone with the folder is logged in as us.
+profile/
+
+# Working images. The folders themselves are kept (via .gitkeep) so the pipeline has
+# somewhere to write on a fresh clone; their contents are yours, not the repo's.
+images/1-raw/*
+images/2-clean/*
+images/3-final/*
+!images/*/.gitkeep
+
+# Per-product image descriptions are business data, not code. The bundled EXAMPLE stays
+# so a new machine has something to copy.
+image-meta/*
+!image-meta/EXAMPLE-*.json

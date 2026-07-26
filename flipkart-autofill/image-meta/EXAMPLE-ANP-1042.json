@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Image descriptions for one product. Marketplace-agnostic — Meesho listings need ONLY this file.",
+    "The 66 Flipkart listing fields live separately in products/<ID>.json.",
+    "Name this file after the product ID: image-meta/ANP-1042.json",
+    "Fill it from the Step 0b prompt in docs/image-playbook.md, then run:",
+    "  npm run images -- --final"
+  ],
+  "title": "Annaprashan Decoration Kit 65 Pcs",
+  "keywords": [
+    "annaprashan decoration items",
+    "rice ceremony decoration",
+    "first food ceremony kit"
+  ],
+  "images": {
+    "1": "Annaprashan rice ceremony decoration kit set up as a wall backdrop in red and gold, with a Shubh Annaprashan banner, heart foil balloons and net curtains.",
+    "2": "All 65 pieces of the Annaprashan decoration kit laid out flat - banner, red and golden balloons, heart foils, fairy light, photo props and glue tape."
+  }
+}

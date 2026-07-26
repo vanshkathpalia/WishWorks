@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Secrets. Names live in .env.example and docs/key.md; values never get committed.
+.env
+.env.*
+!.env.example
+docs/key.md
+
+node_modules/
+
+# ---------------------------------------------------------------------------
+# This machine's global gitignore (~/.gitignore_global) excludes *.json wholesale.
+# That is a sensible default for stray service-account keys, but this project is
+# largely MADE of JSON — package.json, package-lock.json, tsconfig.json, the product
+# files and the category defaults. Left alone it produces a repo that clones and
+# cannot even be installed, and the failure is silent: `git status` simply never
+# mentions the missing files.
+#
+# A repo .gitignore outranks the global one, so re-including them here fixes it.
+# Genuinely private JSON is still excluded, by the rules just below and by
+# flipkart-autofill/.gitignore (which keeps image-meta/ out).
+# ---------------------------------------------------------------------------
+!*.json
+
+# Local editor/agent state — machine-specific, not shared.
+.claude/settings.local.json
+
+# Never commit credentials, whatever the extension.
+*.pem
+*.p12
+*.key
+**/service-account*.json
+**/*credentials*.json

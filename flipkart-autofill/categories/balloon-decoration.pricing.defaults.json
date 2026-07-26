@@ -1,0 +1,35 @@
+{
+  "_comment": [
+    "Defaults for the 'Price, Stock and Shipping Information' tab (0/21).",
+    "Values harvested from a working seller bot (Svarupam Trecon / Party Fox) — these are",
+    "field values that have actually passed Flipkart QC for party-supplies listings.",
+    "ACTION NEEDED before first use — the lines marked TODO are seller-specific:",
+    "  • Manufacturer Details / Packer Details must be WISHWORKS' own name + address.",
+    "  • HSN 95030020 is the toys/festive chapter — confirm with your CA for your SKUs.",
+    "  • Tax Code: his bot picked it by pressing UP 8 times (blind). Set the real value",
+    "    here once you read it off the form — 'GST_5' / 'GST_12' / 'GST_18' style.",
+    "  • Package dims/weight below are for a small balloon pack; override per product.",
+    "Anything here is overridden by the product file's own 'values'."
+  ],
+
+  "Listing Status": "Active",
+  "Minimum Order Quantity": "1",
+  "Fulfillment By": "Seller",
+  "Procurement Type": "Express",
+  "Procurement SLA": "2",
+  "Stock": "100",
+  "Shipping Provider": "Flipkart",
+
+  "Length (cm)": "10",
+  "Breadth (cm)": "8",
+  "Height (cm)": "10",
+  "Weight (kg)": "0.16",
+
+  "HSN": "95030020",
+  "Luxury Cess": "0",
+  "Tax Code": "GST_5",
+  "Country Of Origin": "India",
+
+  "Manufacturer Details": "WishWorks, Hisar",
+  "Packer Details": "WishWorks, Hisar"
+}
