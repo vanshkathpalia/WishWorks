@@ -7,8 +7,7 @@
 > One entry per mistake. Append-only, newest at the bottom. Never delete an entry — a
 > withdrawn claim is the most valuable kind of record here.
 >
-> Companion to [`TICKET_STATUS.md`](TICKET_STATUS.md) (what's done) and
-> [`NOTION_SYNC.md`](NOTION_SYNC.md) (what to paste into Notion).
+> Companion to [`TICKET_STATUS.md`](TICKET_STATUS.md) (what's done).
 
 ## How to read an entry
 
@@ -1038,6 +1037,61 @@ quality — so `q01-36KB.jpg` was actually a 78 KB re-encode, and every file was
 by comparing the names against `stat` output before showing anything. *Throwaway scripts written to
 produce evidence need the same scepticism as shipped code — a mislabelled sample is worse than no
 sample, because it gets believed.*
+
+## C-036 — Deleted the `--border` flag as a "closed experiment". It is the one axis never tested.
+
+**Category:** Process · **Caught by:** Vansh, mid-edit · **Date:** 2026-07-26
+
+Asked to reduce code before the GUI pivot, the assistant deleted the `--border=20` logic
+(`addBorder` in `square.ts`, the plumbing through `images.ts`/`finish.ts`, five tests) plus
+`docs/guides/SHIPPING-COST.md`, on the reasoning that `CLAUDE.md` marks the Meesho shipping-fee
+question **closed, don't re-run**. Vansh stopped it: *"Why are you just removing whole logic?
+That was a valuable thing, adding twenty pixel of border."*
+
+**He was right, and the repo said so in writing.** `SHIPPING-COST.md` §"Claim 2" states the
+20 px border is **"never tested directly, and cheap to test"**, and C-035 records that it *"was
+built as an opt-in flag with tests, since it is an axis the fourteen shipping tests genuinely
+never varied."* The closed verdict covers image **content** variants, **metadata**, and **file
+size** — three settled axes. The border was deliberately built as the survivor. Deleting it
+would have destroyed the only remaining cheap experiment, and the reason it was cheap: the
+metadata probe proved the estimator is deterministic, so a two-image A/B settles it in one
+sitting with no averaging.
+
+**What was done.** All of it restored from `HEAD` (nothing had been committed): `square.ts`,
+`images.ts`, `finish.ts`, the five `--border` tests, `SHIPPING-COST.md`. Also restored on the
+same principle: `src/inspect.ts` and `src/fill.ts`, deleted as "duplicate/debug entry points"
+but genuinely the tools for re-deriving selectors when Flipkart changes its form — a live risk,
+not a closed question. 61 tests green again, typecheck clean. Only `src/metaprobe.ts` and
+`photo/meta-test/` stayed deleted: metadata is *"closed permanently"* per learning note 4, and
+the probe's own `RESULTS.md` said to delete the folder once all five came back identical.
+
+**The lesson, and it generalises past this repo.** **"Closed" and "untested" are opposites, and
+a deletion pass reads them as the same thing** — both look like "no result recorded". A tracked
+experiment with no result yet is the *most* valuable code to keep, not the least; it is the only
+kind whose value is still unrealised. Before deleting anything justified as a dead experiment,
+find the sentence that says the question was *answered*, not merely the one that says the topic
+was dropped. Here that sentence existed for metadata and file size and did not exist for the
+border, and the difference was one grep away.
+
+**Then the identical mistake a second time, in the same session.** `NOTION_BOARD_SEED.md` (399
+lines) was deleted as dead Notion ceremony. Vansh: *"have not yet made the board at the notion. So
+I think this file was valuable."* It is a **spec for a deliverable that has not been built yet** —
+the same shape as the border, one level up: no result recorded because the work hasn't happened,
+not because it was abandoned. Restored, and rewritten to current state, because it *was* genuinely
+stale (frozen at 2026-07-21: "load C-001…C-011" against 36 entries, Done list ending at WW-024,
+four references to files deleted this session, no GUI pivot). **Staleness argues for updating a
+file, never for deleting it** — that conflation is what made the first deletion look reasonable.
+`docs/samples/METADATA-TEST-upload-this.jpg` was restored on the same rule: WW-037 is still open
+and that image is its artifact. Also spun out of this: the GUI pivot finally got real tickets
+(WW-066…WW-069), which the board seed needed and `TICKET_STATUS.md` had been missing.
+
+**Second-order.** The assistant also conflated *reduce complexity* (what was asked) with *remove
+features* (what it did). Deleting 6,881 lines of docs describing a Postgres/Fastify monorepo that
+was never built is the former. Deleting a working flag is the latter. `CLAUDE.md` now carries a
+"Reduce before adding" rule making the distinction explicit, and requiring a question before
+removing anything that still answers an open question — or specifies work not yet done.
+
+---
 
 ---
 

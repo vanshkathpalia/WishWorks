@@ -30,9 +30,9 @@ until listing is fast.
 ## 2. How we work (learned the hard way this session)
 
 - **Runnable tools over documents.** An architecture doc set was written first and Vansh
-  rejected it — *"very very bad architecture… this isn't helping me with anything."* The docs
-  still exist under `docs/architecture/` as background, but the working mode is: pick the next
-  hectic manual task, build the tool that kills it.
+  rejected it — *"very very bad architecture… this isn't helping me with anything."* Those docs
+  were deleted 2026-07-26; the working mode is: pick the next hectic manual task, build the
+  tool that kills it.
 - Speed over ceremony. No roles/tracks/Notion. Lean docs.
 - `docs/learning/<n>-slug.md` note for genuinely non-obvious decisions, file-top comment on
   each code file.
@@ -176,10 +176,9 @@ Verify against the real system before reporting something as working.
 4. **Ship one real listing end to end** through QC — the true done-check.
 5. `git init` + first commit (ask for approval on the message; no AI co-author line).
 
-**Later** (design already sketched in `docs/architecture/`, don't build ahead):
-auto-generating the product JSON copy with Claude + a keyword bank, image resize/compress to
-QC spec, the same scan/fill treatment for Meesho's panel, then the combo generator and
-dashboard.
+**Later** (don't build ahead — the GUI pivot in `CLAUDE.md` comes first): auto-generating the
+product JSON copy with Claude + a keyword bank, the same scan/fill treatment for Meesho's
+panel, then the combo generator.
 
 ---
 

@@ -31,7 +31,7 @@ npm run images -- --final            # AI output → upload-ready, descriptions 
 npm start                            # fill the Flipkart listing form
 ```
 
-`npm test` — 50 end-to-end tests over the image pipeline.
+`npm test` — 61 end-to-end tests over the image pipeline.
 
 ---
 
@@ -50,13 +50,14 @@ flipkart-autofill/         the working tools
 docs/
   guides/                  how to actually use it (non-technical)
   image-playbook.md        formats, AI prompts, SEO — with sources and confidence levels
-  architecture/            design docs
   learning/                one note per non-obvious decision
-  tracks/notion/           tickets, corrections ledger, Notion sync files
-  reference/               handover notes, planning docs, the portable system manual
+  tracks/notion/           tickets + corrections ledger (repo-local, never Notion)
+  reference/HANDOFF.md     handover notes
   samples/                 real marketplace files used for testing
-reference/legacy-bots/     the partner's original Python scripts (not used — see HANDOFF)
 ```
+
+Next up is the **GUI pivot** — an Electron app so a non-technical partner on Windows can run
+all of this without a terminal. Build order is in [CLAUDE.md](CLAUDE.md).
 
 ---
 

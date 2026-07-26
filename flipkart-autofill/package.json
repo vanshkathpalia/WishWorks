@@ -13,8 +13,7 @@
     "inspect": "tsx src/inspect.ts",
     "verify": "tsx verify-engine.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "metaprobe": "tsx src/metaprobe.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "playwright": "^1.61.1",

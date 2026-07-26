@@ -95,11 +95,10 @@ in image content. The mechanism is real and consistent; we simply can't model it
 Image *content* was tested to exhaustion. Image **metadata** never was — and unlike the content
 tests it has a perfect control: pixels held byte-identical, metadata the only variable.
 
-```bash
-npm run metaprobe -- --in=photo/1.png --weight=350 --size=30x24x4
-```
-
-Writes five files to `photo/meta-test/` plus a `RESULTS.md` log sheet:
+The probe tool (`src/metaprobe.ts`) and its output (`photo/meta-test/`) were **deleted
+2026-07-26** — the question is closed permanently, so the code was dead weight. Recover from
+git history (`git show 1ed2e4b:flipkart-autofill/src/metaprobe.ts`) if it is ever needed on a
+different account. It wrote five files plus a `RESULTS.md` log sheet:
 
 | File | What differs | Probes |
 |---|---|---|
