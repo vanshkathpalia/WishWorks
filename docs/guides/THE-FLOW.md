@@ -158,6 +158,25 @@ Full explanation and exact prompts: **"The main image"** and **"Prompt B"** in
    the old `2.jpg`.
 3. **Images 3, 4** — leave exactly as they are.
 
+> **Where do the generated images go?** Straight into **`images/2-clean/<ID>/`**, replacing what
+> stage 1 put there:
+>
+> ```
+> images/2-clean/ANP-1042/1.png   ← the AI's hero shot (delete 1.jpg)
+> images/2-clean/ANP-1042/2.png   ← the AI's "what's inside" (delete 2.jpg)
+> images/2-clean/ANP-1042/3.jpg   ← untouched from stage 1
+> images/2-clean/ANP-1042/4.jpg   ← untouched from stage 1
+> ```
+>
+> Not a new folder, not `1-raw/`, not `3-final/`. Stage 1 deliberately names its output with
+> plain numbers (`1.jpg`, not `ANP-1042-1.jpg`) **so the AI's files drop straight in** — the
+> product ID only gets stamped on at `--final`. And **the folder name is the product ID**: it
+> is how `--final` finds `image-meta/ANP-1042.json` to read the descriptions from. Rename the
+> folder and the descriptions silently stop being embedded.
+>
+> **Delete the file you replaced.** `1.png` and `1.jpg` both sitting there is position 1 twice;
+> the tool stops and names the position rather than guessing which you meant.
+
 > ⚠️ Keep the `.png` name — do **not** rename it to `1.jpg`. That's the same relabelling trap as
 > `.avif → .jpg`: it changes the label, not the bytes. `npm run finish` (or `images -- --final`)
 > converts it for you.
