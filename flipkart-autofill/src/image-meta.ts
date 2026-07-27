@@ -16,12 +16,12 @@ import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { Metadata } from "sharp";
-import { META_DIR, PRODUCTS_DIR } from "./paths.js";
+import { META_DIR, PRODUCTS_DIR, ROOT } from "./paths.js";
 
 export const BRAND = "WishWorks";
 
 /** An all-empty description set — used when the operator picks "no descriptions". */
-export const NO_DESCRIPTIONS: Descriptions = { perImage: {}, fallback: null, title: null, keywords: [] };
+export const NO_DESCRIPTIONS: Descriptions = { perImage: {}, fallback: null, title: null, keywords: [], source: null };
 
 /**
  * The description-file IDs available to pick from — every `image-meta/<ID>.json`, minus the
@@ -95,6 +95,13 @@ export type Descriptions = {
   title: string | null;
   /** Search Keywords — appended to every image's description. */
   keywords: string[];
+  /**
+   * Which file these came from, relative to the project root — e.g. "image-meta/ANP-1.json".
+   * `null` means no description file matched this product at all, which is different from a
+   * file that exists but says nothing: the first is almost always a folder named wrong, the
+   * second is a legitimate fallback. Callers that warn need to tell those two apart.
+   */
+  source: string | null;
 };
 
 /**
@@ -144,7 +151,7 @@ export function composeDescription(perImage: string | null, d: Descriptions): st
  * kept everything in one place still work.
  */
 export async function descriptionsFor(product: string): Promise<Descriptions> {
-  const empty: Descriptions = { perImage: {}, fallback: null, title: null, keywords: [] };
+  const empty: Descriptions = { perImage: {}, fallback: null, title: null, keywords: [], source: null };
 
   const candidates: Array<{ file: string; kind: "meta" | "product" }> = [
     { file: path.join(META_DIR, `${product}.json`), kind: "meta" },
@@ -177,7 +184,7 @@ export async function descriptionsFor(product: string): Promise<Descriptions> {
           if (typeof val === "string" && val.trim()) perImage[k] = val.trim().slice(0, 400);
         }
       }
-      return { perImage, fallback, title, keywords };
+      return { perImage, fallback, title, keywords, source: path.relative(ROOT, file) };
     } catch {
       return empty; // malformed file is not this tool's problem
     }

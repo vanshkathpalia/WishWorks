@@ -23,6 +23,12 @@
  *       npm run images -- --crop-bottom=25 --crop-images=1 --erase-tag=150,30 --erase-images=2,3,4
  *       npm run images -- --final              stage 2 (clean → final, writes metadata)
  *       npm run images -- --final --border=20  stage 2, inset in a 20px white frame
+ *       npm run images -- --final --force      stage 2 with NO metadata, when you have no
+ *                                              description file yet and just want the images
+ *
+ * Stage 2 prints which description file each folder resolves to and REFUSES to run if any
+ * folder has none — the folder name is the product ID, so a rename silently costs you the
+ * metadata on every image in it.
  *
  * --border is EXPERIMENTAL and off by default: the seller believes a ~20px frame lowers
  * Meesho's shipping estimate, which is untested. See docs/guides/SHIPPING-COST.md.
@@ -260,6 +266,8 @@ async function main() {
   }
 
   const isFinal = process.argv.includes("--final");
+  // Escape hatch for the description guard below — same shape as scan.ts's --force.
+  const force = process.argv.includes("--force");
   const srcDir = isFinal ? CLEAN : RAW;
   const srcName = isFinal ? "2-clean" : "1-raw";
   const outName = isFinal ? "3-final" : "2-clean";
@@ -299,6 +307,40 @@ async function main() {
     return;
   }
 
+  // Descriptions are the whole point of --final, and they are found by FOLDER NAME:
+  // images/2-clean/ANP-1042/ -> image-meta/ANP-1042.json. Get them for every product BEFORE
+  // writing anything, so a missing or mismatched file stops the run instead of quietly
+  // producing correct-looking images with nothing embedded. That failure used to be one line
+  // in a results table, which is not where anyone looks.
+  const descsBy = new Map<string, Descriptions>();
+  for (const p of products) descsBy.set(p, await descriptionsFor(p));
+
+  if (isFinal) {
+    console.log(`\n  Folder -> description file (the folder name IS the product ID):`);
+    for (const p of products) {
+      const d = descsBy.get(p)!;
+      const n = Object.keys(d.perImage).length;
+      const found = d.source
+        ? `${d.source}  (${n} per-image description${n === 1 ? "" : "s"})`
+        : `image-meta/${p}.json  ✖ NOT FOUND`;
+      console.log(`    2-clean/${p}/`.padEnd(34) + `->  ${found}`);
+    }
+
+    // Only a MISSING FILE stops the run. A file that exists but has no "images" block is a
+    // different thing — composeDescription falls back to Model Name + keywords on purpose, and
+    // that path is tested. Stopping on it would break a working feature to prevent a typo.
+    const missing = products.filter((p) => descsBy.get(p)!.source === null);
+    if (missing.length > 0 && !force) {
+      console.error(`\n⛔ No description file for ${missing.length} of ${products.length} folder(s). Nothing was written.`);
+      console.error(`\n   Either it does not exist yet — run the listing prompt (docs/guides/PROMPT.md)`);
+      console.error(`   and save its section 1 — or the folder name and the file name do not match.`);
+      console.error(`   They have to be identical, capitals included.\n`);
+      console.error(`   Finish the images anyway, with no metadata embedded:`);
+      console.error(`     npm run images -- --final --force\n`);
+      process.exit(1);
+    }
+  }
+
   const rows: Row[] = [];
   const failures: string[] = [];
 
@@ -334,7 +376,7 @@ async function main() {
       continue;
     }
 
-    const descs = await descriptionsFor(product);
+    const descs = descsBy.get(product)!;
 
     for (let i = 0; i < files.length; i++) {
       try {

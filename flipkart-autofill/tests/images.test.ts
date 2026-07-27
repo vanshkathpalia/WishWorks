@@ -360,7 +360,8 @@ describe("stage 2 — clean → final", () => {
 
   it("renames with the product ID so upload order is unambiguous", async () => {
     await stage1("ANP-1042", 2);
-    await run(["--final"]);
+    // --force: this listing has no description file, and the rename is what is under test here.
+    await run(["--final", "--force"]);
     expect((await readdir(path.join(tmp, "images", "3-final/ANP-1042"))).sort()).toEqual([
       "ANP-1042-1.jpg",
       "ANP-1042-2.jpg",
@@ -406,19 +407,46 @@ describe("stage 2 — clean → final", () => {
     expect(d ?? "").not.toContain("SHOULD-NOT-APPEAR-YET");
   });
 
-  it("still produces valid images when no product file exists", async () => {
+  // The folder name IS the product ID, so a renamed folder finds no description file and the
+  // images come out looking perfect with nothing embedded. That used to be one line in the
+  // results table. It now stops the run, and --force is the way past it.
+  it("stops before writing when a folder has no description file", async () => {
     await stage1("NO-PRODUCT-FILE", 1);
     const { code, out } = await run(["--final"]);
+    expect(code).not.toBe(0);
+    expect(out).toContain("No description file");
+    expect(out).toContain("NOT FOUND");
+    await expect(meta("3-final/NO-PRODUCT-FILE/NO-PRODUCT-FILE-1.jpg")).rejects.toThrow();
+  });
+
+  it("--force finishes the images anyway, with no metadata", async () => {
+    await stage1("NO-PRODUCT-FILE", 1);
+    const { code } = await run(["--final", "--force"]);
     expect(code).toBe(0);
-    expect(out).toContain("no description");
     expect((await meta("3-final/NO-PRODUCT-FILE/NO-PRODUCT-FILE-1.jpg")).width).toBe(1500);
   });
 
-  it("survives a malformed product file rather than crashing", async () => {
+  it("names the file each folder resolved to, so a mismatch is visible", async () => {
+    await stage1("SHOWN", 1);
+    await mkdir(path.join(tmp, "image-meta"), { recursive: true });
+    await writeFile(
+      path.join(tmp, "image-meta", "SHOWN.json"),
+      JSON.stringify({ title: "Kit", images: { "1": "a description" } }),
+    );
+    const { code, out } = await run(["--final"]);
+    expect(code).toBe(0);
+    expect(out).toContain("image-meta/SHOWN.json");
+    expect(out).toContain("1 per-image description");
+  });
+
+  it("treats a malformed product file as missing rather than crashing", async () => {
     await stage1("BROKEN", 1);
     await writeFile(path.join(tmp, "products", "BROKEN.json"), "{ this is not json ");
-    const { code } = await run(["--final"]);
-    expect(code).toBe(0);
+    const { code, out } = await run(["--final"]);
+    expect(code).not.toBe(0);
+    expect(out).toContain("No description file");
+    const forced = await run(["--final", "--force"]);
+    expect(forced.code).toBe(0);
     expect((await meta("3-final/BROKEN/BROKEN-1.jpg")).width).toBe(1500);
   });
 });

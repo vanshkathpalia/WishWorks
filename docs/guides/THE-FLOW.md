@@ -235,6 +235,26 @@ npm run images -- --final
 Writes each description into its own picture and puts the finished files in
 `images/3-final/ANP-1042/`.
 
+**It shows you which file each folder is reading its descriptions from, before it writes
+anything:**
+
+```
+  Folder -> description file (the folder name IS the product ID):
+    2-clean/ANP-1042/             ->  image-meta/ANP-1042.json  (4 per-image descriptions)
+    2-clean/GTB-1/                ->  image-meta/GTB-1.json  ✖ NOT FOUND
+```
+
+A `✖ NOT FOUND` **stops the run and writes nothing.** That is on purpose: the folder name *is*
+the product ID, so a folder named even slightly differently from its JSON used to produce
+perfect-looking images with no descriptions in them at all — and nothing told you. Fix the name
+or create the file, then run it again.
+
+Genuinely don't have the descriptions yet and just want the pictures?
+
+```bash
+npm run images -- --final --force
+```
+
 It will not crop again — the tag came off in Step 2, and cutting twice would eat into the
 product. If you try, it stops you.
 
