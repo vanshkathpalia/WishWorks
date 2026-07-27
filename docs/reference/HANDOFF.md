@@ -5,6 +5,10 @@
 > - **[`../tracks/notion/TICKET_STATUS.md`](../tracks/notion/TICKET_STATUS.md)** — the live ledger, 40 tickets
 > - **[`../tracks/notion/CORRECTIONS.md`](../tracks/notion/CORRECTIONS.md)** — 19 mistakes, causes, fixes
 > - **[`../guides/THE-FLOW.md`](../guides/THE-FLOW.md)** — how the pipeline is actually run today
+> - **[`../guides/GUI-SPEC.md`](../guides/GUI-SPEC.md)** — the Windows app: what ships, why, in
+>   what order, and how it gets tested. **The next build step.** Not built yet
+> - **[`../guides/PROMPT.md`](../guides/PROMPT.md)** — the listing prompt itself; the three image
+>   prompts sit beside it as `PROMPT-read-pack.md`, `PROMPT-main-image.md`, `PROMPT-infographic.md`
 >
 > Added since: the whole image pipeline (`npm run images`, three folders, 39 tests), AI
 > prompts, and the finding that Meesho serves 512×512 `.avif` — not WebP as assumed below.
@@ -176,9 +180,18 @@ Verify against the real system before reporting something as working.
 4. **Ship one real listing end to end** through QC — the true done-check.
 5. `git init` + first commit (ask for approval on the message; no AI co-author line).
 
-**Later** (don't build ahead — the GUI pivot in `CLAUDE.md` comes first): auto-generating the
-product JSON copy with Claude + a keyword bank, the same scan/fill treatment for Meesho's
-panel, then the combo generator.
+Items 1-5 above are **done or superseded** — the repo has history, the image pipeline and the
+prompts are built, and the flow in `THE-FLOW.md` is what is actually run. What genuinely remains
+from this list is **item 4: ship one real listing end to end through QC.** That is still the only
+true done-check, and it has not happened.
+
+**The next build step is the GUI**, specified in
+[`../guides/GUI-SPEC.md`](../guides/GUI-SPEC.md): WW-066 (make the engine callable) → WW-067
+(Electron shell + tab 1) → WW-068 (the `.exe`) → WW-069 (remaining tabs). Do not build ahead of
+the current one.
+
+**Later, after the partner is using the app:** the Phase 2 keyword bank from the ~2,200 existing
+listings, the same scan/fill treatment for Meesho's panel, then the combo generator.
 
 ---
 

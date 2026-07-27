@@ -32,7 +32,9 @@ new combo ideas worth listing (Combo Generator). Later: Flipkart API ops sync.
 
 ## Where we are
 P0 Listing Factory works today, driven from the terminal. **Next: the GUI pivot** — Vansh's
-business partner is non-technical, on Windows, and cannot use `npm run …`. Build order:
+business partner is non-technical, on Windows, and cannot use `npm run …`. The full spec —
+tabs, the four rules it exists to enforce, and how each part gets tested — is
+**`docs/guides/GUI-SPEC.md`**; keep it current. Build order:
 
 - **A. Make the engine callable.** Every CLI in `src/` does argv parsing + `console.log` +
   `process.exit` inside `main()`, so none of it can be driven by a GUI. Split each into a core
