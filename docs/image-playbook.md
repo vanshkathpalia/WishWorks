@@ -8,6 +8,25 @@
 > have been wrong three times in this project (C-007, C-014, C-016), always caught by looking
 > at the real thing. Trust the 🟢 rows; challenge the 🟡 ones.
 
+## Just want the prompts?
+
+**Don't copy them out of this file.** Every prompt lives in its own file, and each of those
+files is *nothing but* the prompt — open, select all, copy. This page is the reasoning behind
+them, not the thing you paste.
+
+| # | File | What it does | Where |
+|---|---|---|---|
+| 1 | [`guides/PROMPT-read-pack.md`](guides/PROMPT-read-pack.md) | Reads the contents sheet and lists the items | ChatGPT · attach image 2 |
+| 2 | [`guides/PROMPT-main-image.md`](guides/PROMPT-main-image.md) | Builds the hero shot → save as `1.png` | ChatGPT · no attachment, send after 1 |
+| 3 | [`guides/PROMPT-infographic.md`](guides/PROMPT-infographic.md) | Builds the "what's in the pack" → save as `2.png` | ChatGPT · attach image 2 |
+| 4 | [`guides/PROMPT.md`](guides/PROMPT.md) | The listing JSON + all the copy | Claude/ChatGPT · attach the finished images |
+
+1, 2 and 3 make the pictures. 4 describes them — and it must run **last**, on the finished
+images, because the descriptions have to match what actually goes live.
+
+Read the rest of this file when you want to know *why* a prompt says what it says, or when a
+prompt stops working and you need to change it.
+
 ---
 
 ## Part 0 — What we actually know
@@ -181,13 +200,8 @@ Three honest limits, so nobody is surprised:
 
 **Message 1 — read the pack**  *(attach the "what's in the packet" image)*
 
-```
-This image is the "what's in the packet" sheet for a party-decoration kit. In TEXT ONLY (do NOT
-make an image), list every item with its exact count, colour, and any foil/banner wording, and
-mark each DISPLAYED (goes on the wall — balloons, foils, banner, fringe curtain, fairy lights) or
-ASSEMBLY AID (arch tape, glue, pump — never shown). Then give the TOTAL pieces — if the sheet
-doesn't print a total, add the counts up yourself. Just so I can confirm.
-```
+👉 **The prompt is [`guides/PROMPT-read-pack.md`](guides/PROMPT-read-pack.md)** — the whole file
+is the prompt. Open it, select all, copy, attach the image, send.
 
 Glance at the list it returns. It also doubles as your **description inventory** (Step 0b) and the
 counts you type into the listing — one read, several uses. If it misread anything, correct it in
@@ -200,43 +214,8 @@ your next message *before* it draws.
 > white. Every one of them was *worse* looking and most were *more* expensive, up to ₹256.
 > This version is the winner on both counts. See [`SHIPPING-COST.md`](guides/SHIPPING-COST.md).
 
-```
-Now make ONE realistic photograph: the DISPLAYED items assembled as a finished wall decoration,
-lit by soft even daylight. A professional decorator's setup, aspirational but real.
-
-SHAPE: a PERFECT SQUARE image — 1:1 aspect ratio, equal width and height. NOT portrait, NOT
-landscape, not 2:3 or 3:4. It must be square.
-
-SETTING: a clean, modern Indian home — a plain smooth wall in a soft neutral colour, soft even
-daylight, and at most a hint of plain tiled floor at the very bottom. NOTHING MAY BE PLACED IN
-THE SCENE. The frame contains the DISPLAYED items from your list, the bare wall and the floor,
-and nothing else at all. Specifically NO stool, chowki, bench, chair, table, cot, sofa or
-furniture of any kind; NO cake, food, plates, thali or trays; NO people, babies, hands or
-mannequins; NO plants, cushions, rugs, lamps, gift boxes or ornaments; NO window, curtain or
-drape that is not itself an item on the DISPLAYED list. If the pack contains a fringe or
-curtain backdrop then show it, because it is a real item — but never invent one.
-
-This rule is absolute and applies to every kit type. Do not add a prop because it "suits the
-occasion": a baby stool in a groom-to-be photo, or a cake in a rice-ceremony photo, is wrong
-twice over — it misrepresents what the buyer receives, and props of that kind are not what we
-are selling.
-
-COMPOSITION: a balloon garland FRAMING the top and one side of the backdrop, the foil-letter
-banner centred on the fringe/curtain backdrop, and the foil shapes (moon, stars, hearts) placed
-to balance the frame. Full and well-arranged, like a premium party backdrop.
-
-THE IMAGE MUST CONTAIN ZERO TEXT — no labels, numbers, tables or captions drawn anywhere.
-
-COUNTS — use exactly the DISPLAYED numbers from the list, NEVER more:
-- Distinct items (moon, stars, banner, hearts, "love"/letter foils, fringe curtains, confetti
-  balloons): show the EXACT number. 2 stars means 2, 3 confetti means 3 — no extras to fill space.
-- Plain latex balloons (the big counts): SPACE them along the garland to frame the backdrop — do
-  NOT pack them densely to look fuller. Treat the numbers as caps (e.g. 15 red = no more than 17).
-  A well-spaced frame at the true count, not a crowded arch.
-
-No tape/glue/pump in the scene. Spell any foil letters exactly. A real photograph — no cartoon,
-3D, flat-lay, watermark or added graphics. Output it as a square (1:1) image.
-```
+👉 **The prompt is [`guides/PROMPT-main-image.md`](guides/PROMPT-main-image.md)** — the whole file
+is the prompt. Open it, select all, copy, send with no attachment.
 
 > **On size:** you're asking for **square (1:1)**, not an exact pixel size — 1500×1500 is not
 > required from the AI (the marketplaces resize, and `npm run images -- --final` makes it exactly
@@ -285,24 +264,9 @@ stay exactly the same."*
 
 Listing image 2. **This is where text is allowed, and competitors don't use it.**
 
-```
-Create a clean "what's in the box" product infographic from IMAGE 2 for an Indian
-e-commerce listing.
-
-INVENTORY (authoritative, do not recount): <paste your typed inventory>
-
-- Pure white background. All items laid out flat, grouped by type, evenly spaced, nothing
-  overlapping, soft drop shadows.
-- Label each group in the format "8 x Chrome Balloons". Simple bold sans-serif, dark grey,
-  no boxes, no arrows, no decorative fonts.
-- Total piece count as one line at the top: "42 Pcs Combo Kit".
-- No logo, no brand name, no watermark, no price, no offer badge, no border. If IMAGE 2
-  carries a seller tag or code anywhere (Meesho stamps one near the bottom-left), do not
-  reproduce it — the rebuilt white background must be completely clean.
-- 1:1 square at the highest resolution you can produce. Photorealistic products with flat
-  graphic labels.
-- Every number must exactly match the inventory. Read them back before generating.
-```
+👉 **The prompt is [`guides/PROMPT-infographic.md`](guides/PROMPT-infographic.md)** — the whole file
+is the prompt. Select all, copy, then replace the `<paste your typed inventory>` line with your
+inventory rows and attach image 2.
 
 > **Note: the labels here are text printed ON the picture, which shoppers read.** That is a
 > completely separate thing from the metadata in Part 4 (invisible, unproven). This visible

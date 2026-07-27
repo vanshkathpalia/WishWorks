@@ -2,8 +2,11 @@
 
 > **Non-technical user? Read `docs/guides/THE-FLOW.md`** — the whole flow end to end.
 > Then `docs/guides/START-HERE.md` for the 66-field form.
-> **`docs/guides/PROMPT.md` is the AI prompt itself** — that file is nothing but the prompt, so
-> select-all-copy always works. Edit it there, never inline in another doc.
+> **Every AI prompt lives in its own file, and that file is nothing but the prompt** — so
+> select-all-copy always works. Edit them there, never inline in another doc:
+> `docs/guides/PROMPT-read-pack.md` → `PROMPT-main-image.md` → `PROMPT-infographic.md` build the
+> images; `PROMPT.md` then describes the finished ones and returns the listing JSON.
+> `docs/image-playbook.md` is the *reasoning* behind them, not a thing to copy from.
 > `docs/guides/SHIPPING-COST.md` — Meesho's shipping fee is set by the main image, but **fourteen
 > tests found no way to steer it. Closed, don't re-run.** Two rules survive: read the shipping
 > figure before submitting any main-image change, to catch a bad one (we saw ₹256); and the
