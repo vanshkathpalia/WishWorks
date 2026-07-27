@@ -65,13 +65,20 @@ async function chooseMeta(folderName: string, auto: string): Promise<{ id: strin
     console.log(`  Create image-meta/${auto}.json and re-run to embed descriptions.`);
     return { id: auto, skip: true };
   }
-  console.log(`\n  Which descriptions file should I use for "${folderName}"?\n`);
+  const match = ids.find((id) => id.toLowerCase() === auto.toLowerCase());
+  console.log(`\n  These photos will be named ${auto}.1.jpg, ${auto}.2.jpg …`);
+  console.log(`  Which descriptions should go INSIDE them? (this does not rename anything)\n`);
   ids.forEach((id, i) => {
-    const mark = id.toLowerCase() === auto.toLowerCase() ? "   ← matches this folder" : "";
+    const mark = id === match ? "   ← matches these photos, pick this" : "   ⚠️  a DIFFERENT product";
     console.log(`   ${String(i + 1).padStart(2)}. ${id}${mark}`);
   });
   const noneNum = ids.length + 1;
   console.log(`   ${String(noneNum).padStart(2)}. (none — just rename & copy, no descriptions)`);
+  if (!match) {
+    console.log(`\n  There is no image-meta/${auto}.json yet, so nothing here matches these photos.`);
+    console.log(`  Unless you know better, pick ${noneNum} — then run the listing prompt, save`);
+    console.log(`  image-meta/${auto}.json, and run this again to embed the real descriptions.`);
+  }
 
   const answer = (await ask(`\n  Type a number (1-${noneNum}) and press ENTER: `)).trim();
   const pick = Number(answer);
@@ -329,6 +336,12 @@ async function main() {
     const auto = cleanId(folderName);
     // Pick which descriptions file to use, the way `npm start` picks a product. Skip the menu
     // when --id is given (explicit) or the terminal isn't interactive (a pipe/test would hang).
+    //
+    // The menu answers ONE question — where do the descriptions come from. It must never also
+    // rename the listing: it used to, and picking "ANP-1" for a folder called "GTB 1" wrote
+    // Annaprashan descriptions into Groom-To-Be photos AND named them ANP-1.*, so the output
+    // looked like a different product entirely. --id is the only thing that renames, because
+    // that is what the operator explicitly asked for.
     let id: string;
     let descs: Descriptions;
     if (forcedId) {
@@ -336,8 +349,13 @@ async function main() {
       descs = await descriptionsFor(id);
     } else if (process.stdin.isTTY) {
       const chosen = await chooseMeta(folderName, auto);
-      id = chosen.id;
-      descs = chosen.skip ? NO_DESCRIPTIONS : await descriptionsFor(id);
+      id = auto;
+      descs = chosen.skip ? NO_DESCRIPTIONS : await descriptionsFor(chosen.id);
+      if (!chosen.skip && chosen.id.toLowerCase() !== auto.toLowerCase()) {
+        console.log(`\n  ⚠️  These photos are "${auto}" but you picked descriptions from "${chosen.id}".`);
+        console.log(`      The files stay named ${auto}.1.jpg … — only the descriptions come from`);
+        console.log(`      ${chosen.id}. If that is not what you meant, press Ctrl+C now.`);
+      }
     } else {
       id = auto;
       descs = await descriptionsFor(id);
