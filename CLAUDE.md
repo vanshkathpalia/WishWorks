@@ -2,6 +2,8 @@
 
 > **Non-technical user? Read `docs/guides/THE-FLOW.md`** — the whole flow end to end.
 > Then `docs/guides/START-HERE.md` for the 66-field form.
+> **`docs/guides/PROMPT.md` is the AI prompt itself** — that file is nothing but the prompt, so
+> select-all-copy always works. Edit it there, never inline in another doc.
 > `docs/guides/SHIPPING-COST.md` — Meesho's shipping fee is set by the main image, but **fourteen
 > tests found no way to steer it. Closed, don't re-run.** Two rules survive: read the shipping
 > figure before submitting any main-image change, to catch a bad one (we saw ₹256); and the
@@ -59,7 +61,8 @@ need it. P0 UI = CLI (`npm run …`); the GUI pivot above replaces it with Elect
 - Non-obvious decisions → short `docs/learning/<n>-slug.md` note with the change.
 - File-top summary comment on every code file.
 - Git: show staged files + full commit message, wait for approval, then commit directly.
-  **Never add a Co-Authored-By/AI line.**
+  **Never add a Co-Authored-By/AI line.** **Short subject line, then one `-` bullet per thing
+  fixed or added.** No paragraphs, no rationale essays — that belongs in `TICKET_STATUS.md`.
 - **Tickets live in the repo, never in Notion from here.** The Notion MCP on this Claude
   account points at a *different* project — do not write to it. Keep
   `docs/tracks/notion/TICKET_STATUS.md` current (it is the source of truth) and log every

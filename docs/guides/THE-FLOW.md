@@ -169,10 +169,12 @@ Full explanation and exact prompts: **"The main image"** and **"Prompt B"** in
 
 **Conversation 2 — now get the JSON from those final images (Claude/Gemini).**
 Upload the pictures you just finished — **the exact images you'll upload** (`1.png`, `2.png`, and
-the real `3`, `4`) — paste your **Excel inventory rows**, then **the single prompt in
-`START-HERE.md` Part 3**. It returns one JSON with two halves: `image-meta` (per-image
-descriptions — written from these finals) and `products` (the Flipkart form fields). Save each half
-to its file. A **Meesho-only** product needs only the `image-meta` half.
+the real `3`, `4`) — paste your **Excel inventory rows**, then **the whole of
+`guides/PROMPT.md`** (select all, copy — the file is nothing but the prompt). It replies in
+three labelled sections: **1** image metadata → `image-meta/<ID>.json` (per-image descriptions
+written from these finals, plus the Meesho copy), **2** the Flipkart form fields →
+`products/<ID>.json`, **3** a paste block you copy into the websites and never save. Sections 1
+and 2 are already file-shaped — save each as-is. A **Meesho-only** product needs only section 1.
 
 **Check the corners of what the AI made.** If there's a sparkle logo, generate it again.
 

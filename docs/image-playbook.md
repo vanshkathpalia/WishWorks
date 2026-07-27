@@ -136,7 +136,7 @@ this, never to work it out for itself.
 ### Step 0b — Per-image descriptions · ⛔ SUPERSEDED, DO NOT RUN
 
 > **This step no longer exists in the flow.** Per-image descriptions now come from the **single
-> merged prompt in [`guides/START-HERE.md`](guides/START-HERE.md) Part 3**, which returns the
+> merged prompt in [`guides/PROMPT.md`](guides/PROMPT.md)**, which returns the
 > `image-meta` descriptions *and* the Flipkart `products` fields from one conversation. Running
 > Step 0b as well would duplicate that work and risk two different sets of descriptions.
 >
@@ -343,7 +343,7 @@ images/2-clean/<ID>/     ← FIRST build the images: main image (ChatGPT, 2 mess
    │                        via Prompt B. Save them back over 1.png / 2.png (delete the old
    │                        1.jpg / 2.jpg — ONE file per number; don't rename png→jpg, same
    │                        relabelling trap as avif, --final converts it anyway).
-   │  THEN describe those finals: run the START-HERE Part 3 prompt on the saved 1.png/2.png/3/4
+   │  THEN describe those finals: run the guides/PROMPT.md prompt on the saved 1.png/2.png/3/4
    │  (the images you'll upload) → image-meta/<ID>.json. Descriptions must match what goes live.
    │  npm run images -- --final              square · 1500px · embed descriptions
 images/3-final/<ID>/     upload these
@@ -552,12 +552,12 @@ correction entry and in git history.
 
 ### Step 0b — the old standalone per-image description prompt (superseded 2026-07-25)
 
-> Replaced by the merged prompt in `guides/START-HERE.md` Part 3, which produces these
+> Replaced by the merged prompt in `guides/PROMPT.md`, which produces these
 > descriptions *and* the Flipkart fields in one pass. Kept only for the description rules it
 > encodes. **Do not run it** — you would end up with two different sets of descriptions.
 
 > **Now merged.** The per-image descriptions are produced by the **single prompt in
-> `guides/START-HERE.md` Part 3** — one conversation returns both the `image-meta` descriptions
+> `guides/PROMPT.md`** — one conversation returns both the `image-meta` descriptions
 > and the Flipkart `products` fields from the same photo upload + Excel inventory. Use that prompt.
 > The standalone version below is kept only as reference for the description rules it encodes (and
 > for a Meesho-only run where you don't want the Flipkart half — though START-HERE's `image-meta`
