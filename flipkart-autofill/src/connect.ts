@@ -1,6 +1,10 @@
 // connect.ts — opens YOUR real Google Chrome (not Playwright's bundled Chromium) with a
-// persistent profile in ./profile, so the Flipkart login is entered ONCE and reused by
-// every later run.
+// persistent profile, so the Flipkart login is entered ONCE and reused by every later run.
+//
+// The profile lives in the OS user-data directory (see paths.ts), NOT inside the project: a
+// packaged app's own folder is read-only, and Chrome responds to that by starting with no
+// session rather than by failing — which reads as "it logged me out" and is WW-061's exact
+// symptom. An existing ./profile still wins, so this machine keeps the login it already has.
 //
 // Why not attach to an already-open Chrome? Two hard blockers, both verified on this
 // machine: since Chrome 136 Google refuses --remote-debugging-port on the default
@@ -15,10 +19,11 @@ import { chromium, type BrowserContext, type Page } from "playwright";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-export const PROFILE_DIR = path.join(ROOT, "profile");
+// One answer to "where do this tool's folders live", shared with every other module. connect.ts
+// used to compute its own ROOT from import.meta.url — a second path convention in one codebase,
+// which is exactly what C-032 was about.
+export { PROFILE_DIR } from "./paths.js";
+import { PROFILE_DIR } from "./paths.js";
 
 export interface Session {
   context: BrowserContext;

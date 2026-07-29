@@ -14,6 +14,8 @@
  * tool at a different workspace.
  */
 
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +33,33 @@ export const PRODUCTS_DIR = process.env.WW_PRODUCTS_DIR ?? path.join(ROOT, "prod
 
 /** Category defaults merged into every product of that category. */
 export const CATEGORIES_DIR = process.env.WW_CATEGORIES_DIR ?? path.join(ROOT, "categories");
+
+/**
+ * The OS per-user data directory — the same place Electron's `app.getPath("userData")` returns,
+ * computed by hand so the CLI and the packaged app agree on one location.
+ */
+export function userDataDir(platform: NodeJS.Platform = process.platform): string {
+  const home = homedir();
+  if (platform === "win32") return path.join(process.env.APPDATA ?? path.join(home, "AppData", "Roaming"), "WishWorks");
+  if (platform === "darwin") return path.join(home, "Library", "Application Support", "WishWorks");
+  return path.join(process.env.XDG_DATA_HOME ?? path.join(home, ".local", "share"), "WishWorks");
+}
+
+/**
+ * Chrome's persistent profile — the live Flipkart seller session.
+ *
+ * It used to sit at `<project>/profile`, which **cannot work in a packaged app**: that folder is
+ * read-only, and Chrome silently comes up with no session rather than failing loudly — the exact
+ * symptom of WW-061, indistinguishable from "it logged me out". So it belongs in the OS user-data
+ * directory, which is writable on every platform and survives reinstalling the app.
+ *
+ * **A legacy `<project>/profile` still wins if it exists.** Moving the path would otherwise throw
+ * away a working login and force an OTP for no reason. New machines get the right location; this
+ * one keeps its session until someone deletes that folder.
+ */
+export const PROFILE_DIR =
+  process.env.WW_PROFILE_DIR ??
+  (existsSync(path.join(ROOT, "profile")) ? path.join(ROOT, "profile") : path.join(userDataDir(), "profile"));
 
 /**
  * A path as it should be SHOWN: short and relative when it is inside the project, absolute
