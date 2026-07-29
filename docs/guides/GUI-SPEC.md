@@ -1,16 +1,39 @@
-# GUI spec — what the web app must do
+# GUI spec — what the desktop app must do
 
-> **Status: NOT BUILT.** Platform flipped to a WEB APP on 2026-07-29 — see "The shape of the
-> app". Tickets: WW-091 (spike, first), WW-067, WW-068,
-> WW-089, WW-069, WW-090 — in that order.
+> **Status: NOT BUILT. This is the requirements document — build from it.**
+> **Platform: Electron desktop app**, settled 2026-07-29 after a Vercel web app was specced and
+> rejected; the record is in *Why not a web app* below, so it is not re-argued.
+> Build in this order: **WW-067 → WW-068 → WW-089 → WW-069 → WW-090 → WW-066b → WW-093.**
 > Keep it in sync with `docs/tracks/notion/TICKET_STATUS.md`; that file remains the source of
 > truth for status, this one for *what goes in the app and why*.
+>
+> Read `docs/guides/THE-FLOW.md` first — this app is that flow with a face on it, and every
+> screen below maps to a step in it.
 
 ## Who it is for
 
-Vansh's business partner. Non-technical, on **Windows**, cannot use a terminal. Vansh is on a
-Mac, so the app must be built and tested for a machine the author does not use — that is a real
-risk, not a footnote (see WW-061, a Windows-only bug that has already bitten).
+**Two users, and both matter — that changed on 2026-07-29.**
+
+- **The partner.** Non-technical, on **Windows**, cannot use a terminal. He is the reason the
+  app exists. The app must be built and tested for a machine its author does not use — a real
+  risk, not a footnote (see WW-061, a Windows-only bug that has already bitten).
+- **Vansh himself**, on a **Mac**. *"I'm not that comfortable with commands"* — and he runs the
+  flow every day. **Ship a `.dmg` alongside the `.exe` from the first build.**
+
+Why the Mac build is not an afterthought:
+
+1. **It is nearly free.** `electron-builder` produces both targets from one config; a
+   `mac`/`windows` matrix in the same CI job is a few lines. Locally, `--mac` needs no CI at all.
+2. **It is how the app gets debugged.** Vansh uses this daily and can read a stack trace. Bugs
+   found on his Mac never reach the partner. Shipping only the `.exe` means every bug is found
+   by the person least able to describe it, on the machine nobody can inspect.
+3. **It pays for itself even if the partner never adopts it.** He is doing this work today, by
+   hand, in a terminal.
+
+**Gatekeeper caveat, the Mac twin of SmartScreen:** an unsigned `.dmg` will not open on a
+double-click. Right-click → Open, once, or `xattr -d com.apple.quarantine /Applications/…`.
+Document it in the same place as the SmartScreen note. Signing needs a paid Apple Developer
+account and is not worth it for two users.
 
 ## Why, honestly
 
@@ -49,159 +72,113 @@ Every one comes from something that actually went wrong. Do not treat them as st
 
 ## Build order — do not build ahead
 
-| Ticket | What | Why in this position |
-|---|---|---|
-| **WW-066** | Make the engine callable | **Gates everything.** ✅ **for the image engine (2026-07-27):** `images-core.ts` → `runImages()`, `finish-core.ts` → `runFinish()`. Options in, structured result out, `onRow` progress callback; `images.ts`/`finish.ts` are now flag-parsing + printing wrappers. The browser CLIs (`login`, `scan`, `fill`, `check`, `start`) are **WW-066b**, done per-tab in WW-069 — their result shape should be decided by the tab that draws it |
-| **WW-091** | **Spike: EXIF write + JPEG quality in the browser** | **Now the real gate.** Two afternoons that decide whether the whole plan holds. Write a description into a canvas-produced JPEG and read it back with `check.ts`'s own reader; encode at 4:4:4 and compare bytes and looks against `encode.ts`. If either fails, the finish step cannot be a web page and that must be known before anything is built on top |
-| **WW-067** | Next.js shell + step 1 (AVIF → JPG) + per-step folder memory | Smallest genuinely useful thing to hand over. Folder memory via File System Access handles in IndexedDB belongs here — every later step inherits it |
-| **WW-068** | ~~CI build → `.exe`~~ → **deploy to Vercel** | Shrinks from "solve Windows packaging" to `vercel deploy`. Still done early and for the same reason: get a link into the partner's hands while the app does one thing |
-| **WW-089** | The listing frame: selector, step rail, derived state | Everything after this hangs off a chosen listing. Built after the deploy because step 1 is genuinely useful alone |
-| **WW-069** | Remaining engine steps (1-7) | Prepare → finish → check. **Not** login/fill — see below |
-| **WW-090** | Prompt panels (steps 3, 4, 5) + inline `paste` checks | Last, because it is the only part with no CLI equivalent to copy behaviour from — and by then the frame and the checks it renders both exist |
-| **WW-092** | Step 8 as a browser extension | Separate deliverable, after the web app works. Until it exists, step 8 is `npm start` and the app says so |
+Nothing here has an unknown in it except step 9's form, which one `scan` answers.
 
-**What this costs that Electron would not have:** `sharp`, `playwright` and `node:fs` are all
-unavailable, so `images-core.ts` and `finish-core.ts` **cannot be imported by the web app as they
-stand** — they are Node modules. Their *logic* ports (the crop/erase/square/encode decisions, the
-ID matching, the description composition); their *I/O* does not. WW-066's split still pays off,
-because a function that takes options and returns a result is portable in a way a CLI never was —
-but this is a port, not a reuse, and planning it as reuse is how the estimate goes wrong.
-`id.ts` and `image-meta.ts`'s pure functions (`normalizeId`, `composeDescription`, `buildExif`)
-move across unchanged.
+| # | Ticket | What | Why in this position |
+|---|---|---|---|
+| 0 | **WW-066** | Make the engine callable | **Done for the image half (2026-07-27).** `images-core.ts` → `runImages()`, `finish-core.ts` → `runFinish()`: options in, structured result out, `onRow` progress. The app **imports these directly** — same process, same Node, no IPC serialisation of image data |
+| 1 | **WW-067** | Electron shell + step 1 (AVIF → JPG) + per-step folder memory | Smallest genuinely useful thing to hand over. Folder memory belongs here because every later step inherits it |
+| 2 | **WW-068** | GitHub Actions → the real `.exe` | **Deliberately early.** Install problems surface while the app does one thing, not after nine steps. Distribution is a GitHub Releases link |
+| 3 | **WW-089** | The listing frame: selector, step rail, state derived from disk | Everything after this hangs off a chosen listing |
+| 4 | **WW-069** | Remaining image steps: prepare → finish → check | Wraps `runImages`/`runFinish`, which already return what these screens draw |
+| 5 | **WW-090** | Prompt panels (steps 3, 4, 5) + the `paste` checks inline | The only part with no CLI whose behaviour can be copied, so it goes after the frame that hosts it |
+| 6 | **WW-066b** | Split the browser CLIs the way WW-066 split the image ones | `login`, `scan`, `fill`, `check`, `start`. Do each when its screen is built, so the result shape follows what the screen draws |
+| 7 | **WW-093** | `scan` the Meesho Supplier Panel, then fill it | **The one genuine unknown, and the biggest prize.** Step 9 is 100% hand-typed today |
 
-**The WW-066 contract:** all 63 tests, `npm run verify`, and every `npm run …` must keep passing
-untouched. They are the proof the refactor changed no behaviour — the tests run the real CLI as
-a subprocess, so they pin the printed output too, not just the core. Held for the image half.
+**The contract, unchanged:** all 99 tests, `npm run verify`, and every `npm run …` keep passing
+untouched at every step. They are the proof the GUI changed no behaviour.
 
-Two things the split gave the app that are worth knowing before building tabs 1 and 4:
+**Two risks, both known, neither new:**
 
-- `runImages()` returns the stage-2 folder→description `pairings[]` and, when it refuses to run,
-  `blocked.missing[]`. **Tab 4 renders rule 2's table from those** — it does not scrape stdout.
-- `runFinish()` takes `id` (renames the output) and `metaId` (descriptions only) as **separate**
-  options. WW-078 is therefore unrepresentable, not merely fixed: no code path lets a
-  descriptions choice rename a listing. `cleanId()` and `numberedImages()` are exported so the
-  tab can answer *"is this a listing, and what will it be called?"* before writing.
+- **`sharp`'s native binary must ship inside the package.** It is a compiled `.node` file, not
+  JavaScript, and packagers routinely leave it behind or ship the wrong architecture.
+- **Data folders must resolve when the working directory is `/`, not the project.** `paths.ts`
+  was written for exactly this (it resolves from its own file location, not `cwd`) — but that
+  has never been proven *inside a packaged app*, which is the only place it matters.
+
+Both are WW-068's job to prove, on the partner's real Windows machine, which is why WW-068 is
+second and not last.
+
+#### "Deliberately early" — what that actually means
+
+It is not a warning about a problem. It is the strategy for avoiding one.
+
+Packaging is the only part of this project whose failures **cannot be seen from a Mac**. `sharp`'s
+native binary, folder resolution when the working directory is `/`, and Windows SmartScreen
+flagging an unsigned installer — none of them appear in `npm run …`, in the 99 tests, or on
+Vansh's machine. They appear the first time somebody double-clicks an installer on Windows.
+
+So the choice is *when* to find out:
+
+- **Build the installer after one screen** — if it fails, the app contains one screen. The cause
+  is obvious, the fix is small, and everything built afterwards is built on something proven to
+  ship.
+- **Build it after nine screens** — if it fails, it fails on an app with nine screens and weeks
+  of work inside it. Now you are bisecting a packaging problem across all of it, on a machine you
+  do not own, while the partner still has nothing.
+
+Same work either way. The difference is whether an unknown gets answered while it is cheap.
+**Expect the first `.exe` to be broken** — that is the point of building it early, not a sign
+anything has gone wrong. Also expect a SmartScreen "unknown publisher" warning on an unsigned
+build; document it for the partner so it does not read as a virus.
+
 
 ## The shape of the app — decided 2026-07-29
 
 | | Decision | Why |
 |---|---|---|
-| Platform | **Next.js on Vercel, running in the browser** | Vansh's call, taken after Electron was recommended and argued: *"vercel is available on every computer, don't have to stress about forwarding the app… i myself am not that comfortable with commands"*. A link beats an installer for two non-identical machines, it removes WW-068's whole class of install problem, and it is the only shape that could later be sold |
+| Platform | **Windows desktop app, Electron** | Weighed against a Next.js/Vercel web app and chosen because of one fact: **the engine is Node code that already works, and Electron runs Node.** See the decision record below |
 | Prompt steps | **In the app, for both users** | The partner must be able to do a whole listing alone. The app still never calls an AI (see *Not in the app*) — it holds the prompt, takes the reply back, and files it |
 | Scale | **One listing at a time** | Pick a listing, walk its steps, finish it. `finish`'s whole-tree mode stays in the CLI |
 
-### The web app does the work IN THE BROWSER, not on Vercel
+### Why not a web app — the decision record
 
-This is the decision that makes the rest possible, and it is not the obvious one. **Vercel serves
-the page and nothing else — no image ever leaves the machine.**
+A Vercel-hosted web app was seriously considered on 2026-07-29 and **rejected after being
+specced in full**. Recorded here so it is not re-proposed on the same reasoning.
 
-- **Reading and writing folders:** the **File System Access API** (`showDirectoryPicker()`).
-  Chrome and Edge on desktop, which is what both of you use. It also solves the remembered-folder
-  requirement *properly*: a directory handle is storable in IndexedDB, so each step reopens its
-  own folder — with one "allow" click per folder per session, which is the API's rule and cannot
-  be avoided.
-- **Image work:** in the browser. Chrome decodes AVIF natively, so `createImageBitmap` opens the
-  Meesho downloads; crop, erase, pad and resize are all canvas operations. Nothing uploads.
-- **Why not process on Vercel:** a serverless function caps request bodies at ~4.5 MB, so 40
-  images at 1.4 MB each is dozens of round trips of the user's own files to a third party, for
-  work their laptop does instantly. It would be slower, more fragile and worse for privacy.
+The attraction was real: a URL needs no install, works on both machines, and is the only shape
+that could later be sold. What killed it was the cost on the other side of the ledger:
 
-**Two things must be prototyped before this plan is trusted** (WW-091). Both are solved problems
-but neither is free, and both are things the current pipeline is *measurably* good at:
+| | Electron | Web app |
+|---|---|---|
+| Steps 1-7, the image pipeline | **imports `images-core.ts` / `finish-core.ts` unchanged** | rewrite: no `sharp`, no `node:fs`. Canvas strips EXIF, and `canvas.toBlob` gives no chroma control — a spike just to prove it is possible |
+| Step 8, fill Flipkart | **`npm start`'s code, as-is** | impossible — needs a logged-in browser, and the only way to give a server one is to store the live seller session on it |
+| Step 9, fill Meesho | **same code, after one `scan`** | impossible, same reason |
+| Deliverables | **one app** | web app + a browser extension to win back steps 8-9 + a spike |
 
-1. **Writing EXIF.** Canvas strips metadata, and embedding the description is the entire point of
-   the finish step. Needs a small JPEG/EXIF writer in JS. `check.ts` already *reads* IFD0 by hand,
-   so the shape is known and symmetric — that reader is the test oracle for the writer.
-2. **JPEG quality control.** `canvas.toBlob` gives no control over chroma subsampling, and
-   `encode.ts` deliberately uses **4:4:4** because party decorations are saturated reds and golds
-   that 4:2:0 smears exactly at the edges. A WASM encoder (`@jsquash/jpeg`, mozjpeg) restores
-   control, including the step-down-to-fit-5 MB loop. **Do not ship `toBlob` and call it done** —
-   that is a silent quality regression on the one asset that decides whether anyone clicks.
+**The web version was not weaker because browsers are weak.** It was weaker because it would
+have meant rebuilding working, tested code to run somewhere that cannot do the last two steps,
+then building an extension anyway to get them back. Three deliverables where this is one.
 
-### "Can the browser really crop images? Is Python better? What about a Worker?"
+The stated reasons for wanting it, and what happens to each:
 
-Asked 2026-07-29. Answered here so it is not re-asked.
+- *"A Vercel link is on every computer."* GitHub Releases is also a link. The partner clicks it
+  once, installs, and thereafter opens an icon — which he will do at least as reliably as
+  finding a browser tab.
+- *"I'm not comfortable with commands."* Correct, and unchanged: that is what the GUI is for,
+  `.exe` or URL alike.
+- *"We could sell it later."* This tool must read local folders and drive a logged-in browser.
+  A SaaS can do neither without holding a customer's marketplace credentials on your server —
+  a liability, not a business model. Desktop software sells fine.
 
-**Yes, and the geometry is the easy half.** Crop, pad, square and resize are one `drawImage` call
-each with source and destination rectangles. Erasing the Meesho tag is `getImageData` to sample
-the surrounding background — the CLI already samples rather than assuming white — then
-`fillRect`. Chrome decodes AVIF natively, so the Meesho downloads open with no library at all.
-None of this is a stretch for a browser; it is what canvas is for.
+**What this decision buys back:** the EXIF-writing and chroma-subsampling spike disappears
+entirely. Those were never real problems — `sharp` solves both today and is tested. They were
+problems the browser would have created.
 
-The two genuinely hard parts are **EXIF writing** and **chroma subsampling**, and neither gets
-easier by moving to a server — you would just be solving them somewhere else, slower. That is
-what the WW-091 spike is for, and a WASM build of mozjpeg (`@jsquash/jpeg`) is the expected
-answer to both quality controls. **Verify it in the spike; do not take it on faith here.**
+### Two corrections worth keeping
 
-**Python is not better for this, and it costs you what you have.** Pillow and OpenCV are fine
-libraries, but `sharp` is libvips and already outruns Pillow; the pipeline is written, tested
-(99 tests) and correct. Rewriting working image code in another language buys nothing and
-re-opens every bug that has already been found and fixed. The bigger problem is that Python
-**needs a server**, which is the exact thing this plan is avoiding.
+Both were mistakes made while planning, and both would mislead anyone reading the earlier drafts.
 
-**A Cloudflare Worker will not run this.** Workers are V8 isolates with a hard CPU budget and no
-native binaries — no `sharp`, no Pillow. WASM runs there, but resizing forty 1500×1500 images
-would blow the free CPU allowance, and you would be uploading the user's own files to a third
-party to do work their laptop does instantly. The free tier is real; it is just the wrong tool.
+1. **Meesho is not a special case.** It was written up as needing a browser extension because
+   *"Meesho has no API"*. Neither does the Flipkart path — `npm start` has never used Flipkart's
+   API. It drives a real Chrome that is already logged in, and `fields.ts` targets fields by
+   their visible label without knowing which site it is on. **The same code fills Meesho's
+   Supplier Panel.** The only genuinely new work is running `scan` against that panel once to
+   learn its fields (WW-093) — a day, not a blocker, and needed on any platform.
+2. **A browser extension is now optional, not required.** It remains a reasonable future
+   deliverable (it runs in the session you already have, and *Flipkart Lens* proves the pattern
+   works), but Electron covers steps 8 and 9 without it. Demoted to WW-092, P3.
 
-**So: no server, of any kind.** Vercel serves static files — free, permanently, and nothing to
-scale. That is not a compromise forced by cost; it is the better architecture here, and it is
-also why there is nothing to secure.
-
-### Step 8 cannot go on Vercel, and this is not a detail
-
-**Filling the Flipkart form needs a real browser already logged in as WishWorks.** On Vercel that
-would mean either running Playwright in a serverless function — which cannot hold a persistent
-Chrome profile — or **storing your live Flipkart seller session on a server**. The second is the
-only one that would work and it is not acceptable: those credentials sell things and take money.
-
-So the web app covers steps 1-7 and 9. Step 8 has three futures, in order of preference:
-
-| Option | Verdict |
-|---|---|
-| **Browser extension** | **The right answer, eventually — and it covers MEESHO too.** It runs inside the Chrome you are already logged into, on the real page, so whichever seller panel is open is the one it can fill. `fields.ts` is DOM code — label targeting, fill, read back — and ports almost directly. It also *deletes* `connect.ts` and with it every bug in HANDOFF §6.4-6.6: no profile lock, no cookie flush on Ctrl+C, no CDP attach that Chrome ≥136 blocks. Separate deliverable, separate ticket |
-| **Keep the CLI for step 8 only** | **What to do now.** `npm start` already works and is proven. The web app links to it and says so plainly |
-| Playwright on Vercel | **No.** Do not attempt it |
-
-The app must be **honest about this on screen** rather than quietly missing a step: step 8's panel
-says what to run, and step 9 (Meesho) is copy-paste by hand exactly as it is today.
-
-#### What the extension costs, and what it would actually be worth
-
-**Cost: nothing to build, nothing to run.** An extension is HTML/JS in a folder. Chrome loads it
-unpacked from Developer Mode for free, forever, with no account — which is all two people need.
-Publishing to the Chrome Web Store is a **one-time $5 developer registration** and only matters
-if it is ever sold; an unlisted listing would also spare the partner the Developer Mode toggle.
-There is no runtime billing of any kind, because there is no server: it runs on your machine, in
-your session.
-
-**The bigger prize is Meesho, not Flipkart.** Flipkart at least has `npm start` today. **Meesho
-has no API and no bot — step 9 is entirely hand-typed**, every field, every listing. An extension
-sees the Supplier Panel exactly as you do, so it could fill from `image-meta/<ID>.json` the same
-way the Flipkart side fills from `products/<ID>.json`. That turns the *most* manual step in the
-whole flow into a button, and it is the only route to it that exists.
-
-**This is not theoretical — you already use one.** Vansh runs *Flipkart Lens*, a seller extension
-that reads product data straight out of the panel using his own logged-in session. That is the
-same mechanism, and it settles the one thing worth settling early: **Flipkart's seller pages are
-reachable from a content script.** No credentials are handled, no server sees anything; the
-extension simply runs inside a tab that is already authenticated. What it does *not* settle is
-Meesho — different site, never scanned — or either platform's stance on automated filling.
-
-Two things to know before counting on it:
-
-- **Meesho's form has never been scanned.** `scan.ts` learned Flipkart's 66 fields by reading the
-  live page; the Meesho panel needs the same treatment before anything can fill it. Budget that
-  as real work, not a port.
-- **The read-back safety model must survive.** ✅/⚠️/⏭️/❌ per field, and never save while any
-  field reads ⚠️. An extension makes saving *easier*, which makes that rule matter more, not less.
-
-### If it is ever sold
-
-Noted, not designed. Selling it means multi-tenant auth, someone else's data, and — the real
-blocker — somebody else's marketplace credentials. **Nothing in this plan should be shaped around
-that today**; the browser-only design happens to be the right starting point for it anyway,
-because there is no server holding anyone's files.
 
 ### The listing is the top-level object, not the tab
 
@@ -369,19 +346,39 @@ All four are warnings; the values are still correct to use. `paste` prints them 
 *after* the values, because a warning you have to scroll back for is one you ship — the tab has
 the same obligation, and more room to meet it.
 
-### Step 8 — Fill the Flipkart listing  ·  WW-069
+### Step 8 — Fill the Flipkart listing  ·  WW-069 + WW-066b
 **Last, deliberately.** It drives a real browser against a live form.
 
 - The ✅ / ⚠️ / ⏭️ / ❌ read-back report survives into the UI intact — it is the whole safety
   model and must not be flattened into "done".
 - **Nothing may auto-save while any field reads ⚠️.**
 
+### Step 9 — Fill the Meesho listing  ·  WW-093
+**The biggest single time saving in the app, and the only screen with real unknowns.** Today this
+step is typed by hand, field by field, for every listing.
+
+It is not a new mechanism — it is step 8 pointed at a different site. What has to happen first:
+
+1. `npm run scan` against the Supplier Panel, exactly as it was done for Flipkart's 66 fields.
+   Nobody knows yet what those fields are called or how many there are.
+2. Map `image-meta/<ID>.json`'s `meesho` block onto them — the values `npm run paste` already
+   prints (title, description, pack contents) plus whatever else the scan turns up.
+3. The same ✅/⚠️/⏭️/❌ read-back. **Nothing may auto-save while any field reads ⚠️.**
+
+Until it exists the screen shows the `paste` output with a Copy button per value, which is
+today's flow with the terminal removed — useful on its own, and the fallback if the panel turns
+out to resist scripting.
+
 ## Not in the app
 
 - **Writing the copy.** That stays in Claude/ChatGPT via `PROMPT-meta.md`, `PROMPT-product.md`
   and the three image prompts.
   The app never calls an AI — no keys, no credits, no network beyond Flipkart itself.
-- **Meesho upload.** No public API. Copy-paste by hand from `npm run paste -- <ID>`.
+- **Meesho upload — no longer excluded.** The earlier drafts put it here because *"Meesho has no
+  public API"*. Neither does the Flipkart path: `npm start` drives a real logged-in Chrome and
+  `fields.ts` targets fields by visible label, so **the same code fills Meesho's Supplier Panel**
+  once WW-093 has scanned it. Until then, step 9 is copy-paste from `npm run paste -- <ID>` and
+  the screen says so.
 - **Anything Phase 2** (the 2,200-listing keyword bank). Not until the partner is using this.
 
 ## How it gets tested
