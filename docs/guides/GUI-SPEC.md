@@ -30,6 +30,35 @@ Why the Mac build is not an afterthought:
 3. **It pays for itself even if the partner never adopts it.** He is doing this work today, by
    hand, in a terminal.
 
+### The release loop — Mac first, always
+
+Vansh's workflow, and it is the right one:
+
+```
+fix on the Mac  →  test in dev  →  build a .dmg  →  packaged app works?
+                                                          │
+                                        no ── fix again ──┘
+                                        yes → push a build for the partner
+```
+
+**Most iterations never leave the Mac.** Only changes that survive a packaged `.dmg` are worth a
+partner build, because every partner build costs him an install and costs you a round trip
+through someone who cannot read a stack trace.
+
+**What the `.dmg` proves, and what it does not.** It catches the entire packaging class —
+`sharp`'s native binary loading, `paths.ts` resolving when the working directory is `/`, the app
+folder being read-only. Those are most packaging bugs and you can find them all yourself.
+
+It does **not** catch platform-specific ones: a different `sharp` binary, `\` versus `/`, where
+Chrome is installed. **WW-061 was Windows-only.** So *"if the DMG works the EXE will work"* is
+mostly true and not entirely — which is exactly why WW-068 puts **one** early `.exe` on the
+partner's real machine while the app does one thing. After that smoke test passes, iterate on the
+Mac with confidence.
+
+**Auto-update makes this cheap.** `electron-updater` against GitHub Releases means the partner
+never reinstalls by hand — he opens the app and it is current. Worth adding at WW-068, because it
+converts "pushing a fix" from a support conversation into a no-op.
+
 **Gatekeeper caveat, the Mac twin of SmartScreen:** an unsigned `.dmg` will not open on a
 double-click. Right-click → Open, once, or `xattr -d com.apple.quarantine /Applications/…`.
 Document it in the same place as the SmartScreen note. Signing needs a paid Apple Developer
@@ -368,6 +397,21 @@ It is not a new mechanism — it is step 8 pointed at a different site. What has
 Until it exists the screen shows the `paste` output with a Copy button per value, which is
 today's flow with the terminal removed — useful on its own, and the fallback if the panel turns
 out to resist scripting.
+
+## Three things the packaged app must handle
+
+Carried in from the 2026-07-26 decisions; they are easy to miss because none of them matter until
+the app is packaged, and then all three are blockers.
+
+- **Swap `playwright` for `playwright-core`.** `connect.ts` uses `channel: "chrome"` — the user's
+  own installed Chrome — so the bundled ~400 MB Chromium is dead weight in the installer.
+  **Consequence: the partner's PC must have Google Chrome installed**, and the app needs a
+  friendly *"Chrome not found"* screen rather than a stack trace.
+- **`profile/` must move to the OS user-data dir.** It currently lives inside the project folder,
+  which is read-only inside a packaged app. It holds the live Flipkart session, so getting this
+  wrong looks exactly like "it logged me out" — WW-061's failure mode again.
+- **`sharp` must ship as a real native binary for each target.** Not cross-built: the CI matrix
+  builds each platform on its own runner.
 
 ## Not in the app
 
