@@ -57,9 +57,16 @@ WHERE EACH PART COMES FROM
 === HARD RULES ===
 1. Counts and pack contents come ONLY from the INVENTORY. Never invent a fact. A wrong fact
    gets the listing rejected.
-2. NO COMMAS anywhere inside "keywords" entries or inside "meesho.pack_contents". Flipkart
-   splits list values on commas. Use "and" or a dash instead. (Commas ARE allowed in the
-   image descriptions and in meesho.description.)
+2. COMMAS — this file feeds TWO marketplaces and they do NOT share this rule. Get the side
+   right; do not apply one platform's constraint to the other's text.
+
+   NO COMMAS in "title" or in any "keywords" entry. Those two go to FLIPKART, which splits
+   list values on commas — one comma inside an entry silently becomes two entries. Use "and"
+   or a dash instead.
+
+   COMMAS ARE FINE everywhere under "meesho" (title, description, pack_contents) and in the
+   image descriptions. I paste the Meesho values into the Supplier Panel by hand; nothing
+   splits them, and in a long pack list commas read better than dashes.
 3. Do not put the brand name "WishWorks" anywhere.
 4. Write for an Indian shopper searching on a phone. Concrete over clever: say what is in the
    box, what it is for, and what the buyer gets. Every sentence must survive the question
@@ -93,6 +100,35 @@ WHERE EACH PART COMES FROM
    removes the risk. Applies to EVERY value in this file without exception, including all
    three Meesho ones.
 
+7. NAME EVERY ITEM THE WAY A BUYER SEARCHES FOR IT, not the way a supplier invoices it.
+   This is the difference between a listing that gets found and one that does not, and it
+   costs nothing. For each pack item ask: what would somebody type to find this?
+
+     "Foil Letter Kit"      → "Groom To Be Foil Banner"   (people search BANNER)
+     "Mug Foil Balloon"     → "Beer Mug Foil Balloon"     (people search BEER MUG)
+     "Foil Letters"         → "Groom To Be Banner"
+     "Fringe Curtain"       → "Silver Fringe Foil Curtain Backdrop"
+
+   The technical word can stay — put the searched word FIRST and the technical word after.
+   Never invent: if the INVENTORY says the mug is a beer mug, write beer mug; if it does not
+   say, do not add it.
+
+8. DO NOT PAD WITH THE WORD "COLOUR". "Gold Latex Balloons" reads better and is shorter than
+   "Gold Colour Latex Balloons". BUT — and this is the trap — rule 6 still applies: you may
+   only drop "Colour" when a MATERIAL or SHAPE word already sits between the colour and the
+   noun.
+
+     "Gold Colour Latex Balloons"  → "Gold Latex Balloons"        ✅ "Latex" separates them
+     "Gold Colour Balloons"        → keep "Gold Colour Balloons"  ✅ nothing else separates
+     "Gold Balloons"                                              ❌ bare colour + noun, rule 6
+
+   When in doubt keep "Colour". A rejected listing costs more than four characters.
+
+9. SAY WHERE IT IS USED, not just when. Every listing answers WHEN (bachelor party, birthday)
+   and forgets WHERE — and "room decoration", "hotel room decoration", "home decoration",
+   "banquet hall decoration" are things buyers type. Put at least two PLACE phrases into the
+   Meesho description. Only true ones.
+
 === "title" — THE FLIPKART TITLE ===
 TARGET 80-120 characters. 128 is the ceiling.
 Structure, in this order:
@@ -116,6 +152,13 @@ the field may cap at 3-5 entries (not confirmed yet), so put the ones that must 
 the top. Include the occasion and the colour. Think "birthday decoration items", not
 "premium party solutions". Do NOT reuse phrases already in "title" — Flipkart indexes the
 title too, so a duplicate wastes a slot. This is for the phrases the title had no room for.
+
+MOST OF THESE PHRASES MUST ALSO APPEAR IN "meesho.description", worked into sentences where
+they read naturally. A phrase that lives only in this field sits in one index on one
+marketplace; the same phrase inside a sentence works on both. Aim for at least half of them
+appearing in the description text — but NEVER as a list, and never at the cost of a sentence
+sounding written by a person. If a phrase cannot be said naturally, leave it out of the
+description; a stuffed description ranks worse than an honest one.
 
 === "images" — DESCRIPTION RULES ===
 - One key per image I uploaded ("1", "2", "3", "4" — as many as there are).
@@ -213,9 +256,12 @@ Flipkart shopper, which is why this text is NOT a copy of "title" above.
               the size where the INVENTORY gives them — "20 Red Metallic Latex Balloons"
               beats "20 Red Balloons" and costs four words.
      (blank)
-     "Perfect for:" then 5-7 occasions this genuinely suits. This is pure query surface —
+     "Perfect for:" then 5-7 entries this genuinely suits. This is pure query surface —
               every line is a search someone types. Only real ones: a kit that does not
               suit a wedding must not claim weddings.
+              MIX OCCASIONS WITH PLACES (rule 9). Occasions alone leave half the queries on
+              the table: "Bachelor Party", "Groom Welcome", "Pre Wedding" AND "Room
+              Decoration", "Hotel Room Decoration", "Home Party", "Photo Booth Backdrop".
      (blank)
      "How to set it up:" two or three plain lines using the accessories that are actually
               in the pack (pump, arch tape, glue dots).
@@ -232,6 +278,23 @@ Flipkart shopper, which is why this text is NOT a copy of "title" above.
   Rules:
   - The main search phrase should appear 2-3 times across the whole description, only
     where it reads naturally. More than that is stuffing, and it reads as spam.
+  - THE FIVE QUESTIONS. Before you write, answer these five in one word each, then make sure
+    the finished description contains all five in a buyer's words. A listing that answers all
+    five is findable; one that answers two is not:
+        What is it?      → Groom To Be Decoration Kit
+        Who is it for?   → Groom, Bachelor Party
+        Where is it used?→ Room, Hotel Room, Home, Banquet Hall
+        What is inside?  → Banner, Balloons, Curtains, Sash
+        What occasion?   → Bachelor Party, Groom Welcome, Pre Wedding
+    "Where" is the one that gets forgotten. Do not forget it.
+  - Turn a listed feature into what it DOES for the buyer. "52 Pieces - complete set" says
+    nothing; "Complete 52 piece kit for a full room setup" says the same thing usefully.
+    "Fringe curtains" → "Silver fringe foil curtains for the photo backdrop". Same facts,
+    the reason attached.
+  - NEVER write urgency or scarcity: "limited stock", "selling fast", "hurry", "trending",
+    "best seller", "no. 1". Marketplace badges say those things; a seller writing them is a
+    policy risk and reads as desperate. This overrides any advice you have seen elsewhere —
+    it is a standing instruction from the seller, not a preference.
   - Facts only, every one from the INVENTORY. No guarantees, no delivery or return
     promises, no MRP, discount or price talk, and never a phone number, email, website
     or social handle. Any of those can get the catalogue rejected outright.
@@ -241,9 +304,11 @@ Flipkart shopper, which is why this text is NOT a copy of "title" above.
 "meesho.pack_contents"
   ONE single clean line listing everything in the pack with counts, for the panel's
   "what is in the packet" field. HARD LIMIT 255 CHARACTERS — count them.
-  - Format: "20 Red Metallic Balloons - 20 Gold Metallic Balloons - 8 Heart Foil Balloons
-    - 1 Annaprasan Banner"
-  - Separate items with " - " (space hyphen space). NO COMMAS.
+  - Format: "20 Red Metallic Balloons, 20 Gold Metallic Balloons, 8 Heart Foil Balloons,
+    1 Annaprasan Banner"
+  - Separate items with ", " (comma space). This is a MEESHO-only field — I paste it into the
+    Supplier Panel by hand and nothing splits it — so the no-comma rule that protects the
+    Flipkart fields does not apply here, and commas read better in a long list.
   - Taken from the INVENTORY and nothing else.
   - ONE ENTRY PER INVENTORY LINE. NEVER MERGE TWO LINES INTO ONE. If the inventory lists
     "20 red metallic balloons" and "20 gold metallic balloons", write both — never
@@ -293,7 +358,10 @@ Flipkart shopper, which is why this text is NOT a copy of "title" above.
 - Does the Meesho description contain no phone number, email, website, social handle,
   guarantee, delivery promise or price?
 - Is meesho.pack_contents ONE line, 255 characters or fewer, separated by " - ", with no
-  commas, no line breaks and no double spaces anywhere?
+  line breaks and no double spaces anywhere? (Commas are fine here — Meesho-only field.)
+- COMMA SIDES — are "title" and every "keywords" entry comma-free (they go to Flipkart, which
+  splits on commas), while the Meesho values use commas normally? Applying Flipkart's rule to
+  the Meesho text makes it read worse for no reason, and the reverse breaks Flipkart's lists.
 - Does meesho.pack_contents have ONE entry per INVENTORY line, with no two lines merged?
   Two balloon colours on the inventory means two entries, never a combined "40 Balloons".
 - Does every pack_contents entry keep its colour, material or shape word?
@@ -306,4 +374,13 @@ Flipkart shopper, which is why this text is NOT a copy of "title" above.
   ("Golden Star", "Silver Crown", "Gold Curtain"). Expand every one of them with the shape,
   material or function word in the middle. This is the check that catches the rejection I
   actually got, so do it phrase by phrase — do not skim.
+- BUYER-WORD CHECK (rule 7) — read your item names back and ask of each one: would a buyer
+  type this? "Foil Letter Kit" and "Mug Foil Balloon" both fail. "Groom To Be Foil Banner"
+  and "Beer Mug Foil Balloon" pass. Fix every one before you answer.
+- Does the Meesho description answer all FIVE questions — what, who, WHERE, what's inside,
+  which occasion? "Where" is the one that gets left out; find your place words and count them.
+- Does any value contain urgency or scarcity wording ("limited stock", "trending", "hurry",
+  "selling fast", "best seller")? Remove it — that is a policy risk, not a sales technique.
+- Did you drop the word "Colour" anywhere it was the ONLY thing separating a colour from a
+  noun? "Gold Balloons" is the rule 6 rejection shape. Put it back.
 - Is it valid JSON, with every quote and bracket closed?

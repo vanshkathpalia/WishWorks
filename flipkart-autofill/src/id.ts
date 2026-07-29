@@ -18,7 +18,7 @@
  * Two different files that normalise the same are reported, never silently ranked.
  */
 
-import { readdir } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 /**
@@ -45,13 +45,15 @@ export interface IdMatch {
 }
 
 /**
- * The `.json` in `dir` belonging to `id`, whatever either is named. An exact filename match
- * wins; otherwise the normalised match, alphabetically, so the answer never depends on
- * readdir order. `null` when nothing matches.
+ * The `.json` in `dir` belonging to `id`, whatever either is named. When several match, the most
+ * recently written one — one rule, so `ANP-3`, `ANP003` and `image-meta-ANP003` all reach the
+ * same file. `null` when nothing matches.
  *
  * `others` is populated when more than one file matches — e.g. both `ANP003.json` and
- * `image-meta-ANP003.json` on disk, one of them a stale copy. Callers show it; nothing here
- * guesses which one you meant.
+ * `image-meta-ANP003.json` on disk, one of them a stale copy. They are the SAME product (they
+ * normalise the same), so there is no wrong-product risk in picking; the only question is which
+ * copy is current, and the answer is always the one you saved last. Callers list the rest so a
+ * stale file is visible, and stop asking.
  */
 export async function findById(dir: string, id: string): Promise<IdMatch | null> {
   let entries: string[];
@@ -62,15 +64,22 @@ export async function findById(dir: string, id: string): Promise<IdMatch | null>
   }
 
   const want = normalizeId(id);
-  const matches = entries
+  const named = entries
     .filter((f) => /\.json$/i.test(f) && !f.startsWith(".") && !f.startsWith("_") && !/^EXAMPLE/i.test(f))
     .filter((f) => normalizeId(f) === want)
     .sort();
-  if (matches.length === 0) return null;
+  if (named.length === 0) return null;
 
-  const best = matches.find((f) => f === `${id}.json`) ?? matches[0];
+  // Newest first: the file you just downloaded is the one you meant. The alphabetical sort above
+  // stays as the tie-break so the answer never depends on readdir order.
+  const times = await Promise.all(named.map((f) => stat(path.join(dir, f)).then((s) => s.mtimeMs, () => 0)));
+  const [best, ...others] = named
+    .map((f, i) => ({ f, t: times[i] }))
+    .sort((a, b) => b.t - a.t)
+    .map((x) => x.f);
+
   return {
     file: path.join(dir, best),
-    others: matches.filter((f) => f !== best).map((f) => path.join(dir, f)),
+    others: others.map((f) => path.join(dir, f)),
   };
 }

@@ -31,3 +31,15 @@ export const PRODUCTS_DIR = process.env.WW_PRODUCTS_DIR ?? path.join(ROOT, "prod
 
 /** Category defaults merged into every product of that category. */
 export const CATEGORIES_DIR = process.env.WW_CATEGORIES_DIR ?? path.join(ROOT, "categories");
+
+/**
+ * A path as it should be SHOWN: short and relative when it is inside the project, absolute
+ * otherwise. `path.relative` alone produces `../../../../../../var/folders/…` the moment a
+ * WW_*_DIR points somewhere else — which is the normal case in a packaged app, and unreadable
+ * in exactly the messages ("this folder -> this description file") whose whole job is to let
+ * you check the tool picked the right file.
+ */
+export function showPath(file: string): string {
+  const rel = path.relative(ROOT, file);
+  return rel.startsWith("..") ? file : rel;
+}

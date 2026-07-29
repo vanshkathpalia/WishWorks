@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright";
 import { fillField, probeField } from "./fields.js";
+import { normalizeId } from "./id.js";
 import { CATEGORIES_DIR, PRODUCTS_DIR } from "./paths.js";
 
 export type Values = Record<string, string | number | string[]>;
@@ -20,14 +21,20 @@ export interface LoadedProduct {
   usedDefaults: string[];
 }
 
-/** Every product file available to fill, newest-looking name last. */
+/**
+ * Every product available to fill — ONE entry per product, not per file. `ANP003.json` and
+ * `products-ANP003.json` are the same listing saved twice (id.ts), and a menu that offers both
+ * is a menu you can pick the stale one from. Newest file wins, same rule findById uses.
+ */
 export function listProducts(dir = PRODUCTS_DIR): string[] {
   if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith(".json"))
-    .sort()
-    .map((f) => path.join(dir, f));
+  const newestPerId = new Map<string, string>();
+  for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
+    const full = path.join(dir, f);
+    const seen = newestPerId.get(normalizeId(f));
+    if (!seen || fs.statSync(full).mtimeMs > fs.statSync(seen).mtimeMs) newestPerId.set(normalizeId(f), full);
+  }
+  return [...newestPerId.values()].sort();
 }
 
 /**

@@ -20,8 +20,16 @@ import {
 import { encodeJpeg } from "./encode.js";
 import { addBorder, squareImage } from "./square.js";
 
-/** Below this on the short side, upscaling can't recover detail — warn (we still don't touch it). */
-const SOFT_BELOW = 1000;
+// Two size notes, both in finishOne, both purely informational — finish never resizes and never
+// refuses. The RATIO (1:1) is never a deliberate choice, so its note prescribes a fix. The
+// RESOLUTION usually is deliberate — Meesho prices shipping off the main image
+// (docs/guides/SHIPPING-COST.md) — so its note states the number and prescribes nothing.
+// Contrast images.ts, where a small source genuinely does mean "re-download a bigger one".
+
+/** Below this on the short side, a listing image is soft once a buyer zooms. */
+const SMALL_BELOW = 1000;
+/** Under this, Meesho may refuse the image. Blog-sourced, never confirmed — worded as a maybe. */
+const LIKELY_REJECTED = 500;
 
 // Same input formats images.ts accepts. Output is always JPEG — the container EXIF descriptions
 // land in reliably (PNG/AVIF metadata is dropped by sharp's writer).
@@ -115,9 +123,27 @@ async function finishOne(o: OneOptions): Promise<Row> {
   const h = meta.height ?? 0;
   if (!w || !h) throw new Error(`could not read dimensions (${meta.format ?? "unknown format"})`);
 
-  const shortSide = Math.min(w, h);
-  if (shortSide < SOFT_BELOW) {
-    notes.push(`SOURCE ONLY ${shortSide}px — will look soft, get a larger original`);
+  // The one shape check that survives. NOT how many pixels — the seller sets that deliberately
+  // (Meesho prices shipping off the main image) and 1254x1254 is as fine as 1500x1500. But the
+  // RATIO is never deliberate: an AI hands back a 1024x1536 now and then, and finish does not
+  // resize, so it would go out the odd one in a listing of squares. Warn, don't fix — --square
+  // fixes it if you want it fixed.
+  if (w !== h && !square) {
+    notes.push(`NOT SQUARE ${w}x${h} — every other image is 1:1. Re-run with --square, or get a 1:1 original`);
+  }
+
+  // Resolution, stated and NOT prescribed. This never blocks, never resizes, and the metadata
+  // still goes in — a small main image is often the deliberate choice here, because Meesho
+  // prices shipping off it (SHIPPING-COST.md), so "get a larger original" is the wrong advice
+  // and was rightly cut once already (learning note 7). But deliberate and overlooked leave the
+  // same trace, so print the number and let the operator decide. The ~500px floor is
+  // blog-sourced, not from Meesho's own docs — see SHIPPING-COST.md on that whole family of
+  // claims — so it is worded as a maybe.
+  if (Math.min(w, h) < SMALL_BELOW) {
+    notes.push(
+      `SMALL ${w}x${h} — fine if that is your shipping choice; otherwise soft when a buyer zooms` +
+        (Math.min(w, h) < LIKELY_REJECTED ? `, and under ~500px Meesho may reject it outright` : ``),
+    );
   }
 
   // Metadata-only Meesho check. The output never carries source metadata (we don't copy it),

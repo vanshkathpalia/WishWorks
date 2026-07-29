@@ -200,16 +200,58 @@ the first prompt. To copy text into the websites, run `npm run paste -- <ID>` �
 shapes works — and it prints the Flipkart Description and the Meesho values with the `\n`
 escapes undone.
 
-> Keep **one** file per product per folder. If you save the download *and* a renamed copy, both
-> match and the tool names both and asks you to delete the stale one rather than guessing.
+> Save the download *and* a renamed copy and nothing breaks: both match, the **newest** is used,
+> and the older one is printed as ignored. Re-download and re-save any time — the fresh file wins.
 
 **Check the corners of what the AI made.** If there's a sparkle logo, generate it again.
 
-### Step 4 · Paste the descriptions
+### Step 4 · Check the two files landed
 
-Usually there is nothing to do here — you saved the download in Step 3 and it already looks like
-this. To write one by hand, put it in `image-meta/` under any name that carries the ID
-(`ANP-1042.json`, `image-meta-ANP1042.json`, …):
+You wrote nothing by hand — you saved two downloads in Step 3. This reads them back:
+
+```bash
+npm run paste -- ANP003
+```
+
+Any ID shape works (`ANP003`, `ANP-3`, `image-meta-ANP003`). It prints the four values you will
+paste into the websites, and checks three things you cannot see by looking at the files:
+
+```
+[FLIPKART DESCRIPTION]  1144/1400
+[MEESHO TITLE]          98/120
+[MEESHO DESCRIPTION]    1139/1400
+[MEESHO PACK CONTENTS]  212/255
+```
+
+| It says | Meaning |
+|---|---|
+| `(missing)` | the AI's reply was cut short — re-run that prompt, this is WW-081 |
+| `⚠️ OVER` | the form will silently truncate it. Shorten it now |
+| `⚠️ short — room for more` | a description at half its allowance is search reach thrown away |
+| `⚠️ image-meta and products disagree` | **fix this before listing** — see below |
+
+That last one matters most. `Model Name` and `Search Keywords` in `products/` must be
+**character for character** the `title` and `keywords` in `image-meta/`, because Flipkart builds
+the listing title out of Model Name. Run the two prompts twice, or hand-edit one file, and you
+end up with two or three different phrasings of the same kit — the keyword work split between
+them instead of compounding, and invisible until the listing is live. `paste` prints both
+versions side by side; pick one and copy it into the other file.
+
+**Two files per product, kept apart on purpose:**
+
+| File | Holds | Needed for |
+|---|---|---|
+| `image-meta/<ID>.json` | picture descriptions + the Meesho copy | **Meesho and Flipkart** |
+| `products/<ID>.json` | the 66 Flipkart form fields | **Flipkart only** |
+
+**A Meesho listing needs only the first one.** There is no 66-field form on Meesho, so you never
+create a `products/` file for a Meesho-only product. See `START-HERE.md` for the Flipkart one.
+
+<details>
+<summary>Writing an <code>image-meta</code> file by hand (rare — only if you skipped the AI)</summary>
+
+Put it in `image-meta/` under any name carrying the ID (`ANP-1042.json`,
+`image-meta-ANP1042.json`, …). Copy `image-meta/EXAMPLE-ANP-1042.json` as a starting point.
 
 ```json
 {
@@ -223,18 +265,10 @@ this. To write one by hand, put it in `image-meta/` under any name that carries 
 }
 ```
 
-Copy `image-meta/EXAMPLE-ANP-1042.json` as a starting point.
+The `"meesho"` block (title / description / pack_contents) is what `npm run paste` prints for
+the Meesho panel — without it, Step 8 has nothing to copy.
 
-**Two files per product, kept apart on purpose:**
-
-| File | Holds | Needed for |
-|---|---|---|
-| `image-meta/<ID>.json` | picture descriptions | **Meesho and Flipkart** |
-| `products/<ID>.json` | the 66 listing fields | **Flipkart only** |
-
-**A Meesho listing needs only the first one.** There is no 66-field form on Meesho, so you
-never create a `products/` file for a Meesho-only product. See `START-HERE.md` for the
-Flipkart one.
+</details>
 
 ### Step 5 · Finish the images
 
@@ -280,7 +314,7 @@ Open `images/3-final/ANP-1042/` in Finder:
 **The computer cannot check any of this.** It doesn't know which photo is which or what's in
 your pack. Thirty seconds here prevents uploading in the wrong order.
 
-### Step 7 · Upload and fill the form
+### Step 7 · Flipkart — upload and fill the form
 
 Upload the `3-final/` files in numbered order, then:
 
@@ -289,6 +323,27 @@ npm start
 ```
 
 Pick the product from the list. Follow `START-HERE.md`. Run once per tab of the form.
+(`npm run fill -- ANP003` does the same thing without the menu, if you already know the ID.)
+
+**Never save while any field reads ⚠️.** The bot types every value and reads it back; a ⚠️ means
+what landed is not what was sent, and that is the whole safety model.
+
+### Step 8 · Meesho — by hand
+
+There is no Meesho API, so this part is copy-paste. Keep the terminal open:
+
+```bash
+npm run paste -- ANP003
+```
+
+Copy `MEESHO TITLE`, `MEESHO DESCRIPTION` and `MEESHO PACK CONTENTS` straight out of it — they
+print with real line breaks, so they go into the panel as-is. Upload the same `3-final/` images
+in the same order.
+
+> ⚠️ **Read the shipping figure before you submit.** Meesho sets it from the main image, and one
+> of our test images produced **₹256** — a listing that would have sat there earning nothing with
+> no obvious cause. Five seconds, every time the main image changes. Everything else about that
+> fee has been tested to death: see `SHIPPING-COST.md` and **do not re-run those tests.**
 
 ---
 
@@ -343,8 +398,8 @@ inside on its own:
 npm run finish -- --in="/Users/vansh/Downloads/Whatsapp DW"
 ```
 
-You can also aim it narrower — at one category, or one listing (the single-listing form shows a
-menu to pick the descriptions file):
+You can also aim it narrower — at one category, or one listing (a single listing prints which
+descriptions file it matched; it only asks when *nothing* matched):
 ```bash
 npm run finish -- --in="/Users/vansh/Downloads/Whatsapp DW/ANP"          # one category
 npm run finish -- --in="/Users/vansh/Downloads/Whatsapp DW/ANP/ANP 1"    # one listing
@@ -379,12 +434,21 @@ Everything lands **flat, all listings together**, in `~/Downloads/wishworks-read
    leading zeros are all ignored when matching.) If no file matches, `finish` still renames and
    copies the images — it just embeds no description and says so.
 
-   If **two** files match — say you kept `ANP003.json` *and* `image-meta-ANP003.json` — it names
-   both and tells you to delete the stale one, rather than guessing which you meant.
+   If **two** files match — say you kept `ANP003.json` *and* `image-meta-ANP003.json` — it uses
+   the **one you saved last** and prints the older one as ignored. No menu, nothing to delete:
+   they are the same product either way, so the only question is which copy is current.
 
 > ⚠️ **Without `--square`, `finish` does not resize or square** — it trusts the pixels as-is. So
 > either get a square (1:1) image from ChatGPT, add `--square`, or use **Flow A**'s
 > `npm run images -- --final`, which always squares.
+
+### Then carry on with Flow A
+
+`finish` replaces Steps 1, 2 and 5 only. Everything after the images exist is identical:
+**Step 4** (`npm run paste -- <ID>` — check the two files landed and agree), **Step 6** (look at
+the output), **Step 7** (`npm start` for Flipkart) and **Step 8** (Meesho by hand, reading the
+shipping figure before you submit). The only difference is where the finished files are:
+`~/Downloads/wishworks-ready/` instead of `images/3-final/<ID>/`.
 
 ---
 
@@ -397,7 +461,8 @@ Everything lands **flat, all listings together**, in `~/Downloads/wishworks-read
 | `centre-cropped` | Wasn't square and the background wasn't white, so edges were trimmed |
 | `cropped 40px off bottom` | The tag was cut off |
 | `erased 130x26px tag at bottom-left` | The tag was painted over with the background colour |
-| `⚠️ SOURCE ONLY 512px` | **Photo is too small** — see below |
+| `⚠️ SOURCE ONLY 512px` | **Photo is too small** — see below. **Flow A only.** `finish` does not count pixels: there the size is your call, and a smaller main image is often the deliberate one (`SHIPPING-COST.md`). 1254×1254 is a fine image |
+| `⚠️ NOT SQUARE 1024x1536` | **`finish` only.** The image isn't 1:1, so it would go out the odd one in a listing of squares. Ask the AI again for a square, or re-run with `--square` to pad/crop it. Nothing is resized without that flag |
 | `no per-image description for position 3` | Add a line for `"3"` in the product file |
 | `not named 1, 2, 3…` | Rename the files to plain numbers |
 | `Problems: ✖ …` | That one file failed; the rest still worked |
@@ -420,11 +485,15 @@ which will be 2000px or more. No setting, prompt or command fixes this.
 
 | To do this | Type this |
 |---|---|
-| Clean up downloaded photos | `npm run images -- --crop-bottom=25 --crop-images=1 --erase-tag=150,30 --erase-images=2,3,4` |
+| Clean up downloaded photos *(Flow A)* | `npm run images -- --crop-bottom=25 --crop-images=1 --erase-tag=150,30 --erase-images=2,3,4` |
 | …without removing any tag | `npm run images` |
-| Finish photos + write descriptions | `npm run images -- --final` |
-| Fill the listing form | `npm start` |
+| Finish photos + write descriptions *(Flow A)* | `npm run images -- --final` |
+| Same, for photos already clean *(Flow B)* | `npm run finish -- --in="<folder>"` |
+| **Get the copy to paste into the websites** | `npm run paste -- <ID>` |
+| Fill the Flipkart form | `npm start`  (or `npm run fill -- <ID>`) |
+| Did the descriptions really go in? | `npm run check` |
 | Log in to Flipkart (once ever) | `npm run login` |
+| Flipkart changed the form — re-read its fields | `npm run scan balloon-decoration` |
 | Check the tool still works | `npm test` |
 
 Every one starts with going to the right folder:
@@ -439,10 +508,13 @@ cd "<project folder>/flipkart-autofill"
 Straight answers, because guessing costs real money.
 
 **Tested and certain:**
-- Every finished image is exactly 1500×1500, correct colour, correct format
+- Flow A output is exactly 1500×1500, correct colour, correct format. **Flow B does not resize** —
+  the pixels you give `finish` are the pixels that go out, which is deliberate
 - Each image carries its own description inside the file
 - Your downloads are never modified; re-running is always safe
-- **50 automated tests** cover this — run `npm test`
+- Meesho's shipping fee is set by the **main image**, deterministically — but **fourteen live
+  tests found no rule for which image is cheap.** Closed. Read the figure, don't chase it
+- **75 automated tests** cover this — run `npm test`
 
 **Not certain yet:**
 - **Whether Meesho or Flipkart read the descriptions inside images.** The text is definitely

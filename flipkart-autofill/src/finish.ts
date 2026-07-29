@@ -42,7 +42,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { availableMetaIds } from "./image-meta.js";
 import { findById, normalizeId } from "./id.js";
-import { META_DIR, ROOT } from "./paths.js";
+import { META_DIR, showPath } from "./paths.js";
 import { cleanId, numberedImages, runFinish } from "./finish-core.js";
 
 /** Ask a question on the terminal and return the typed answer. Mirrors connect.ts's `ask`,
@@ -106,22 +106,19 @@ async function chooseMeta(auto: string): Promise<{ id: string; skip: boolean }> 
  * Where this listing's descriptions come from, decided BEFORE anything is written. Returns the
  * `metaId` to hand `runFinish`, or null to let it resolve the folder's own ID.
  *
- * The menu only appears when there is a real question to ask — nothing matched, or two files
- * match and one of them must be stale. A clean single match is not a question, it is an answer,
- * and asking it anyway is what let WW-078 happen: an operator picking from a list of things all
+ * The menu only appears when NOTHING matched. Two files answering to the same ID is not a
+ * question either — they are the same product under two names (`ANP003.json` next to
+ * `image-meta-ANP003.json`), so findById takes the newest and we just say which is ignored.
+ * Asking anyway is what let WW-078 happen: an operator picking from a list of things all
  * marked "a DIFFERENT product".
  */
 async function resolveMeta(auto: string): Promise<string | "none" | null> {
   const match = await findById(META_DIR, auto);
 
-  if (match && match.others.length === 0) {
-    console.log(`\n  Descriptions: ${path.relative(ROOT, match.file)}  ← matches these photos`);
-    return null; // runFinish finds the same file by the same rule
-  }
-
   if (match) {
-    console.log(`\n  ⚠️  ${match.others.length + 1} files answer to "${auto}" — one of them is probably stale:`);
-    for (const f of [match.file, ...match.others]) console.log(`       ${path.relative(ROOT, f)}`);
+    console.log(`\n  Descriptions: ${showPath(match.file)}  ← matches these photos`);
+    for (const f of match.others) console.log(`       (ignoring older copy: ${showPath(f)})`);
+    return null; // runFinish finds the same file by the same rule
   }
 
   if (!process.stdin.isTTY) return null; // a pipe or a test would hang on the menu
@@ -210,7 +207,8 @@ async function main() {
     }
     console.log(`    ${row.from.padEnd(12)} ->  ${row.to.padEnd(18)} ${row.size}`);
     for (const n of row.notes) {
-      const flag = n.includes("SOURCE ONLY") || n.includes("MEESHO METADATA") ? "⚠️ " : "   ";
+      // Nothing in finish blocks, so this marker is the only signal these notes get.
+      const flag = /^(SMALL|NOT SQUARE|MEESHO METADATA)/.test(n) ? "⚠️ " : "   ";
       console.log(`    ${flag}   ${n}`);
     }
   }

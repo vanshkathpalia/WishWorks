@@ -134,6 +134,28 @@ describe("finish — --square", () => {
     expect(meta.height).toBe(60);
   });
 
+  it("says so when an image is not 1:1, and stays quiet about small-but-square", async () => {
+    // The ratio is never a deliberate choice; the pixel count is (SHIPPING-COST.md), so a small
+    // square image must produce no warning at all.
+    await makeImage("src/WB 1/1.png", 100, 60);
+    await makeImage("src/WB 1/2.png", 350, 350);
+    const { out } = await run([`--in=${path.join(tmp, "src", "WB 1")}`, `--out=${path.join(tmp, "out")}`]);
+    expect(out).toContain("NOT SQUARE 100x60");
+    expect(out).not.toContain("350px");
+    expect(out.match(/NOT SQUARE/g)).toHaveLength(1); // only the 100x60, not the 350x350
+  });
+
+  it("does not warn about the ratio when --square already fixed it", async () => {
+    await makeImage("src/WB 1/1.png", 100, 60);
+    const { out } = await run([
+      `--in=${path.join(tmp, "src", "WB 1")}`,
+      `--out=${path.join(tmp, "out")}`,
+      "--square",
+    ]);
+    expect(out).not.toContain("NOT SQUARE");
+    expect(out).toContain("squared:");
+  });
+
   it("pads a white-background image to 1:1 with --square", async () => {
     await makeImage("src/WB 1/1.png", 100, 60);
     const { code } = await run([
@@ -145,5 +167,48 @@ describe("finish — --square", () => {
     const meta = await sharp(path.join(tmp, "out", "WB-1.1.jpg")).metadata();
     expect(meta.width).toBe(meta.height);
     expect(meta.width).toBe(100);
+  });
+});
+
+/**
+ * A small image is usually the seller's deliberate choice — Meesho prices shipping off the main
+ * image (SHIPPING-COST.md) — so this note must never resize, never block, and never tell anyone
+ * to fetch a bigger original. It exists only so "deliberate" and "nobody noticed" stop leaving
+ * the same trace. See learning note 7.
+ */
+describe("small images are reported, never refused", () => {
+  it("names the size and still writes the file, with the metadata in it", async () => {
+    await makeImage("src/GTB 2/1.png", 350, 350);
+    const { code, out } = await run([
+      `--in=${path.join(tmp, "src", "GTB 2")}`,
+      `--out=${path.join(tmp, "out")}`,
+    ]);
+    expect(code).toBe(0);
+    expect(out).toContain("SMALL 350x350");
+    expect(await readdir(path.join(tmp, "out"))).toContain("GTB-2.1.jpg");
+  });
+
+  it("does not prescribe a bigger original — that is the wrong advice here", async () => {
+    await makeImage("src/GTB 2/1.png", 350, 350);
+    const { out } = await run([`--in=${path.join(tmp, "src", "GTB 2")}`, `--out=${path.join(tmp, "out")}`]);
+    expect(out).not.toContain("larger original");
+    expect(out).toContain("your shipping choice");
+  });
+
+  it("adds the rejection caution only under ~500px", async () => {
+    await makeImage("src/GTB 2/1.png", 350, 350);
+    const small = await run([`--in=${path.join(tmp, "src", "GTB 2")}`, `--out=${path.join(tmp, "out")}`]);
+    expect(small.out).toContain("Meesho may reject");
+
+    await makeImage("src/GTB 3/1.png", 800, 800);
+    const mid = await run([`--in=${path.join(tmp, "src", "GTB 3")}`, `--out=${path.join(tmp, "out")}`]);
+    expect(mid.out).toContain("SMALL 800x800");
+    expect(mid.out).not.toContain("Meesho may reject");
+  });
+
+  it("says nothing at all about a full-size image", async () => {
+    await makeImage("src/GTB 4/1.png", 1254, 1254);
+    const { out } = await run([`--in=${path.join(tmp, "src", "GTB 4")}`, `--out=${path.join(tmp, "out")}`]);
+    expect(out).not.toContain("SMALL");
   });
 });

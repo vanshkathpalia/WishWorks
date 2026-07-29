@@ -73,6 +73,28 @@ finish and printed/banner wording.
    somebody's company name?" If yes, expand it using the pattern above. Prefer the boring
    descriptive phrase every time — it is the one that survives review.
 
+8. NAME EVERY ITEM THE WAY A BUYER SEARCHES FOR IT, not the way a supplier invoices it.
+   Applies to every field, and most of all to "Decoratives Attached", "Key Spec",
+   "Key Features" and the Description's What You Get list:
+
+     "Foil Letter Kit"   → "Groom To Be Foil Banner"   (people search BANNER)
+     "Mug Foil Balloon"  → "Beer Mug Foil Balloon"     (people search BEER MUG)
+     "Fringe Curtain"    → "Fringe Foil Curtain Backdrop"
+
+   Searched word first, technical word after. Never invent a detail the INVENTORY does not
+   give — if it does not say beer mug, do not write beer mug.
+
+9. THE ATTRIBUTES MATTER MORE THAN THE PROSE. Marketplace filters and category browse run on
+   these structured fields, not on the Description — a buyer filtering "Occasion: Bachelor
+   Party" never sees a listing that left Occasion blank, however good its copy is. So:
+   **fill every field you have a truthful answer for.** Leaving one out is invisible and
+   costs real traffic. This does NOT license guessing: rule 1 still stands, a wrong value is
+   worse than a missing one. Fill what you know, omit what you do not.
+
+10. NO URGENCY OR SCARCITY WORDING anywhere: "limited stock", "selling fast", "hurry",
+   "trending", "best seller", "no. 1". Marketplace badges make those claims; a seller making
+   them is a policy risk. This overrides any listing advice you have been given elsewhere.
+
 === FIELDS TO FILL ===
 
 Identity
@@ -107,8 +129,11 @@ Lists (arrays — no commas inside any entry)
 Single values
   "Shape"        – ONE value from the form's dropdown, e.g. "Round" / "Heart" / "Star".
                    If the pack has several shapes, pick the dominant one.
-  "Description"  – HARD LIMIT 1400 CHARACTERS including spaces, line breaks and emoji.
-                   Count them before you answer. Over 1400 and Flipkart cuts it off.
+  "Description"  – TARGET 1100-1400 CHARACTERS including spaces, line breaks and emoji.
+                   1400 is the HARD LIMIT — over it, Flipkart cuts the tail off silently.
+                   1100 is the FLOOR: Flipkart indexes this field, so a 700-character
+                   description is half the field left empty and half the queries unanswered.
+                   Count them before you answer. Both ends are checked after you reply.
                    Commas allowed here. Write it in EXACTLY this shape, blank line between
                    every block, in this order:
 
@@ -117,8 +142,11 @@ Single values
                      One paragraph, 2-3 sentences: what it is, who it is for, and the
                      colours. Name the occasions a buyer searches for.
 
-                     One short paragraph, 1-2 sentences: the all-in-one / easy-setup /
-                     good-for-photos angle. Only say what is true.
+                     One short paragraph, 1-2 sentences: WHERE it gets used — home, hotel
+                     room, banquet hall, party venue — plus the all-in-one / good-for-photos
+                     angle. Only say what is true. Flipkart indexes this field, and "room
+                     decoration" / "hotel room decoration" are queries almost every listing
+                     in this category forgets to answer.
 
                      🎁 What You Get (<N> Pieces)
                      One line per INVENTORY group, count first: "12 Gold Colour Balloons".
@@ -127,6 +155,12 @@ Single values
 
                      ✨ Key Features
                      5 lines, each: "<emoji> <Short Label> – <benefit in a few words>"
+                     The part after the dash must say what it DOES for the buyer, never
+                     restate the label. "52 Pieces – Complete decoration set" is the label
+                     twice; "52 Pieces – Enough to cover a full wall backdrop" is a benefit.
+                     "Arch Tape – Easy balloon arrangement" is vague; "Arch Tape – Holds the
+                     balloons in a curve without tying knots" is specific. Specific beats
+                     enthusiastic every time.
 
                      🎈 Perfect For
                      5 occasions this genuinely suits, one per line.
@@ -184,8 +218,10 @@ stock and shipping settings are already configured. Do not include them.
   the five Yes/No dropdowns and "Weight" — a truncated answer loses the tail of the file
   first. Count the fields against the list above before you send.
 - Does the Description mention every single INVENTORY line, accessories included?
-- Is the Description 1400 characters or fewer, counted with spaces, line breaks and emoji?
-  If not, cut in the order given and count again.
+- Is the Description between 1100 and 1400 characters, counted with spaces, line breaks and
+  emoji? Over 1400: cut in the order given and count again. Under 1100: you have left the
+  field half empty — add the places it is used, more Perfect For lines, or fuller item names,
+  and count again. Both ends are checked by tooling after you answer.
 - Does the Description follow the template — headline, paragraphs, 🎁 What You Get,
   ✨ Key Features, 🎈 Perfect For, 💡 Why Choose This Kit?, 👉 — with a blank line between
   each block and emoji only as section markers?
@@ -201,4 +237,16 @@ stock and shipping settings are already configured. Do not include them.
   come out of Model Name, Design, Decoratives Attached, Material and Description.
 - Is every entry in "Character" wording that is genuinely printed on an item?
 - Does "Balloon Type" cover every kind of balloon in the pack?
+- BUYER-WORD CHECK (rule 8) — read back every item name in Decoratives Attached, Key Spec,
+  Key Features and What You Get. Would a buyer type it? "Foil Letter Kit" and "Mug Foil
+  Balloon" fail; "Groom To Be Foil Banner" and "Beer Mug Foil Balloon" pass.
+- ATTRIBUTE SWEEP (rule 9) — go back through the FIELDS TO FILL list and count how many you
+  actually filled. For each one you skipped, is that because you genuinely do not know, or
+  because you stopped early? Filters run on these, so a blank field is a filter you never
+  appear in. Fill the ones you know.
+- Does the Description say WHERE the kit is used — room, home, hotel room, banquet hall —
+  and not only when?
+- Does each ✨ Key Features line say what the feature DOES, rather than repeating its label?
+- Does any field contain urgency or scarcity wording ("limited stock", "trending", "hurry",
+  "selling fast", "best seller")? Remove it.
 - Is it valid JSON, with every quote and bracket closed?

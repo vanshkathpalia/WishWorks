@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { openBrowser, pressEnter, activePage, checkLogin } from "./connect.js";
 import { clickSave } from "./fields.js";
 import { findById } from "./id.js";
-import { PRODUCTS_DIR, ROOT } from "./paths.js";
+import { PRODUCTS_DIR, showPath } from "./paths.js";
 import {
   loadProduct, checkValues, describeProblems,
   fillAll, printReport, needsEyes, explainMismatches,
@@ -37,10 +37,10 @@ if (!existsSync(arg)) {
     process.exit(1);
   }
   if (match.others.length) {
-    console.error(`⚠️  ${match.others.length + 1} files answer to "${arg}" — filling from ${path.relative(ROOT, match.file)}`);
+    console.error(`⚠️  ${match.others.length + 1} files answer to "${arg}" — filling from ${showPath(match.file)}`);
   }
   productFile = match.file;
-  console.log(`↳ product: ${path.relative(ROOT, productFile)}`);
+  console.log(`↳ product: ${showPath(productFile)}`);
 }
 
 const { values, usedDefaults } = loadProduct(productFile);

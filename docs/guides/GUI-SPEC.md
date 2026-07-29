@@ -114,9 +114,36 @@ ANP 3  (4 photos)   ✖ none found             — cannot finish
 - One output folder per listing, not the current flat dump where two products' files sit
   side by side.
 
+**Per-image notes must survive into the UI, and none of them may block.** `runFinish` returns
+them on each row; the tab shows them next to that image's thumbnail:
+
+| Note | Means |
+|---|---|
+| `SMALL 350x350` | states the size, prescribes nothing — a small main image is often deliberate, because Meesho prices shipping off it. Under ~500px it adds that Meesho may reject it |
+| `NOT SQUARE 1024x1536` | the ratio, unlike the resolution, is never a deliberate choice |
+| `MEESHO METADATA in source` | the file came from Meesho; the output is clean regardless |
+
+The distinction is the whole design: **the ratio warning tells you what to do, the resolution
+warning tells you what is true.** Do not let the UI flatten them into one severity, and do not
+let either stop the write — the file and its metadata are still correct (learning note 7).
+
 ### Tab 5 — Check  ·  WW-069
 Read-only. Per listing: images present, descriptions embedded, product JSON valid, ready or not.
 This is rule 4 made concrete.
+
+**It also owns what `npm run paste` checks**, because these are the last things wrong before a
+listing goes live and there is no other tab for them — the Meesho copy itself is pasted by hand
+(see *Not in the app*), but the *checking* belongs here:
+
+- a value **over its panel limit** — say how many characters will be silently cut
+- a value **missing** — the AI's reply was truncated (WW-081), re-run that prompt
+- a value **far under its limit** — unused search reach
+- **`Model Name` / `Search Keywords` differing between `image-meta/` and `products/`** — they
+  must be character-for-character identical, and ANP003 shipped with three versions of each
+
+All four are warnings; the values are still correct to use. `paste` prints them as one summary
+*after* the values, because a warning you have to scroll back for is one you ship — the tab has
+the same obligation, and more room to meet it.
 
 ### Tab 6 — Fill the Flipkart listing  ·  WW-069
 **Last, deliberately.** It drives a real browser against a live form.

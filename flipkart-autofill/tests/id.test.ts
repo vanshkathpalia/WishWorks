@@ -57,19 +57,24 @@ describe("findById", () => {
     expect(m?.others).toEqual([]);
   });
 
-  it("prefers an exact filename when several match", async () => {
+  it("gives every spelling of the ID the same file", async () => {
     await writeFile(path.join(tmp, "ANP-3.json"), "{}");
+    await new Promise((r) => setTimeout(r, 10));
     await writeFile(path.join(tmp, "image-meta-ANP003.json"), "{}");
-    const m = await findById(tmp, "ANP-3");
-    expect(path.basename(m!.file)).toBe("ANP-3.json");
-    expect(m!.others.map((f) => path.basename(f))).toEqual(["image-meta-ANP003.json"]);
+    for (const typed of ["ANP-3", "ANP003", "image-meta-ANP003", "products-ANP003", "ANP 3"]) {
+      const m = await findById(tmp, typed);
+      expect(path.basename(m!.file)).toBe("image-meta-ANP003.json"); // the newest, whatever you typed
+    }
   });
 
-  it("reports the duplicate instead of silently picking one", async () => {
+  it("takes the newest of two names for the same product, and reports the other", async () => {
+    // Both files ARE this product, so there is nothing to ask: the one saved last is current.
     await writeFile(path.join(tmp, "ANP003.json"), "{}");
+    await new Promise((r) => setTimeout(r, 10));
     await writeFile(path.join(tmp, "image-meta-ANP003.json"), "{}");
     const m = await findById(tmp, "ANP 3");
-    expect(m!.others).toHaveLength(1);
+    expect(path.basename(m!.file)).toBe("image-meta-ANP003.json");
+    expect(m!.others.map((f) => path.basename(f))).toEqual(["ANP003.json"]);
   });
 
   it("still returns null rather than guessing at a near miss", async () => {

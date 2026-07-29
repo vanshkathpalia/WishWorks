@@ -1161,6 +1161,97 @@ review. Two runs' worth of menus and one near-miss were the cost.
 
 ---
 
+## C-039 — Half-fixed C-038: still made the operator arbitrate between two names for one product
+
+**Category:** Design · **Caught by:** Vansh, on the next run · **Date:** 2026-07-29
+
+C-038's fix made `ANP-3`, `ANP003` and `image-meta-ANP003` resolve to the same *product*. It then
+stopped one step short: when two files answered to that product, `findById` picked
+alphabetically and `finish` opened the menu, printing *"one of them is probably stale"* and
+leaving the operator to work out which. `npm start`'s product list showed both as separate rows.
+So the rename instruction came back in a new costume — *delete the stale one* — for a decision
+the tool can make itself.
+
+**Root cause.** The ambiguity guard was written for the risk in WW-078: picking the *wrong
+product's* descriptions. But two files that normalise to the same ID **are the same product** —
+that is what normalising means. There was never a wrong-product risk in this branch, only a
+which-copy-is-current question, and file mtime answers it exactly: the one you saved last is the
+one you just downloaded. The guard was inherited from a neighbouring failure it did not fit.
+
+**What was done.** `findById` sorts matches newest-first and returns the rest as `others` for
+display only. The exact-filename preference went with it — one rule, so every spelling of the ID
+lands on the same file (it did not before: `ANP003` got the older `ANP003.json` while `ANP-3` got
+the newer `image-meta-ANP003.json`). `finish` no longer opens the menu for a duplicate; it prints
+`(ignoring older copy: …)`. `listProducts()` de-duplicates by `normalizeId`, so `npm start` lists
+one row per product instead of one per file.
+
+**Second half: the small-source warning in `finish` — and I first fixed it wrong.** Every run on
+Vansh's photos printed `⚠️ SOURCE ONLY 350px — get a larger original`. He does not want a larger
+original: Meesho prices shipping off the main image and a bigger one raises the buyer's cost
+(SHIPPING-COST.md), so the pixel count is a decision, not an accident. I deleted the check and
+justified it with *"a folder reaching `finish` is one you have finalised"* — and Vansh corrected
+that immediately: **"I wasn't saying finalised in that way. I was saying finalised in the quality
+way."** He is signing off on the *content*, not waiving inspection. The AI still hands back a
+1024x1536 now and then, `finish` does not resize, and that image would ship as the odd one in a
+listing of squares.
+
+So the check is not deleted, it is **re-aimed**: `NOT SQUARE 1024x1536` when `w !== h` (silent
+under `--square`, which already fixes it), and nothing at all about pixel count. The distinction
+that was missing from my first pass: **the ratio is never a deliberate choice, the resolution
+often is.** `images.ts` keeps the size warning — there the input is a raw Meesho download and
+"re-download a bigger one" is real advice. **Neither warning ever blocked anything and no metadata
+was lost** — the EXIF descriptions were written on every run, which is what Vansh actually asked
+to confirm.
+
+**The lesson.** A warning is a request for a decision, so the test is *whose decision is it?* The
+copy-is-stale question and the resolution question were the operator's already made; the ratio
+question is nobody's. Deleting a warning because the operator called the folder "final" reads
+"final" as "unconditionally approved" — it meant "I am happy with the content". **When a user
+says a warning is wrong, that is a report about the threshold, not permission to remove the
+check.** Ask what the right threshold is before cutting.
+
+---
+
+## C-040 — Applied Flipkart's comma rule to Meesho's text, in the prompt and then in the code
+
+**Category:** Design · **Caught by:** Vansh · **Date:** 2026-07-29
+
+Reviewing outside SEO advice, I rejected *"use commas in pack contents"* with: *"HARD RULE 2 —
+Flipkart splits on commas. This advice would break your listings."* Then I built a checker that
+flagged a comma in `meesho.pack_contents` as a defect.
+
+Vansh: *"bro but in meesho that works i guess, we have to keep it separate… that `,` split was
+good for meesho, not for flipkart."* He is right, and the reasoning was not subtle:
+**`meesho.pack_contents` never reaches Flipkart.** It is pasted by hand into the Supplier Panel.
+Flipkart's list-splitting cannot apply to a value Flipkart never sees.
+
+**Root cause: one file, two marketplaces, and I treated a rule about one as a rule about the
+file.** `image-meta/<ID>.json` carries `title`/`keywords` (→ Flipkart) *and* a `meesho` block
+(→ pasted by hand). They share a container, not a rulebook. HARD RULE 2 in `PROMPT-meta.md` had
+the same defect and had had it since it was written — it named `meesho.pack_contents` explicitly
+and justified it with *"Flipkart splits list values on commas"*, a reason that is simply false
+for that field. I read that rule, quoted it, and did not notice the contradiction inside it.
+
+**What was done.** The rule now states the boundary instead of a blanket: no commas in `title`
+or `keywords` (Flipkart, split on commas); commas normal in every `meesho` value and in the
+image descriptions. `pack_contents` switched to `", "`. `paste` marks each swept value with the
+side it belongs to. A test pins that Meesho commas pass, named so the mistake cannot quietly
+return.
+
+**The lesson.** When one artifact serves two consumers, every constraint needs the consumer
+attached to it, not just the field name. A rule written as *"no commas in X"* loses the only
+information that makes it checkable — *for whom*. The tell was in the rule's own text: the field
+it named and the reason it gave were about different marketplaces, and a rule that cannot
+survive being read aloud is one nobody has read aloud.
+
+**Second thing, same session.** Vansh also asked for the length check to work in both
+directions. It half did: over-limit was caught, under-limit only against a blanket 70% that was
+looser than what the prompts themselves ask for — so a reply could miss the prompt's stated
+target and still pass. Now each field carries the prompt's own floor and ceiling. **A tolerance
+invented by the checker rather than taken from the spec is a checker that agrees with itself.**
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:

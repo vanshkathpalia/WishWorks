@@ -16,7 +16,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { Metadata } from "sharp";
 import { findById } from "./id.js";
-import { META_DIR, PRODUCTS_DIR, ROOT } from "./paths.js";
+import { META_DIR, PRODUCTS_DIR, showPath } from "./paths.js";
 
 export const BRAND = "WishWorks";
 
@@ -198,8 +198,8 @@ export async function descriptionsFor(product: string): Promise<Descriptions> {
       }
       return {
         perImage, fallback, title, keywords,
-        source: path.relative(ROOT, file),
-        ambiguous: others.map((f) => path.relative(ROOT, f)),
+        source: showPath(file),
+        ambiguous: others.map((f) => showPath(f)),
       };
     } catch {
       return empty; // malformed file is not this tool's problem
