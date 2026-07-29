@@ -189,17 +189,27 @@ Full explanation and exact prompts: **"The main image"** and **"Prompt B"** in
 **Conversation 2 — now get the JSON from those final images (Claude/Gemini).**
 Upload the pictures you just finished — **the exact images you'll upload** (`1.png`, `2.png`, and
 the real `3`, `4`) — paste your **Excel inventory rows**, then **the whole of
-`guides/PROMPT.md`** (select all, copy — the file is nothing but the prompt). It replies in
-three labelled sections: **1** image metadata → `image-meta/<ID>.json` (per-image descriptions
-written from these finals, plus the Meesho copy), **2** the Flipkart form fields →
-`products/<ID>.json`, **3** a paste block you copy into the websites and never save. Sections 1
-and 2 are already file-shaped — save each as-is. A **Meesho-only** product needs only section 1.
+`guides/PROMPT-meta.md`** (select all, copy — the file is nothing but the prompt). It replies
+with **`image-meta-<ID>.json`**: a description per photo written from these finals, plus the
+Meesho copy. Then, **in that same chat**, paste **`guides/PROMPT-product.md`** and send — back
+comes **`products-<ID>.json`**, the Flipkart form fields. **Drop each download into `image-meta/`
+and `products/` exactly as it downloaded — no renaming.** `image-meta-ANP003.json`, `ANP003.json`
+and `ANP-3.json` all read as the same product as a folder called `ANP 3`; prefix, capitals,
+spaces, dashes and leading zeros are ignored when matching. A **Meesho-only** product needs only
+the first prompt. To copy text into the websites, run `npm run paste -- <ID>` — any of those ID
+shapes works — and it prints the Flipkart Description and the Meesho values with the `\n`
+escapes undone.
+
+> Keep **one** file per product per folder. If you save the download *and* a renamed copy, both
+> match and the tool names both and asks you to delete the stale one rather than guessing.
 
 **Check the corners of what the AI made.** If there's a sparkle logo, generate it again.
 
 ### Step 4 · Paste the descriptions
 
-Create `image-meta/ANP-1042.json` in any text editor. Paste the AI's `images` block in:
+Usually there is nothing to do here — you saved the download in Step 3 and it already looks like
+this. To write one by hand, put it in `image-meta/` under any name that carries the ID
+(`ANP-1042.json`, `image-meta-ANP1042.json`, …):
 
 ```json
 {
@@ -362,10 +372,15 @@ Everything lands **flat, all listings together**, in `~/Downloads/wishworks-read
    the listing stops being pending. So name folders however you identify the listing — no `--id`
    needed. (`--id=` is still there to force one on a single folder.) Just make sure two listings
    don't clean to the *same* ID, or their files would overwrite each other in the flat output.
-3. **Descriptions come from `image-meta/<ID>.json`** (e.g. `image-meta/ANP-1.json`, keyed by
-   position: `{"images": {"1": "…", "2": "…"}}`). If that file doesn't exist, `finish` still
-   renames and copies the images — it just embeds no description and says so. So the command
-   works either way; make the `image-meta/` file when you want the description baked in.
+3. **Descriptions come from `image-meta/`**, keyed by position:
+   `{"images": {"1": "…", "2": "…"}}`. **Save the download under whatever name it arrives with** —
+   `image-meta-ANP003.json`, `ANP003.json` and `ANP-3.json` are all read as the same product as a
+   folder called `ANP 3`, so there is no renaming step. (Prefix, capitals, spaces, dashes and
+   leading zeros are all ignored when matching.) If no file matches, `finish` still renames and
+   copies the images — it just embeds no description and says so.
+
+   If **two** files match — say you kept `ANP003.json` *and* `image-meta-ANP003.json` — it names
+   both and tells you to delete the stale one, rather than guessing which you meant.
 
 > ⚠️ **Without `--square`, `finish` does not resize or square** — it trusts the pixels as-is. So
 > either get a square (1:1) image from ChatGPT, add `--square`, or use **Flow A**'s

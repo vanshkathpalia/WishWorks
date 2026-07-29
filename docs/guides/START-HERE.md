@@ -41,26 +41,32 @@ Open **Claude** (claude.ai) or **Gemini**. Then give it three things and send:
 1. **The final product images** — the exact pictures you'll upload (the AI-built main image, the
    Prompt B "what's inside" infographic, and your other photos), in order.
 2. **Your inventory rows, pasted from Excel** — `category / specific material / number`,
-   exactly as they copy. This is where the **counts** come from, so you never hand-type them
+   exactly as they copy — **include the header row**, because that is where the AI reads the
+   listing ID from. This is also where the **counts** come from, so you never hand-type them
    and the AI never has to guess. Example of what you paste:
    ```
+   WKU004    ANP003    Total count
    Banner    Annaprasan banner                    1
    Balloon   GOLDEN BALLOONS                      15
    Balloon   WHITE BALLOONS                       15
    Foil      Heart foil                           4
    Kit       Annaprasan with props kit complete   1
    ```
-3. **The whole of [`PROMPT.md`](PROMPT.md)** — see Part 3 below.
+   The **second code in the header row** — `ANP003` above — is the listing ID, and it becomes
+   the filename of both files. Paste the header and you never have to name a file yourself.
+3. **The whole of [`PROMPT-meta.md`](PROMPT-meta.md)**, then `PROMPT-product.md` in the same
+   chat — see Part 3 below.
 
-The AI replies in **three labelled sections**. Sections 1 and 2 are each a complete file,
-named after the product ID (e.g. `ANP-1`); section 3 is text you copy into the websites:
+The AI replies with **two files to download**, each a complete listing file:
 
-1. **Section 1 — Image metadata** → save as **`image-meta/ANP-1.json`**. The picture
-   descriptions, used by **both** Meesho and Flipkart images, plus the Meesho copy.
-2. **Section 2 — Flipkart listing fields** → save as **`products/ANP-1.json`**. This is what
-   fills the Flipkart form.
-3. **Section 3 — Paste block** → don't save it anywhere. It's the description and Meesho text
-   as plain readable text, ready to copy straight into the two websites.
+1. **`image-meta-ANP003.json`** → rename to `ANP003.json`, put it in **`image-meta/`**. The
+   picture descriptions, used by **both** Meesho and Flipkart images, plus the Meesho copy.
+2. **`products-ANP003.json`** → rename to `ANP003.json`, put it in **`products/`**. This is
+   what fills the Flipkart form.
+
+The download names differ only so the two don't collide in your Downloads folder. If the AI
+can't attach files it prints the same two blocks as text instead — same content, save each
+by hand.
 
 > **A Meesho-only product** needs just the `image-meta` file — there's no 66-field form on
 > Meesho. A Flipkart product needs both.
@@ -115,22 +121,31 @@ If anything is ⚠️ or ❌, it **will not save automatically**. That's deliber
 
 ---
 
-## Part 3 — THE PROMPT
+## Part 3 — THE PROMPTS
 
-**The prompt lives in its own file: [`PROMPT.md`](PROMPT.md).**
+There are **two**, and they live in their own files:
+[`PROMPT-meta.md`](PROMPT-meta.md) and [`PROMPT-product.md`](PROMPT-product.md). Each file is
+nothing but the prompt — no headings, no notes, no fence to dodge. Open it, select all, copy.
 
-That file is nothing but the prompt — no headings, no notes, no fence to dodge. Open it,
-select all, copy. There is nothing in it you need to leave out.
+**Send them in the SAME chat, one after the other.**
 
-Then, in Claude or ChatGPT, in ONE message:
+Message 1, in Claude or ChatGPT:
 
 1. Upload **all** the product images, in order — image 1 first.
-2. Paste the whole of `PROMPT.md`.
-3. Replace the `<PASTE YOUR EXCEL ROWS HERE>` line with your inventory rows.
+2. Paste the whole of `PROMPT-meta.md`.
+3. Replace the `<PASTE YOUR EXCEL ROWS HERE>` line with your inventory rows, header included.
 
-Send. The reply comes back in the three sections described below.
+You get `image-meta-<ID>.json`. Then message 2, same chat: paste the whole of
+`PROMPT-product.md` and send. You get `products-<ID>.json`. Don't re-upload the photos — the
+second prompt relies on them still being in that conversation.
 
-> Editing the prompt? Edit `PROMPT.md`. Nothing else reads it, and it is deliberately kept
+> **Why two and not one.** The AI reads a long prompt fine; it runs out of room *writing*. A
+> combined answer got **silently truncated** on a real listing — ChatGPT dropped the Flipkart
+> Description, all five Yes/No dropdowns and the weight, and nothing in the reply said so
+> (WW-081). Two prompts, two half-sized answers, nothing lost. Same chat, because photos are
+> only genuinely *seen* in the message they were uploaded with.
+
+> Editing a prompt? Edit that file. Nothing else reads them, and they are deliberately kept
 > free of anything that is not the prompt itself, so that select-all stays safe.
 
 ### After the AI replies
@@ -141,40 +156,57 @@ Give it a quick read — you know the product better than it does. Two checks:
   shown in your photos: decide whether to add a photo or drop the item.
 - **Colours** against the photos — the one thing the AI still reads from the images.
 
-The reply comes back in three labelled sections, so there is nothing to cut apart by hand:
+The reply comes back as two files, so there is nothing to cut apart by hand:
 
-| Section | What to do with it |
+| File it gives you | Where it goes |
 |---|---|
-| **1 — Image metadata** | Select the whole JSON block, save as `image-meta/<ID>.json` |
-| **2 — Flipkart listing fields** | Select the whole JSON block, save as `products/<ID>.json` |
-| **3 — Paste block** | Do **not** save. This is what you copy into the two websites |
+| `image-meta-<ID>.json` | `image-meta/<ID>.json` |
+| `products-<ID>.json` | `products/<ID>.json` |
 
-Each of the first two is already exactly one file's worth of JSON. **Never paste section 3
-into a `.json` file** — it is plain text, it will not parse, and the tools will refuse to run.
+Drop the download in, drop the `image-meta-` / `products-` prefix, done — the `<ID>` is
+already the code from your inventory header.
 
-The paste block exists because JSON has no other way to store a line break than `\n`. That
-is not the AI getting it wrong and no prompt wording removes it — the escape is required for
-the file to parse. Section 3 is the same text with the escapes undone, so you copy from
-there and never from the JSON.
+### Getting the text out for the websites
 
-**For the Meesho listing**, take `[MEESHO TITLE]`, `[MEESHO DESCRIPTION]` and
-`[MEESHO PACK CONTENTS]` straight out of section 3 into the Supplier Panel. Nothing
-automates this yet; Meesho has no public API.
+In the JSON, every line break is written `\n`. That is not the AI getting it wrong and no
+prompt wording removes it — the escape is required for the file to parse. Once both files are
+saved, run:
 
-> **Why this is still one message and not three prompts.** Splitting it into "images first,
-> then copy, then Flipkart fields" looks tidier and is worse: the photos are only genuinely
-> *seen* in the message they were uploaded with. By message three the AI is working from its
-> own earlier summary of the photos, not the photos — which is exactly how invented items
-> and wrong colours get in. One message, three sections, keeps the evidence and the answer
-> in the same place.
+```
+npm run paste -- ANP-1
+```
 
-> **Check the character limits once, in the panel.** The 70-95 / 120 title target above comes
-> from third-party seller-service blogs, **not** from Meesho's own documentation — we could not
-> find an official figure, and no source at all states a description limit. The Supplier Panel
-> field itself is the real authority: paste a title in once, watch its counter or its rejection,
-> and if it disagrees with this guide, **the panel wins** — tell Claude the real number and
-> correct this file. The targets here are deliberately conservative so they are safe under every
-> figure we found.
+It prints the Flipkart Description and the three Meesho values with real line breaks, ready
+to copy into the Supplier Panel. Nothing automates the Meesho paste itself; Meesho has no
+public API.
+
+> **Why this is still one CHAT and not two.** The two prompts are split, the conversation is
+> not, and that is deliberate: the photos are only genuinely *seen* in the message they were
+> uploaded with. Start a fresh chat for `PROMPT-product.md` and the AI is working from its own
+> earlier summary of the photos, not the photos — which is exactly how invented items and wrong
+> colours get in. The photo-critical work (`PROMPT-meta.md`) also runs **first**, while the
+> images are newest.
+
+> **What we actually know about the character limits** (checked again 2026-07-28):
+>
+> | Field | Limit | Where it comes from |
+> |---|---|---|
+> | Flipkart Description | **1400** | 🟢 Vansh read it off the live Flipkart form |
+> | Meesho description | **1400** | 🟡 Vansh's reading of the Supplier Panel. **No published source states a Meesho description limit at all** — five searches, including Meesho's own Learning Hub. The panel is the only authority, so this stands until it says otherwise |
+> | Meesho title | 120 ceiling | 🟡 Blog-sourced only. Figures found: "50–120", "under 100", "60–80 ideal" — they disagree with each other |
+| Meesho pack contents | **255** | 🟡 Vansh's reading of the panel. No published source mentions this field's limit either |
+>
+> **On making titles longer for the algorithm:** no official source supports it, and the blogs
+> lean the *other* way — several state Meesho penalises keyword repetition ("Kurti Cotton Kurti
+> Women Kurti Ethnic Kurti"). What nobody claims is that *length itself* is penalised. So the
+> prompt now asks for 90-115 characters with the rule that **every added word must be a new
+> search phrase, never a repeat** — that uses the space without walking into the one penalty
+> anybody actually reports. The real unused space is the **description**: a live listing came in
+> at 470 of 1400 characters, and that is search surface thrown away for nothing.
+>
+> `npm run paste -- <ID>` now prints a character count against each limit, so you can see this
+> instead of remembering it. If the panel disagrees with any row above, **the panel wins** —
+> tell Claude the real number and correct this file.
 
 ---
 
@@ -208,8 +240,9 @@ The plan, in order:
 3. **Learn the defaults.** For each category, find the attribute values used most often
    and generate the `categories/<name>.defaults.json` files automatically, instead of
    writing them by hand as we did for balloons.
-4. **Feed the prompt.** Insert the keyword bank and the known-good values into `PROMPT.md`,
-   so the AI picks from what has worked rather than inventing.
+4. **Feed the prompts.** Insert the keyword bank and the known-good values into
+   `PROMPT-meta.md` and `PROMPT-product.md`, so the AI picks from what has worked rather than
+   inventing.
 5. **Flag the weak listings.** The same data shows which existing listings are missing
    attributes or keywords — a ranked to-do list of fixes worth more than new listings.
 

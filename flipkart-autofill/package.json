@@ -6,6 +6,7 @@
     "start": "tsx src/start.ts",
     "images": "tsx src/images.ts",
     "finish": "tsx src/finish.ts",
+    "paste": "tsx src/paste.ts",
     "check": "tsx src/check.ts",
     "login": "tsx src/login.ts",
     "fill": "tsx src/fill.ts",

@@ -12,21 +12,25 @@
  * (C-019) — writing them is free, so we do.
  */
 
-import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { Metadata } from "sharp";
+import { findById } from "./id.js";
 import { META_DIR, PRODUCTS_DIR, ROOT } from "./paths.js";
 
 export const BRAND = "WishWorks";
 
 /** An all-empty description set — used when the operator picks "no descriptions". */
-export const NO_DESCRIPTIONS: Descriptions = { perImage: {}, fallback: null, title: null, keywords: [], source: null };
+export const NO_DESCRIPTIONS: Descriptions = { perImage: {}, fallback: null, title: null, keywords: [], source: null, ambiguous: [] };
 
 /**
  * The description-file IDs available to pick from — every `image-meta/<ID>.json`, minus the
  * bundled EXAMPLE and any `_`/dotfile. Returned as bare IDs (no `.json`), sorted, so a menu can
  * offer them the way `npm start` offers products.
+ *
+ * These are the names as they sit on disk, prefix and all, because a menu that renamed them
+ * would stop you finding the file you need to edit. Match them with `normalizeId` — never with
+ * `===`, or `image-meta-GTB002` reads as a different product from `GTB-2`.
  */
 export async function availableMetaIds(): Promise<string[]> {
   try {
@@ -102,6 +106,12 @@ export type Descriptions = {
    * second is a legitimate fallback. Callers that warn need to tell those two apart.
    */
   source: string | null;
+  /**
+   * Other files that answer to the same product ID — e.g. `ANP003.json` left behind next to
+   * `image-meta-ANP003.json`. One of them is stale and nothing here can tell which, so the
+   * lookup picks deterministically and the CLIs say so. Empty in the normal case.
+   */
+  ambiguous: string[];
 };
 
 /**
@@ -151,17 +161,19 @@ export function composeDescription(perImage: string | null, d: Descriptions): st
  * kept everything in one place still work.
  */
 export async function descriptionsFor(product: string): Promise<Descriptions> {
-  const empty: Descriptions = { perImage: {}, fallback: null, title: null, keywords: [], source: null };
+  const empty: Descriptions = { perImage: {}, fallback: null, title: null, keywords: [], source: null, ambiguous: [] };
 
-  const candidates: Array<{ file: string; kind: "meta" | "product" }> = [
-    { file: path.join(META_DIR, `${product}.json`), kind: "meta" },
-    { file: path.join(META_DIR, `${product.toLowerCase()}.json`), kind: "meta" },
-    { file: path.join(PRODUCTS_DIR, `${product}.json`), kind: "product" },
-    { file: path.join(PRODUCTS_DIR, `${product.toLowerCase()}.json`), kind: "product" },
+  // findById matches on the normalised ID, so a folder called "ANP 3" finds ANP-3.json,
+  // ANP003.json or the raw download name image-meta-ANP003.json — see id.ts.
+  const candidates: Array<{ dir: string; kind: "meta" | "product" }> = [
+    { dir: META_DIR, kind: "meta" },
+    { dir: PRODUCTS_DIR, kind: "product" },
   ];
 
-  for (const { file, kind } of candidates) {
-    if (!existsSync(file)) continue;
+  for (const { dir, kind } of candidates) {
+    const match = await findById(dir, product);
+    if (!match) continue;
+    const { file, others } = match;
     try {
       const data = JSON.parse(await readFile(file, "utf8"));
 
@@ -184,7 +196,11 @@ export async function descriptionsFor(product: string): Promise<Descriptions> {
           if (typeof val === "string" && val.trim()) perImage[k] = val.trim().slice(0, 400);
         }
       }
-      return { perImage, fallback, title, keywords, source: path.relative(ROOT, file) };
+      return {
+        perImage, fallback, title, keywords,
+        source: path.relative(ROOT, file),
+        ambiguous: others.map((f) => path.relative(ROOT, f)),
+      };
     } catch {
       return empty; // malformed file is not this tool's problem
     }

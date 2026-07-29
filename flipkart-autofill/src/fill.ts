@@ -3,8 +3,12 @@
 //
 // Everyday use is `npm start`, which asks the same questions through a menu. Both share
 // src/listing.ts, so a fix here lands in both.
+import path from "node:path";
+import { existsSync } from "node:fs";
 import { openBrowser, pressEnter, activePage, checkLogin } from "./connect.js";
 import { clickSave } from "./fields.js";
+import { findById } from "./id.js";
+import { PRODUCTS_DIR, ROOT } from "./paths.js";
 import {
   loadProduct, checkValues, describeProblems,
   fillAll, printReport, needsEyes, explainMismatches,
@@ -15,11 +19,28 @@ const args = process.argv.slice(2).filter((a) => !FLAGS.includes(a) && !a.starts
 const probeHtml = process.argv.includes("--probe-html");
 const wantSave = process.argv.includes("--save");
 const saveButton = process.argv.find((a) => a.startsWith("--save-button="))?.split("=")[1];
-const productFile = args[0];
-if (!productFile) {
-  console.error(`Usage: npm run fill -- products/<product>.json [--save]
+const arg = args[0];
+if (!arg) {
+  console.error(`Usage: npm run fill -- <ID>            e.g. ANP-3, ANP003, products-ANP003
+       npm run fill -- products/<product>.json  [--save]
    (or just run:  npm start)`);
   process.exit(1);
+}
+
+// A path if it points at a real file, otherwise a product ID in any of the shapes the download
+// arrives in — the same rule paste/finish/images use, so one listing is one product everywhere.
+let productFile = arg;
+if (!existsSync(arg)) {
+  const match = await findById(PRODUCTS_DIR, arg);
+  if (!match) {
+    console.error(`\nNo product in products/ matches "${arg}", and it is not a file path.`);
+    process.exit(1);
+  }
+  if (match.others.length) {
+    console.error(`⚠️  ${match.others.length + 1} files answer to "${arg}" — filling from ${path.relative(ROOT, match.file)}`);
+  }
+  productFile = match.file;
+  console.log(`↳ product: ${path.relative(ROOT, productFile)}`);
 }
 
 const { values, usedDefaults } = loadProduct(productFile);

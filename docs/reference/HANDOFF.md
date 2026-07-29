@@ -7,8 +7,9 @@
 > - **[`../guides/THE-FLOW.md`](../guides/THE-FLOW.md)** — how the pipeline is actually run today
 > - **[`../guides/GUI-SPEC.md`](../guides/GUI-SPEC.md)** — the Windows app: what ships, why, in
 >   what order, and how it gets tested. **The next build step.** Not built yet
-> - **[`../guides/PROMPT.md`](../guides/PROMPT.md)** — the listing prompt itself; the three image
->   prompts sit beside it as `PROMPT-read-pack.md`, `PROMPT-main-image.md`, `PROMPT-infographic.md`
+> - **[`../guides/PROMPT-meta.md`](../guides/PROMPT-meta.md)** + **[`PROMPT-product.md`](../guides/PROMPT-product.md)**
+>   — the listing prompts, sent back to back in one chat; the three image prompts sit beside them
+>   as `PROMPT-read-pack.md`, `PROMPT-main-image.md`, `PROMPT-infographic.md`
 >
 > Added since: the whole image pipeline (`npm run images`, three folders, 39 tests), AI
 > prompts, and the finding that Meesho serves 512×512 `.avif` — not WebP as assumed below.

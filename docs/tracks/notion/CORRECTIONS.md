@@ -1093,6 +1093,72 @@ removing anything that still answers an open question — or specifies work not 
 
 ---
 
+## C-037 — Solved a paste problem by asking the AI to write everything twice
+
+**Category:** Design · **Caught by:** Vansh, hitting a refusal in ChatGPT · **Date:** 2026-07-28
+
+`PROMPT.md` could not be answered. ChatGPT refused twice: *"it would require generating
+thousands of words… which exceeds my response limits"*, then refused the two-part split it had
+itself proposed. The refusal is not accurate — the full reply is a few thousand tokens — but it
+was pointing at something real. **The prompt asked for the same four values twice.** Section 3,
+"the paste block", reprinted the Flipkart Description and the three Meesho values as plain text,
+because JSON stores a line break as `\n` and `\n` cannot be pasted into a marketplace form.
+
+That reasoning (WW-072, C-nothing — it was never questioned) is correct about the constraint and
+wrong about where to solve it. **Unescaping is a two-line local operation** — `JSON.parse` does it
+— and it was being paid for in AI output tokens, on every single product, forever. The prompt was
+made a third longer to save a `node` command that had not been written.
+
+**What was done.** Section 3 deleted; the prompt is now two sections, both standalone JSON files.
+`src/paste.ts` (25 lines, `npm run paste -- <ID>`) prints the four values with real line breaks.
+`START-HERE.md` and `THE-FLOW.md` updated — including the deletion of a paragraph explaining why
+the duplication was unavoidable.
+
+**The lesson.** When a prompt asks the model to do something a line of code does, that is not a
+prompt-engineering decision, it is a missing tool. The tell here was in the prompt's own wording:
+*"do not summarise them, do not improve them, do not re-write them — character-for-character the
+same text"*. **A request for a byte-identical copy is a request no language model should be
+receiving**; every instruction fencing it in was compensating for using the wrong tool. Anywhere a
+prompt says "print that again, exactly", the answer is a script.
+
+---
+
+## C-038 — Told the user to rename his files, when the code should have matched them
+
+**Category:** Design · **Caught by:** Vansh, refusing the advice · **Date:** 2026-07-28
+
+Reviewing a `finish` run I noticed the descriptions menu was offering `image-meta-GTB002` and
+`ANP003` and marking every one of them **"⚠️ a DIFFERENT product"** for a folder called `GTB 2`.
+My advice was: *"rename them to `ANP-3.json` and `GTB-2.json` and both auto-match forever."*
+
+That is a correct instruction and the wrong answer. `image-meta-ANP003.json` **is the filename
+ChatGPT gives the download** — it comes off the prompt that way every single time. So the advice
+was a manual rename per product, forever, to work around a lookup that could not see through a
+prefix. Vansh's reply was the right one: *"I can send you any format… all of them should work."*
+
+**Root cause.** Four different places matched an ID to a file by exact string equality —
+`descriptionsFor()`'s four hardcoded candidates, `availableMetaIds()`'s raw basenames, `paste.ts`,
+and `fill.ts`. Not one of them agreed with `cleanId()`, which is what turns a folder called
+`ANP 3` into `ANP-3`. So the tool minted an ID by one rule and looked it up by another.
+
+**What was done.** `src/id.ts`: `normalizeId()` (drop the `image-meta-`/`products-` prefix, then
+case, punctuation and leading zeros — `ANP 3`, `ANP-3`, `ANP003`, `image-meta-ANP003` are all
+`ANP3`) and `findById(dir, id)`. Every one of the four lookups now routes through it, so the
+shapes are interchangeable everywhere: `npm run paste -- ANP-3`, `npm run fill -- ANP003`,
+`finish` on a folder called `GTB 2`. `finish`'s menu now only appears when there is a real
+question — a clean single match prints what it resolved to and gets on with it.
+
+**Deliberately not fuzzy.** No edit distance, no prefix matching. Two files that normalise the
+same are *reported*, never ranked — Vansh has exactly that today (`ANP003.json` beside
+`image-meta-ANP003.json`) and one of them is stale. "Close enough" quietly picking the wrong
+product's descriptions is WW-078, and it is worse than not matching at all.
+
+**The lesson.** *Any* instruction of the form "rename your files so the tool can find them" is a
+bug report about the tool. The user's input format is a given; the code's matching rule is the
+variable. I had the causal chain right — the IDs genuinely don't match — and drew the conclusion
+from the wrong end of it, which made a code defect look like operator sloppiness for a whole
+review. Two runs' worth of menus and one near-miss were the cost.
+
 ---
 
 ## Patterns worth acting on

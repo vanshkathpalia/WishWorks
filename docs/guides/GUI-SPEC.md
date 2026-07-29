@@ -49,15 +49,23 @@ Every one comes from something that actually went wrong. Do not treat them as st
 
 | Ticket | What | Why in this position |
 |---|---|---|
-| **WW-066** | Make the engine callable | **Gates everything.** Every `src/` CLI does argv parsing + `console.log` + `process.exit` inside `main()`. Split each into a core function (options in, structured result out, progress callback) with the CLI as a thin wrapper. `paths.ts` and `encode.ts` are already this shape — follow them |
+| **WW-066** | Make the engine callable | **Gates everything.** ✅ **for the image engine (2026-07-27):** `images-core.ts` → `runImages()`, `finish-core.ts` → `runFinish()`. Options in, structured result out, `onRow` progress callback; `images.ts`/`finish.ts` are now flag-parsing + printing wrappers. The browser CLIs (`login`, `scan`, `fill`, `check`, `start`) are **WW-066b**, done per-tab in WW-069 — their result shape should be decided by the tab that draws it |
 | **WW-067** | Electron shell + tab 1 (AVIF → JPG) | Smallest genuinely useful thing to hand over |
 | **WW-068** | CI build → the real `.exe` | **Deliberately early.** Install problems surface while the app still does one thing, not after six tabs |
 | **WW-069** | Remaining tabs | Login → prepare images → finish → check → fill listing |
 
 **The WW-066 contract:** all 63 tests, `npm run verify`, and every `npm run …` must keep passing
-untouched. They are the proof the refactor changed no behaviour. A GUI wiring bug would hide
-exactly where `processOne()` takes 10 positional args and `finishOne()` takes 8 — convert those
-to an options object *before* wiring any UI.
+untouched. They are the proof the refactor changed no behaviour — the tests run the real CLI as
+a subprocess, so they pin the printed output too, not just the core. Held for the image half.
+
+Two things the split gave the app that are worth knowing before building tabs 1 and 4:
+
+- `runImages()` returns the stage-2 folder→description `pairings[]` and, when it refuses to run,
+  `blocked.missing[]`. **Tab 4 renders rule 2's table from those** — it does not scrape stdout.
+- `runFinish()` takes `id` (renames the output) and `metaId` (descriptions only) as **separate**
+  options. WW-078 is therefore unrepresentable, not merely fixed: no code path lets a
+  descriptions choice rename a listing. `cleanId()` and `numberedImages()` are exported so the
+  tab can answer *"is this a listing, and what will it be called?"* before writing.
 
 ## The tabs
 
@@ -68,7 +76,7 @@ Drag a folder in. Pick output format and quality. Thumbnails, then a result row 
 Carries the warnings the CLI already produces: soft source (under 1000px), Meesho metadata
 residue, 5 MB step-down.
 
-*Engine:* `images.ts` stage 1, no crop flags.
+*Engine:* `runImages({})` from `images-core.ts` — stage 1, no crop options.
 
 ### Tab 2 — Log in to Flipkart  ·  WW-069
 A live **"you're logged in"** indicator, not the terminal's row of dots. Must distinguish
@@ -119,9 +127,10 @@ This is rule 4 made concrete.
 
 ## Not in the app
 
-- **Writing the copy.** That stays in Claude/ChatGPT via `PROMPT.md` and the three image prompts.
+- **Writing the copy.** That stays in Claude/ChatGPT via `PROMPT-meta.md`, `PROMPT-product.md`
+  and the three image prompts.
   The app never calls an AI — no keys, no credits, no network beyond Flipkart itself.
-- **Meesho upload.** No public API. Copy-paste by hand from section 3 of the prompt output.
+- **Meesho upload.** No public API. Copy-paste by hand from `npm run paste -- <ID>`.
 - **Anything Phase 2** (the 2,200-listing keyword bank). Not until the partner is using this.
 
 ## How it gets tested

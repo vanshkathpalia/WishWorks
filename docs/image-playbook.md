@@ -19,10 +19,12 @@ them, not the thing you paste.
 | 1 | [`guides/PROMPT-read-pack.md`](guides/PROMPT-read-pack.md) | Reads the contents sheet and lists the items | ChatGPT · attach image 2 |
 | 2 | [`guides/PROMPT-main-image.md`](guides/PROMPT-main-image.md) | Builds the hero shot → save as `1.png` | ChatGPT · no attachment, send after 1 |
 | 3 | [`guides/PROMPT-infographic.md`](guides/PROMPT-infographic.md) | Builds the "what's in the pack" → save as `2.png` | ChatGPT · attach image 2 |
-| 4 | [`guides/PROMPT.md`](guides/PROMPT.md) | The listing JSON + all the copy | Claude/ChatGPT · attach the finished images |
+| 4 | [`guides/PROMPT-meta.md`](guides/PROMPT-meta.md) | Image descriptions + Meesho copy → `image-meta/<ID>.json` | Claude/ChatGPT · attach the finished images |
+| 5 | [`guides/PROMPT-product.md`](guides/PROMPT-product.md) | The Flipkart fields → `products/<ID>.json` | same chat, straight after 4 |
 
-1, 2 and 3 make the pictures. 4 describes them — and it must run **last**, on the finished
-images, because the descriptions have to match what actually goes live.
+1, 2 and 3 make the pictures. 4 and 5 describe them — and they must run **last**, on the
+finished images, because the descriptions have to match what actually goes live. 4 and 5 are
+one conversation: send 5 straight after 4, while the photos are still in context.
 
 Read the rest of this file when you want to know *why* a prompt says what it says, or when a
 prompt stops working and you need to change it.
@@ -154,10 +156,11 @@ this, never to work it out for itself.
 
 ### Step 0b — Per-image descriptions · ⛔ SUPERSEDED, DO NOT RUN
 
-> **This step no longer exists in the flow.** Per-image descriptions now come from the **single
-> merged prompt in [`guides/PROMPT.md`](guides/PROMPT.md)**, which returns the
-> `image-meta` descriptions *and* the Flipkart `products` fields from one conversation. Running
-> Step 0b as well would duplicate that work and risk two different sets of descriptions.
+> **This step no longer exists in the flow.** Per-image descriptions now come from
+> **[`guides/PROMPT-meta.md`](guides/PROMPT-meta.md)**, which returns the `image-meta`
+> descriptions and the Meesho copy; [`PROMPT-product.md`](guides/PROMPT-product.md) follows in
+> the same conversation for the Flipkart fields. Running Step 0b as well would duplicate that
+> work and risk two different sets of descriptions.
 >
 > A **Meesho-only** product is covered too — keep the `image-meta` half of that JSON and discard
 > the `products` half.
@@ -307,8 +310,9 @@ images/2-clean/<ID>/     ← FIRST build the images: main image (ChatGPT, 2 mess
    │                        via Prompt B. Save them back over 1.png / 2.png (delete the old
    │                        1.jpg / 2.jpg — ONE file per number; don't rename png→jpg, same
    │                        relabelling trap as avif, --final converts it anyway).
-   │  THEN describe those finals: run the guides/PROMPT.md prompt on the saved 1.png/2.png/3/4
-   │  (the images you'll upload) → image-meta/<ID>.json. Descriptions must match what goes live.
+   │  THEN describe those finals: run guides/PROMPT-meta.md on the saved 1.png/2.png/3/4 (the
+   │  images you'll upload) → image-meta/<ID>.json, then PROMPT-product.md in the same chat
+   │  → products/<ID>.json. Descriptions must match what goes live.
    │  npm run images -- --final              square · 1500px · embed descriptions
 images/3-final/<ID>/     upload these
 ```
@@ -516,13 +520,13 @@ correction entry and in git history.
 
 ### Step 0b — the old standalone per-image description prompt (superseded 2026-07-25)
 
-> Replaced by the merged prompt in `guides/PROMPT.md`, which produces these
-> descriptions *and* the Flipkart fields in one pass. Kept only for the description rules it
+> Replaced by `guides/PROMPT-meta.md`, which produces these descriptions plus the Meesho copy
+> (`PROMPT-product.md` then does the Flipkart fields). Kept only for the description rules it
 > encodes. **Do not run it** — you would end up with two different sets of descriptions.
 
-> **Now merged.** The per-image descriptions are produced by the **single prompt in
-> `guides/PROMPT.md`** — one conversation returns both the `image-meta` descriptions
-> and the Flipkart `products` fields from the same photo upload + Excel inventory. Use that prompt.
+> **Now superseded.** The per-image descriptions are produced by **`guides/PROMPT-meta.md`** —
+> one conversation, one photo upload + Excel inventory, returning `image-meta/<ID>.json`; the
+> Flipkart fields follow from `PROMPT-product.md` in that same chat. Use those prompts.
 > The standalone version below is kept only as reference for the description rules it encodes (and
 > for a Meesho-only run where you don't want the Flipkart half — though START-HERE's `image-meta`
 > half alone covers that too).

@@ -5,7 +5,11 @@
 > **Every AI prompt lives in its own file, and that file is nothing but the prompt** — so
 > select-all-copy always works. Edit them there, never inline in another doc:
 > `docs/guides/PROMPT-read-pack.md` → `PROMPT-main-image.md` → `PROMPT-infographic.md` build the
-> images; `PROMPT.md` then describes the finished ones and returns the listing JSON.
+> images; then, in one chat, `PROMPT-meta.md` describes the finished ones and writes the Meesho
+> copy (→ `image-meta/<ID>.json`) and `PROMPT-product.md` fills the Flipkart fields
+> (→ `products/<ID>.json`). **Those two are split because the ANSWER got truncated, not the
+> prompt** — ChatGPT silently dropped the tail of a combined reply (WW-081). Send them back to
+> back in the SAME chat: the photos must still be in context when the second one runs.
 > `docs/image-playbook.md` is the *reasoning* behind them, not a thing to copy from.
 > `docs/guides/SHIPPING-COST.md` — Meesho's shipping fee is set by the main image, but **fourteen
 > tests found no way to steer it. Closed, don't re-run.** Two rules survive: read the shipping
@@ -36,11 +40,16 @@ business partner is non-technical, on Windows, and cannot use `npm run …`. The
 tabs, the four rules it exists to enforce, and how each part gets tested — is
 **`docs/guides/GUI-SPEC.md`**; keep it current. Build order:
 
-- **A. Make the engine callable.** Every CLI in `src/` does argv parsing + `console.log` +
-  `process.exit` inside `main()`, so none of it can be driven by a GUI. Split each into a core
-  function (options in, structured result out, progress callback) with the CLI as a thin wrapper.
-  All tests and every `npm run …` must keep working — they are the proof the refactor changed
-  no behaviour. `paths.ts` and `encode.ts` are already extracted this way.
+- **A. Make the engine callable.** ✅ *image half done.* `images-core.ts` (`runImages`) and
+  `finish-core.ts` (`runFinish`) are options in, structured result out, `onRow` progress; the
+  CLIs are thin wrappers imported by nothing. The browser CLIs (`login`, `scan`, `fill`,
+  `check`, `start`) are **WW-066b** and get the same treatment when WW-069 builds their tab —
+  the result shape should follow what the tab draws. All tests and every `npm run …` must keep
+  working untouched; they are the proof the refactor changed no behaviour. Pattern to follow:
+  `paths.ts`, `encode.ts`, `images-core.ts`, `finish-core.ts`. **Do not try to collapse a core
+  and its CLI into one file** behind an entry-point check — `import.meta.main` is stripped by
+  tsx and the `argv[1]` comparison breaks on symlinked paths; both were measured, see
+  `docs/learning/6-core-files-not-an-entry-point-guard.md`.
 - **B. Electron shell + tab 1** (AVIF → JPG/PNG): window, tab bar, drag-and-drop a folder,
   pick format + quality, thumbnails and results.
 - **C. CI build → the real `.exe`** (unsigned, GitHub Actions). Get an installer into the
