@@ -239,10 +239,22 @@ versions side by side; pick one and copy it into the other file.
 
 **Two files per product, kept apart on purpose:**
 
-| File | Holds | Needed for |
+| File | Is | Needed for |
 |---|---|---|
-| `image-meta/<ID>.json` | picture descriptions + the Meesho copy | **Meesho and Flipkart** |
-| `products/<ID>.json` | the 66 Flipkart form fields | **Flipkart only** |
+| `image-meta/<ID>.json` | the picture descriptions **+ everything Meesho needs** | **always** |
+| `products/<ID>.json` | **the Flipkart form** — all 66 fields, of which Description is one | **Flipkart only** |
+
+**Why the two descriptions live in different files** (asked 2026-07-31, answered so it is not
+re-asked): the Flipkart Description sits in `products/` because it *is* a Flipkart form field —
+`npm start` types it like the other 65. The Meesho description sits in `image-meta/` because
+Meesho has no form file to put it in. Moving the Meesho copy into `products/` would force every
+**Meesho-only** kit to carry a Flipkart form file, with a category and 66 unused fields, just to
+hold three strings — and Meesho-only is the easier half of the business. `npm run paste -- <ID>`
+reads both files and prints all four values, so nothing is gained by merging them.
+
+The folder name is the confusing part: `image-meta` really means *"everything that is not the
+Flipkart form"*. Renaming it would touch `paths.ts`, both prompts, every doc and your saved
+files, to fix a word.
 
 **A Meesho listing needs only the first one.** There is no 66-field form on Meesho, so you never
 create a `products/` file for a Meesho-only product. See `START-HERE.md` for the Flipkart one.

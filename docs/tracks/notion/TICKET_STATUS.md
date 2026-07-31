@@ -170,6 +170,19 @@ the parcel at pickup and Meesho charges back the difference at settlement. Rever
 packed weight, and weigh a sealed kit while you're there. This is the only open item that can
 cost real money if left alone.
 
+**Level one is finished, 2026-07-31.** The terminal pipeline runs end to end and has been driven
+against the live Flipkart form — images in, descriptions embedded, 30 fields filled and read back,
+listing saved. 108 tests + `npm run verify` + typecheck green. The week's fixes: WW-066 (engine
+callable), WW-080 (one product, any filename), WW-084/86/88 (`paste` became the pre-flight check),
+WW-087 (buyer-language SEO into both prompts), WW-094 (profile out of the project folder), WW-074
+closed (Description keeps line breaks), WW-095 (that field is 5000 not 1400), WW-096 (**emoji made
+every save return HTTP 500**). The last two were only findable by running the final step, which
+had never once been run — *a pipeline is proven only as far as the last step actually executed.*
+
+**One thing still open in level one:** `Balloon Type` reads back `Latex` when three values are
+sent — single-value field (fix the data) or mis-detected multi-select (fix the code)? Until it is
+answered the ⚠️ guard blocks `npm start`'s auto-save every run.
+
 **Next build step: the GUI pivot, WW-066 → WW-069, in that order.** The partner is
 non-technical and on Windows; the terminal is the actual blocker to them using any of this.
 WW-066's image half landed 2026-07-27 (`images-core.ts`, `finish-core.ts`), which is everything

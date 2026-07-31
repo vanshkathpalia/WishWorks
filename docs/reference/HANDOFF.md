@@ -1,21 +1,60 @@
-# WishWorks — session handoff (2026-07-20)
+# WishWorks — handoff into the GUI build
 
-> ⚠️ **Written 2026-07-20 and now partly superseded.** It is still the best explanation of
-> *why* the autofill bot works the way it does. For current state, read these first:
-> - **[`../tracks/notion/TICKET_STATUS.md`](../tracks/notion/TICKET_STATUS.md)** — the live ledger, 40 tickets
-> - **[`../tracks/notion/CORRECTIONS.md`](../tracks/notion/CORRECTIONS.md)** — 19 mistakes, causes, fixes
-> - **[`../guides/THE-FLOW.md`](../guides/THE-FLOW.md)** — how the pipeline is actually run today
-> - **[`../guides/GUI-SPEC.md`](../guides/GUI-SPEC.md)** — the Windows app: what ships, why, in
->   what order, and how it gets tested. **The next build step.** Not built yet
-> - **[`../guides/PROMPT-meta.md`](../guides/PROMPT-meta.md)** + **[`PROMPT-product.md`](../guides/PROMPT-product.md)**
->   — the listing prompts, sent back to back in one chat; the three image prompts sit beside them
->   as `PROMPT-read-pack.md`, `PROMPT-main-image.md`, `PROMPT-infographic.md`
+> **Written 2026-07-31, at the end of the CLI phase.** Level one — the terminal pipeline — is
+> finished and proven end to end. The next chat builds the desktop app (level two).
 >
-> Added since: the whole image pipeline (`npm run images`, three folders, 39 tests), AI
-> prompts, and the finding that Meesho serves 512×512 `.avif` — not WebP as assumed below.
+> **Read in this order:**
+> 1. **[`../../CLAUDE.md`](../../CLAUDE.md)** — how we work, the hard constraints
+> 2. **[`../guides/GUI-SPEC.md`](../guides/GUI-SPEC.md)** — **the requirements document for
+>    level two. Build from it.** Platform, screens, folder memory, prompt panels, release loop
+> 3. **[`../guides/THE-FLOW.md`](../guides/THE-FLOW.md)** — the nine steps the app puts a face on
+> 4. **[`../tracks/notion/TICKET_STATUS.md`](../tracks/notion/TICKET_STATUS.md)** — live ledger
+> 5. **[`../tracks/notion/CORRECTIONS.md`](../tracks/notion/CORRECTIONS.md)** — 41 mistakes and
+>    what caused them. C-038 through C-041 are from this week and all four are still relevant
+>
+> Sections 1-4, 6 and 8 below are the original 2026-07-20 handoff and still explain **why the
+> autofill bot is built the way it is**. Sections 5 and 7 are current as of today.
 
-Read this for background on the autofill bot: what exists, why it was built this way, what is
-verified, and what to do next.
+---
+
+## 0. Where this stands, 2026-07-31
+
+**Level one is done.** The whole pipeline runs from the terminal and has been driven end to end
+against the live Flipkart form: images in, descriptions embedded, 30 fields filled and read back,
+listing saved.
+
+```
+108 tests   ·   npm run verify (22 engine checks)   ·   typecheck   —   all green
+```
+
+**What got fixed this week**, all of it found by running the thing rather than reading it:
+
+| | |
+|---|---|
+| **WW-066** | The image engine is callable — `runImages()` / `runFinish()`, options in, structured result out. **This is what the GUI imports.** The browser CLIs are WW-066b, done per screen |
+| **WW-080** | One product, any filename. `ANP 3` / `ANP-3` / `ANP003` / `image-meta-ANP003` all resolve to one file, everywhere. No renaming step |
+| **WW-084/86/88** | `paste` became the pre-flight check: both length ends against each field's real target, Model Name drift between the two JSONs, banned and urgency words, commas on the Flipkart side only, emoji |
+| **WW-087** | Buyer-language SEO rules into both prompts — name items the way buyers search, say *where* the kit is used, attributes over prose |
+| **WW-094** | Chrome's profile moved to the OS user-data dir. It had to: a packaged app's own folder is read-only, and Chrome answers that by silently starting with no session |
+| **WW-074** | **Closed.** Flipkart's Description keeps line breaks — the bot can fill it |
+| **WW-095** | That field is **5000 characters, not 1400.** Every listing so far used 28% of the largest piece of search surface in the listing |
+| **WW-096** | **Emoji in the Description made every save return HTTP 500.** The listing could not be saved at all. Template is plain ASCII now and `paste` blocks emoji before the form |
+
+**The two that cost the most were only findable by running the last step.** Nothing had ever been
+saved through this tool until this week — the emoji bug sat undetected for five days because the
+final step had never once been executed. *A pipeline is proven only as far as the last step
+actually run.*
+
+### The one thing still open in level one
+
+**`Balloon Type` reads back `Latex` when three values are sent.** The probe says
+`<input> kind=text` with no pills, so either the field is genuinely single-value (fix the data)
+or `fields.ts` mis-detects a multi-select (fix the code). **Unanswered question: does that field
+have a dropdown arrow, or accept more than one value?** Until it is settled the ⚠️ guard blocks
+`npm start`'s auto-save on every run — correctly, but it makes the auto-save useless.
+
+Also worth doing and unrelated to the GUI: **WW-055**, a live listing still carrying
+`Net Weight = 10000 g` from an old test. It is the only open item that costs money at settlement.
 
 ---
 
@@ -114,25 +153,29 @@ template — **no code changes ever**.
 
 ---
 
-## 5. Current state — what is verified working
+## 5. Current state
 
-- Login persists (`./profile`, gitignored). Session detection is honest.
-- Scan captured **71 entries on the Additional Description tab**, which reconciles exactly:
-  **66 real attributes + 3 unit pickers + 2 FSN entries = 71.** Field names are correct
-  (`Model Name`, `Pack of`, `Series`, `Design`, `Shape`, `Balloon Type`, `Width/Height/Depth/
-  Diameter/Weight`, `Handle`, `Foldable`, `Gift Pack`, warranty block, …).
-- Scan reads Flipkart's own tab counters (`(0/66)`) and prints a coverage verdict, so
-  "am I missing fields?" is answered by the tool, not by eyeballing.
-- Defaults + example product are aligned to the real scanned names: **35 values** will be typed.
-- Typecheck clean. Engine unit-tested against replica DOMs (two layouts).
+Everything in §4 still holds. Added since, and all of it exercised on real listings:
 
-### NOT yet done
-- **`npm run fill` has never been run against the real form.** This is the immediate next step.
-- The **Price, Stock and Shipping (0/21)** tab has not been scanned yet.
-- `categories/balloon-decoration.json` still holds the older naming (`Weight #2`,
-  `FSN #2`) — a re-scan will rewrite these as `Weight (unit)` and tag FSN as furniture.
-  Delete the file first for a clean capture.
-- Nothing has been committed to git (the repo is not even a git repo yet).
+- **The image pipeline** — `npm run images` (three folders, raw → clean → final) and
+  `npm run finish` (the already-clean shortcut). Descriptions embedded as EXIF, read back by
+  `npm run check`.
+- **`npm run paste -- <ID>`** — prints the four marketplace values with real line breaks and
+  runs every mechanical listing rule. This is the gate before anything goes live.
+- **The prompts**, one file each, nothing but the prompt: `PROMPT-read-pack` →
+  `PROMPT-main-image` → `PROMPT-infographic` build the images; then `PROMPT-meta` and
+  `PROMPT-product`, back to back in the same chat, write the copy and the 66 fields.
+- **`npm start`** fills the Flipkart form and now **saves automatically** once every field reads
+  back clean. Nothing auto-saves while any field reads ⚠️ — that guard is the safety model.
+
+### Not proven
+
+- **The Price / Stock / Shipping tab has never been run against the live form** (WW-015). It is
+  the oldest open risk and the highest-value thing to try next.
+- **Meesho has no bot at all.** Step 9 is hand-typed. WW-093 is to `scan` its panel the way
+  Flipkart's 66 fields were scanned — the same engine fills it, and it is the biggest single
+  time saving left.
+- Whether any marketplace reads the EXIF descriptions (C-019). Writing them is free.
 
 ---
 
@@ -168,31 +211,39 @@ Verify against the real system before reporting something as working.
 
 ---
 
-## 7. What's next (in order)
+## 7. What's next — level two, the desktop app
 
-1. **Re-scan cleanly** (`rm categories/balloon-decoration.json` first) — expect
-   `✅ 66 captured vs 66 on the form — complete.`
-2. **First real fill:** `npm run fill -- products/example-black-gold-birthday-kit.json` on the
-   Additional Description tab. Expect dropdowns (`Shape`, `Hand Crafted`, `Gift Pack`) to be
-   the likeliest mismatches — they need option text matching Flipkart's list exactly. Tune from
-   the report.
-3. **Scan the Price/Stock/Shipping tab**, so `balloon-decoration.pricing.defaults.json`
-   (HSN 95030020, 10×8×10cm, 0.16 kg, Express, GST_5, WishWorks Hisar) goes live.
-4. **Ship one real listing end to end** through QC — the true done-check.
-5. `git init` + first commit (ask for approval on the message; no AI co-author line).
+**Requirements live in [`../guides/GUI-SPEC.md`](../guides/GUI-SPEC.md). Build from that, not
+from this file.** The short version:
 
-Items 1-5 above are **done or superseded** — the repo has history, the image pipeline and the
-prompts are built, and the flow in `THE-FLOW.md` is what is actually run. What genuinely remains
-from this list is **item 4: ship one real listing end to end through QC.** That is still the only
-true done-check, and it has not happened.
+**Electron, shipping both a `.dmg` and a `.exe`.** A Vercel web app was specced in full and
+rejected — the engine is Node code that already works, Electron runs Node, and a browser cannot
+drive a logged-in Flipkart session at all. The record is in GUI-SPEC so it is not re-argued.
 
-**The next build step is the GUI**, specified in
-[`../guides/GUI-SPEC.md`](../guides/GUI-SPEC.md): WW-066 (make the engine callable) → WW-067
-(Electron shell + tab 1) → WW-068 (the `.exe`) → WW-069 (remaining tabs). Do not build ahead of
-the current one.
+**A mobile app is not wanted** (decided 2026-07-31): Flipkart does not allow creating a listing
+from its app, and the photos live on a laptop. Nothing in this project needs a phone.
 
-**Later, after the partner is using the app:** the Phase 2 keyword bank from the ~2,200 existing
-listings, the same scan/fill treatment for Meesho's panel, then the combo generator.
+```
+WW-067  Electron shell + step 1 (AVIF → JPG) + per-step folder memory
+WW-068  GitHub Actions → the .exe AND .dmg, plus electron-updater   ← deliberately early
+WW-089  The listing frame: selector, step rail, state read from disk
+WW-069  Remaining image steps: prepare → finish → check
+WW-090  Prompt panels (steps 3, 4, 5) with paste's checks inline
+WW-066b Split the browser CLIs, one per screen as it is built
+WW-093  scan the Meesho Supplier Panel, then fill it
+```
+
+**The contract at every step:** all 108 tests, `npm run verify` and every `npm run …` keep
+passing untouched. They are the proof the GUI changed no behaviour.
+
+**The release loop** — fix and test on the Mac, build a `.dmg`, confirm the *packaged* app works,
+only then push a build for the partner. Most iterations never leave the Mac. But a `.dmg` proves
+packaging, not platform: WW-061 was Windows-only, so one early `.exe` still has to run on the
+partner's real machine.
+
+**Three things that only bite once packaged**, all in GUI-SPEC: swap `playwright` for
+`playwright-core` (and require Chrome to be installed), `profile/` in the user-data dir (done,
+WW-094), and `sharp` built per platform on its own runner.
 
 ---
 

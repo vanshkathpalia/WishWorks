@@ -114,7 +114,7 @@ Nothing here has an unknown in it except step 9's form, which one `scan` answers
 | 6 | **WW-066b** | Split the browser CLIs the way WW-066 split the image ones | `login`, `scan`, `fill`, `check`, `start`. Do each when its screen is built, so the result shape follows what the screen draws |
 | 7 | **WW-093** | `scan` the Meesho Supplier Panel, then fill it | **The one genuine unknown, and the biggest prize.** Step 9 is 100% hand-typed today |
 
-**The contract, unchanged:** all 99 tests, `npm run verify`, and every `npm run …` keep passing
+**The contract, unchanged:** all 108 tests, `npm run verify`, and every `npm run …` keep passing
 untouched at every step. They are the proof the GUI changed no behaviour.
 
 **Two risks, both known, neither new:**
@@ -193,6 +193,12 @@ The stated reasons for wanting it, and what happens to each:
 **What this decision buys back:** the EXIF-writing and chroma-subsampling spike disappears
 entirely. Those were never real problems — `sharp` solves both today and is tested. They were
 problems the browser would have created.
+
+### No mobile app — decided 2026-07-31
+
+Raised and closed in one line, recorded so it is not revisited: **Flipkart does not allow
+creating a listing from its app**, and the product photos live on a laptop. A phone can do
+neither half of this flow. Nothing here needs one.
 
 ### Two corrections worth keeping
 
