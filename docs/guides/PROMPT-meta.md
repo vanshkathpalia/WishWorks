@@ -118,9 +118,9 @@ WHERE EACH PART COMES FROM
    only drop "Colour" when a MATERIAL or SHAPE word already sits between the colour and the
    noun.
 
-     "Gold Colour Latex Balloons"  → "Gold Latex Balloons"        ✅ "Latex" separates them
-     "Gold Colour Balloons"        → keep "Gold Colour Balloons"  ✅ nothing else separates
-     "Gold Balloons"                                              ❌ bare colour + noun, rule 6
+     "Gold Colour Latex Balloons"  → "Gold Latex Balloons"        OK: "Latex" separates them
+     "Gold Colour Balloons"        → keep "Gold Colour Balloons"  OK: nothing else separates
+     "Gold Balloons"                                              WRONG: bare colour + noun, rule 6
 
    When in doubt keep "Colour". A rejected listing costs more than four characters.
 
@@ -237,6 +237,15 @@ Flipkart shopper, which is why this text is NOT a copy of "title" above.
 
 "meesho.description"
   TARGET 1100-1400 characters. 1400 is the ceiling.
+  THIS IS THE SHORTER OF THE TWO DESCRIPTIONS. The second prompt writes Flipkart's, which has
+  a 5000-character field. Same product, same facts, never contradicting — but different depth,
+  because the limits are different:
+    - Here (1400): every main point present, each with a brief line of explanation where the
+      budget allows. Compact by necessity — say the thing, then move on.
+    - Flipkart (5000): those same points EXPANDED, with room for what each item is for and
+      what the finished setup looks like.
+  Write this one to stand alone. A buyer on Meesho never sees the Flipkart text, so nothing
+  here may depend on it — and neither is a copy of the other.
   THIS IS THE MOST UNDER-USED FIELD IN THE WHOLE LISTING. Meesho does not read image
   metadata, so this text and the title are the ENTIRE basis on which Meesho can match your
   product to a search. A 470-character description is two thirds of the field left empty —

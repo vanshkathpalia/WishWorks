@@ -129,7 +129,7 @@ Lists (arrays — no commas inside any entry)
 Single values
   "Shape"        – ONE value from the form's dropdown, e.g. "Round" / "Heart" / "Star".
                    If the pack has several shapes, pick the dominant one.
-  "Description"  – TARGET 2500-4500 CHARACTERS including spaces, line breaks and emoji.
+  "Description"  – TARGET 2500-4500 CHARACTERS including spaces and line breaks.
                    5000 is the HARD LIMIT — Flipkart's own counter on this field reads
                    "0/5000". Over it, the tail is cut silently.
                    2500 is the FLOOR. Flipkart indexes this field and it is the single
@@ -142,10 +142,35 @@ Single values
                    backdrop looks like. If a sentence is there only to make the number
                    bigger, cut it — a padded description reads as spam and ranks worse.
                    Count them before you answer. Both ends are checked after you reply.
+
+                   THIS IS THE LONGER OF THE TWO DESCRIPTIONS, AND DELIBERATELY SO.
+                   The first prompt already wrote "meesho.description" with a 1400-character
+                   ceiling. This field holds 5000. They cover the SAME product and must never
+                   contradict each other, but they are NOT the same text and neither is a copy
+                   of the other:
+                     - Meesho (1400): the main points, each with a brief line of explanation
+                       where the budget allows. Compact by necessity.
+                     - Flipkart (5000, this field): the same main points EXPANDED. Room to say
+                       what each item is for, what the finished setup looks like, where it gets
+                       used, how it goes up, and who buys it. Use the extra 3600 characters on
+                       depth about the points that matter — never on repeating them.
+                   If you find yourself writing the Meesho text again here, you are wasting the
+                   field. If you find yourself inventing a new fact here, you are breaking rule 1.
+
+                   *** ABSOLUTELY NO EMOJI IN THIS FIELD. NOT ONE. ***
+                   This is not a style preference. An earlier version of this template used
+                   emoji as section headings and **Flipkart's server returned HTTP 500 on
+                   every save** — the listing could not be saved at all, and once the text
+                   was in the draft even switching tabs failed. Proven by deleting the
+                   Description on a live listing, at which point it saved immediately.
+                   Emoji are 4-byte characters and something in Flipkart's backend cannot
+                   store them. Plain ASCII headings only. No emoji anywhere else in this
+                   file either.
+
                    Commas allowed here. Write it in EXACTLY this shape, blank line between
                    every block, in this order:
 
-                     <Product Name> (<N> Pieces) – <Occasion> Set          ← one line, ≤85 chars
+                     <Product Name> (<N> Pieces) - <Occasion> Set          ← one line, ≤85 chars
 
                      One paragraph, 2-3 sentences: what it is, who it is for, and the
                      colours. Name the occasions a buyer searches for.
@@ -156,37 +181,42 @@ Single values
                      decoration" / "hotel room decoration" are queries almost every listing
                      in this category forgets to answer.
 
-                     🎁 What You Get (<N> Pieces)
+                     WHAT YOU GET (<N> Pieces)
                      One line per INVENTORY group, count first: "12 Gold Colour Balloons".
                      EVERY inventory line appears here, including arch tape, glue dots,
                      pump and LED light. No commas, no bullets, no dashes — just the lines.
 
-                     ✨ Key Features
-                     5 lines, each: "<emoji> <Short Label> – <benefit in a few words>"
+                     KEY FEATURES
+                     5 lines, each: "<Short Label> - <benefit in a few words>"
                      The part after the dash must say what it DOES for the buyer, never
-                     restate the label. "52 Pieces – Complete decoration set" is the label
-                     twice; "52 Pieces – Enough to cover a full wall backdrop" is a benefit.
-                     "Arch Tape – Easy balloon arrangement" is vague; "Arch Tape – Holds the
+                     restate the label. "52 Pieces - Complete decoration set" is the label
+                     twice; "52 Pieces - Enough to cover a full wall backdrop" is a benefit.
+                     "Arch Tape - Easy balloon arrangement" is vague; "Arch Tape - Holds the
                      balloons in a curve without tying knots" is specific. Specific beats
                      enthusiastic every time.
 
-                     🎈 Perfect For
-                     5 occasions this genuinely suits, one per line.
+                     PERFECT FOR
+                     5 to 8 occasions and PLACES this genuinely suits, one per line.
+                     Mix both: "Bachelor Party", "Groom Welcome", "Hotel Room Decoration",
+                     "Home Party", "Photo Booth Backdrop".
 
-                     💡 Why Choose This Kit?
+                     WHY CHOOSE THIS KIT
 
                      One or two closing sentences on easy setup or the result the buyer gets.
 
-                     👉 One final line starting with 👉.
+                     One final plain line telling the buyer what to do first, e.g.
+                     "Inflate the balloons and fix the arch tape to shape the display."
 
-                   Emoji: ONLY as the section markers 🎁 ✨ 🎈 💡 👉 and one at the start of
-                   each Key Features line. Never inside a sentence, never in What You Get.
+                   Use a plain hyphen "-" everywhere, never an en-dash or em-dash. ASCII
+                   punctuation only in this field: no emoji, no arrows, no bullet glyphs,
+                   no smart quotes. The section headings above are the whole formatting
+                   vocabulary — CAPITALS and blank lines, nothing else.
 
                    IF YOU GO OVER 5000, cut in this order and stop as soon as you fit:
                      1. the second paragraph
-                     2. the whole "💡 Why Choose This Kit?" block and the 👉 line
+                     2. the whole "WHY CHOOSE THIS KIT" block and the closing line
                      3. Key Features 5 → 4 → 3
-                     4. Perfect For 5 → 4
+                     4. Perfect For 8 → 6 → 5
                    NEVER cut the headline, the first paragraph, or any line of What You Get.
                    An item the buyer is paying for and cannot read about is a wasted selling
                    point — give counts for accessory groups too ("16 Photo Props"), never
@@ -233,9 +263,11 @@ stock and shipping settings are already configured. Do not include them.
   are checked by tooling after you answer. **This field is 5000 characters, not 1400** — an
   earlier version of this prompt said 1400 and every listing written under it is running at a
   quarter of its search surface.
-- Does the Description follow the template — headline, paragraphs, 🎁 What You Get,
-  ✨ Key Features, 🎈 Perfect For, 💡 Why Choose This Kit?, 👉 — with a blank line between
-  each block and emoji only as section markers?
+- Does the Description follow the template — headline, paragraphs, WHAT YOU GET, KEY FEATURES,
+  PERFECT FOR, WHY CHOOSE THIS KIT — with a blank line between each block?
+- **IS THE DESCRIPTION FREE OF EVERY EMOJI AND OF EN-DASHES?** Read it character by character.
+  Emoji in this field made Flipkart's server return 500 on every save — the listing could not
+  be saved at all. Plain ASCII only. This is the single most important check in this list.
 - Does any field anywhere contain a banned quality word ("premium", "elegant", "luxury",
   "royal", "best", "high quality")?
 - BRAND CHECK — go through every phrase in every field and find each place a colour or
@@ -257,7 +289,7 @@ stock and shipping settings are already configured. Do not include them.
   appear in. Fill the ones you know.
 - Does the Description say WHERE the kit is used — room, home, hotel room, banquet hall —
   and not only when?
-- Does each ✨ Key Features line say what the feature DOES, rather than repeating its label?
+- Does each KEY FEATURES line say what the feature DOES, rather than repeating its label?
 - Does any field contain urgency or scarcity wording ("limited stock", "trending", "hurry",
   "selling fast", "best seller")? Remove it.
 - Is it valid JSON, with every quote and bracket closed?

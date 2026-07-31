@@ -1,8 +1,14 @@
 // start.ts — `npm start`. The only command anyone needs to know.
 //
 // Everything else in this folder is a tool for fixing things when they break. This is
-// the everyday path: pick a product from a numbered list, fill the form, decide whether
-// to save. No file paths, no flags, no JSON on the command line.
+// the everyday path: pick a product from a numbered list, fill the form, and — when every
+// field reads back clean — SAVE IT, with no question in between.
+//
+//   npm start              fill, then save if the read-back is clean
+//   npm start -- --no-save fill only, never click Save (for testing on a live listing)
+//
+// Nothing auto-saves while any field reads ⚠️. That guard is the safety model and is older
+// than the auto-save; it is not negotiable.
 import path from "node:path";
 import { openBrowser, pressEnter, activePage, checkLogin, ask } from "./connect.js";
 import { clickSave } from "./fields.js";
@@ -73,24 +79,32 @@ printReport(report);
 await explainMismatches(page, report);
 
 // ---- 4. save ----------------------------------------------------------------
+//
+// Saves IMMEDIATELY when every field read back clean — no "save now? (y/n)". The prompt used to
+// sit between the last field and the Save click, and Flipkart's draft carries a `requestVersion`
+// that the page can outgrow while it waits for a human. Removing the wait is free and removes one
+// variable; it is NOT a diagnosed fix, because the 500 has never been explained (see below).
+//
+// The ⚠️ guard is untouched and is the actual safety model: nothing auto-saves while any field
+// disagrees with what we typed. That rule predates this change and outranks it.
+const skipSave = process.argv.includes("--no-save");
+
 if (needsEyes(report)) {
   console.log(`\n⚠️  ${needsEyes(report)} field(s) above need a human look, so this will NOT save
    automatically. Check them in Chrome. If they're fine, click Save yourself.`);
+} else if (skipSave) {
+  console.log(`\nEverything typed was read back and matched. --no-save given, so nothing was clicked.`);
 } else {
-  console.log(`\nEverything typed was read back and matched.`);
-  const yes = /^y/i.test((await ask(`Save the listing now? (y/n) `)).trim());
-  if (yes) {
-    const { clicked, candidates } = await clickSave(page);
-    console.log(
-      clicked
-        ? `\n💾 Clicked "${clicked}". Look at Chrome for a confirmation — Flipkart may still
-   complain about a field it wants that we left blank.`
-        : `\n⚠️  Couldn't find the Save button${candidates.length ? `. Buttons here: ${candidates.join(" | ")}` : ""}.
+  console.log(`\nEverything typed was read back and matched. Saving now…`);
+  const { clicked, candidates } = await clickSave(page);
+  console.log(
+    clicked
+      ? `\n💾 Clicked "${clicked}". Look at Chrome for the result.
+   A red "Could not save your changes" is Flipkart's server, not a field of ours — open
+   DevTools > Network > the failed request > Response and keep the txnId for support.`
+      : `\n⚠️  Couldn't find the Save button${candidates.length ? `. Buttons here: ${candidates.join(" | ")}` : ""}.
    Click Save in Chrome yourself.`
-    );
-  } else {
-    console.log(`\nNot saved. Click Save in Chrome when you're ready.`);
-  }
+  );
 }
 
 // Chrome must outlive this script — closing it here would wipe everything just typed.

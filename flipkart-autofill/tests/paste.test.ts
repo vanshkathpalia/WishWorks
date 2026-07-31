@@ -248,6 +248,34 @@ describe("the mechanical listing rules", () => {
     expect((await run("GTB-3")).out).toContain("2 of 2 keywords appear in neither");
   });
 
+  /**
+   * The most expensive bug this project has hit: emoji in the Flipkart Description made the
+   * server return HTTP 500 on EVERY save. The listing could not be saved at all, and once the
+   * text was in the draft even switching tabs failed. Proven live 2026-07-31 by deleting the
+   * field, at which point it saved instantly.
+   */
+  it("catches emoji in a Flipkart field — they make the server 500 on save", async () => {
+    await fixture("GTB002", {}, { Description: `Kit for a party. 🎁 What You Get 👉 ${"A ".repeat(1400)}` });
+    const { out } = await run("GTB-2");
+    expect(out).toContain("emoji");
+    expect(out).toContain("HTTP 500");
+  });
+
+  it("catches the 3-byte emoji too — one survivor in a plain field is still one too many", async () => {
+    await fixture("GTB002", {}, { Description: `Kit for a party. ✨ Key Features ${"A ".repeat(1400)}` });
+    expect((await run("GTB-2")).out).toContain("emoji");
+  });
+
+  it("leaves ordinary punctuation alone — dashes, rupees and quotes are not emoji", async () => {
+    await fixture("GTB002", {}, { Description: `Set of 52 - ₹499 - the buyer's kit "as shown" ${"A ".repeat(1400)}` });
+    expect((await run("GTB-2")).out).not.toContain("emoji");
+  });
+
+  it("does not police emoji in the Meesho values — hand-pasted, never seen to break", async () => {
+    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: `🎁 ${MEESHO_LONG}`, pack_contents: "1 Balloon" } });
+    expect((await run("GTB-2")).out).not.toContain("emoji");
+  });
+
   it("catches a TODO_ placeholder before it reaches a live form", async () => {
     await fixture("GTB002", {}, { Shape: "TODO_pick_one" });
     const { out } = await run("GTB-2");

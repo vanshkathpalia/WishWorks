@@ -1252,6 +1252,55 @@ invented by the checker rather than taken from the spec is a checker that agrees
 
 ---
 
+## C-041 — Emoji in the Flipkart Description made every save return HTTP 500
+
+**Category:** Bug · **Caught by:** Vansh, bisecting on the live form · **Date:** 2026-07-31
+
+The first time this tool's output was ever saved to Flipkart, it could not be saved. `Save`
+returned *"Could not save your changes. Please refresh the page and try again."* — and after the
+bot had filled the form, even **switching tabs** (which normally autosaves) failed the same way.
+
+Diagnosis was three wrong turns and one right one, worth recording because the wrong turns were
+each plausible:
+
+1. **"Mandatory fields on the other tab are empty."** Wrong: DevTools showed **HTTP 500**, and a
+   missing required field returns 400 with field-level messages. A 500 is the server throwing.
+2. **"The draft's `requestVersion` is stale."** The payload carried `requestVersion: 1`, which
+   looked like optimistic-concurrency drift after a mid-flow session expiry. **Backwards** — if
+   every update 500s, the version never advances, so `1` was a *symptom of nothing ever saving*.
+3. **"Playwright's input events desync React's state."** Checked and rejected: `fields.ts` uses
+   `selectOption`, real `keyboard.type` and `el.fill`, and never assigns `.value` directly.
+
+**Vansh's A/B is what actually solved it:** editing an existing listing by hand and switching
+tabs saved fine; the same page after a bot fill would not. That located the fault in a *value*,
+not in the mechanism. Deleting the Description and saving worked instantly.
+
+**Cause: the emoji.** WW-072 built a Description template using 🎁 ✨ 🎈 💡 👉 as section
+headings. Those are 4-byte UTF-8 characters, and something in Flipkart's storage cannot take
+them — it throws, returns 500 with only a `txnId`, and once the text is in the draft every later
+save of that draft fails too. **The listing could not be saved at all**, which is as bad as a bug
+in this project gets.
+
+**Fixed.** The template is plain ASCII — CAPITALS headings, hyphens, no emoji, no en-dashes.
+`paste` now flags emoji in any Flipkart-bound value, matching >U+FFFF plus the dingbat and misc
+symbol blocks (so `✨`, which is only 3 bytes and probably harmless, is caught anyway — the
+instruction is "no emoji", and one survivor in a field meant to be plain is worse than a false
+positive). Deliberately not matched: `–`, `—`, `₹` and smart quotes. Four tests.
+
+**The lesson.** Every character we put in a marketplace field is an input to somebody else's
+database, and **a generic 500 with no field name is a bisect problem, not a reading problem.**
+Three sessions of reasoning about payloads produced nothing; one A/B on the live page produced
+the answer in a minute. When the server refuses to say what is wrong, stop theorising and start
+halving the data.
+
+**Second lesson, cheaper.** Nothing had ever been saved through this tool — `HANDOFF.md` says so
+outright: *"ship one real listing end to end through QC… has not happened"*. The emoji went in on
+2026-07-26 and sat undetected for five days because **the last step had never been run.** A
+pipeline is unproven up to the last step that has actually been executed, not up to the last step
+that has been written.
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:

@@ -124,6 +124,32 @@ for (const { where, text, commas } of scanned) {
     problems.push(`${where} contains a comma — Flipkart splits list values on commas, so "${text.slice(0, 60)}…" becomes two entries. Use " - " or "and".`);
   }
   if (text.startsWith("TODO_")) problems.push(`${where} is still a placeholder (${text}).`);
+
+  // Emoji in a Flipkart field are not a style problem — they are a HTTP 500. Proven on a live
+  // listing 2026-07-31: with emoji in the Description every save returned "Internal Server
+  // Error", and once the text was in the draft even switching tabs failed; deleting the field
+  // fixed it instantly. Anything outside the Basic Multilingual Plane is a surrogate pair in
+  // UTF-16 and 4 bytes in UTF-8, which is what Flipkart's storage cannot take. Meesho fields
+  // are exempt — they are pasted by hand and have never shown the problem.
+  if (!where.startsWith("meesho")) {
+    // >0xFFFF is the PROVEN breaker (4 bytes in UTF-8). The three-byte ranges below —
+    // dingbats and misc symbols, where ✨ ★ ☀ live — are not proven to break anything, but
+    // the seller's instruction is "no emoji at all" and one survivor in a field meant to be
+    // plain is worse than a false positive. Deliberately NOT matched: – — ₹ and smart quotes,
+    // which are ordinary punctuation.
+    const isEmoji = (c: string) => {
+      const n = c.codePointAt(0) ?? 0;
+      return n > 0xffff || (n >= 0x2600 && n <= 0x27bf) || (n >= 0x2b00 && n <= 0x2bff) || n === 0xfe0f;
+    };
+    const nonBmp = [...text].filter(isEmoji);
+    if (nonBmp.length) {
+      problems.push(
+        `${where} contains ${nonBmp.length} emoji / 4-byte character(s) — ${[...new Set(nonBmp)].slice(0, 8).join(" ")}\n` +
+          `      Flipkart's server returns HTTP 500 on save when this field carries them: the listing\n` +
+          `      cannot be saved at all. Remove every one before you fill.`,
+      );
+    }
+  }
 }
 
 // Model Name is the ONLY part of the Flipkart title a seller controls — Flipkart composes the
