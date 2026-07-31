@@ -165,7 +165,7 @@ if (orphans.length > keywords.length / 2) {
  * warning that a small kit has a short list would be noise, not signal (learning note 7).
  */
 const FIELDS = [
-  ["FLIPKART DESCRIPTION", product.values?.Description, 1100, 1400, "products"],
+  ["FLIPKART DESCRIPTION", product.values?.Description, 2500, 5000, "products"],
   ["MEESHO TITLE", meta.meesho?.title, 90, 120, "image-meta"],
   ["MEESHO DESCRIPTION", meta.meesho?.description, 1100, 1400, "image-meta"],
   ["MEESHO PACK CONTENTS", meta.meesho?.pack_contents, 0, 255, "image-meta"],

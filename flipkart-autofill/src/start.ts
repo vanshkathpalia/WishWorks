@@ -94,10 +94,17 @@ if (needsEyes(report)) {
 }
 
 // Chrome must outlive this script — closing it here would wipe everything just typed.
+//
+// This warning is not decoration. The old wording was "just close the Chrome window — this will
+// finish by itself", which reads as "closing it is how you finish" — and Vansh read it exactly
+// that way, closed Chrome, and lost the fill. "This" was the SCRIPT, never the listing. Say what
+// is at stake, with the number, every time.
 console.log(`
 ────────────────────────────────────────────────
-Chrome stays open so you can check the form.
-When you're done, just close the Chrome window — this will finish by itself.
+❗ NOTHING IS SAVED YET. Closing Chrome now throws away all ${report.filled.length} filled fields.
+
+   Click SAVE / Send for QC in Chrome first. Only then close the window —
+   closing it ends this script, it does not save the listing.
 ────────────────────────────────────────────────`);
 await new Promise<void>((resolve) => context.once("close", () => resolve()));
 console.log(`Done. Your login is saved for next time.`);

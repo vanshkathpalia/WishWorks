@@ -46,12 +46,13 @@ afterAll(async () => {
 const TITLE = "Groom To Be Decoration Kit Black Gold Latex Balloons Foil Banner Sash Curtain for Bachelor Party (Set of 52 Pcs)";
 const KEYWORDS = ["groom to be decoration", "bachelor party kit"];
 
-// Sized the way a good reply comes back: past each limit's 70% mark so the "room for more"
-// check stays quiet, and carrying the keywords so the coverage check stays quiet too.
-const FILLER = "A ".repeat(570);
-const LONG = `${KEYWORDS.join(" and ")}. ${FILLER}`;   // ~1190 chars, inside the 1100-1400 band
-const NO_KEYWORDS = FILLER;                            // same length, none of the phrases
-const MEESHO_TITLE = "G ".repeat(50);                  // 100 chars, inside the 90-120 band
+// Sized the way a good reply comes back, and the two descriptions are NOT the same size —
+// Flipkart's field is 5000 characters and Meesho's is 1400, so one fixture cannot serve both.
+const KW = `${KEYWORDS.join(" and ")}. `;
+const LONG = `${KW}${"A ".repeat(1400)}`;         // ~2850 chars, inside Flipkart's 2500-5000
+const MEESHO_LONG = `${KW}${"A ".repeat(570)}`;   // ~1190 chars, inside Meesho's 1100-1400
+const NO_KEYWORDS = "A ".repeat(570);             // Meesho-sized, carrying none of the phrases
+const MEESHO_TITLE = "G ".repeat(50);             // 100 chars, inside the 90-120 band
 
 /** Write both files for one product. Anything passed in `meta`/`product` overrides the good default. */
 async function fixture(id: string, meta: object = {}, product: object = {}) {
@@ -59,7 +60,7 @@ async function fixture(id: string, meta: object = {}, product: object = {}) {
     title: TITLE,
     keywords: KEYWORDS,
     images: { "1": "a photo" },
-    meesho: { title: MEESHO_TITLE, description: LONG, pack_contents: "20 balloons" },
+    meesho: { title: MEESHO_TITLE, description: MEESHO_LONG, pack_contents: "20 balloons" },
     ...meta,
   }));
   await writeFile(path.join(tmp, "products", `products-${id}.json`), JSON.stringify({
@@ -90,7 +91,7 @@ describe("npm run paste", () => {
   });
 
   it("catches a value over the panel's limit and says how much will be cut", async () => {
-    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: LONG, pack_contents: "x".repeat(263) } });
+    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: MEESHO_LONG, pack_contents: "x".repeat(263) } });
     const { code, out } = await run("GTB-2");
     expect(out).toContain("263/255");
     expect(out).toContain("cut the last 8 character");
@@ -113,26 +114,34 @@ describe("npm run paste", () => {
   });
 
   it("catches a value under the target, not only one over it", async () => {
+    // Each field carries the PROMPT's own floor, not a shared percentage: Flipkart's Description
+    // is a 5000-character field and Meesho's is 1400, so "too short" is a different number for
+    // each. A blanket tolerance would have let one of them miss its target and still pass.
     await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: "Too short.", pack_contents: "1 Balloon" } });
-    const { code, out } = await run("GTB-2");
-    expect(out).toContain("under the 1100 target");
-    expect(out).toContain("under the 1100 the prompt asks for");
-    expect(code).toBe(0);
+    const meesho = await run("GTB-2");
+    expect(meesho.out).toContain("under the 1100 target");
+    expect(meesho.code).toBe(0);
+
+    await fixture("GTB003", {}, { Description: "Too short." });
+    const flipkart = await run("GTB-3");
+    expect(flipkart.out).toContain("under the 2500 target");
+    expect(flipkart.out).toContain("under the 2500 the prompt asks for");
+    expect(flipkart.code).toBe(0);
   });
 
   it("counts a short Meesho title too — 90 is the floor, 120 the ceiling", async () => {
-    await fixture("GTB002", { meesho: { title: "Groom Kit", description: LONG, pack_contents: "1 Balloon" } });
+    await fixture("GTB002", { meesho: { title: "Groom Kit", description: MEESHO_LONG, pack_contents: "1 Balloon" } });
     expect((await run("GTB-2")).out).toContain("MEESHO TITLE is 9/120");
   });
 
   it("never calls pack contents short — its length is the pack's, not a target", async () => {
-    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: LONG, pack_contents: "2 Balloons" } });
+    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: MEESHO_LONG, pack_contents: "2 Balloons" } });
     const { out } = await run("GTB-2");
     expect(out).toContain("nothing to fix");
   });
 
   it("catches a truncated reply — a missing value is not a silent one", async () => {
-    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: LONG } }); // no pack_contents
+    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: MEESHO_LONG } }); // no pack_contents
     const { out } = await run("GTB-2");
     expect(out).toContain("(missing)");
     expect(out).toContain("reply was cut short");
@@ -142,7 +151,7 @@ describe("npm run paste", () => {
     // A different title, but still a VALID length — so this counts drift + over-limit and does
     // not quietly become a third problem.
     await fixture("GTB002",
-      { meesho: { title: MEESHO_TITLE, description: LONG, pack_contents: "x".repeat(300) } },
+      { meesho: { title: MEESHO_TITLE, description: MEESHO_LONG, pack_contents: "x".repeat(300) } },
       { "Model Name": "Bachelor Party Decoration Kit Black Gold Latex Balloons Foil Banner Sash for Groom To Be (Set of 52 Pcs)" });
     const { out } = await run("GTB-2");
     expect(out).toContain("2 THINGS TO FIX");
@@ -151,7 +160,7 @@ describe("npm run paste", () => {
   });
 
   it("still prints the values it is warning about — they are correct to paste", async () => {
-    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: LONG, pack_contents: "x".repeat(300) } });
+    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: MEESHO_LONG, pack_contents: "x".repeat(300) } });
     const { out } = await run("GTB-2");
     expect(out).toContain("x".repeat(300));
   });
@@ -171,7 +180,7 @@ describe("the mechanical listing rules", () => {
   });
 
   it("catches urgency wording — a policy risk, not a sales technique", async () => {
-    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: `${LONG} Limited Stock`, pack_contents: "1 Balloon" } });
+    await fixture("GTB002", { meesho: { title: MEESHO_TITLE, description: `${MEESHO_LONG} Limited Stock`, pack_contents: "1 Balloon" } });
     const { out } = await run("GTB-2");
     expect(out).toContain(`"limited stock"`);
     expect(out).toContain("policy risk");
@@ -194,7 +203,7 @@ describe("the mechanical listing rules", () => {
     await fixture("GTB002", {
       meesho: {
         title: `Groom To Be Kit, Black and Gold, Bachelor Party ${MEESHO_TITLE}`,
-        description: `Balloons, banner and curtains. ${LONG}`,
+        description: `Balloons, banner and curtains. ${MEESHO_LONG}`,
         pack_contents: "20 Black Latex Balloons, 20 Gold Latex Balloons, 1 Groom To Be Foil Banner",
       },
     });
@@ -235,7 +244,7 @@ describe("the mechanical listing rules", () => {
     // Neither present — worth saying.
     await fixture("GTB003",
       { meesho: { title: MEESHO_TITLE, description: NO_KEYWORDS, pack_contents: "1 Balloon" } },
-      { Description: NO_KEYWORDS });
+      { Description: "A ".repeat(1400) });
     expect((await run("GTB-3")).out).toContain("2 of 2 keywords appear in neither");
   });
 
