@@ -1,0 +1,31 @@
+# electron-builder.yml — how the .dmg and .exe get made (WW-068).
+#
+# The one line that matters most is asarUnpack. `sharp` is a native .node binary and cannot be
+# loaded from inside an asar archive; leaving it packed produces an installer that launches fine
+# and then fails on the first image with an error nobody can act on. `@img/*` holds sharp's
+# per-platform libvips builds and has to come out with it.
+#
+# Each platform is built on its own CI runner — sharp's binary is not cross-buildable.
+
+appId: in.wishworks.selleros
+productName: WishWorks
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+asarUnpack:
+  - "**/node_modules/sharp/**"
+  - "**/node_modules/@img/**"
+
+mac:
+  target: dmg
+  category: public.app-category.business
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

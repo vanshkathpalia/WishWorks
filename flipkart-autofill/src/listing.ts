@@ -110,29 +110,54 @@ export interface Report {
   mismatch: string[];
 }
 
-/** Type every value into the open form, printing each result as it happens. */
-export async function fillAll(page: Page, values: Values): Promise<Report> {
+/** One field's outcome, as data. The ✅/⚠️/⏭️/❌ is a rendering of `status`, never the other way
+ *  round — a UI that could only reprint terminal text would be no better than the terminal. */
+export interface FieldRow {
+  label: string;
+  /** What we tried to type, already flattened the way a list field displays it. */
+  want: string;
+  status: "filled" | "not_found" | "mismatch" | "failed";
+  /** What the form showed afterwards. Only meaningful for `mismatch`. */
+  actual?: string;
+}
+
+/**
+ * Type every value into the open form.
+ *
+ * `onField` fires as each one lands, for a live table. **When it is given nothing is printed** —
+ * that is what lets the app drive the same code without stdout noise, while `npm start` (which
+ * passes no callback) prints exactly what it always did.
+ */
+export async function fillAll(
+  page: Page,
+  values: Values,
+  onField?: (row: FieldRow) => void,
+): Promise<Report> {
   const report: Report = { filled: [], notFound: [], failed: [], mismatch: [] };
   for (const [label, value] of Object.entries(values)) {
     const want = Array.isArray(value) ? value.join(", ") : String(value);
     const { status, actual } = await fillField(page, label, value);
+    const say = (line: string) => {
+      if (!onField) console.log(line);
+    };
     switch (status) {
       case "filled":
         report.filled.push(label);
-        console.log(`✅ ${label} = ${want}`);
+        say(`✅ ${label} = ${want}`);
         break;
       case "not_found":
         report.notFound.push(label);
-        console.log(`⏭️  ${label} — belongs to another tab`);
+        say(`⏭️  ${label} — belongs to another tab`);
         break;
       case "mismatch":
         report.mismatch.push(label);
-        console.log(`⚠️  ${label} — wanted "${want}" but the form shows "${actual}"  ← CHECK THIS`);
+        say(`⚠️  ${label} — wanted "${want}" but the form shows "${actual}"  ← CHECK THIS`);
         break;
       default:
         report.failed.push(label);
-        console.log(`❌ ${label} — could not fill`);
+        say(`❌ ${label} — could not fill`);
     }
+    onField?.({ label, want, status: status as FieldRow["status"], actual });
   }
   return report;
 }

@@ -32,6 +32,10 @@ export function normalizeId(name: string): string {
   return path
     .basename(name, path.extname(name))
     .replace(/^(image-?meta|products?)[-_ ]+/i, "") // the download's prefix, not the identity
+    // The browser's duplicate-download suffix. `products-ANP003 (1).json` is the SAME listing
+    // downloaded twice — without this it normalised to ANP31 and showed up as a phantom second
+    // product in the picker, one that no folder and no other half would ever match.
+    .replace(/\s*\(\d+\)$/, "")
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "") // ANP-3 / ANP 3 / ANP_3 → ANP3
     .replace(/([A-Z])0+(\d)/g, "$1$2"); // ANP003 → ANP3

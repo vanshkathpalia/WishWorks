@@ -2,7 +2,12 @@
   "name": "flipkart-autofill",
   "private": true,
   "type": "module",
+  "main": "out/main/main.js",
   "scripts": {
+    "app": "electron-vite dev",
+    "app:build": "electron-vite build",
+    "app:dist": "electron-vite build && electron-builder --config electron-builder.yml",
+    "typecheck:gui": "tsc --noEmit -p gui/tsconfig.json",
     "start": "tsx src/start.ts",
     "images": "tsx src/images.ts",
     "finish": "tsx src/finish.ts",
@@ -23,7 +28,16 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
     "typescript": "^7.0.2",
+    "vite": "^7.3.6",
     "vitest": "^4.1.10"
   }
 }

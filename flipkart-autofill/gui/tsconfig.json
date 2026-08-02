@@ -1,0 +1,16 @@
+{
+  "// ": "The app's typecheck, kept separate from the engine's so `npm run typecheck` stays exactly as it was — that command is the proof the GUI work changed no engine behaviour. ponytail: one config covers both the main process (node) and the renderer (DOM); the ceiling is that a stray node import in the renderer would typecheck. Split into tsconfig.node/web if that ever actually happens.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "types": ["node", "electron-vite/node"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["../gui", "../electron.vite.config.ts"]
+}

@@ -9,6 +9,10 @@ docs/key.md
 
 node_modules/
 
+# The desktop app's build output: `electron-vite build` writes out/, electron-builder dist/.
+out/
+dist/
+
 # ---------------------------------------------------------------------------
 # This machine's global gitignore (~/.gitignore_global) excludes *.json wholesale.
 # That is a sensible default for stray service-account keys, but this project is

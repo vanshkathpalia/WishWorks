@@ -43,6 +43,11 @@ describe("normalizeId", () => {
     expect(normalizeId("GTB002")).toBe(normalizeId("GTB-2"));
   });
 
+  it("ignores the browser's duplicate-download suffix", () => {
+    expect(normalizeId("products-ANP003 (1).json")).toBe("ANP3");
+    expect(normalizeId("ANP003(2)")).toBe("ANP3");
+  });
+
   it("keeps a descriptive ID that has no number", () => {
     expect(normalizeId("HBD-space - p")).toBe("HBDSPACEP");
     expect(normalizeId("HBD-kitty")).toBe("HBDKITTY");

@@ -1,0 +1,931 @@
+/* styles.css — plain CSS, no framework. Dark and warm: this is a balloon shop, not a terminal.
+   Type is deliberately large; the person using this is not a developer squinting at a table. */
+
+:root {
+  --bg: #12100f;
+  --panel: #1b1817;
+  --line: #2e2926;
+  --ink: #f2ece6;
+  --muted: #a2968c;
+  --accent: #ff8a3d;
+  --warn: #e8b33a;
+  --bad: #e2664f;
+  font-family: ui-sans-serif, system-ui, "Segoe UI", -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+button {
+  font: inherit;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #262120;
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover {
+  border-color: var(--accent);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  height: 100vh;
+}
+
+/* ------------------------------------------------------------------ step rail */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 22px 16px;
+  background: #171413;
+  border-right: 1px solid var(--line);
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 17px;
+  padding-left: 8px;
+}
+
+.rail ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+/* Every step is a real button — none of them is gated on an earlier one. */
+.rail li button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #6d635b;
+  font-size: 14px;
+  text-align: left;
+}
+.rail li button:hover {
+  background: #201b19;
+  color: var(--ink);
+}
+
+.num {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  flex: none;
+}
+
+.rail li button.current {
+  background: #2a211b;
+  color: var(--ink);
+}
+.rail li button.current .num {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1210;
+  font-weight: 700;
+}
+
+/* Not built in the app yet. Still reachable — the panel says which command to run instead. */
+.later {
+  color: #6d635b;
+}
+
+.rail-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.login {
+  font-size: 14px;
+  padding-left: 10px;
+}
+
+/* ------------------------------------------------------------------ panel */
+
+main {
+  overflow-y: auto;
+  padding: 40px 44px 60px;
+}
+
+.panel {
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+h2 {
+  margin: 0 0 14px;
+  font-size: 20px;
+}
+h3 {
+  margin: 22px 0 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+header p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 62ch;
+  line-height: 1.55;
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  height: 200px;
+  border: 2px dashed var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  transition: border-color 0.12s, background 0.12s;
+}
+.drop.over {
+  border-color: var(--accent);
+  background: #221b18;
+}
+.drop.busy {
+  border-style: solid;
+}
+.picks {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------------ clean-up controls */
+
+.cleanup {
+  margin: 0;
+  padding: 16px 18px 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.cleanup legend {
+  padding: 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.cleanup .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 7px 0;
+  font-size: 14px;
+}
+.cleanup input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  margin-right: 2px;
+}
+.cleanup input[type="number"],
+.cleanup input[type="text"] {
+  width: 68px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #100e0d;
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+}
+.cleanup .positions {
+  width: 84px;
+}
+.cleanup input:disabled {
+  opacity: 0.4;
+}
+.cleanup .muted {
+  margin: 8px 0 12px;
+  max-width: 66ch;
+  line-height: 1.55;
+}
+.cmd {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+code {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.92em;
+  color: var(--ink);
+}
+.drop strong {
+  font-size: 18px;
+}
+.drop span {
+  color: var(--muted);
+}
+
+.path {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--muted);
+  word-break: break-all;
+  user-select: text;
+}
+
+.error {
+  margin: 0;
+  color: var(--bad);
+}
+
+/* ------------------------------------------------------------------ results */
+
+.thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.thumbs figure {
+  margin: 0;
+  width: 108px;
+}
+.thumbs img {
+  width: 108px;
+  height: 108px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.thumbs figcaption {
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.rows {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.rows th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.rows td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid #221e1c;
+  vertical-align: top;
+}
+.rows tr.warn td:last-child {
+  color: var(--warn);
+}
+.arrow {
+  color: var(--muted);
+}
+
+.done {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #1d2118;
+  border: 1px solid #2f3a26;
+}
+
+.failures {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--bad);
+}
+
+/* ------------------------------------------------------------------ settings */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+}
+.sheet {
+  width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 26px 28px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.sheet h3:first-of-type {
+  margin-top: 8px;
+}
+.kv {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.kv li {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #221e1c;
+  font-size: 13px;
+}
+.kv b {
+  flex: none;
+  width: 80px;
+}
+.kv span {
+  color: var(--muted);
+  word-break: break-all;
+}
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+.close {
+  margin-top: 24px;
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------ shared step furniture */
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1210;
+  font-weight: 600;
+}
+button.primary:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+button.copied {
+  border-color: #4f7a3a;
+  color: #b6dfa0;
+}
+label.inline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  color: var(--muted);
+}
+label.inline input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+.drop.small {
+  height: 130px;
+}
+
+/* the listing picker — newest first, never a text box */
+.picker {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.picker-head button {
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+.picker ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.picker li button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+.picker li button:hover {
+  background: #221c1a;
+}
+.picker li button.chosen {
+  background: #2a211b;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.lid {
+  font-weight: 600;
+  min-width: 130px;
+}
+.tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tags em {
+  font-style: normal;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: #2b2523;
+  color: var(--muted);
+}
+.missing {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+/* a folder this step remembers */
+.folder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+.folder-label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+/* the two prompt cards on the listing-copy step */
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.card b {
+  line-height: 1.4;
+}
+
+/* the inbox */
+.inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 20px;
+  border: 1px solid #3a2f22;
+  border-radius: 12px;
+  background: #1e1a15;
+}
+.inbox h3 {
+  margin: 0;
+  color: var(--accent);
+}
+
+/* paste results */
+.problems {
+  padding: 16px 18px;
+  border: 1px solid #4a3320;
+  border-radius: 10px;
+  background: #241a13;
+}
+.problems h3 {
+  margin: 0 0 10px;
+  color: var(--warn);
+}
+.problems ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.problems li {
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-size: 13.5px;
+}
+.allgood {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #1d2118;
+  border: 1px solid #2f3a26;
+}
+.field {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.field-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.field-head b {
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+.field-head button {
+  margin-left: auto;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.warnpill {
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: #3a2d16;
+  color: var(--warn);
+}
+.value {
+  margin: 0;
+  padding: 14px;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  user-select: text;
+}
+.pairing {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #221b18;
+  border: 1px solid var(--line);
+  line-height: 1.7;
+}
+/* ------------------------------------------------------------------ the Flipkart step */
+
+/* Three states, never two: "not navigated yet" must never read as "logged out" (WW-061). */
+.light {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-left-width: 4px;
+}
+.light span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.light.yes {
+  border-left-color: #5f9b45;
+  background: #1d2118;
+}
+.light.no {
+  border-left-color: var(--bad);
+  background: #241816;
+}
+.light.unknown {
+  border-left-color: var(--warn);
+  background: #241f13;
+}
+.light.off {
+  border-left-color: #4a423d;
+}
+
+/* Once you are in, logging in stops being news. One quiet line, not a panel. */
+.light-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.light-strip b {
+  color: var(--ink);
+}
+.light-strip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5f9b45;
+  flex: none;
+}
+.light-strip .path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.shortcuts input[type="text"] {
+  flex: 1;
+  min-width: 240px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #100e0d;
+  color: var(--ink);
+  font: inherit;
+}
+.chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.chip button {
+  border: 0;
+  border-radius: 0;
+  background: #262120;
+}
+.chip .x {
+  padding: 8px 11px;
+  color: var(--muted);
+  border-left: 1px solid var(--line);
+}
+.chip .x:hover {
+  color: var(--bad);
+}
+
+.steps-list {
+  margin: 0;
+  padding-left: 22px;
+  line-height: 1.9;
+  color: var(--muted);
+}
+.steps-list b {
+  color: var(--ink);
+}
+
+.tally {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 14px;
+}
+.tally .bad {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* The one warning in the app that costs real work if ignored. */
+.danger {
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid #5a2f26;
+  background: #2a1714;
+  line-height: 1.6;
+}
+
+/* ------------------------------------------------------------------ prompt editor */
+
+.sheet.wide {
+  width: min(1100px, 92vw);
+  max-height: 88vh;
+}
+.editor-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.editor-head h2 {
+  margin: 0;
+  margin-right: auto;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 16px;
+}
+.editor {
+  width: 100%;
+  height: 46vh;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #100e0d;
+  color: var(--ink);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  resize: vertical;
+}
+.versions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.versions li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #221e1c;
+  font-size: 13.5px;
+}
+.versions li button {
+  padding: 4px 11px;
+  font-size: 12.5px;
+}
+.versions li button:first-of-type {
+  margin-left: auto;
+}
+.value.tall {
+  max-height: 40vh;
+}
+.openable {
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ the AI's pictures */
+
+.photos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.photo {
+  display: flex;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.photo img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #100e0d;
+  flex: none;
+}
+.photo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-width: 0;
+}
+.photo-body b {
+  word-break: break-all;
+}
+.photo select {
+  font: inherit;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #100e0d;
+  color: var(--ink);
+}
+.photo .missing {
+  margin-left: 0;
+  line-height: 1.5;
+}
+
+/* the ordered message list on the images step */
+.msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.msg {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.msg-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.msg-head button {
+  margin-left: auto;
+}
+/* One row per prompt on offer. A message with two lists them stacked, so it reads as a choice
+   rather than a sequence — sending both is the mistake this layout exists to prevent. */
+.msg-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.msg-prompt .opt-note {
+  flex-basis: 100%;
+  font-size: 12.5px;
+}
+.msg-n {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #332a20;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+}
+.msg p {
+  margin: 0;
+  line-height: 1.6;
+}
+.msg .cmd {
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+
+.pairing select {
+  font: inherit;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #100e0d;
+  color: var(--ink);
+}

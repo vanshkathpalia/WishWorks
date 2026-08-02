@@ -1,0 +1,157 @@
+/**
+ * shared.ts — the ONLY contract between the Electron main process and the renderer.
+ *
+ * Main owns the engine (fs, sharp, Playwright). The renderer owns pixels and nothing else —
+ * no `node:` imports, no `require`, `contextIsolation: true`. Everything that crosses between
+ * them is declared here and imported by main.ts, preload.ts and the renderer alike, so a
+ * channel can never be renamed on one side only.
+ *
+ * What crosses: paths and small JSON. Never image bytes. Thumbnails are `file://` URLs
+ * pointing at the real files on disk, because base64 through IPC would copy every photo
+ * twice for no reason.
+ */
+
+// The engine's own row type, imported rather than re-declared. Type-only, so nothing from
+// images-core.ts is bundled into the renderer.
+import type { Row } from "../src/images-core.js";
+import type { FinishResult } from "../src/finish-core.js";
+import type { InboxItem, ImportResult } from "../src/inbox.js";
+import type { Listing } from "../src/listings.js";
+import type { PasteResult } from "../src/paste-core.js";
+import type { CheckResult } from "../src/check-core.js";
+import type { FillResult, SessionStatus } from "../src/browser-core.js";
+import type { FieldRow } from "../src/listing.js";
+import type { PromptFile } from "../src/prompts.js";
+import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
+export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
+export type {
+  Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
+  FillResult, SessionStatus, FieldRow,
+};
+
+/** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
+export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string };
+
+/**
+ * Steps that open a picker each remember their own folder. One global "last folder" would have
+ * converting (which reaches for ~/Downloads) fighting finishing (the WhatsApp archive).
+ */
+export type StepId = "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox";
+
+/**
+ * The tag clean-up, which belongs on this step because the engine does it here: cropping and
+ * painting are stage-1 options on `runImages()`, the same call that converts. GUI-SPEC used to
+ * put them on a separate "Prepare images" step; there is no separate engine pass to hang that on,
+ * and splitting them would mean converting twice.
+ *
+ * Positions are 1-based and match the numbers the images end up with, so "images 2,3,4" on screen
+ * means `2.jpg 3.jpg 4.jpg`. Empty list = every image.
+ */
+export interface CleanUp {
+  /** Pixels off the bottom. 0 = don't crop. Image 1 gets this: the AI replaces it anyway. */
+  cropBottom: number;
+  cropImages: number[];
+  /** [width, height] of the white patch painted at bottom-left. null = don't paint. */
+  eraseTag: [number, number] | null;
+  eraseImages: number[];
+}
+
+export interface ConvertResult {
+  /** The product folder name, taken from the folder that was dropped in. */
+  product: string;
+  /** Where the converted images landed, for the "open folder" button. */
+  outDir: string;
+  rows: Row[];
+  failures: string[];
+  /** Set when the dropped folder held no images the engine can read. */
+  empty: boolean;
+}
+
+export interface WwApi {
+  /** The real filesystem path of a dragged-in file or folder. Empty string if there isn't one. */
+  pathForFile(file: File): string;
+  /**
+   * Open a picker at this step's remembered folder. Empty array = cancelled.
+   *
+   * Folder and file modes are separate calls because Windows cannot show one dialog that accepts
+   * both — it honours whichever property came first — and the two machines must behave alike.
+   */
+  pick(step: StepId, mode: "folder" | "files"): Promise<string[]>;
+  /** Stage 1: copy a folder OR loose image files into the workspace and run the pipeline. */
+  convert(input: string[], cleanUp: CleanUp): Promise<ConvertResult>;
+  /** Rows as they land. Returns an unsubscribe function. */
+  onRow(cb: (row: Row) => void): () => void;
+  /** For the Settings panel: what each step currently remembers. */
+  rememberedFolders(): Promise<Partial<Record<StepId, string>>>;
+  /** Forget them all. The app must keep working with nothing remembered. */
+  clearFolders(): Promise<void>;
+  /** Reveal a path in Finder/Explorer. */
+  showFolder(dir: string): Promise<void>;
+  /** Where the workspace lives, shown once in Settings so it is never a mystery. */
+  workspaceDir(): Promise<string>;
+  /** Pick a new workspace. Relaunches the app on success; false means the user cancelled. */
+  chooseWorkspace(): Promise<boolean>;
+
+  /** Every listing this machine knows about, newest first. */
+  listings(): Promise<Listing[]>;
+  /** A prompt file's entire text, for the one-click copy. */
+  promptText(file: string): Promise<string>;
+  /** The prompt plus where it saves and every version kept. */
+  readPrompt(file: string): Promise<PromptFile>;
+  /** Save an edit, keeping what it said before as a dated version. */
+  savePrompt(file: string, text: string): Promise<PromptFile>;
+  readVersion(file: string): Promise<string>;
+
+  /** Match downloaded pictures to the listing folders under an archive root. Changes nothing. */
+  scanPhotos(from: string, root: string): Promise<PhotoItem[]>;
+  /** File one picture as `<position>.<ext>`, removing whatever else held that position. */
+  importPhoto(item: PhotoItem, position: number, opts: { move?: boolean }): Promise<PhotoImport>;
+  listingFolders(root: string): Promise<ListingFolder[]>;
+  /** Every check `npm run paste` runs, for one listing. */
+  paste(id: string): Promise<{ ok: true; result: PasteResult } | { ok: false; message: string }>;
+  /** Remove emoji from the Flipkart-bound values of a listing written before the rule existed. */
+  stripEmoji(id: string): Promise<{ file: string; changed: string[] }>;
+
+  /** Where the AI's downloads land. Remembered, defaults to ~/Downloads. */
+  downloadsDir(): Promise<string>;
+  /** What importing that folder would do. Changes nothing. */
+  scanInbox(from: string): Promise<InboxItem[]>;
+  /** File everything new or newer into image-meta/ and products/. */
+  importInbox(from: string, opts: { move?: boolean; only?: string[] }): Promise<ImportResult>;
+  /** File specific dropped .json files, deciding the folder from their content. */
+  fileOne(files: string[]): Promise<ImportResult>;
+
+  /** Stamp descriptions into finished images. `id` renames, `metaId` picks descriptions — never
+   *  derive one from the other, that was WW-078. */
+  finish(o: { inDir: string; outDir: string; id?: string | null; metaId?: string | null }): Promise<FinishResult>;
+
+  /** Read the descriptions back out of finished images. */
+  check(target: string): Promise<{ ok: true; result: CheckResult } | { ok: false; message: string }>;
+  /** Absolute path of a listing's clean folder, from its REAL folder name. */
+  cleanFolder(folder: string): Promise<string>;
+
+  /** Open the real Chrome with the saved seller session. Defaults to the dashboard, never a
+   *  login page; pass a saved shortcut's URL to land somewhere else. */
+  openChrome(url?: string): Promise<Attempt<SessionStatus>>;
+  /** Pages the user chose to remember. Not a guessed list of Flipkart routes — see main.ts. */
+  shortcuts(): Promise<{ name: string; url: string }[]>;
+  /** Save whatever page Chrome is on right now under this name. Null if it is on nothing. */
+  rememberPage(name: string): Promise<{ name: string; url: string } | null>;
+  forgetPage(name: string): Promise<{ name: string; url: string }[]>;
+  /** Never navigates, so polling it cannot interrupt an OTP. */
+  chromeStatus(): Promise<SessionStatus>;
+  /** Closes Chrome gracefully. Only ever called from a button — never automatically. */
+  closeChrome(): Promise<void>;
+  /** Type a listing's values into whatever form is open in Chrome. */
+  fillListing(id: string): Promise<Attempt<FillResult>>;
+  /** Click Save. **Refuses while any field reads ⚠️** — the guard is in the engine, not here. */
+  saveListing(): Promise<Attempt<{ clicked: string | null; candidates: string[] }>>;
+  /** Fields as they land during a fill. Returns an unsubscribe function. */
+  onField(cb: (row: FieldRow) => void): () => void;
+}
+
+declare global {
+  interface Window {
+    ww: WwApi;
+  }
+}
