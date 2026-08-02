@@ -1,0 +1,67 @@
+# build.yml — make the installers WW-068.
+#
+# Why two runners and not one: `sharp` ships a compiled native binary per platform, so a build
+# made on macOS contains the macOS libvips and installs on Windows only to die on the first
+# image. electron-builder cannot cross-compile that. Each installer is built on its own OS.
+#
+# Vansh is on a Mac and the partner is on Windows, so the .exe can only come from here. It is
+# unsigned — Windows SmartScreen will warn on first run and the partner clicks
+# "More info" -> "Run anyway". Signing needs a paid certificate; deliberately deferred.
+#
+# Artifacts, not releases: this uploads the installers to the run page, where they last 30 days.
+# Publishing to GitHub Releases is a later step and needs a version bump policy first.
+
+name: Build installers
+
+on:
+  push:
+    branches: [main]
+  # so a build can be kicked off from the Actions tab without pushing anything
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      # one broken platform should still leave the other installer downloadable
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: macos-latest
+            name: mac
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: flipkart-autofill
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: flipkart-autofill/package-lock.json
+
+      - run: npm ci
+
+      # The same two gates that run locally. A red typecheck must not reach the partner's laptop
+      # as a working installer.
+      - run: npm run typecheck
+      - run: npm run typecheck:gui
+      - run: npm test
+
+      - run: npm run app:dist
+        env:
+          # electron-builder tries to sign and notarize on macOS otherwise, which needs an Apple
+          # certificate we do not have. Unsigned is the deliberate choice for now.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wishworks-${{ matrix.name }}
+          path: |
+            flipkart-autofill/dist/*.exe
+            flipkart-autofill/dist/*.dmg
+          if-no-files-found: error
