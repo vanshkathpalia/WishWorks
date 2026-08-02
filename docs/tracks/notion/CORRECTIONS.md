@@ -1301,6 +1301,75 @@ that has been written.
 
 ---
 
+## C-042 — `normalizeId` handled four spellings of an ID and not the fifth: the browser's
+
+**Category:** Bug · **Caught by:** Vansh, reading the listing picker · **Date:** 2026-07-31
+
+The picker showed `ANP002`, `ANP003`, **`ANP003 (1)`**, `GTB002`, `GTB-4`. The third is not a
+product. It is `products-ANP003 (1).json` — Chrome's name for the second download of a file that
+already existed.
+
+`id.ts` was written to end exactly this class of problem, and its file-top comment lists the four
+names one listing arrives under. It got all four. It missed the fifth because that one is not
+written by us or by the AI — it is written by the *browser*, after the download, and nothing in
+the pipeline was looking at that step. `ANP003 (1)` → strip the `products-` prefix → uppercase →
+drop punctuation → `ANP0031` → the leading-zero rule sees `P` + `00` + `3` and yields **`ANP31`**.
+A different product, confidently.
+
+**The fix is one line and belongs where every lookup already passes** — `findById`, `listListings`
+and `runFinish` all call `normalizeId`, so a regex there fixes the picker, the paste checks and
+the finish naming in one edit. Patching the picker would have left the other two wrong.
+
+**Worth keeping:** the duplicate file is still on disk and now normalises to `ANP3`, which means
+`findById` reports it in `others` — visible as a stale copy rather than masquerading as a product.
+That was already the designed behaviour for duplicates; the bug was that this one never reached it.
+
+**The lesson.** A normaliser is only as complete as the list of name sources someone enumerated,
+and the list in the comment was the list of sources *we* control. Every file that arrives by
+download has a naming authority we do not own, and it renames on collision.
+
+---
+
+## C-043 — recommended the border pipeline-wide off a single uncontrolled data point
+
+**Category:** Judgement · **Caught by:** Vansh, by running a third image · **Date:** 2026-08-02
+
+Vansh reported a third-party tool (SupplierHub) turning a ₹60 main image into a ₹49 one. Pulling
+the two apart was sound: the tool had done exactly one geometric thing — dropped our 1254×1254
+image *unchanged* (scale 1.000×, mean pixel diff 3.2/255) into a 1512×1512 canvas with a 129 px
+gradient band. That matched `--border`, the one axis `SHIPPING-COST.md` listed as never tested.
+
+**The error was what I did with it.** On that single result I recommended `--border=107` for the
+pipeline and wrote it into the hero prompt. One image, one product, no control. Vansh then ran a
+bordered version himself and got **₹105** — 75% *worse* than the plain ₹60. Three data points,
+and mine was the only one that had been generalised from.
+
+**It also disproved the mechanism I had assumed.** I had reasoned "border → product smaller in
+frame → lower volumetric estimate". The ₹105 image has *less* decoration ink (41.2% of canvas)
+than the ₹60 one (55.4%) and costs far more. `SHIPPING-COST.md` already contained two results
+saying the same thing — **V5** (tiny in frame, ₹69, dearer than V1's ₹63) and the ₹256 **V8**
+disaster. I had read that file and quoted its "border untested" line without carrying forward its
+"smaller has already failed" warning, which sat four lines below.
+
+**Two smaller mistakes in the same stretch.** I specified the badges at "about 9%" and "about 11%"
+of image width from eyeballing; measured, SupplierHub's are **4.1%** — my numbers were ~2× too
+big, and ChatGPT drew them bigger still, producing the loud corner banners Vansh correctly flagged
+as a QC risk. And I proposed "test whether the fee is even repeatable" as the top priority when
+`SHIPPING-COST.md` **already recorded five byte-identical uploads returning five identical fees**.
+The estimator's determinism was settled; I re-proposed settled work from a file I was editing.
+
+**The fix, and the shape of it.** The three results are now in `SHIPPING-COST.md` with the
+measurements, the theory marked dead, and one narrow next test — same photo, `--border=107`, one
+non-GTB product, **never letting ChatGPT draw the border**, because regenerating the photograph is
+what made the ₹105 uninterpretable. Both prompt files now carry measured badge sizes.
+
+**The lesson.** *An unrun experiment producing one favourable result is not a finding.* The
+correct output of the SupplierHub teardown was "here is precisely what it changed, here is the
+one test that isolates it" — not a pipeline recommendation. When a closed file says an axis is
+untested, that is an invitation to run the test, not to skip it.
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:
@@ -1314,4 +1383,9 @@ Counting the entries above:
 - **Process failures come from partial reads** (C-011, and arguably C-001).
 - **The assistant has never once caught its own factual error.** Every `Fact` entry was
   caught by Vansh. That asymmetry is the single most useful thing on this page for whoever
-  picks this up next.
+  picks this up next. **C-043 extends it to judgement:** the recommendation was generalised
+  from n=1 and only fell when Vansh produced the second measurement himself.
+- **Reading a closed file is not the same as absorbing it.** C-043 quoted
+  `SHIPPING-COST.md`'s "border untested" while missing the "making the product smaller has
+  already failed" warning a few lines below, and re-proposed a determinism test the same file
+  recorded as done. When acting on a document, read the section *around* the line you want.

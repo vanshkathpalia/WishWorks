@@ -139,6 +139,13 @@ picture, just read it off:
 TOTAL: 65 pcs
 ```
 
+> **Put the size in the line whenever you know it** — `2 x star foil balloons 12 inch`,
+> `1 x small champagne bottle foil`. Nearly every item is sold in two or three standard sizes
+> (champagne bottle foil: 12-14" *and* 32"; star foil: 12" *and* 18"; latex: 5"/10"/12"), and
+> the infographic prints that size on the picture. Left blank, the AI has to guess the common
+> one and will sometimes guess big. `small` / `big` are enough — it maps them to that item's two
+> standards and tells you which. Where you say nothing it now **asks** instead of picking.
+
 > **Order matters — build the images FIRST, then describe them.** The metadata describes the
 > picture that actually goes live, so it has to be written from the **final AI images**, not the
 > originals. So Conversation 1 makes the images; Conversation 2 (the JSON) runs on those finals.
@@ -150,21 +157,38 @@ Full explanation and exact prompts: **"The main image"** and **"Prompt B"** in
 1. **Main image — a two-message flow** (a third only if a count looks off):
    - *Message 1 — read the pack.* Attach the **"what's in the packet"** image (image 2). Ask it to
      list the contents in text only. Glance at the list.
-   - *Message 2 — build it.* It draws a fresh, realistic **square** photo of that decoration set up
-     on a wall, using the exact counts (never more).
+   - *Message 2 — build it.* It draws a fresh, realistic **square** photo of that decoration set
+     up on a wall, using the exact counts (never more). **Three prompts can do this; send ONE:**
+     - **`PROMPT-main-image.md`** — plain, no border, no badges. **Use this one.**
+     - `PROMPT-main-image-bordered.md` — adds a coloured border and two small badges.
+       **Experimental and currently losing:** plain ₹60, a third-party tool's bordered copy of
+       that same photo ₹49, our own bordered attempt **₹105**. It also redraws the whole
+       photograph, which is what made the ₹105 a different picture. See `SHIPPING-COST.md`.
+     - `PROMPT-add-border.md` — frames a photo you already made, instead of building one.
+       Attach the finished photo. Same redraw risk.
+
+     If you want the border, the safe way is **not** the AI: take the plain photo and run
+     `npm run finish -- --square --border=107`, which pads the approved picture exactly and
+     cannot change the balloons or the spelling.
    - *Message 3 — only if a count is off* (e.g. "4 confetti but there are 3 — remove one").
    → Save it as **`1.png`**, and **delete the old `1.jpg`** — one file per number.
-2. **Image 2 — Prompt B** builds the "what's inside" infographic. → Save as **`2.png`**, delete
-   the old `2.jpg`.
-3. **Images 3, 4** — leave exactly as they are.
+2. **Image 2 — `PROMPT-infographic.md`** builds the "what's inside" infographic — a card per
+   item with **the count only, no sizes**. One step: it draws the picture straight away.
+   → Save as **`2.png`**, delete the old `2.jpg`.
+3. **Image 3 — `PROMPT-infographic-sizes.md`** builds the same items again **with measured
+   sizes** on each card. **It answers in two steps:** first a plain text table of the sizes
+   Indian sellers commonly list for those items (we don't measure them ourselves) — **read it
+   and correct anything wrong, and answer any row marked PICK ONE** — then it draws the image.
+   → Save as **`3.png`**, delete the old `3.jpg`.
+4. **Image 4** — leave exactly as it is.
 
 > **Where do the generated images go?** Straight into **`images/2-clean/<ID>/`**, replacing what
 > stage 1 put there:
 >
 > ```
 > images/2-clean/ANP-1042/1.png   ← the AI's hero shot (delete 1.jpg)
-> images/2-clean/ANP-1042/2.png   ← the AI's "what's inside" (delete 2.jpg)
-> images/2-clean/ANP-1042/3.jpg   ← untouched from stage 1
+> images/2-clean/ANP-1042/2.png   ← the AI's "what's inside", counts only (delete 2.jpg)
+> images/2-clean/ANP-1042/3.png   ← the AI's same list with sizes (delete 3.jpg)
 > images/2-clean/ANP-1042/4.jpg   ← untouched from stage 1
 > ```
 >

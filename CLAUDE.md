@@ -4,8 +4,15 @@
 > Then `docs/guides/START-HERE.md` for the 66-field form.
 > **Every AI prompt lives in its own file, and that file is nothing but the prompt** — so
 > select-all-copy always works. Edit them there, never inline in another doc:
-> `docs/guides/PROMPT-read-pack.md` → `PROMPT-main-image.md` → `PROMPT-infographic.md` build the
-> images; then, in one chat, `PROMPT-meta.md` describes the finished ones and writes the Meesho
+> `docs/guides/PROMPT-read-pack.md` → `PROMPT-main-image.md` → `PROMPT-infographic.md` →
+> `PROMPT-infographic-sizes.md` build the images (→ `1.png`, `2.png`, `3.png`). Two of those
+> steps offer a **choice of prompt, and you send one, not all**: the hero is either
+> `PROMPT-main-image.md`, or the experimental `PROMPT-main-image-bordered.md` (9% border + badges,
+> the only measured difference between a ₹60 and a ₹49 main image — see `SHIPPING-COST.md`), or
+> `PROMPT-add-border.md` when the plain photo already exists and only needs framing;
+> the infographic is either counts-only (`PROMPT-infographic.md`) or the same items with
+> measured sizes (`PROMPT-infographic-sizes.md`).
+> Then, in one chat, `PROMPT-meta.md` describes the finished ones and writes the Meesho
 > copy (→ `image-meta/<ID>.json`) and `PROMPT-product.md` fills the Flipkart fields
 > (→ `products/<ID>.json`). **Those two are split because the ANSWER got truncated, not the
 > prompt** — ChatGPT silently dropped the tail of a combined reply (WW-081). Send them back to

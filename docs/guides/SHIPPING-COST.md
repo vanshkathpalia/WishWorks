@@ -1,25 +1,35 @@
 <!--
   Meesho "Shipping (added separately)" — what we tested, what we found, and why we stopped.
   Closed 2026-07-25 after nine live A/B tests. This file exists to stop anyone re-running them.
+  REOPENED NARROWLY 2026-08-02: the border axis, the only one never tested, produced ₹60 -> ₹49
+  on one photograph. Everything else on this page stays closed. See Claim 2.
   Earlier versions of this page contained a full optimisation playbook (slab maths, image variant
   prompts V1-V8). All of it was tested and rejected — deleted deliberately, not lost.
 -->
 
 # Meesho shipping fee — tested, closed, don't re-run
 
+> **Update 2026-08-02: the border is no longer untested — it has one clean result, and it is the
+> first thing on this page that ever moved the fee in our favour.** Same photograph, padded with a
+> **8.5%-per-side coloured border: ₹60 → ₹49.** But a second attempt came back at **₹105**, and a
+> third-party tool (SupplierHub) was the one that produced the ₹49. **Nothing here is settled and
+> "smaller product = cheaper" is still wrong.** Read
+> [Claim 2](#claim-2--put-a-2020-px-border-on-every-image-especially-the-main-one) before acting.
+>
 > **Update 2026-07-26:** two new claims from the seller were raised and one is already settled.
-> **File size: tested live, the fee did not move by one rupee — dead, same as metadata.** The
-> **20 px border** is still untested; it is available as `--border=20` if anyone wants to try it,
-> but after fifteen dead tests the expected value is low. Details in
+> **File size: tested live, the fee did not move by one rupee — dead, same as metadata.**
+> Details in
 > [their own section](#two-new-claims-from-the-seller-2026-07-26--genuinely-untested-axes).
 > Everything below still stands.
 
-> **Conclusion: there is no usable lever here. Stop.**
+> **Conclusion: no rule, one open lead. Do not start a general hunt.**
 > The main image *does* set the fee — real, proven, and **deterministic** (five byte-identical
-> uploads returned the identical fee). But **fourteen live tests** found no rule that predicts
-> which image is cheap, and the downside of guessing wrong is ~₹190/order. **Metadata does
-> nothing** — nine content variants and five metadata variants, both dead ends.
-> **Use the `image-playbook.md` Message 2 prompt, check the fee before you submit, move on.**
+> uploads returned the identical fee). **Fourteen live tests** found no rule that predicts which
+> image is cheap, and the downside of guessing wrong is ~₹190/order. **Metadata does nothing** —
+> nine content variants and five metadata variants, both dead ends. **File size does nothing.**
+> The **one** thing still alive is the border: ₹60 → ₹49 on one photograph, 2026-08-02, unrepeated
+> and unexplained. **Use the `image-playbook.md` Message 2 prompt, check the fee before you
+> submit, move on** — and if you test the border, test only the border.
 
 ---
 
@@ -251,6 +261,46 @@ nothing like V5's 30%, so it is not the same test — but do not assume the dire
 **deterministic and noise-free** (five byte-identical uploads, five identical fees). So a two-image
 A/B — same photo, one with `--border=20`, one without — gives a trustworthy answer in one sitting.
 No averaging, no repeats. **Read the fee before submitting either way.**
+
+#### Tested 2026-08-02 — three live results, all on GTB "Groom To Be"
+
+The seller ran a third-party tool, **SupplierHub**, over one of our main images. It came back
+cheaper, so we pulled all three images apart pixel by pixel. Measurements are from
+`sharp`, not eyeballed.
+
+| image | border | badge width | decoration ink, % of final canvas | **fee** |
+|---|---|---|---|---|
+| ours, plain (1254²) | none | — | 55.4% | **₹60** |
+| SupplierHub's copy of that same photo (1512²) | **8.5% per side, 129 px** | 4.1% | 38.0% | **₹49** |
+| ours, ChatGPT-drawn border (1254²) | 4.1% per side | 14.7% | 41.2% | **₹105** |
+
+**What SupplierHub actually did** — nothing clever. It took our 1254×1254 image *unchanged*
+(inner crop compared back against the original: scale 1.000×, mean pixel difference 3.2/255, i.e.
+JPEG noise) and dropped it into a 1512×1512 canvas with a 129 px orange→magenta→violet gradient
+band. It also re-encoded PNG→JPEG 4:2:0 (2074 KB → 218 KB) and **stripped** the C2PA
+"AI-generated" manifest ChatGPT embeds, and stuck two small badges on. It injected no metadata
+of its own — the JPEG has no APP0/APP1/EXIF/XMP/ICC at all.
+
+**So the one clean data point is ₹60 → ₹49: the same photograph, plus a border, −₹11.** Because
+the estimator is deterministic, that is a real result, not noise.
+
+**What it is NOT.** The ₹105 image is *not* a controlled third point. Asked to add a border,
+ChatGPT **regenerated the whole photograph** — different composition, dense decoration span 84%
+vs 95.9%, plus a thinner border and badges 3.6× too big. Three variables at once, so it says
+nothing about the border.
+
+**And it kills the obvious theory.** "Less product in frame = cheaper" is **wrong**: the ₹105
+image has *less* decoration ink (41.2%) than the ₹60 one (55.4%) and costs 75% more. That agrees
+with **V5** above (tiny in frame, ₹69 — dearer than V1's ₹63) and with the ₹256 V8 disaster.
+Whatever the estimator keys on, it is not apparent product size.
+
+**Next test, if anyone wants it — and only this one.** Same photo, one padded, one not, using
+`finish --square --border=107` (107 px on a 1254 canvas reproduces SupplierHub's 82.9% inner
+ratio exactly). **Never let ChatGPT draw the border** — that is what produced the ₹105 and it is
+not reproducible. One product other than GTB, to see whether −₹11 survives.
+
+**Badges: leave them off.** They moved nothing in any of the three results, and Meesho's stated
+image rules prohibit promotional text overlays. All risk, no measured prize.
 
 ## Declared weight — still set it truthfully
 

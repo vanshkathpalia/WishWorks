@@ -18,13 +18,22 @@ them, not the thing you paste.
 |---|---|---|---|
 | 1 | [`guides/PROMPT-read-pack.md`](guides/PROMPT-read-pack.md) | Reads the contents sheet and lists the items | ChatGPT · attach image 2 |
 | 2 | [`guides/PROMPT-main-image.md`](guides/PROMPT-main-image.md) | Builds the hero shot → save as `1.png` | ChatGPT · no attachment, send after 1 |
-| 3 | [`guides/PROMPT-infographic.md`](guides/PROMPT-infographic.md) | Builds the "what's in the pack" → save as `2.png` | ChatGPT · attach image 2 |
-| 4 | [`guides/PROMPT-meta.md`](guides/PROMPT-meta.md) | Image descriptions + Meesho copy → `image-meta/<ID>.json` | Claude/ChatGPT · attach the finished images |
-| 5 | [`guides/PROMPT-product.md`](guides/PROMPT-product.md) | The Flipkart fields → `products/<ID>.json` | same chat, straight after 4 |
+| 3 | [`guides/PROMPT-infographic.md`](guides/PROMPT-infographic.md) | "What's in the pack", **counts only** → save as `2.png` | ChatGPT · attach image 2 |
+| 4 | [`guides/PROMPT-infographic-sizes.md`](guides/PROMPT-infographic-sizes.md) | The same items **with measured sizes** → save as `3.png` | ChatGPT · same chat, answers in two steps |
+| 5 | [`guides/PROMPT-meta.md`](guides/PROMPT-meta.md) | Image descriptions + Meesho copy → `image-meta/<ID>.json` | Claude/ChatGPT · attach the finished images |
+| 6 | [`guides/PROMPT-product.md`](guides/PROMPT-product.md) | The Flipkart fields → `products/<ID>.json` | same chat, straight after 5 |
 
-1, 2 and 3 make the pictures. 4 and 5 describe them — and they must run **last**, on the
-finished images, because the descriptions have to match what actually goes live. 4 and 5 are
-one conversation: send 5 straight after 4, while the photos are still in context.
+Two alternatives to row 2, **used instead of it, never as well as**:
+[`guides/PROMPT-main-image-bordered.md`](guides/PROMPT-main-image-bordered.md) builds the hero
+already framed, and [`guides/PROMPT-add-border.md`](guides/PROMPT-add-border.md) frames one that
+already exists. **Both are experimental and currently losing** — plain ₹60, a third-party tool's
+bordered copy of that same photo ₹49, our own bordered attempt ₹105 — and both let the model
+redraw the photograph. See [`guides/SHIPPING-COST.md`](guides/SHIPPING-COST.md); the safe way to
+get a border is `npm run finish -- --square --border=107`.
+
+1 to 4 make the pictures. 5 and 6 describe them — and they must run **last**, on the
+finished images, because the descriptions have to match what actually goes live. 5 and 6 are
+one conversation: send 6 straight after 5, while the photos are still in context.
 
 Read the rest of this file when you want to know *why* a prompt says what it says, or when a
 prompt stops working and you need to change it.
@@ -267,9 +276,20 @@ stay exactly the same."*
 
 Listing image 2. **This is where text is allowed, and competitors don't use it.**
 
-👉 **The prompt is [`guides/PROMPT-infographic.md`](guides/PROMPT-infographic.md)** — the whole file
-is the prompt. Select all, copy, then replace the `<paste your typed inventory>` line with your
-inventory rows and attach image 2.
+👉 **There are two of these, and they are two different pictures — you send both.**
+[`guides/PROMPT-infographic.md`](guides/PROMPT-infographic.md) is **listing image 2**: counts
+only, no sizes, one step, replies with the picture straight away.
+[`guides/PROMPT-infographic-sizes.md`](guides/PROMPT-infographic-sizes.md) is **listing image 3**:
+the same items again with a measured size on each card. Each file is the whole prompt — select
+all, copy, replace the `<paste your typed inventory>` line with your inventory rows, attach
+image 2. Everything below describes the **sizes** one.
+
+**It answers twice.** First a text table of sizes — we don't measure our own stock, so it looks
+up what Indian sellers commonly list for each item type (10" latex, 18" foil star, 5m arch
+strip…). Read that table, fix anything wrong, then tell it to go; step 2 draws the cards. The
+size is the whole reason for this format — a card with a count but no dimension is the old
+version, and buyers return kits whose balloons arrived smaller than they pictured. Every card
+carries "Note: Size may vary slightly." for that reason.
 
 > **Note: the labels here are text printed ON the picture, which shoppers read.** That is a
 > completely separate thing from the metadata in Part 4 (invisible, unproven). This visible

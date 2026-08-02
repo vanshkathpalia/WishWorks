@@ -31,15 +31,17 @@ The last one opens a Chrome window. Log in to Flipkart Seller Hub as you normall
 
 ## Part 1 — Make the product file (using AI)
 
-> **Do this AFTER you've made the images.** Generate the AI pictures first (main image +
-> Prompt B infographic — see `image-playbook.md`), because this step **describes the images you
-> will actually upload**. Describing the originals would put the wrong description on the final
+> **Do this AFTER you've made the images.** Generate the AI pictures first — the hero photo
+> (`1.png`), the counts-only infographic (`2.png`) and the sizes infographic (`3.png`); the full
+> order is in [`THE-FLOW.md`](THE-FLOW.md) — because this step **describes the images you will
+> actually upload**. Describing the originals would put the wrong description on the final
 > picture.
 
 Open **Claude** (claude.ai) or **Gemini**. Then give it three things and send:
 
 1. **The final product images** — the exact pictures you'll upload (the AI-built main image, the
-   Prompt B "what's inside" infographic, and your other photos), in order.
+   counts-only "what's inside" infographic, the sizes infographic, and your other photos), in
+   order.
 2. **Your inventory rows, pasted from Excel** — `category / specific material / number`,
    exactly as they copy — **include the header row**, because that is where the AI reads the
    listing ID from. This is also where the **counts** come from, so you never hand-type them
