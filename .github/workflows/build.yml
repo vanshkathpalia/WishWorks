@@ -33,6 +33,12 @@ jobs:
     strategy:
       # one broken platform should still leave the other installer downloadable
       fail-fast: false
+      # ONE AT A TIME, and only because of publishing. Run the two in parallel and both jobs
+      # reach GitHub at the same moment, each finds no release for this tag, and each creates
+      # its own — two releases for v0.1.1, one holding the .dmg and the other the .exe, neither
+      # complete. Serialised, the first creates the release and the second finds it and uploads
+      # into it. Costs about two extra minutes per build and removes the race entirely.
+      max-parallel: 1
       matrix:
         include:
           - os: windows-latest

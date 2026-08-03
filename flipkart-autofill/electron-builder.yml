@@ -42,6 +42,11 @@ publish:
   provider: github
   owner: vanshkathpalia
   repo: WishWorks
+  # electron-builder defaults this to `draft`, and a draft release is invisible to everyone but
+  # the repo owner — the public Releases page shows nothing and, crucially, `electron-updater`
+  # does not see it either. The v0.1.1 build succeeded and published a draft nobody could
+  # install or update to, which looks exactly like a release that failed. Publish outright.
+  releaseType: release
 
 mac:
   target: dmg
