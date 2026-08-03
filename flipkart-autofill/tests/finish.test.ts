@@ -38,10 +38,18 @@ afterAll(async () => {
   for (const d of created) await rm(d, { recursive: true, force: true });
 });
 
-/** Run the finish CLI. Never throws on non-zero exit — returns the code so tests can assert. */
+/**
+ * Run the finish CLI. Never throws on non-zero exit — returns the code so tests can assert.
+ *
+ * Invoked as `node --import tsx <cli>` rather than `npx tsx <cli>`: on Windows `npx` is
+ * `npx.cmd`, and since the 2024 argument-injection fix Node refuses to spawn a `.cmd` without
+ * `shell: true`. That threw ENOENT for every case here on the first CI run — 87 failures across
+ * four files, all green on macOS. `shell: true` would "fix" it and then break on the temp paths,
+ * which contain spaces. Going straight to the current node binary avoids both.
+ */
 async function run(args: string[]) {
   try {
-    const { stdout, stderr } = await exec("npx", ["tsx", CLI, ...args], {
+    const { stdout, stderr } = await exec(process.execPath, ["--import", "tsx", CLI, ...args], {
       cwd: PROJECT,
       env: {
         ...process.env,

@@ -38,7 +38,7 @@ afterAll(async () => {
 /** Run the CLI. Never throws on non-zero exit — returns the code so tests can assert on it. */
 async function run(args: string[] = []) {
   try {
-    const { stdout, stderr } = await exec("npx", ["tsx", CLI, ...args], {
+    const { stdout, stderr } = await exec(process.execPath, ["--import", "tsx", CLI, ...args], {
       cwd: PROJECT,
       env: {
         ...process.env,

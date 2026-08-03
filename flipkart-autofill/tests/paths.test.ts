@@ -41,7 +41,7 @@ describe("PROFILE_DIR", () => {
 
   it("prefers a legacy ./profile when it exists, so a working login is never thrown away", async () => {
     // Resolved in a subprocess so this test cannot be fooled by module caching.
-    const { stdout } = await exec("npx", ["tsx", "-e", `import("./src/paths.js").then(p => console.log(p.PROFILE_DIR))`], { cwd: PROJECT });
+    const { stdout } = await exec(process.execPath, ["--import", "tsx", "-e", `import("./src/paths.js").then(p => console.log(p.PROFILE_DIR))`], { cwd: PROJECT });
     const legacy = path.join(ROOT, "profile");
     const { existsSync } = await import("node:fs");
     expect(stdout.trim()).toBe(existsSync(legacy) ? legacy : path.join(userDataDir(), "profile"));
@@ -49,7 +49,7 @@ describe("PROFILE_DIR", () => {
 
   it("is overridable, so a test or a second workspace never touches the real session", async () => {
     const overrides = { ...process.env, WW_PROFILE_DIR: path.join(PROJECT, "no-such-profile") };
-    const { stdout } = await exec("npx", ["tsx", "-e", `import("./src/paths.js").then(p => console.log(p.PROFILE_DIR))`], { cwd: PROJECT, env: overrides });
+    const { stdout } = await exec(process.execPath, ["--import", "tsx", "-e", `import("./src/paths.js").then(p => console.log(p.PROFILE_DIR))`], { cwd: PROJECT, env: overrides });
     expect(stdout.trim()).toBe(path.join(PROJECT, "no-such-profile"));
   });
 });

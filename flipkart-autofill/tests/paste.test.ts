@@ -71,7 +71,7 @@ async function fixture(id: string, meta: object = {}, product: object = {}) {
 
 async function run(id: string) {
   try {
-    const { stdout, stderr } = await exec("npx", ["tsx", CLI, id], {
+    const { stdout, stderr } = await exec(process.execPath, ["--import", "tsx", CLI, id], {
       cwd: PROJECT,
       env: { ...process.env, WW_META_DIR: path.join(tmp, "image-meta"), WW_PRODUCTS_DIR: path.join(tmp, "products") },
     });
