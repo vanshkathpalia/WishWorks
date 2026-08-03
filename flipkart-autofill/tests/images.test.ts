@@ -435,7 +435,9 @@ describe("stage 2 — clean → final", () => {
     );
     const { code, out } = await run(["--final"]);
     expect(code).toBe(0);
-    expect(out).toContain("image-meta/SHOWN.json");
+    // Windows prints image-meta\SHOWN.json, which is correct there — compare separator-agnostically
+    // rather than forcing forward slashes into a path the operator reads.
+    expect(out.replace(/\\/g, "/")).toContain("image-meta/SHOWN.json");
     expect(out).toContain("1 per-image description");
   });
 
@@ -486,7 +488,12 @@ describe("metadata content", () => {
   it("caps runaway descriptions rather than bloating the file", async () => {
     const d = await finalWith({ "1": "x".repeat(400) }, { "Search Keywords": Array(60).fill("long-keyword-phrase") });
     const desc = d.slice(d.indexOf("xxx"));
-    expect(desc.length).toBeLessThan(1000);
+    // `description()` reads the WHOLE exif buffer, so this tail carries Artist/Copyright/Software/
+    // DateTime and their padding as well — and how libvips lays those out differs between the
+    // macOS and Windows builds of sharp (1007 bytes there, under 1000 here, for identical input).
+    // Assert the cap actually fired, which is the behaviour, and keep a loose bound on the rest.
+    expect(desc).toContain("..."); // composeDescription truncates at 897 and appends this
+    expect(desc.length).toBeLessThan(1200);
   });
 
   it("still writes attribution when only keywords exist", async () => {
