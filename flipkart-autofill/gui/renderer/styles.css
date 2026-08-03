@@ -450,6 +450,13 @@ label.inline input {
   padding: 4px 10px;
   font-size: 12.5px;
 }
+/* Which folder the rows above were read from. Quiet, but always on screen — the app reads its
+   own workspace, never the project folder, and not saying so reads as a broken Refresh. */
+.from-where {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
 .picker ul {
   list-style: none;
   margin: 0;

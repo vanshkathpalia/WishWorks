@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState } from "react";
 import type { CheckResult, FinishResult, Listing, PasteResult, Row } from "../shared.js";
-import { CopyButton, FolderRow, ListingPicker } from "./ui.js";
+import { CopyButton, FolderRow, ListingPicker, joinPath } from "./ui.js";
 import { Inbox } from "./Inbox.js";
 import { PromptEditor } from "./PromptEditor.js";
 
@@ -268,7 +268,10 @@ function PromptCard({ file, title }: { file: string; title: string }) {
  */
 export function Finish({ n }: { n: number }) {
   const [listing, setListing] = useState<Listing | null>(null);
-  const [source, setSource] = useState<"clean" | "other">("clean");
+  // Defaults to the folder picker. Vansh's photos live in his own folders on disk; the app's
+  // workspace only holds what the Convert step put there, so "pick the folder" is the common
+  // case and the one that needs no explaining.
+  const [source, setSource] = useState<"clean" | "other">("other");
   const [dir, setDir] = useState<string | null>(null);
   const [outDir, setOutDir] = useState<string | null>(null);
   const [descs, setDescs] = useState<string>("none");
@@ -278,8 +281,12 @@ export function Finish({ n }: { n: number }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => window.ww.onRow((r) => setRows((x) => [...x, r])), []);
+  // Defaults to ~/Downloads/wishworks-ready — the same folder `npm run finish` has always used,
+  // and somewhere a person can actually find. The workspace lives under Application Support,
+  // which is hidden in Finder; finished photos are the one output that gets picked up by hand
+  // and uploaded, so they do not belong in a folder you cannot navigate to.
   useEffect(() => {
-    void window.ww.workspaceDir().then((w) => setOutDir((o) => o ?? `${w}/3-final`));
+    void window.ww.downloadsDir().then((d) => setOutDir((o) => o ?? joinPath(d, "wishworks-ready")));
   }, []);
 
   // Descriptions follow the listing you picked. Changing the listing must not silently leave
@@ -326,21 +333,21 @@ export function Finish({ n }: { n: number }) {
       <header>
         <h1>{n}. Finish images</h1>
         <p>
-          Stamps each image's description inside the file and names it after the listing. This is
-          the step where the wrong descriptions once went into the wrong photos, so it spells out
-          the pairing before it writes anything.
+          Takes a folder of photos, writes each one's description <b>inside</b> the file, and saves
+          them out renamed after the listing — <code>ANP-3.1.jpg</code>, <code>ANP-3.2.jpg</code>{" "}
+          and so on. Your originals are never changed.
         </p>
       </header>
 
-      <h3>Where the images are</h3>
+      <h3>Step 1 — which photos?</h3>
       <div className="picks">
         <label className="inline">
-          <input type="radio" checked={source === "clean"} onChange={() => setSource("clean")} />
-          a listing's clean folder
+          <input type="radio" checked={source === "other"} onChange={() => setSource("other")} />
+          a folder on my computer
         </label>
         <label className="inline">
-          <input type="radio" checked={source === "other"} onChange={() => setSource("other")} />
-          another folder
+          <input type="radio" checked={source === "clean"} onChange={() => setSource("clean")} />
+          one the app converted earlier
         </label>
       </div>
       {source === "clean" ? (
@@ -356,26 +363,29 @@ export function Finish({ n }: { n: number }) {
           }
         />
       ) : (
-        <FolderRow step="finish" label="Images folder" value={dir} onChange={setDir} />
+        <FolderRow step="finish" label="Photos folder" value={dir} onChange={setDir} />
       )}
 
-      <h3>Where the finished images go</h3>
-      <FolderRow step="finish" label="Output folder" value={outDir} onChange={setOutDir} />
+      <h3>Step 2 — where should the finished ones be saved?</h3>
+      <FolderRow step="finish" label="Save them into" value={outDir} onChange={setOutDir} />
 
       {outName && (
         <p className="pairing">
-          These photos will be named <b>{outName}.1.jpg …</b> — taken from the folder, so it is
-          exactly what is on disk. The descriptions going <b>inside</b> them come from{" "}
+          <b>Step 3 — check this reads correctly, then press the button.</b>
+          <br />
+          The photos will be saved as <b>{outName}.1.jpg, {outName}.2.jpg …</b> — the name comes
+          from the folder, so it is exactly what is on disk. The wording written inside them comes
+          from{" "}
           <select value={descs} onChange={(e) => setDescs(e.target.value)}>
             {hasCopy && <option value={listing!.id}>{listing!.label}</option>}
             <option value="none">none — embed nothing</option>
           </select>
-          . Changing this does <b>not</b> rename anything.
+          . Picking a different one does <b>not</b> change the file names.
           {source === "clean" && listing && !hasCopy && (
             <>
               {" "}
-              <b>{listing.label} has no copy file yet</b>, so there is nothing to embed — run step 3
-              first, or finish now and re-run this step once the copy exists.
+              <b>{listing.label} has no copy file yet</b>, so there is nothing to write inside — do
+              step 3 first, or finish now and run this again once the copy exists.
             </>
           )}
         </p>
@@ -450,8 +460,9 @@ export function Check({ n }: { n: number }) {
 
   // The folder step 5 actually writes to. It used to say `images/3-final`, which is the image
   // pipeline's folder and NOT where finishing lands — so the default checked an empty folder.
+  // It must keep matching step 5's default or this one goes back to checking nothing.
   useEffect(() => {
-    void window.ww.workspaceDir().then((w) => setReady((d) => d ?? `${w}/3-final`));
+    void window.ww.downloadsDir().then((r0) => setReady((r) => r ?? joinPath(r0, "wishworks-ready")));
   }, []);
 
   const dir = source === "ready" ? ready : other;

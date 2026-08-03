@@ -10,6 +10,14 @@
 import React, { useEffect, useState } from "react";
 import type { Listing, StepId } from "../shared.js";
 
+/**
+ * Join a folder and a child name. The renderer has no `path` module, and Node accepts a forward
+ * slash on Windows — but the partner READS these paths, and `C:\Users\him\Downloads/wishworks-ready`
+ * looks like something went wrong. Follow whatever separator the folder already uses.
+ */
+export const joinPath = (dir: string, name: string) =>
+  dir.includes("\\") && !dir.includes("/") ? `${dir}\\${name}` : `${dir}/${name}`;
+
 /** Copy text to the clipboard and say so for a moment. The whole interaction is one click. */
 export function CopyButton({ text, label = "Copy", disabled }: { text: string; label?: string; disabled?: boolean }) {
   const [done, setDone] = useState(false);
@@ -46,17 +54,32 @@ export function ListingPicker({
   need?: (l: Listing) => string | null;
 }) {
   const [listings, setListings] = useState<Listing[] | null>(null);
+  const [workspace, setWorkspace] = useState<string | null>(null);
 
   const load = () => void window.ww.listings().then(setListings);
   useEffect(load, []);
+  // Which folder this list is read from. There is an image-meta/ in the project folder and
+  // another in the app's workspace; the app only ever reads the workspace. Without saying so,
+  // deleting the project copies looks exactly like a Refresh button that does not work.
+  useEffect(() => void window.ww.workspaceDir().then(setWorkspace), []);
+
+  const where = workspace && (
+    <p className="muted from-where">
+      Read from <span className="path">{workspace}</span> — change it under <b>Listing copy</b> or
+      in Settings.
+    </p>
+  );
 
   if (listings === null) return <p className="muted">Looking…</p>;
   if (listings.length === 0) {
     return (
-      <p className="muted">
-        No listings yet. Convert some images, or use <b>Bring in the AI's files</b> below to pull
-        the downloaded JSON in.
-      </p>
+      <>
+        <p className="muted">
+          No listings yet. Convert some images, or use <b>Bring in the AI's files</b> below to pull
+          the downloaded JSON in.
+        </p>
+        {where}
+      </>
     );
   }
 
@@ -70,6 +93,7 @@ export function ListingPicker({
         </span>
         <button onClick={load}>Refresh</button>
       </div>
+      {where}
       <ul>
         {listings.map((l) => {
           const missing = need?.(l) ?? null;

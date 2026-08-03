@@ -58,9 +58,26 @@ async function writeSettings(patch: Settings): Promise<void> {
   await writeFile(SETTINGS_FILE, JSON.stringify({ ...readSettings(), ...patch }, null, 2));
 }
 
+/**
+ * Where images, image-meta/ and products/ live. Settings wins; otherwise it depends on who is
+ * running it, the same split `DOCS` below makes for the prompt files.
+ *
+ * **In development: the repo itself.** Anything else gives one machine two `image-meta/` folders
+ * with the same name and different contents — the app writing to `Application Support` while
+ * `npm run …` reads `flipkart-autofill/`. That cost an afternoon: files were deleted from the
+ * repo copy and the app went on listing them, correctly, from the other one. Same folder means
+ * the app and the terminal can never disagree.
+ *
+ * **Packaged: Electron's per-app folder.** The app bundle is read-only and there is no repo on
+ * the partner's machine, so it gets a folder of its own — and `chooseWorkspace` moves it
+ * anywhere he likes, which is stored in settings.json and survives updates.
+ */
 function storedWorkspace(): string {
   const w = readSettings().workspace;
-  return typeof w === "string" && w.length > 0 ? w : path.join(USER_DATA, "workspace");
+  if (typeof w === "string" && w.length > 0) return w;
+  return app.isPackaged
+    ? path.join(USER_DATA, "workspace")
+    : path.join(import.meta.dirname, "..", "..");
 }
 
 const WORKSPACE = storedWorkspace();

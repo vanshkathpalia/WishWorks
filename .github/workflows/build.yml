@@ -58,6 +58,29 @@ jobs:
           # certificate we do not have. Unsigned is the deliberate choice for now.
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      # sharp is a compiled .node binary and the OS loader cannot open one from inside app.asar.
+      # electron-builder.yml unpacks it, but a silent failure here produces an installer that
+      # launches, shows the UI, and dies on the first image — the one failure no test catches.
+      # Fail the build instead, where it costs nothing.
+      - name: sharp must be unpacked, not sealed in the asar
+        shell: bash
+        run: |
+          set -e
+          unpacked=$(find dist -type d -name "app.asar.unpacked" | head -1)
+          if [ -z "$unpacked" ]; then
+            echo "::error::no app.asar.unpacked — asarUnpack did not run"
+            find dist -maxdepth 3 -name "*.asar*" || true
+            exit 1
+          fi
+          echo "unpacked at: $unpacked"
+          if ! find "$unpacked" -name "*.node" | grep -q .; then
+            echo "::error::no .node binary outside the asar — sharp would fail on the first image"
+            find "$unpacked" -maxdepth 4 -type d || true
+            exit 1
+          fi
+          echo "native binaries shipped outside the asar:"
+          find "$unpacked" -name "*.node"
+
       - uses: actions/upload-artifact@v4
         with:
           name: wishworks-${{ matrix.name }}
