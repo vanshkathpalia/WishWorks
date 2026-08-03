@@ -43,11 +43,11 @@ publish:
   owner: vanshkathpalia
   repo: WishWorks
   # LEAVE THIS AS THE DEFAULT `draft`. Setting it to `release` looks like the obvious fix for
-  # "the release was invisible" and it is wrong: each platform is built on its own runner, and
-  # the way they end up in ONE release is that every job uploads into the same **draft**. Publish
-  # the first job's release outright and the second job finds no draft to join and creates a
-  # second release — which is exactly what happened on the first v0.1.1, twice.
-  # The draft is flipped to published by the `publish` job in build.yml, after both are in.
+  # "the release was invisible" and it is wrong. Moot now: **nothing here publishes at all.**
+  # `build.yml` runs electron-builder with `--publish never` on both runners and creates the
+  # release once, from a single job, out of the uploaded artifacts. This block stays only so
+  # electron-builder writes latest.yml / latest-mac.yml with the right repository in them —
+  # those two files are the update feed and are useless without it.
 
 mac:
   target: dmg
@@ -57,3 +57,12 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # NO SPACES IN THE FILENAME, and this is not cosmetic.
+  #
+  # The default is "${productName} Setup ${version}.${ext}" — "WishWorks Setup 0.1.1.exe".
+  # GitHub rewrites spaces to dots when a file is uploaded, so the asset lands as
+  # "WishWorks.Setup.0.1.1.exe", while electron-builder writes the *hyphenated* name into
+  # latest.yml. electron-updater then asks for a file that does not exist and gets a 404 —
+  # a release that looks complete and can never update anybody. Verified by hand: the
+  # hyphenated URL returned 404 while the .dmg, which never had spaces, returned 200.
+  artifactName: ${productName}-Setup-${version}.${ext}

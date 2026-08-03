@@ -180,3 +180,25 @@ jobs:
             --title "$TAG" \
             --notes "Install \`WishWorks Setup\`. Windows will warn that the publisher is unknown — More info, then Run anyway. After this the app updates itself." \
             --latest
+
+      # PROVE the feed resolves. latest.yml names the installer, and GitHub rewrites spaces in
+      # an uploaded filename to dots — so the feed can point at a file that is not there and the
+      # release still looks perfect. That exact 404 shipped in the first v0.1.1. Ask GitHub for
+      # the file the feed names; anything but 200 fails the build.
+      - name: the update feed must point at a file that exists
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          for feed in latest.yml latest-mac.yml; do
+            [ -f "dist/$feed" ] || continue
+            name=$(grep -m1 "url:" "dist/$feed" | sed "s/.*url: *//" | tr -d "\r")
+            url="https://github.com/$REPO/releases/download/$TAG/$name"
+            code=$(curl -o /dev/null -sL -w "%{http_code}" "$url")
+            echo "$feed -> $name : HTTP $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::$feed points at $name, which is not downloadable (HTTP $code)"
+              exit 1
+            fi
+          done
