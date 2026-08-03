@@ -12,11 +12,11 @@
 # which last 30 days and need a GitHub login to download. Only a **tag** publishes to GitHub
 # Releases, whose assets are plain public URLs and are what `electron-updater` reads.
 #
-# How the two platforms end up in ONE release, since this took three attempts to get right:
-# each job uploads into the same *draft* (electron-builder's default, and the reason it IS the
-# default), `max-parallel: 1` stops them racing to create it, and the `publish` job at the
-# bottom flips that draft public once both are in. Publishing from inside the matrix produces
-# two releases — one holding the .exe and the other the .dmg, neither complete.
+# How the two platforms end up in ONE release, which took four attempts: they do not publish at
+# all. Each runner builds and uploads its files as workflow artifacts; the `publish` job at the
+# bottom downloads both sets and makes the release once, in one place. Letting electron-builder
+# publish from inside the matrix produced two releases every time — the .exe in one, the .dmg in
+# the other, and on the last attempt a release holding nothing but a .blockmap.
 
 name: Build installers
 
@@ -31,7 +31,7 @@ on:
   # so a build can be kicked off from the Actions tab without pushing anything
   workflow_dispatch:
 
-# electron-builder needs this to create the release and upload to it.
+# The `publish` job creates the release. Nothing else here writes to the repo.
 permissions:
   contents: write
 
@@ -40,12 +40,6 @@ jobs:
     strategy:
       # one broken platform should still leave the other installer downloadable
       fail-fast: false
-      # ONE AT A TIME, and only because of publishing. Run the two in parallel and both jobs
-      # reach GitHub at the same moment, each finds no release for this tag, and each creates
-      # its own — two releases for v0.1.1, one holding the .dmg and the other the .exe, neither
-      # complete. Serialised, the first creates the release and the second finds it and uploads
-      # into it. Costs about two extra minutes per build and removes the race entirely.
-      max-parallel: 1
       matrix:
         include:
           - os: windows-latest
@@ -74,13 +68,13 @@ jobs:
       - run: npm run typecheck:gui
       - run: npm test
 
-      # `--publish always` on a tag uploads the installers AND the latest.yml/latest-mac.yml that
-      # electron-updater reads to decide an update exists. Publishing the installer without those
-      # files produces a release nobody's app ever notices, which is the classic way to think
-      # auto-update is broken when it was simply never told about the new version.
-      - run: npm run app:dist -- --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+      # NEVER let electron-builder touch GitHub. It was tried twice and split the assets both
+      # times — one release with the .exe, another with the .dmg, and once a release containing
+      # nothing but a .blockmap. Its publisher wants to own the release object, and two runners
+      # cannot both own one. Here each runner only ever writes files to disk; the `publish` job
+      # below collects them and makes the release in a single place. Boring and deterministic.
+      - run: npm run app:dist -- --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # electron-builder tries to sign and notarize on macOS otherwise, which needs an Apple
           # certificate we do not have. Unsigned is the deliberate choice for now.
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -127,25 +121,62 @@ jobs:
             echo "shipped: $found"
           done
 
+      # Everything the release needs, including the update feeds. `latest.yml` is what tells an
+      # installed app a newer version exists; without it the release looks complete and no app
+      # ever reacts to it.
       - uses: actions/upload-artifact@v4
         with:
-          name: wishworks-${{ matrix.name }}
+          name: installers-${{ matrix.name }}
           path: |
             flipkart-autofill/dist/*.exe
             flipkart-autofill/dist/*.dmg
+            flipkart-autofill/dist/*.blockmap
+            flipkart-autofill/dist/latest*.yml
           if-no-files-found: error
 
-  # Both installers are in the draft by now — make it public in one step.
-  #
-  # This is a separate job on purpose: it is the ONLY moment at which every platform's assets
-  # are known to be uploaded. Publishing from inside the matrix cannot work, because whichever
-  # runner finishes first would publish a release the other one is still uploading into.
+  # ONE place makes the release, after every platform's files exist. This job is the whole
+  # reason the split kept happening: there was no such place before, and two runners were each
+  # creating their own release object for the same tag.
   publish:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: publish the draft the builds filled
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # The gate that would have caught every version of this bug on the first try: a release
+      # without the installer, or without the update feed, must fail the build rather than sit
+      # there looking finished. `latest.yml` is Windows' feed and is the one that matters most.
+      - name: the release must actually contain an installer and an update feed
+        run: |
+          set -e
+          ls -la dist
+          for want in "*.exe" "latest.yml"; do
+            if ! compgen -G "dist/$want" > /dev/null; then
+              echo "::error::no $want in dist — the release would be unusable"
+              exit 1
+            fi
+          done
+
+      # Delete any release already on this tag before creating it. Re-running the workflow, or
+      # re-pushing a moved tag, must converge on one correct release rather than adding another
+      # — every stray release so far had to be deleted by hand.
+      - name: publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${{ github.ref_name }}" --draft=false --latest --repo "${{ github.repository }}"
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          for id in $(gh api "repos/$REPO/releases" --paginate --jq ".[] | select(.tag_name==\"$TAG\") | .id"); do
+            echo "removing existing release $id for $TAG"
+            gh api -X DELETE "repos/$REPO/releases/$id"
+          done
+          gh release create "$TAG" dist/* \
+            --repo "$REPO" \
+            --title "$TAG" \
+            --notes "Install \`WishWorks Setup\`. Windows will warn that the publisher is unknown — More info, then Run anyway. After this the app updates itself." \
+            --latest
