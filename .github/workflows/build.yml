@@ -8,8 +8,15 @@
 # unsigned — Windows SmartScreen will warn on first run and the partner clicks
 # "More info" -> "Run anyway". Signing needs a paid certificate; deliberately deferred.
 #
-# Artifacts, not releases: this uploads the installers to the run page, where they last 30 days.
-# Publishing to GitHub Releases is a later step and needs a version bump policy first.
+# Two outputs, and they are not the same thing. Every build uploads artifacts to the run page,
+# which last 30 days and need a GitHub login to download. Only a **tag** publishes to GitHub
+# Releases, whose assets are plain public URLs and are what `electron-updater` reads.
+#
+# How the two platforms end up in ONE release, since this took three attempts to get right:
+# each job uploads into the same *draft* (electron-builder's default, and the reason it IS the
+# default), `max-parallel: 1` stops them racing to create it, and the `publish` job at the
+# bottom flips that draft public once both are in. Publishing from inside the matrix produces
+# two releases — one holding the .exe and the other the .dmg, neither complete.
 
 name: Build installers
 
@@ -127,3 +134,18 @@ jobs:
             flipkart-autofill/dist/*.exe
             flipkart-autofill/dist/*.dmg
           if-no-files-found: error
+
+  # Both installers are in the draft by now — make it public in one step.
+  #
+  # This is a separate job on purpose: it is the ONLY moment at which every platform's assets
+  # are known to be uploaded. Publishing from inside the matrix cannot work, because whichever
+  # runner finishes first would publish a release the other one is still uploading into.
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: publish the draft the builds filled
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --draft=false --latest --repo "${{ github.repository }}"

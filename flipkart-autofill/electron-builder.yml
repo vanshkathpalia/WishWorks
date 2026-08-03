@@ -42,11 +42,12 @@ publish:
   provider: github
   owner: vanshkathpalia
   repo: WishWorks
-  # electron-builder defaults this to `draft`, and a draft release is invisible to everyone but
-  # the repo owner — the public Releases page shows nothing and, crucially, `electron-updater`
-  # does not see it either. The v0.1.1 build succeeded and published a draft nobody could
-  # install or update to, which looks exactly like a release that failed. Publish outright.
-  releaseType: release
+  # LEAVE THIS AS THE DEFAULT `draft`. Setting it to `release` looks like the obvious fix for
+  # "the release was invisible" and it is wrong: each platform is built on its own runner, and
+  # the way they end up in ONE release is that every job uploads into the same **draft**. Publish
+  # the first job's release outright and the second job finds no draft to join and creates a
+  # second release — which is exactly what happened on the first v0.1.1, twice.
+  # The draft is flipped to published by the `publish` job in build.yml, after both are in.
 
 mac:
   target: dmg
