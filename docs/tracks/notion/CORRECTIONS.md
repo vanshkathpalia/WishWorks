@@ -1370,6 +1370,100 @@ untested, that is an invitation to run the test, not to skip it.
 
 ---
 
+## C-044 — gave the new Step 10 an ID that was already taken, and never opened its ticket
+
+**Category:** Process · **Caught by:** the assistant, re-reading its own commit · **Date:** 2026-08-03
+
+`ae4fe93` wrote the one-click-flow design into `GUI-SPEC.md` as *"Step 10 · WW-094"*. **WW-094
+already exists and is closed** — it is the 2026-07-29 bug that moved the Chrome profile out of the
+project folder, and `GUI-SPEC.md` line 177 cites it in that original sense in the same file. Two
+different pieces of work under one ID, one done and one not started, reads fine until somebody
+greps for it. Renumbered to **WW-106**.
+
+The second half is the real miss: **no ticket row was ever added.** `TICKET_STATUS.md` is the
+source of truth, and that commit's diff to it touched only existing rows. A design that lives in
+the spec but not the ledger is invisible to the "what's still open" question, which is the only
+question that file gets asked. Row added, `⬜`, carrying both settled decisions and the three-state
+report so neither gets re-litigated from memory.
+
+**The rule:** before writing a new `WW-` number anywhere, grep `TICKET_STATUS.md` for it — the
+numbers are assigned by hand and nothing checks them. And a design commit is not done until the
+ledger has a row: the spec says *what it is*, the ledger says *that it is open*, and neither
+substitutes for the other.
+
+---
+
+## C-045 — shipped an installer whose config packaged the code and none of the data
+
+**Category:** Code · **Caught by:** the partner, opening the first `.exe` · **Date:** 2026-08-03
+
+`electron-builder.yml` was written with `files: [out/**, package.json]` and no `extraResources`.
+That packages every line of compiled code and **not one file the app reads at runtime**. The result
+was an installer that launched, looked correct, and could not open a single prompt.
+
+**What makes this a Code entry and not an oversight:** the path code was already right, and had
+been right since WW-100. `gui/main.ts` branches on `app.isPackaged` and asks for
+`process.resourcesPath/docs/guides`, which is exactly where the files belong. Reviewing the code
+would have shown nothing wrong. **The bug was in the config that had to agree with it, and nothing
+connects the two** — one names a path, the other decides whether anything is at it.
+
+**The half that would have cost real money:** `categories/*.defaults.json` failed the same way, and
+`loadProduct()` guards it with `if (fs.existsSync(catDir))`. A missing folder is not an error there
+— it merges zero defaults and fills the form with those fields blank. The loud failure was the
+`.md` one; the expensive one was silent, and would have surfaced as a wrong live listing weeks
+later with no way back to this cause.
+
+**The generalisation, which is the third variation on the same theme after WW-094 and WW-100:**
+paths in a packaged app fall into three groups —
+
+1. **Writable state** — `WW_*_DIR` to the workspace, `profile`/`settings.json`/prompt overrides to
+   `userData`. Handled since WW-094.
+2. **Code** — `out/**` in the asar, `sharp` unpacked beside it. Handled, and CI-gated.
+3. **Read-only data the app reads but never generates.** This group had **no entry in the config
+   at all**, and both its members were broken.
+
+Group 3 is invisible from a development machine *by construction*: in dev those folders resolve
+inside the repo whether the packaging config ships them or not, so the dev path and the packaged
+path share no code and only one of them is ever exercised locally.
+
+**The rule:** `app.isPackaged ? resourcesPath : <repo>` in the code obliges a matching
+`extraResources` entry in `electron-builder.yml`, and neither half is finished without the other.
+Enforced now by a CI step that greps the built package for one prompt and one defaults file, so a
+future read-only file added without its config entry fails the build rather than the partner.
+
+---
+
+## C-046 — wrote "the same code fills Meesho" twice in the spec, off a property the code does not have
+
+**Category:** Fact · **Caught by:** the assistant, checking before answering Vansh · **Date:** 2026-08-03
+
+`GUI-SPEC.md` said, in two places, that `fields.ts` *"targets fields by their visible label without
+knowing which site it is on"*, and concluded **the same code fills Meesho's Supplier Panel** with
+`scan` as the only new work. The first half is half true and the second half is false.
+
+`fields.ts` does resolve fields by visible label — but it finds the label by anchoring on
+`[class*="EditAttributeItemWrapper"]` and three sibling selectors, and those are **Flipkart's own
+styled-component class names, hard-coded at the top of the file**. That anchoring is the file's
+central design and the fix for a real bug (five warranty labels resolving to one dropdown). It is
+also, precisely, knowledge of which site it is on. Pointed at Meesho it matches zero rows and
+reports every field missing.
+
+**Why it mattered more than a wording slip:** it sized a ticket. WW-093 was written as *"run `scan`
+against the panel once — a day, not a blocker"*, and a plan was built on Meesho being calibration
+work. It is engine work: the four selectors have to become a per-site profile first. Still much
+less than the browser extension it replaced, but not what the spec promised.
+
+**The tell I ignored:** the sentence was making a claim about *generality* — "without knowing which
+site it is on" — and generality is exactly the kind of claim that is cheap to write and needs the
+file open to verify. The header comment of `fields.ts` describes the row anchoring in detail; it
+was quoted approvingly elsewhere in the same spec.
+
+**The rule:** a claim that code is site-agnostic, format-agnostic or provider-agnostic is a claim
+about what it does *not* hard-code. Verify it by grepping for the constants, not by re-reading the
+prose summary — including your own from a previous session.
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:

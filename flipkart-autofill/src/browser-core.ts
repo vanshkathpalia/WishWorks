@@ -95,6 +95,11 @@ export interface FillResult {
   report: Report;
   /** How many fields disagree with what was typed. **Save is forbidden while this is > 0.** */
   needsEyes: number;
+  /**
+   * Labels this product would send that are on NO tab of the scanned form — so "not found"
+   * means broken, not "try the other tab". Empty when the category has never been scanned.
+   */
+  unmapped: string[];
   /** For each mismatch, what the widget actually turned out to be — the debugging shortcut. */
   probes: { label: string; tag: string; kind: string; rowLabel: string; wrongRow: boolean; value: string; pills: string[] }[];
 }
@@ -117,7 +122,7 @@ export async function fillListing(
   const match = await findById(PRODUCTS_DIR, id);
   if (!match) throw new FillBlocked(`No file in products/ matches "${id}".`);
 
-  const { values, usedDefaults, category } = loadProduct(match.file);
+  const { values, usedDefaults, category, unmapped } = loadProduct(match.file);
   const problems = checkValues(values as Values);
   if (problems.length) throw new FillBlocked(describeProblems(problems));
 
@@ -132,6 +137,7 @@ export async function fillListing(
     product: path.basename(match.file, ".json"),
     category,
     usedDefaults,
+    unmapped,
     rows,
     report,
     needsEyes: needsEyes(report),

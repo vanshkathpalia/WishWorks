@@ -19,7 +19,32 @@ export interface LoadedProduct {
   category: string;
   values: Values;
   usedDefaults: string[];
+  /**
+   * Labels we would send that exist on NO tab of the scanned form.
+   *
+   * The difference that matters when a fill reports a field "not found": a label on another tab
+   * is fine and will land on the next pass, but a label the form does not have anywhere will
+   * never land, on any pass, and silently sends nothing. Only the scan can tell them apart, so
+   * this is empty when the category has never been scanned — never a false accusation.
+   */
+  unmapped: string[];
 }
+
+/** Labels captured by `npm run scan`, normalised the way fields.ts matches them. */
+function scannedLabels(catDir: string, category: string): Set<string> | null {
+  const file = path.join(catDir, `${category}.json`);
+  if (!fs.existsSync(file)) return null;
+  try {
+    const { fields } = JSON.parse(fs.readFileSync(file, "utf8")) as { fields: { label: string }[] };
+    return new Set(fields.map((f) => normLabel(f.label)));
+  } catch {
+    return null; // a damaged scan file must not stop a fill
+  }
+}
+
+/** Same normalisation as `fields.ts` — trim, collapse spaces, lowercase, drop a trailing "*". */
+const normLabel = (s: string): string =>
+  s.trim().toLowerCase().replace(/\s+/g, " ").replace(/\s*\*+$/, "");
 
 /**
  * Every product available to fill — ONE entry per product, not per file. `ANP003.json` and
@@ -59,7 +84,13 @@ export function loadProduct(file: string, catDir = CATEGORIES_DIR): LoadedProduc
   const values: Values = { ...defaults, ...product.values };
   // Keys starting with "_" are notes for humans, not form fields.
   for (const k of Object.keys(values)) if (k.startsWith("_")) delete values[k];
-  return { file, category: product.category, values, usedDefaults };
+
+  const known = scannedLabels(catDir, product.category);
+  const unmapped = known
+    ? Object.keys(values).filter((k) => !known.has(normLabel(k)) && !String(values[k]).startsWith("TODO_"))
+    : [];
+
+  return { file, category: product.category, values, usedDefaults, unmapped };
 }
 
 export interface Problem {

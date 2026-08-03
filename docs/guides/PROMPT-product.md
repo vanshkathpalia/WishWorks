@@ -17,6 +17,18 @@ offer to help. If you cannot attach files, print the JSON on its own instead.
   "values": { "Model Name": "...", ... }
 }
 
+ALWAYS INCLUDE THESE THREE, EXACTLY AS SHOWN, AND NEVER GUESS THEM:
+
+  "Seller SKU ID": "TODO_SKU",
+  "MRP": "TODO_MRP",
+  "Your selling price": "TODO_PRICE"
+
+They are prices and a stock code. You cannot know them, and a plausible-looking number is
+far worse than an obvious gap — it would be typed into a live listing. Leave them as the
+TODO_ text above and the tool stops before the browser opens and asks a human for them.
+Everything else on that tab (stock, dimensions, HSN, tax) is already stored and is NOT
+your job — do not add those fields.
+
 REUSE, DO NOT REWRITE: "Model Name" is the "title" you already wrote in the first file, and
 "Search Keywords" is the "keywords" list from that same file — character for character. Two
 different versions of either one is a bug, not a variation.

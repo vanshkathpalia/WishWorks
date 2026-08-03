@@ -85,7 +85,17 @@ const WORKSPACE = storedWorkspace();
 process.env.WW_IMAGES_DIR ??= path.join(WORKSPACE, "images");
 process.env.WW_META_DIR ??= path.join(WORKSPACE, "image-meta");
 process.env.WW_PRODUCTS_DIR ??= path.join(WORKSPACE, "products");
-process.env.WW_CATEGORIES_DIR ??= path.join(WORKSPACE, "categories");
+
+/**
+ * Categories are the one WW_* dir that is NOT user state — they ship with the app.
+ * `balloon-decoration.defaults.json` holds the shared answers `loadProduct()` merges under every
+ * product, so pointed at an empty workspace folder it does not fail, it silently fills a form
+ * with the defaults missing. Packaged it therefore reads the shipped copy (extraResources) and
+ * updates with the app; only `npm run scan` writes here, and that is a CLI on Vansh's Mac.
+ */
+process.env.WW_CATEGORIES_DIR ??= app.isPackaged
+  ? path.join(process.resourcesPath, "categories")
+  : path.join(WORKSPACE, "categories");
 
 /**
  * The Chrome profile — the live Flipkart login — pinned to the SAME folder the CLI uses.
@@ -463,8 +473,30 @@ function createWindow(): void {
   else win.loadFile(path.join(import.meta.dirname, "../renderer/index.html"));
 }
 
+/**
+ * Auto-update, so shipping a fix stops being a courier job.
+ *
+ * Without this every fix is: download the CI artifact, upload it somewhere WhatsApp will accept,
+ * talk somebody through SmartScreen again. With it, the app checks GitHub Releases on launch,
+ * downloads in the background and installs on quit — the partner just has a current app.
+ *
+ * `checkForUpdatesAndNotify` is a no-op in development and in an unpackaged build, so there is
+ * nothing to guard. It is also deliberately silent on failure: no releases yet, no network, or a
+ * private repo all reject, and none of those are worth a dialog in front of somebody trying to
+ * list a product. The update is a convenience — the app must work exactly as well without it.
+ */
+async function checkForUpdates(): Promise<void> {
+  try {
+    const { autoUpdater } = await import("electron-updater");
+    await autoUpdater.checkForUpdatesAndNotify();
+  } catch {
+    /* offline, no release published yet, or no access — carry on */
+  }
+}
+
 app.whenReady().then(() => {
   createWindow();
+  void checkForUpdates();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

@@ -1,0 +1,677 @@
+{
+  "category": "balloon-decoration",
+  "fields": [
+    {
+      "label": "Seller SKU ID *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Listing Status *",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "MRP *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Your selling price *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Minimum Order Quantity (MinOQ)",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Fullfilment by *",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Procurement type",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Procurement SLA *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Stock *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Shipping provider",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Local handling fee",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Zonal handling fee",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "National handling fee",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Length *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "HSN *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Luxury Cess",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Tax Code *",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Country Of Origin *",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Manufacturer Details *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Packer Details *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Importer Details",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Model Name",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "EAN/UPC",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Pack of",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Series",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Ideal For",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Design",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Material",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Shape",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Handle",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Handle Shape",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Handle Material",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Character",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Theme",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Occasion",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Hand Crafted",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Decoratives Attached",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Balloon Type",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Hand Fan Type",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Animal Type",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Foldable",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Carry Bag Included",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Description",
+      "kind": "textarea",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Search Keywords",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Key Spec",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Key Features",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Video URL",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "External Identifier",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Gift Pack",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Purpose",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Guardstick Material",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Rib Material",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Leaf Material",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Leaf Shape",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Printed Text",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Other Hand Fan Features",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Mouthpiece Material",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Tube Shape",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Tube Material",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Other Blowout Features",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Burn Time",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Visual Effects",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Sound Features",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Birthday Ribbon",
+      "kind": "combobox",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Birthday Ribbon Color",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Cracker Type",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Other Cracker Features",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Powered by",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Power Requirement",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Type of Batteries",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Number of Batteries",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Other Power Features",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Width",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Height",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Depth",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Diameter",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Weight",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Weight (unit)",
+      "kind": "combobox",
+      "multi": false,
+      "options": [
+        "kgExpandMore"
+      ],
+      "companion": true,
+      "furniture": false
+    },
+    {
+      "label": "Other Dimensions",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Precautions",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Safety Features",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Other Features",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Domestic Warranty",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Domestic Warranty (unit)",
+      "kind": "combobox",
+      "multi": false,
+      "options": [
+        "YearExpandMore"
+      ],
+      "companion": true,
+      "furniture": false
+    },
+    {
+      "label": "International Warranty",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "International Warranty (unit)",
+      "kind": "combobox",
+      "multi": false,
+      "options": [
+        "YearExpandMore"
+      ],
+      "companion": true,
+      "furniture": false
+    },
+    {
+      "label": "Warranty Summary",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Warranty Service Type",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Covered in Warranty",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Not Covered in Warranty",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    }
+  ],
+  "scannedAt": "2026-08-03T15:50:49.375Z"
+}

@@ -158,6 +158,33 @@ function Shortcuts({ open, onGo }: { open: boolean; onGo: (url: string) => void 
   );
 }
 
+/**
+ * Flipkart's listing form, as the first real scan found it (WW-111, 2026-08-03):
+ * 17 + 7 + 66 = 90 fields, which is the whole form.
+ *
+ * The counts are here as orientation, not as a contract — nothing branches on them, and the
+ * engine still fills whatever rows are actually on screen. They exist because "Product
+ * Description" being only SEVEN fields is genuinely surprising, and a person who does not know
+ * that cannot tell a finished tab from a broken one.
+ */
+const FORM_TABS = [
+  {
+    name: "Price, Stock and Shipping",
+    count: 17,
+    holds: "SKU, MRP, your price, stock, dimensions, HSN, tax",
+  },
+  {
+    name: "Product Description",
+    count: 7,
+    holds: "country of origin, manufacturer, packer, model name, EAN, pack of",
+  },
+  {
+    name: "Additional Description",
+    count: 66,
+    holds: "everything else — material, theme, occasion, description, keywords, warranty",
+  },
+] as const;
+
 export function Flipkart({ n }: { n: number }) {
   const [status, setStatus] = useState<SessionStatus>({ open: false, login: "unknown", url: "" });
   const [listing, setListing] = useState<Listing | null>(null);
@@ -166,6 +193,9 @@ export function Flipkart({ n }: { n: number }) {
   const [busy, setBusy] = useState<null | "opening" | "filling" | "saving">(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  /** Which tab's button is running, and which have been run — so three passes are trackable. */
+  const [filling, setFilling] = useState<string | null>(null);
+  const [done, setDone] = useState<string[]>([]);
 
   useEffect(() => window.ww.onField((row) => setRows((r) => [...r, row])), []);
 
@@ -185,17 +215,26 @@ export function Flipkart({ n }: { n: number }) {
     setBusy(null);
   }
 
-  async function fill() {
+  /**
+   * `tab` is a label for the person, not an instruction to the engine — `fillListing` fills
+   * whatever rows Chrome is actually showing. Passing the wrong one cannot fill the wrong tab;
+   * the worst case is a tick next to the wrong name, which the next run corrects.
+   */
+  async function fill(tab: string) {
     if (!listing) return;
     setBusy("filling");
+    setFilling(tab);
     setRows([]);
     setResult(null);
     setError(null);
     setSaved(null);
     const r = await window.ww.fillListing(listing.id);
-    if (r.ok) setResult(r.result);
-    else setError(r.message);
+    if (r.ok) {
+      setResult(r.result);
+      setDone((d) => (d.includes(tab) ? d : [...d, tab]));
+    } else setError(r.message);
     setBusy(null);
+    setFilling(null);
   }
 
   async function save() {
@@ -246,28 +285,51 @@ export function Flipkart({ n }: { n: number }) {
         need={(l) => (!l.product ? "no Flipkart file" : null)}
       />
 
-      <h3>Open the right form first</h3>
+      <h3>One tab at a time</h3>
+      <p className="muted">
+        The form is three tabs and Chrome only shows one at a time, so this runs three times — the
+        same listing file each time, a different set of fields each time. Do them in any order;
+        anything belonging to another tab is reported <b>⏭️ other tab</b>, not as a failure.
+      </p>
       <ol className="steps-list">
         <li>In Chrome: <b>Listings → Add New Listing</b>, then pick the category.</li>
-        <li>
-          Open the tab you want filled — <b>Additional Description</b>, or{" "}
-          <b>Price, Stock and Shipping</b>.
-        </li>
-        <li>Scroll it to the bottom once so every field exists on the page.</li>
-        <li>Leave that tab showing and come back here.</li>
+        <li>Open one of the three tabs below and scroll it to the bottom once, so every field
+          exists on the page.</li>
+        <li>Leave that tab showing, then press its button here.</li>
       </ol>
 
-      <div className="picks">
-        <button
-          className="primary"
-          disabled={!listing || !status.open || busy !== null}
-          onClick={() => void fill()}
-        >
-          {busy === "filling" ? `Filling… ${rows.length}` : "Fill the form"}
-        </button>
+      <div className="tabcards">
+        {FORM_TABS.map((t) => (
+          <div className="tabcard" key={t.name}>
+            <b>{t.name}</b>
+            <span>{t.count} fields</span>
+            <small>{t.holds}</small>
+            <button
+              className="primary"
+              disabled={!listing || !status.open || busy !== null}
+              onClick={() => void fill(t.name)}
+            >
+              {busy === "filling" && filling === t.name ? `Filling… ${rows.length}` : "Fill this tab"}
+            </button>
+            {done.includes(t.name) && <em>✓ run</em>}
+          </div>
+        ))}
       </div>
 
       {error && <p className="error">{error}</p>}
+
+      {/* The distinction a "not found" count cannot make on its own: a field on ANOTHER tab
+          lands on the next pass, a field the form does not have ANYWHERE never lands at all and
+          silently sends nothing. Only the scan can tell them apart, so this is silent until the
+          category has been scanned rather than accusing fields it cannot check. */}
+      {result && result.unmapped.length > 0 && (
+        <p className="error">
+          ⚠️ {result.unmapped.length} value{result.unmapped.length > 1 ? "s" : ""} in this listing
+          match no field on any tab of the form, so {result.unmapped.length > 1 ? "they" : "it"}{" "}
+          will never be filled: <b>{result.unmapped.join(", ")}</b>. Fix the label in{" "}
+          <code>categories/</code> or the product file — re-running will not help.
+        </p>
+      )}
 
       {rows.length > 0 && (
         <table className="rows">

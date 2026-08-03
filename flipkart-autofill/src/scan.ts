@@ -108,16 +108,37 @@ unit/option pickers  : ${companions}  (belong to the field above them)\npage fur
 if (tabCounts.length) {
   console.log(`\nFlipkart's own counters on this page:`);
   for (const t of tabCounts) console.log(`  ${t.tab || "(tab)"} → ${t.total} attributes`);
-  const target = tabCounts.reduce((a, b) => (b.total > a.total ? b : a));
-  const diff = attrs - target.total;
+
+  // Compare against the SUM of the tabs, not the biggest one.
+  //
+  // This file MERGES every tab you scan — that is the whole point of running scan once per tab.
+  // The check used to measure the merged total against the single largest counter, so scanning
+  // three tabs (17 + 7 + 66) reported "87 captured vs 66 — 21 extra. Delete those lines", which
+  // is advice to throw away the Price/Stock tab. Vansh hit exactly that and was right to
+  // question it (C-047). Flipkart renders every tab's header with its own count on the page, so
+  // summing them is the honest denominator.
+  // Compare ROWS, not `attrs`. Flipkart counts a field and its unit picker as ONE attribute
+  // ("Weight" with its kg/g dropdown), while `attrs` deliberately excludes companions — so
+  // measuring attrs against Flipkart's number reports 3 phantom gaps on a fully captured tab.
+  //
+  // Photo tabs are excluded outright: "Image addition (0/5)" counts upload slots, which have no
+  // label and no control to fill, so they can never be captured and would sit in the total
+  // forever as 5 permanently missing fields.
+  const fillable = tabCounts.filter((t) => !/image|photo|picture/i.test(t.tab));
+  const total = fillable.reduce((n, t) => n + t.total, 0);
+  const skipped = tabCounts.filter((t) => !fillable.includes(t));
+  for (const t of skipped) console.log(`  (ignoring "${t.tab}" — upload slots, nothing to fill)`);
+
+  const diff = existing.fields.length - total;
   console.log(
     diff === 0
-      ? `\n✅ ${attrs} captured vs ${target.total} on the form — complete.`
+      ? `\n✅ ${existing.fields.length} captured vs ${total} across ${fillable.length} tab(s) — complete.`
       : diff > 0
-        ? `\n⚠️  ${attrs} captured vs ${target.total} on the form — ${diff} extra.
-   Usually page furniture (e.g. "Rate Card"). Delete those lines from the JSON.`
-        : `\n⚠️  ${attrs} captured vs ${target.total} on the form — ${-diff} MISSING.
-   Scroll the tab all the way down (fields render lazily) and run scan again; it merges.`
+        ? `\n⚠️  ${existing.fields.length} captured vs ${total} — ${diff} more than the form admits to.
+   Usually page furniture (e.g. "Rate Card"). Check those lines before deleting them.`
+        : `\n${-diff} of ${total} not captured yet. Normal until every tab has been scanned —
+   this file merges, so scan the rest. If you have done them all, the missing ones are below
+   the fold on some tab: scroll it fully to the bottom and run scan again.`
   );
 }
 console.log(`\nSwitch to another tab of the form and run scan again to capture more.

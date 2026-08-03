@@ -224,10 +224,15 @@ Both were mistakes made while planning, and both would mislead anyone reading th
 
 1. **Meesho is not a special case.** It was written up as needing a browser extension because
    *"Meesho has no API"*. Neither does the Flipkart path — `npm start` has never used Flipkart's
-   API. It drives a real Chrome that is already logged in, and `fields.ts` targets fields by
-   their visible label without knowing which site it is on. **The same code fills Meesho's
-   Supplier Panel.** The only genuinely new work is running `scan` against that panel once to
-   learn its fields (WW-093) — a day, not a blocker, and needed on any platform.
+   API. It drives a real Chrome that is already logged in and fills fields by their visible label.
+   **Corrected 2026-08-03 (C-046), because the earlier wording here was wrong and load-bearing:**
+   this is the same *approach*, not the same code. `fields.ts` finds a label by anchoring on
+   `[class*="EditAttributeItemWrapper"]` and three sibling selectors that are **Flipkart's
+   styled-component class names**, hard-coded at the top of the file — point it at Meesho and it
+   matches zero rows and reports every field missing. WW-093 is therefore not just "run `scan`
+   once": it is lifting those four selectors into a per-site profile and finding Meesho's
+   equivalents. Still not a blocker and still much less than a browser extension, but it is
+   engine work, not calibration.
 2. **A browser extension is now optional, not required.** It remains a reasonable future
    deliverable (it runs in the session you already have, and *Flipkart Lens* proves the pattern
    works), but Electron covers steps 8 and 9 without it. Demoted to WW-092, P3.
@@ -475,7 +480,7 @@ Until it exists the screen shows the `paste` output with a Copy button per value
 today's flow with the terminal removed — useful on its own, and the fallback if the panel turns
 out to resist scripting.
 
-### Step 10 — Run the whole flow  ·  WW-094  ·  designed 2026-08-03, not built
+### Step 10 — Run the whole flow  ·  WW-106  ·  designed 2026-08-03, not built
 
 One button on a listing that already has its images and its JSON. It runs the steps that exist,
 in order, and **stops for review instead of publishing**.
@@ -550,9 +555,10 @@ the app is packaged, and then all three are blockers.
   The app never calls an AI — no keys, no credits, no network beyond Flipkart itself.
 - **Meesho upload — no longer excluded.** The earlier drafts put it here because *"Meesho has no
   public API"*. Neither does the Flipkart path: `npm start` drives a real logged-in Chrome and
-  `fields.ts` targets fields by visible label, so **the same code fills Meesho's Supplier Panel**
-  once WW-093 has scanned it. Until then, step 9 is copy-paste from `npm run paste -- <ID>` and
-  the screen says so.
+  fills by visible label, so **the same approach reaches Meesho's Supplier Panel** — but not the
+  same code unchanged, see the correction above and C-046: `fields.ts`'s row selectors are
+  Flipkart's own class names. WW-093 has to make them per-site first. Until then, step 9 is
+  copy-paste from `npm run paste -- <ID>` and the screen says so.
 - **Anything Phase 2** (the 2,200-listing keyword bank). Not until the partner is using this.
 
 ## How it gets tested

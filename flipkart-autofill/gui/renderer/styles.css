@@ -936,3 +936,38 @@ label.inline input {
   background: #100e0d;
   color: var(--ink);
 }
+
+/* ---------------------------------------------------- the three tabs of the listing form */
+/* Three cards rather than one button, because Chrome shows one tab at a time and the fill has
+   to be run once per tab. A single "Fill the form" button hid that entirely — WW-112. */
+
+.tabcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.tabcard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.tabcard span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tabcard small {
+  color: var(--muted);
+  line-height: 1.5;
+  flex: 1;
+}
+.tabcard button {
+  margin-top: 4px;
+}
+.tabcard em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 0.85em;
+}

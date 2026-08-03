@@ -27,6 +27,31 @@ listing saved.
 108 tests   ·   npm run verify (22 engine checks)   ·   typecheck   —   all green
 ```
 
+## Shipping a change to the partner — the version number IS the delivery
+
+**Nothing reaches the partner's machine unless the version number changes.** `electron-updater`
+compares the version in the published release against the one he has installed; same number means
+no update, no matter what changed inside. A fix that is committed, pushed, built and even
+published is still not delivered if `version` stayed put.
+
+So every change the partner should receive:
+
+```
+1. bump "version" in flipkart-autofill/package.json     e.g. 0.1.1 → 0.1.2
+2. commit
+3. git tag v0.1.2      ← must match the version exactly
+4. git push && git push --tags
+```
+
+CI builds both installers, publishes them to GitHub Releases with `latest.yml`, and his app picks
+it up on next launch — downloads in the background, installs on quit.
+
+- **Pushes to `main` without a tag build but publish nothing.** That is deliberate: most commits
+  should never reach him. Tag only when you want him to have it.
+- **The tag must match `version`.** A `v0.1.2` tag on a package still saying `0.1.1` publishes a
+  release his app reads as "same version I already have" and ignores.
+- **Only the first install is manual.** Auto-update cannot deliver itself.
+
 **What got fixed this week**, all of it found by running the thing rather than reading it:
 
 | | |

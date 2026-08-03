@@ -16,8 +16,17 @@ name: Build installers
 on:
   push:
     branches: [main]
+    # A tag is what makes a build a RELEASE: it gets published to GitHub Releases, where the
+    # installed apps look for updates. Bump "version" in package.json, tag it v<that>, push the
+    # tag. Ordinary pushes to main still build and still upload artifacts, they just do not
+    # publish — so most commits never reach the partner, which is the point.
+    tags: ["v*"]
   # so a build can be kicked off from the Actions tab without pushing anything
   workflow_dispatch:
+
+# electron-builder needs this to create the release and upload to it.
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -52,8 +61,13 @@ jobs:
       - run: npm run typecheck:gui
       - run: npm test
 
-      - run: npm run app:dist
+      # `--publish always` on a tag uploads the installers AND the latest.yml/latest-mac.yml that
+      # electron-updater reads to decide an update exists. Publishing the installer without those
+      # files produces a release nobody's app ever notices, which is the classic way to think
+      # auto-update is broken when it was simply never told about the new version.
+      - run: npm run app:dist -- --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # electron-builder tries to sign and notarize on macOS otherwise, which needs an Apple
           # certificate we do not have. Unsigned is the deliberate choice for now.
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -80,6 +94,25 @@ jobs:
           fi
           echo "native binaries shipped outside the asar:"
           find "$unpacked" -name "*.node"
+
+      # The prompts and the category defaults are read at runtime but built by nobody, so they
+      # reach the installer only via extraResources. Missing, the prompt panels show "couldn't
+      # read PROMPT-*.md" and — worse, because it is silent — loadProduct() merges no defaults and
+      # fills a listing with fields quietly blank. Neither is reproducible on a dev machine, where
+      # both folders resolve inside the repo. This is the only gate that can catch it.
+      - name: the prompts and category defaults must be in the installer
+        shell: bash
+        run: |
+          set -e
+          for f in docs/guides/PROMPT-meta.md categories/balloon-decoration.defaults.json; do
+            found=$(find dist -ipath "*resources/$f" | head -1)
+            if [ -z "$found" ]; then
+              echo "::error::$f is not in the package — extraResources did not ship it"
+              find dist -ipath "*resources*" -maxdepth 5 -type d || true
+              exit 1
+            fi
+            echo "shipped: $found"
+          done
 
       - uses: actions/upload-artifact@v4
         with:

@@ -46,22 +46,64 @@ function sleepSync(ms: number): void {
  *
  * Safe to kill: ./profile is this tool's own dedicated profile, never your personal Chrome.
  *
- * ⚠️ MACOS/LINUX ONLY. `ps` does not exist on Windows, so there the lookup throws, is
- * caught, and this silently does nothing — leaving exactly the stale-profile symptom
- * described above with no clue as to why. Needs a `tasklist`/WMI branch before the
- * Windows app ships (WW-061); the stale-lock cleanup below is already cross-platform.
+ * Cross-platform since WW-108. `ps` does not exist on Windows, where the lookup used to throw,
+ * get caught, and silently do nothing — leaving exactly the stale-profile symptom above with no
+ * clue as to why (WW-061). Windows uses WMIC's CommandLine instead, because `tasklist` prints the
+ * image name and PID but NOT the arguments, and the argument is the only thing that distinguishes
+ * our Chrome from the user's own — killing every chrome.exe would close their browser.
  */
-function ensureProfileFree(): void {
-  let pids: string[] = [];
+/**
+ * Pull the PIDs out of a process listing, keeping only the ones holding `profileDir`.
+ *
+ * Pure and exported so the two output formats can be tested without a live Chrome — the whole
+ * failure mode here is returning an empty list on a machine that does have a stale Chrome, which
+ * is indistinguishable from working and is exactly how WW-061 hid on Windows for so long.
+ */
+export function pidsHoldingProfile(
+  lines: string[],
+  profileDir: string,
+  self = String(process.pid),
+): string[] {
+  return lines
+    .filter((l) => l.includes(profileDir))
+    // Both platforms are made to emit "<pid> <command line>", so there is one parser.
+    .map((l) => l.trim().split(/\s+/)[0])
+    .filter((pid) => /^\d+$/.test(pid) && pid !== self);
+}
+
+/**
+ * The process list, shaped identically on both platforms.
+ *
+ * Windows uses **PowerShell, not `wmic`**. wmic was the obvious choice and is a trap: it is
+ * deprecated and **not installed by default from Windows 11 24H2 onward**, where it would throw,
+ * get caught, return nothing, and silently restore the exact WW-061 bug this function exists to
+ * fix. `powershell.exe` (5.1) ships with every supported Windows.
+ *
+ * `tasklist` is also wrong here for a different reason: it prints the image name and PID but not
+ * the command line, and the command line is the only thing separating our Chrome from the user's
+ * own — matching on `chrome.exe` alone would close their personal browser mid-work.
+ *
+ * Emitting "<pid> <command line>" makes the Windows output the same shape as `ps`, which is why
+ * there is no platform branch in the parser above.
+ */
+function chromeHoldingProfile(): string[] {
+  // The profile path reaches the process list as --user-data-dir=<PROFILE_DIR>. Matching on that
+  // is what keeps this from touching the user's personal Chrome.
+  const cmd =
+    process.platform === "win32"
+      ? 'powershell.exe -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process ' +
+        "-Filter \\\"name='chrome.exe'\\\" | ForEach-Object { \\\"$($_.ProcessId) $($_.CommandLine)\\\" }\""
+      : "ps -A -o pid=,command=";
   try {
-    pids = execSync("ps -A -o pid=,command=", { encoding: "utf8" })
-      .split("\n")
-      .filter((l) => l.includes(PROFILE_DIR) && l.includes("Google Chrome"))
-      .map((l) => l.trim().split(/\s+/)[0])
-      .filter((pid) => pid && pid !== String(process.pid));
+    const out = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return pidsHoldingProfile(out.split("\n"), PROFILE_DIR);
   } catch {
-    /* ps unavailable — fall through */
+    return []; // no ps / no PowerShell — nothing we can do, and it must not be fatal
   }
+}
+
+function ensureProfileFree(): void {
+  const pids = chromeHoldingProfile();
 
   if (pids.length) {
     console.log(`↻ Closing ${pids.length} leftover Chrome process(es) still holding ./profile...`);
@@ -70,15 +112,7 @@ function ensureProfileFree(): void {
     }
     // give Chrome a moment to exit and release the lock
     const until = Date.now() + 5000;
-    while (Date.now() < until) {
-      try {
-        const still = execSync("ps -A -o pid=,command=", { encoding: "utf8" })
-          .split("\n")
-          .filter((l) => l.includes(PROFILE_DIR) && l.includes("Google Chrome"));
-        if (!still.length) break;
-      } catch { break; }
-      sleepSync(300);
-    }
+    while (Date.now() < until && chromeHoldingProfile().length) sleepSync(300);
     for (const pid of pids) {
       try { process.kill(Number(pid), "SIGKILL"); } catch { /* gone, good */ }
     }
@@ -90,21 +124,47 @@ function ensureProfileFree(): void {
   }
 }
 
+/**
+ * The one thing this app needs that we do not ship: Google Chrome.
+ *
+ * `channel: "chrome"` drives the user's own installed Chrome rather than the 400 MB Chromium
+ * Playwright would otherwise bundle. On a machine without Chrome, Playwright throws a wall of
+ * text about registry keys and executable paths — accurate, and useless to the one person this
+ * app exists for. Rewritten into the single sentence that fixes it.
+ */
+function friendlyLaunchError(e: unknown): Error {
+  const msg = String((e as Error)?.message ?? e);
+  if (/channel.*chrome|executable doesn't exist|Chromium distribution/i.test(msg)) {
+    return new Error(
+      "Google Chrome is not installed on this computer.\n\n" +
+        "This app fills the listing form in your own Chrome, so it needs Chrome itself — " +
+        "Edge will not do.\n" +
+        "Install it from https://www.google.com/chrome and start this step again.",
+    );
+  }
+  return e as Error;
+}
+
 export async function openBrowser(): Promise<Session> {
   ensureProfileFree();
-  const context = await chromium.launchPersistentContext(PROFILE_DIR, {
-    channel: "chrome", // your real Chrome — better session handling than bundled Chromium
-    headless: false,
-    viewport: null,
-    args: ["--start-maximized", "--no-first-run", "--no-default-browser-check"],
-    // Do NOT let Playwright kill Chrome on Ctrl+C. Its default handler tears the browser
-    // down before cookies are flushed, which is precisely how the saved login disappeared.
-    // We install our own handlers below that close it gracefully instead. (Verified: with
-    // these left at their defaults the session is lost; with them off it survives.)
-    handleSIGINT: false,
-    handleSIGTERM: false,
-    handleSIGHUP: false,
-  });
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(PROFILE_DIR, {
+      channel: "chrome", // your real Chrome — better session handling than bundled Chromium
+      headless: false,
+      viewport: null,
+      args: ["--start-maximized", "--no-first-run", "--no-default-browser-check"],
+      // Do NOT let Playwright kill Chrome on Ctrl+C. Its default handler tears the browser
+      // down before cookies are flushed, which is precisely how the saved login disappeared.
+      // We install our own handlers below that close it gracefully instead. (Verified: with
+      // these left at their defaults the session is lost; with them off it survives.)
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
+    });
+  } catch (e) {
+    throw friendlyLaunchError(e);
+  }
 
   let closed = false;
   const close = async () => {

@@ -21,6 +21,28 @@ asarUnpack:
   - "**/node_modules/sharp/**"
   - "**/node_modules/@img/**"
 
+# Read-only data the app READS at runtime but does not generate. `files:` above covers compiled
+# code only, so anything listed here would otherwise simply not be in the installer — and the
+# failure is invisible from a Mac, because in development both folders resolve inside the repo.
+#   - docs/guides/*.md  the AI prompts, which every prompt panel reads and shows (gui/main.ts DOCS)
+#   - categories/       the shared per-category form defaults merged by loadProduct()
+# `from` is relative to this file's folder, so docs/ reaches up out of flipkart-autofill/.
+extraResources:
+  - from: ../docs/guides
+    to: docs/guides
+    filter: ["*.md"]
+  - from: categories
+    to: categories
+    filter: ["*.json"]
+
+# Where the app looks for updates, and where CI publishes them. GitHub Releases needs no server
+# and no account for the person downloading — a release asset is a plain public URL, unlike an
+# Actions artifact, which expires in 30 days and demands a GitHub login.
+publish:
+  provider: github
+  owner: vanshkathpalia
+  repo: WishWorks
+
 mac:
   target: dmg
   category: public.app-category.business
