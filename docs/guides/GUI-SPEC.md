@@ -159,6 +159,24 @@ build; document it for the partner so it does not read as a virus.
 | Platform | **Windows desktop app, Electron** | Weighed against a Next.js/Vercel web app and chosen because of one fact: **the engine is Node code that already works, and Electron runs Node.** See the decision record below |
 | Prompt steps | **In the app, for both users** | The partner must be able to do a whole listing alone. The app still never calls an AI (see *Not in the app*) — it holds the prompt, takes the reply back, and files it |
 | Scale | **One listing at a time** | Pick a listing, walk its steps, finish it. `finish`'s whole-tree mode stays in the CLI |
+| Stack | **React 19 + plain CSS, electron-vite, electron-builder** | Decided 2026-07-31 with WW-067. Tauri was the real alternative and loses on one fact: a Rust shell still has to run `sharp` and Playwright, so it ships a Node sidecar plus a protocol. Full reasoning: `docs/learning/8-the-desktop-app-stack.md` |
+| Where it lives | **inside `flipkart-autofill/`** | One `package.json`, one `node_modules`, one test runner; `runImages()` is a relative import. **Flagged:** the folder is named after one marketplace and now holds the whole app. A `git mv` is cheap today and expensive after WW-068 wires CI to the path |
+
+### The process boundary — the rule every later tab inherits
+
+- **Main** is the engine: it imports `images-core.ts` directly and owns fs, `sharp`, Playwright.
+- **Renderer** is pure view — `contextIsolation: true`, `nodeIntegration: false`, and no `node:`
+  import anywhere under `gui/renderer/`.
+- **`gui/shared.ts` is the only contract** between them: channel names and their types, imported
+  by main, preload and renderer alike, so a channel cannot be renamed on one side only.
+- **IPC carries paths and small JSON. Never image bytes.** Thumbnails are `file://` URLs to the
+  real files on disk.
+
+Two things this forces, both easy to get wrong and both already handled in `gui/main.ts`:
+`app.setName("WishWorks")` must run first (Electron would otherwise derive `userData` from the
+package name and lose the Chrome profile WW-094 placed), and the `WW_*_DIR` overrides must be
+set **before** the engine is imported (inside a package `paths.ts` resolves into the read-only
+`app.asar`). See learning note 8.
 
 ### Why not a web app — the decision record
 
@@ -305,14 +323,53 @@ the difference between *done* and *not needed* stays visible — same distinctio
 
 ## The steps
 
-Numbered in the order they are used, which is also the order to build them.
+Numbered in the order they are *usually* used, which is also the order to build them.
 
-### Step 1 — Convert images  ·  WW-067
-Drag a folder in. Pick output format and quality. Thumbnails, then a result row per image.
-Carries the warnings the CLI already produces: soft source (under 1000px), Meesho metadata
-residue, 5 MB step-down.
+### Not a wizard — every step opens at any time · corrected 2026-07-31
+
+The numbering is a map, not a sequence, and **nothing gates anything**. Vansh's reasons, both of
+which the earlier draft got wrong:
+
+- **A run that died halfway needs one step re-run on its own.** Something goes wrong mid-listing,
+  and the fix is to open step 6 for that one product — not to walk 1→6 again.
+- **Most listings skip converting entirely.** Step 1 only earns its place when the photos arrive
+  as AVIF; when they are already JPEGs there is nothing to convert and the step should be walked
+  past, not completed.
+
+This costs nothing to honour because of *Step state: derive it, don't store it* — every step's ✅
+is computed from the filesystem when it opens, so a step entered "out of order" reads the same
+disk and shows the same truth. A stored cursor would have been the thing that made order matter.
+**Steps not yet in the app are still reachable**; their panel names the command that does the job
+today, which is more use than a disabled tab.
+
+### Step 1 — Convert images  ·  WW-067  ·  built 2026-07-31
+Drag a folder in. Thumbnails, then a result row per image. Carries the warnings the CLI already
+produces: soft source (under 1000px), Meesho metadata residue, 5 MB step-down.
 
 *Engine:* `runImages({})` from `images-core.ts` — stage 1, no crop options.
+
+**"Pick output format and quality" was dropped, not forgotten.** The engine has no such options
+and should not grow them: it writes JPEG at 4:4:4 and 1500×1500, stepping quality down only to
+stay under Meesho's 5 MB cap — one correct answer per marketplace, already tested. PNG at 1500²
+is several times larger and buys nothing on a listing page; a quality slider is a control whose
+only use is making the output worse. Reversible in one option on `ImagesOptions` if that is wrong.
+
+**Loose images are accepted, not just a folder.** The first build shipped an `openDirectory`
+picker, which greys out every image file — you could stand in the folder looking at `1.avif` and
+be unable to select it. Two buttons now, *Choose images…* and *Choose a folder…*, because
+**Windows cannot show one dialog that takes both** (it honours whichever property came first) and
+the two machines have to behave alike. Drag-and-drop takes either. Every format the engine reads
+goes in — AVIF, WebP, HEIC/HEIF, PNG, TIFF, GIF, BMP, JPEG — and a JPEG comes out.
+
+**What is picked is copied into the workspace, not read in place** — `runImages()` takes no input
+path and `<WW_IMAGES_DIR>/1-raw/<product>/` is fixed. The product ID comes from the folder's name,
+or for loose files the name of the folder they were sitting in. Originals are never touched.
+
+**The workspace is not fixed.** It defaults to `userData/workspace` and Settings can move it.
+Changing it **relaunches the app**, because `paths.ts` resolves `IMAGES_DIR` and friends into
+consts at import time and a fresh `import()` would not re-evaluate them — only the cache-busted
+URL reloads, not its static imports. One restart is honest; a setting that half-applies is not.
+Nothing is moved when it changes, so a wrong choice costs nothing.
 
 ### Step 2 — Log in to Flipkart  ·  WW-069
 A live **"you're logged in"** indicator, not the terminal's row of dots. Must distinguish
@@ -321,16 +378,30 @@ up with no session in a way indistinguishable from "it logged me out".
 
 *Blocked by:* WW-061 must land first or this tab cannot be trusted.
 
-### Step 3 — Prepare images  ·  WW-069
-The clean-up step. Checkboxes and number fields, never flags:
+### Step 3 — Prepare images  ·  folded into step 1, 2026-07-31
+**This was never a separate step and the spec was wrong to make it one.** Cropping and painting
+are stage-1 options on `runImages()` — the same call that converts — so a separate "prepare" step
+would have to re-run stage 1 from `1-raw` and convert everything a second time. The CLI has always
+done it in one command:
+
+```
+npm run images -- --crop-bottom=25 --crop-images=1 --erase-tag=150,30 --erase-images=2,3,4
+```
+
+The controls therefore live on **step 1**, as checkboxes and number fields, never flags:
 
 - Crop bottom `[25]` px — apply to images `[1]`
 - Paint out tag `[150]` × `[30]` px — apply to images `[2,3,4]`
 
-Show a **before/after preview of image 1** before anything is written. The two methods exist for
-a reason worth surfacing in the UI: image 1 gets cropped because the AI replaces it anyway;
-2/3/4 get the tag painted out because there the tag sits level with real product labels and a
-crop would eat them.
+On by default with those values, because the photos this step exists for are Meesho downloads and
+they all carry the tag. The two methods differ for a reason worth surfacing in the UI: image 1
+gets cropped because the AI replaces it anyway; 2/3/4 get the tag painted out because there the
+tag sits level with real product labels and a crop would eat them.
+
+Still owed: a **before/after preview of image 1** before anything is written.
+
+*Found by:* the first real run through the app produced uncropped images with the tag still on
+them, because the app called `runImages({})` with no options — exactly what this spec said to do.
 
 ### Step 6 — Finish images  ·  WW-069
 **The tab that has to be right.** This is where WW-077 and WW-078 both happened.
@@ -403,6 +474,59 @@ It is not a new mechanism — it is step 8 pointed at a different site. What has
 Until it exists the screen shows the `paste` output with a Copy button per value, which is
 today's flow with the terminal removed — useful on its own, and the fallback if the panel turns
 out to resist scripting.
+
+### Step 10 — Run the whole flow  ·  WW-094  ·  designed 2026-08-03, not built
+
+One button on a listing that already has its images and its JSON. It runs the steps that exist,
+in order, and **stops for review instead of publishing**.
+
+```
+finish  →  check  →  fill Flipkart  →  fill Meesho  →  STOP, you press Submit
+```
+
+**Two decisions, made by Vansh on 2026-08-03. Do not re-litigate them.**
+
+- **It fills, it does not submit.** Both forms are left on screen, filled, for a human to send.
+  A wrong listing live on two marketplaces is slow and public to undo, and the pipeline was
+  always *generate → validate → review → upload*. The Submit button stays human.
+- **Meesho gets the Excel bulk-upload file first, browser automation later.** The spreadsheet
+  format changes rarely; a web form changes constantly, and Flipkart's already needed
+  `inspect.ts` to re-derive selectors once. Ship the file so the flow is complete end to end,
+  then put WW-093's browser fill on top. Nothing is wasted — the field mapping is the same work
+  either way.
+
+#### The report is the feature, not the automation
+
+The automation is sequencing code we already have. **What makes this worth building is that when
+something goes wrong it says which of three things happened**, because "it failed" tells the
+person running it nothing they can act on.
+
+| | what it means | what the app does |
+|---|---|---|
+| **Blocked** | This step could not run and nothing after it ran either. | Stop. Name the step, the cause, and the one thing to fix. |
+| **Needs a hand** | The flow continued. Something wants a human afterwards. | Keep going. Collect it and show it at the end. |
+| **Done** | Nothing to say. | Say so, once. |
+
+Every result names **where to resume** — the step to re-run, not "start again".
+
+**Blocking, because continuing would write something wrong:**
+- two files at the same position number (`duplicatePositions` already detects this)
+- no images in the folder, or no `image-meta`/`products` JSON for the listing
+- not logged in to Flipkart or Meesho
+- a required form field the JSON has no value for
+
+**Not blocking, because the output is still correct enough to look at:**
+- a value over the panel's character limit — `paste` already reports which and by how much
+- an image that is not 1:1, or has no per-image description
+- emoji in a Flipkart field — the app can already fix this one itself
+- a shipping fee that changed after a new main image (read it before submitting — `SHIPPING-COST.md`)
+
+**The rule that makes it safe: a step never runs if the one before it was blocked.** Half a
+listing on Flipkart and nothing on Meesho is worse than a clean stop with a reason.
+
+Reuse: `runFinish`, `runCheck`, `fillListing` and `paste`'s validation all exist and are already
+options-in/result-out. New work is the orchestrator, the three-way result type, and the Meesho
+Excel writer.
 
 ## Three things the packaged app must handle
 
