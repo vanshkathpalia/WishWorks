@@ -32,6 +32,11 @@ const api: WwApi = {
   savePrompt: (file: string, text: string) => ipcRenderer.invoke("savePrompt", file, text),
   readVersion: (file: string) => ipcRenderer.invoke("readVersion", file),
 
+  materials: () => ipcRenderer.invoke("materials"),
+  inventoryPrompt: () => ipcRenderer.invoke("inventoryPrompt"),
+  costInventory: (file: string, overrides: Record<number, string>) =>
+    ipcRenderer.invoke("costInventory", file, overrides),
+
   scanPhotos: (from: string, root: string) => ipcRenderer.invoke("scanPhotos", from, root),
   importPhoto: (item: PhotoItem, position: number, opts: { move?: boolean }) =>
     ipcRenderer.invoke("importPhoto", item, position, opts),

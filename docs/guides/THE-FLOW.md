@@ -170,6 +170,16 @@ Full explanation and exact prompts: **"The main image"** and **"Prompt B"** in
      If you want the border, the safe way is **not** the AI: take the plain photo and run
      `npm run finish -- --square --border=107`, which pads the approved picture exactly and
      cannot change the balloons or the spelling.
+   - *Message 2b — only if you want the balloons somewhere else.* The hero prompt always puts the
+     garland on the **top and the left**. Four follow-ups move it, and change nothing else — send
+     one straight after the photo comes back, in the same chat:
+     - `PROMPT-layout-right.md` — top and the **right**, mirroring the default.
+     - `PROMPT-layout-both-sides.md` — top and **both** sides, like an open doorway.
+     - `PROMPT-layout-corners.md` — two **diagonal corner clusters**, open in the middle.
+     - `PROMPT-layout-arch.md` — a **full arch**, floor to floor.
+
+     Send one, look at it, send another to compare. The model redraws the whole photo on each of
+     these, so **re-check the counts and the spelling of the foil letters** every time.
    - *Message 3 — only if a count is off* (e.g. "4 confetti but there are 3 — remove one").
    → Save it as **`1.png`**, and **delete the old `1.jpg`** — one file per number.
 2. **Image 2 — `PROMPT-infographic.md`** builds the "what's inside" infographic — a card per
@@ -380,6 +390,31 @@ in the same order.
 > of our test images produced **₹256** — a listing that would have sat there earning nothing with
 > no obvious cause. Five seconds, every time the main image changes. Everything else about that
 > fee has been tested to death: see `SHIPPING-COST.md` and **do not re-run those tests.**
+
+---
+
+## Costing a kit — the Inventory panel (in the app only)
+
+Not a step of the listing flow, which is why it sits at the bottom of the rail beside **Log in**
+rather than in the numbered list: you cost a kit once when you design it, and what comes out is
+the price that later goes *into* the listing.
+
+1. **Drop the inventory picture** on the left. Nothing is read off it by the app — it is there so
+   you can read the table against the sheet it came from. That glance is the check.
+2. **Copy the prompt** and attach the same picture in ChatGPT. The prompt goes out with the price
+   list appended and asks for those names back **exactly**, misspellings and all, because those
+   names are the lookup keys.
+3. **Drop the reply's `.json` back.** The table shows every line, what it was priced as, and the
+   total.
+
+> **The number that matters is the one next to the total: how many lines are not on the price
+> list.** Those cost nothing in the total, so a kit with four unknown items shows a total that is
+> too low. Either correct the row with the dropdown — every row is correctable, including ones
+> that matched — or the material needs adding to the price list, which means a new build.
+
+The **sell at** figure is `cost / (1 - margin)`, over the **cost of materials only**. It does not
+know Meesho's commission, the shipping fee, GST or packaging, so treat it as a floor and not as a
+listing price until the real formula is in.
 
 ---
 

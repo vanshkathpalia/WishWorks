@@ -8,14 +8,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { CleanUp, ConvertResult, Row } from "../shared.js";
-
-/**
- * A local path as a `file://` URL for an <img>. Handles `C:\Users\…` as well as `/Users/…`,
- * because the renderer is the one place that has to build these by hand and Windows is where a
- * `/`-only version would silently show broken thumbnails.
- */
-const fileUrl = (p: string) =>
-  "file:///" + p.replace(/\\/g, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+import { fileUrl } from "./ui.js";
 
 /** A comma-separated position list ("2,3,4") both ways. Empty means every image. */
 const parsePositions = (s: string) =>

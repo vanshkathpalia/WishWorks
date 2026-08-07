@@ -19,6 +19,13 @@
  * SupplierHub's 60 -> 49 shipping result was traced to (see docs/guides/SHIPPING-COST.md). Same
  * for the two infographics, which are genuinely two different pictures: 2.png shows counts only,
  * 3.png repeats them with measured sizes.
+ *
+ * Message 2b is the same idea for LAYOUT. The hero prompt puts the garland on the top and left,
+ * every time, and that is the only composition we have ever shipped. The four alternatives are
+ * follow-up messages rather than four copies of the hero prompt on purpose: a copy would mean
+ * every future fix to the counts rules, the no-props rules or the SEO wording has to be made five
+ * times, and four of them would be missed. Each layout file is three lines that change where the
+ * balloons sit and nothing else.
  */
 
 import React, { useEffect, useState } from "react";
@@ -103,6 +110,29 @@ const MESSAGES: Message[] = [
         the reply is a square photo: save it into this listing's clean folder as <b>1.png</b> and{" "}
         <b>delete the old 1.jpg</b> — one file per number, or <i>finish</i> will stop with
         position 1 twice.
+      </>
+    ),
+  },
+  {
+    n: "2b",
+    title: "Move the balloons — only if you want a different layout",
+    prompts: [
+      {
+        file: "PROMPT-layout-right.md",
+        label: "Top + right",
+        note: <>Mirrors the default, which frames the top and the left.</>,
+      },
+      { file: "PROMPT-layout-both-sides.md", label: "Top + both sides" },
+      { file: "PROMPT-layout-corners.md", label: "Two diagonal corners" },
+      { file: "PROMPT-layout-arch.md", label: "Full arch, floor to floor" },
+    ],
+    attach: (
+      <>
+        Nothing to attach — same chat, straight after the photo comes back. Each of these changes{" "}
+        <b>only where the balloons sit</b> and says to keep the counts, but the model redraws the
+        whole picture, so <b>re-check the counts and the spelling of the foil letters</b> on what
+        comes back. Send one, look at it, send another if you want to compare — the one you keep is
+        the one you save as <b>1.png</b>.
       </>
     ),
   },

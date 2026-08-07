@@ -18,6 +18,19 @@ import type { Listing, StepId } from "../shared.js";
 export const joinPath = (dir: string, name: string) =>
   dir.includes("\\") && !dir.includes("/") ? `${dir}\\${name}` : `${dir}/${name}`;
 
+/**
+ * A local path as a `file://` URL for an `<img>`. Handles `C:\Users\…` as well as `/Users/…`,
+ * because the renderer is the one place that has to build these by hand and Windows is where a
+ * `/`-only version would silently show broken thumbnails. `encodeURIComponent` per segment is what
+ * makes a folder with a space in it work — and the workspace default is under "Application
+ * Support".
+ *
+ * It lived in Convert.tsx and PhotoInbox.tsx as two identical copies; the third panel that needed
+ * it is what made that worth fixing.
+ */
+export const fileUrl = (p: string) =>
+  "file:///" + p.replace(/\\/g, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+
 /** Copy text to the clipboard and say so for a moment. The whole interaction is one click. */
 export function CopyButton({ text, label = "Copy", disabled }: { text: string; label?: string; disabled?: boolean }) {
   const [done, setDone] = useState(false);

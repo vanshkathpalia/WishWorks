@@ -12,9 +12,7 @@
 
 import React, { useEffect, useState } from "react";
 import type { PhotoItem } from "../shared.js";
-
-const fileUrl = (p: string) =>
-  "file:///" + p.replace(/\\/g, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+import { fileUrl } from "./ui.js";
 
 const ago = (t: number) => {
   const m = Math.round((Date.now() - t) / 60000);

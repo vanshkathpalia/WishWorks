@@ -14,6 +14,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Convert } from "./Convert.js";
 import { Images } from "./Images.js";
+import { Inventory } from "./Inventory.js";
 import { Flipkart } from "./Flipkart.js";
 import { Check, Finish, ListingCopy, Meesho } from "./steps.js";
 import "./styles.css";
@@ -52,6 +53,12 @@ function Panel({ step }: { step: number }) {
       return <Flipkart n={6} />;
     case 6:
       return <Meesho n={7} />;
+    // Costing is deliberately outside the numbering, for the reason login is: it is not a stage a
+    // listing passes through. You cost a kit once when you design it, and what comes out is the
+    // price that later goes INTO the listing — so numbering it 8 would put it after the step it
+    // feeds. `n={0}` renders the heading without a number.
+    case 7:
+      return <Inventory n={0} />;
     default:
       return null;
   }
@@ -134,6 +141,9 @@ function App() {
           ))}
         </ol>
         <div className="rail-foot">
+          <button className={step === 7 ? "current" : ""} onClick={() => setStep(7)}>
+            Inventory cost
+          </button>
           {/* Logging in is not a step of its own — it is the top of the Flipkart screen, where
               the indicator is next to the thing that needs it. This is a shortcut to that. */}
           <button onClick={() => setStep(5)}>Log in to Flipkart</button>

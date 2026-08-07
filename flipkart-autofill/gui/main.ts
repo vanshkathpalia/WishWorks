@@ -22,7 +22,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { CleanUp, ConvertResult, Row, StepId } from "./shared.js";
+import type { Attempt, CleanUp, ConvertResult, Row, StepId } from "./shared.js";
 
 app.setName("WishWorks");
 
@@ -277,6 +277,54 @@ ipcMain.handle("savePrompt", async (_e, file: string, text: string) =>
 );
 ipcMain.handle("readVersion", async (_e, file: string) =>
   (await promptsEngine()).readVersion(file),
+);
+
+// ---------------------------------------------------------------- inventory costing
+
+const inventoryEngine = () => import("../src/inventory-core.js");
+
+ipcMain.handle("materials", async () => (await inventoryEngine()).loadMaterials());
+
+/**
+ * The one prompt that is not handed over verbatim: the price list is appended to it.
+ *
+ * `PROMPT-inventory.md` asks for material names copied exactly from "the price list below", and
+ * the list it means is the one THIS machine will look them up in. Shipping a copy of the list
+ * inside the prompt file would go stale the first time a price row is renamed, and every line
+ * would come back unmatched with nothing on screen explaining why.
+ *
+ * An append, never a substitution — nothing is parsed out of the prompt, so it stays editable in
+ * the prompt editor and no edit can break this. Category is included because two suppliers'
+ * "Curtain" rows would otherwise be indistinguishable in the list; the reply only needs the name.
+ */
+ipcMain.handle("inventoryPrompt", async () => {
+  const { loadMaterials } = await inventoryEngine();
+  const text = (await (await promptsEngine()).readPrompt(promptDirs(), "PROMPT-inventory.md")).text;
+  const list = loadMaterials()
+    .map((m) => `- ${m.material}   (${m.category})`)
+    .join("\n");
+  return `${text.trimEnd()}\n\n${list || "- (the price list is empty — nothing to match against)"}\n`;
+});
+
+ipcMain.handle(
+  "costInventory",
+  async (_e, file: string, overrides: Record<number, string>): Promise<Attempt<unknown>> => {
+    const { costKit, loadMaterials, readKitFile } = await inventoryEngine();
+    let json: unknown;
+    try {
+      json = JSON.parse(await readFile(file, "utf8"));
+    } catch {
+      // A .json that will not parse is the normal way this fails — the reply was copied out of
+      // the chat by hand and the code fence came with it. Say that, rather than a stack trace.
+      return { ok: false, message: `${path.basename(file)} is not valid JSON. If you pasted the reply into a file by hand, check the \`\`\`json fence did not come with it.` };
+    }
+    const lines = readKitFile(json);
+    if (lines.length === 0) {
+      return { ok: false, message: `${path.basename(file)} has no item lines in it. The reply should be a JSON object with a "lines" list.` };
+    }
+    const sku = String((json as { sku?: unknown }).sku ?? "");
+    return { ok: true, result: { sku, kit: costKit(lines, loadMaterials(), overrides ?? {}) } };
+  },
 );
 
 // ---------------------------------------------------------------- the AI's pictures

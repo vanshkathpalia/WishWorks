@@ -1,0 +1,18 @@
+{
+  "_": "PLACEHOLDER — the real price sheet has not been sent yet (WW-115).",
+  "_source": "Derived from the one SKU in 'inventory for distribution - Dropdown.csv' (MKU003). That export's cost column is a #N/A VLOOKUP into a sheet that was never exported, so these unit prices are line_cost / quantity: 16 for 20 balloons = 80 paise each, 4 for 2 confetti = 200, 8 for 2 curtains = 400. Enough to build and test against, not enough to price a real kit.",
+  "_names": "Names are copied VERBATIM from that export, misspellings included (MATALIC, CONFETI, MATTALIC, 'Glue dote stripe'). That is deliberate, not laziness: PROMPT-inventory.md hands this list to the AI and asks for these exact strings back, so the name here and the name in the reply are one key. Cleaning a name is fine — it just has to be cleaned here, where the prompt reads it from. Never in one place only.",
+  "_missing": "Banner has no price anywhere in that export, so it is absent rather than zero. A kit containing it shows 'no price' on that line and says the total is short — which is the truth.",
+  "_paise": "Cost of ONE unit, in integer paise. Money never lives in this repo as a float.",
+  "materials": [
+    { "category": "Balloon", "material": "BLUE Balloon", "paise": 80 },
+    { "category": "Balloon", "material": "BLUE Dark Balloon", "paise": 80 },
+    { "category": "Balloon", "material": "WHITE BALLOONS", "paise": 80 },
+    { "category": "Balloon", "material": "SILVER MATALIC BALLOONS", "paise": 80 },
+    { "category": "Balloon", "material": "CONFETI SILVER BALLOONS", "paise": 200 },
+    { "category": "KT", "material": "BLUE MATTALIC Curtain", "paise": 400 },
+    { "category": "Tape", "material": "Glue dote stripe", "paise": 100 },
+    { "category": "Tape", "material": "ARCH TAPE", "paise": 350 },
+    { "category": "Character", "material": "Car theme topper", "paise": 0 }
+  ]
+}

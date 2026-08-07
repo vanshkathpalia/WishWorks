@@ -23,10 +23,11 @@ import type { FillResult, SessionStatus } from "../src/browser-core.js";
 import type { FieldRow } from "../src/listing.js";
 import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
+import type { CostedLine, Kit, Material } from "../src/inventory-core.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
   Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
-  FillResult, SessionStatus, FieldRow,
+  FillResult, SessionStatus, FieldRow, CostedLine, Kit, Material,
 };
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
@@ -36,7 +37,8 @@ export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string 
  * Steps that open a picker each remember their own folder. One global "last folder" would have
  * converting (which reaches for ~/Downloads) fighting finishing (the WhatsApp archive).
  */
-export type StepId = "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox";
+export type StepId =
+  | "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox" | "inventory";
 
 /**
  * The tag clean-up, which belongs on this step because the engine does it here: cropping and
@@ -101,6 +103,26 @@ export interface WwApi {
   /** Save an edit, keeping what it said before as a dated version. */
   savePrompt(file: string, text: string): Promise<PromptFile>;
   readVersion(file: string): Promise<string>;
+
+  /** The shipped price list, for the correction dropdowns. */
+  materials(): Promise<Material[]>;
+  /**
+   * `PROMPT-inventory.md` with the current price list appended.
+   *
+   * The one prompt that is not copied verbatim, and the append is deliberately an append and not
+   * a substitution: the prompt asks for names copied exactly from a list, so the list has to be
+   * the one this machine will look them up in. Pasting a stale list is how every line comes back
+   * unmatched. Nothing is parsed out of the file, so an edit in the prompt editor cannot break it.
+   */
+  inventoryPrompt(): Promise<string>;
+  /**
+   * Read the AI's reply and price it. `overrides` maps a line index to `category|material` — what
+   * the correction dropdown sends. Re-runs on every correction; it is a few dozen multiplications.
+   */
+  costInventory(
+    file: string,
+    overrides: Record<number, string>,
+  ): Promise<Attempt<{ sku: string; kit: Kit }>>;
 
   /** Match downloaded pictures to the listing folders under an archive root. Changes nothing. */
   scanPhotos(from: string, root: string): Promise<PhotoItem[]>;

@@ -12,6 +12,9 @@
 > `PROMPT-add-border.md` when the plain photo already exists and only needs framing;
 > the infographic is either counts-only (`PROMPT-infographic.md`) or the same items with
 > measured sizes (`PROMPT-infographic-sizes.md`).
+> The hero always puts the garland top-left. `PROMPT-layout-{right,both-sides,corners,arch}.md`
+> are **follow-up messages** that move it and change nothing else — three lines each, deliberately
+> not four copies of the hero prompt, so a fix to the counts/props/SEO rules is made once.
 > Then, in one chat, `PROMPT-meta.md` describes the finished ones and writes the Meesho
 > copy (→ `image-meta/<ID>.json`) and `PROMPT-product.md` fills the Flipkart fields
 > (→ `products/<ID>.json`). **Those two are split because the ANSWER got truncated, not the
@@ -40,6 +43,13 @@ new combo ideas worth listing (Combo Generator). Later: Flipkart API ops sync.
 - Deterministic code computes scores/validations; **Claude only writes copy and explains** —
   grounded in the keyword bank, never inventing attribute values.
 - Money = integer paise. Timestamps = UTC.
+
+**Costing a kit** is `PROMPT-inventory.md` → the app's **Inventory cost** panel (`inventory-core.ts`,
+`categories/materials.json`). It is the one prompt **not** copied verbatim: the app appends the
+current price list, because the prompt asks for names copied exactly from it. **OCR was built and
+then removed** — `tesseract.js` worked, but reading the image only gives a string, and picking
+which price row it is needs a fuzzy matcher whose mistakes are invisible in a total. Don't
+reinstate it; the image sits beside the table and that is the check. See WW-115.
 
 ## Where we are
 P0 Listing Factory works today, driven from the terminal. **Next: the GUI pivot** — Vansh's
