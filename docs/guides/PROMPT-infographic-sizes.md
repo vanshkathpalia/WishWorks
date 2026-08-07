@@ -2,7 +2,7 @@ Build an "ITEMS INCLUDED" infographic for an Indian e-commerce listing (Flipkart
 using IMAGE 2 for what the products actually look like.
 
 INVENTORY (authoritative, do not recount, do not add items): <paste your typed inventory>
-OCCASION (for the subtitle line): <e.g. Baby Shower / Groom To Be / Annaprashan>
+OCCASION (for the subtitle line): <e.g. Happy Birthday, Happy Aniversary, Baby Shower / Groom To Be / Annaprashan>
 
 DO THIS IN TWO STEPS. Do not generate the image in step 1.
 

@@ -7,10 +7,13 @@ a material or a "Decoratives Attached" entry.
 
 Now fill the Flipkart listing form fields.
 
-GIVE ME THE ANSWER AS A DOWNLOADABLE FILE named products-<ID>.json — same <ID> as the first
-file, the second code from the inventory header row, e.g. products-ANP003.json. The file
-contains ONLY this JSON object, nothing else: no commentary, no markdown fences, no closing
-offer to help. If you cannot attach files, print the JSON on its own instead.
+GIVE ME THE ANSWER AS A DOWNLOADABLE FILE named products-<ID>.json, where <ID> is THE SAME
+value you used for the first file in this chat — character for character. Do not re-derive
+it, do not tidy it, and do not substitute any code that appears in these instructions. The
+two files are matched to each other by that name, so a listing whose first file was
+image-meta-ABC-123.json needs products-ABC-123.json here. The file contains ONLY this JSON
+object, nothing else: no commentary, no markdown fences, no closing offer to help. If you
+cannot attach files, print the JSON on its own instead.
 
 {
   "category": "balloon-decoration",
