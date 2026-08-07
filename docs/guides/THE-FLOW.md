@@ -404,6 +404,14 @@ the price that later goes *into* the listing.
 2. **Copy the prompt** and attach the same picture in ChatGPT. It comes back with the items *in
    the words the sheet uses*; matching them to our price list happens in the app, so there is
    nothing to paste into the prompt and sheets written years ago still work.
+
+   > **This is not the same as the pack-reading message in step 3 of a listing.** That one replies
+   > with a *table* and puts the colour in its own column — useful to read, useless here. An item
+   > called just **“Balloons”** fits all thirty-four balloon rows and gets priced off whichever
+   > one sorts first. `PROMPT-inventory.md` asks for **JSON with the colour inside the name**
+   > (`Dark Pink Balloons`, `Pink Metallic Fringe Curtain`) for exactly that reason. If a reply
+   > comes back as a table, say *“as JSON in the shape I asked for, colour inside the item name”*
+   > — same chat, one line.
 3. **Drop the reply's `.json` back.** The table shows every line, what it was priced as, and the
    total. **Press *Keep this kit*** to store it — reopening re-costs it at today's prices.
 

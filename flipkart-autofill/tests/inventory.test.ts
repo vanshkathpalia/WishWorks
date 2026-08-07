@@ -310,6 +310,50 @@ describe("keeping a costed kit", () => {
   });
 });
 
+describe("a real ChatGPT reading, against the real shipped price list", () => {
+  const real = () => loadMaterials(path.join(import.meta.dirname, "..", "categories"));
+
+  it("costs the pink-kitty packet with nothing flagged and nothing missed", () => {
+    // Vansh's own 2026-08-07 reading, item names exactly as they came back once the colour was
+    // folded into the name. This is the end-to-end proof that the rename coordinates with what
+    // the AI actually says — every one of these went through a renamed row or an `aka`.
+    const kit = costKit(
+      [
+        { item: "Dark Pink Balloons", qty: 20 },
+        { item: "Pastel Pink Balloons", qty: 20 },
+        { item: "HBD Banner", qty: 1 },
+        { item: "Kitty Foil Balloon", qty: 1 },
+        { item: "Pink Metallic Fringe Curtain", qty: 2 },
+        { item: "Glue Tape", qty: 1 },
+        { item: "Arch Tape", qty: 1 },
+      ],
+      real(),
+    );
+    expect(kit.lines.map((l) => l.match?.material)).toEqual([
+      "Dark Pink Balloon",
+      "Pink Pastel Balloon",
+      "HBD Banner",
+      "Kitty Foil", // "Balloon" here is the CATEGORY spelled out, not a missing word
+      "Pink Metallic Curtain",
+      "Glue Tape",
+      "Arch Tape",
+    ]);
+    expect(kit.unmatched).toBe(0);
+    expect(kit.noPrice).toBe(0);
+    expect(kit.flagged).toBe(0);
+    expect(kit.totalPaise).toBe(5850);
+  });
+
+  it("still refuses to be confident about a name with its colour missing", () => {
+    // The trap the category rule could have opened. `Balloons` fits all 34 balloon rows; the
+    // matcher must stay unsure, or a sheet whose colour lives in a separate column gets priced
+    // off whichever row happens to sort first.
+    const kit = costKit([{ item: "Balloons", qty: 20 }], real());
+    expect(kit.lines[0].score).toBeLessThan(SURE);
+    expect(kit.flagged).toBe(1);
+  });
+});
+
 describe("the shipped price list", () => {
   it("reads materials.json, and an absent one is empty rather than a crash", () => {
     const dir = tmp();

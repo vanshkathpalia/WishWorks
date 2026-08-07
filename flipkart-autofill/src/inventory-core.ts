@@ -217,12 +217,18 @@ function sameWord(a: string, b: string): boolean {
 export function score(name: string, m: Material): number {
   // Best over the current name and every old one. A sheet written before the 2026-08-07 rename
   // says `CONFETI SILVER BALLOONS`; it has to land on `Silver Confetti Balloon` just as squarely.
-  return Math.max(...[m.material, ...(m.aka ?? [])].map((n) => scoreName(name, n)));
+  return Math.max(...[m.material, ...(m.aka ?? [])].map((n) => scoreName(name, n, m.category)));
 }
 
-function scoreName(name: string, against: string): number {
-  const a = tokens(name);
+function scoreName(name: string, against: string, category = ""): number {
   const b = tokens(against);
+  // A word the CATEGORY explains is not a missing word. Sheets say "Kitty Foil Balloon" where the
+  // list says "Kitty Foil" in the category "Foil Balloon" — the extra "Balloon" is the category
+  // spelled out, and counting it as a miss dropped that line to 80% and flagged it for nothing.
+  // Only ever drops a word the row itself does NOT have, so it cannot manufacture confidence: a
+  // bare "Balloons" against "Black Balloon" is untouched, because that row does contain "balloon".
+  const explained = new Set(tokens(category).filter((w) => !b.includes(w)));
+  const a = tokens(name).filter((w) => !explained.has(w));
   if (a.length === 0 || b.length === 0) return 0;
   if (a.join(" ") === b.join(" ")) return 1;
 
