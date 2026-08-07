@@ -47,6 +47,8 @@ export function Inventory({ n }: { n: number }) {
   const [kit, setKit] = useState<Kit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [margin, setMargin] = useState(50);
+  // The partner's current advice is +60 flat. A default, not a rule — it is editable and saved.
+  const [flat, setFlat] = useState(60);
   const [over, setOver] = useState<"image" | "json" | null>(null);
   const [saved, setSaved] = useState<{ sku: string; file: string; savedAt: string }[]>([]);
   const [note, setNote] = useState<string | null>(null);
@@ -124,7 +126,10 @@ export function Inventory({ n }: { n: number }) {
 
   async function save() {
     if (!lines) return;
-    const kept: SavedKit = { sku, image, lines, overrides, marginPercent: margin, savedAt: "" };
+    const kept: SavedKit = {
+      sku, image, lines, overrides,
+      marginPercent: margin, flatPaise: flat * 100, savedAt: "",
+    };
     const file = await window.ww.saveKit(kept);
     setNote(`Kept as ${file.split(/[\\/]/).pop()}.`);
     setTimeout(() => setNote(null), 4000);
@@ -137,6 +142,7 @@ export function Inventory({ n }: { n: number }) {
     setImage(k.image);
     setOverrides(k.overrides ?? {});
     setMargin(k.marginPercent ?? 50);
+    setFlat(Math.round((k.flatPaise ?? 6000) / 100));
     setLines(k.lines);
     setPaste("");
     setError(null);
@@ -368,27 +374,56 @@ export function Inventory({ n }: { n: number }) {
           </table>
 
           <h3>What to sell it at</h3>
+          {/* Both methods, both answers, no toggle. They disagree by more the bigger the kit
+              gets — a flat +₹60 is 100% on a ₹60 kit and 20% on a ₹300 one — and which one is
+              right is a judgement nobody can make without seeing the two numbers together. A
+              mode switch would hide exactly that. */}
+          <div className="inv-prices">
+            <div className="inv-method">
+              <label className="inline">
+                Margin
+                <input
+                  type="number"
+                  min={0}
+                  max={95}
+                  value={margin}
+                  onChange={(e) => setMargin(Number(e.target.value))}
+                />
+                %
+              </label>
+              <span className="inv-price">{rupees(priceAt(total, margin))}</span>
+              <span className="muted">
+                keeps {margin}% of the price as margin, so it scales with the kit
+              </span>
+            </div>
+            <div className="inv-method">
+              <label className="inline">
+                Add ₹
+                <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={flat}
+                  onChange={(e) => setFlat(Number(e.target.value))}
+                />
+              </label>
+              <span className="inv-price">{rupees(total + flat * 100)}</span>
+              <span className="muted">
+                cost + ₹{flat} flat — the partner's rule. That is{" "}
+                {total > 0 ? Math.round(((flat * 100) / (total + flat * 100)) * 100) : 0}% of this
+                price
+              </span>
+            </div>
+          </div>
           <div className="picks">
-            <label className="inline">
-              Margin
-              <input
-                type="number"
-                min={0}
-                max={95}
-                value={margin}
-                onChange={(e) => setMargin(Number(e.target.value))}
-              />
-              %
-            </label>
-            <span className="inv-price">{rupees(priceAt(total, margin))}</span>
             <button className="primary" onClick={() => void save()}>
               Keep this kit
             </button>
             {note && <span className="muted">{note}</span>}
           </div>
           <p className="muted">
-            <b>This is a floor, not a listing price.</b> It is {margin}% margin over the cost of
-            materials and nothing else — it does not know the marketplace commission, the shipping
+            <b>Both are floors, not listing prices.</b> Each is worked out from the cost of
+            materials and nothing else — neither knows the marketplace commission, the shipping
             fee, GST or packaging. The real formula goes in here once the sheet that computes it
             has been sent.
           </p>

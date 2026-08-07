@@ -100,7 +100,10 @@ export interface SavedKit {
   lines: KitLine[];
   /** Line index → `category|material`. The corrections, kept apart from the reading. */
   overrides: Record<number, string>;
+  /** Both pricing methods are kept, because the panel shows both and neither is "the" answer. */
   marginPercent: number;
+  /** Flat rupees added on top of cost, in paise. The partner's rule of thumb is +₹60. */
+  flatPaise?: number;
   savedAt: string;
 }
 

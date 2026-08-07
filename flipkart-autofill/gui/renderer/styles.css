@@ -1092,3 +1092,43 @@ label.inline input {
   outline: none;
   border-color: var(--accent);
 }
+
+/* Two pricing methods side by side. Neither is "the" answer, so neither gets to be the default
+   and the other a setting — the point is reading them against each other. */
+.inv-prices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.inv-method {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.inv-method .inline {
+  gap: 8px;
+}
+
+/* Number inputs were unstyled, so they rendered as a tiny white box with the value invisible
+   against it — the margin field looked empty on a dark theme. */
+input[type="number"],
+input[type="text"] {
+  width: 5.5em;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+input[type="number"]:focus,
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}

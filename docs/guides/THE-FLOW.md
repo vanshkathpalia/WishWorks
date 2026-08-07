@@ -435,9 +435,17 @@ Four things a line can be, and they need different fixes:
 > Every row is correctable from the dropdown, including ones that matched — it opens on the
 > closest matches with a percentage next to each, then the whole list by category.
 
-The **sell at** figure is `cost / (1 - margin)`, over the **cost of materials only**. It does not
-know Meesho's commission, the shipping fee, GST or packaging, so treat it as a floor and not as a
-listing price until the real formula is in.
+**What to sell it at** shows **two** numbers side by side, and neither is the app's answer:
+
+- **Margin %** — `cost / (1 - margin)`. Scales with the kit, so a bigger kit earns proportionally.
+- **Add ₹ flat** — `cost + 60` by default, the partner's rule of thumb.
+
+They sit together on purpose, because they disagree more the bigger the kit gets: **+₹60 is 100%
+of a ₹60 kit and 20% of a ₹300 one.** Both are editable, and both are kept with the kit.
+
+Both are floors, not listing prices — each is worked out from the cost of materials only, and
+neither knows Meesho's commission, the shipping fee, GST or packaging. Until the real formula is
+in, treat them as the number to stay above.
 
 ---
 
