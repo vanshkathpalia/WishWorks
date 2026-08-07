@@ -40,6 +40,7 @@ export function Inventory({ n }: { n: number }) {
   const [showGaps, setShowGaps] = useState(false);
 
   const [image, setImage] = useState<string | null>(null);
+  const [paste, setPaste] = useState("");
   const [lines, setLines] = useState<KitLine[] | null>(null);
   const [overrides, setOverrides] = useState<Record<number, string>>({});
   const [sku, setSku] = useState("");
@@ -76,8 +77,8 @@ export function Inventory({ n }: { n: number }) {
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [materials]);
 
-  async function loadReply(file: string) {
-    const r = await window.ww.costInventory(file, {});
+  /** Both routes land here, so a pasted reply and a saved file can never behave differently. */
+  function took(r: Awaited<ReturnType<typeof window.ww.costPasted>>) {
     if (!r.ok) {
       setError(r.message);
       return;
@@ -87,6 +88,22 @@ export function Inventory({ n }: { n: number }) {
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
     setKit(r.result);
+  }
+
+  const loadReply = async (file: string) => took(await window.ww.costInventory(file, {}));
+
+  /**
+   * Pasting reads as you paste — no button. The whole interaction is copy in the chat, click here,
+   * Cmd+V, and the table is there; a "Read this" button in between would be one more thing to
+   * explain. Empty stays quiet: clearing the box is not an error.
+   */
+  function pasted(text: string) {
+    setPaste(text);
+    if (text.trim() === "") {
+      setError(null);
+      return;
+    }
+    void window.ww.costPasted(text, {}).then(took);
   }
 
   function dropped(e: React.DragEvent, kind: "image" | "json") {
@@ -99,7 +116,10 @@ export function Inventory({ n }: { n: number }) {
       return;
     }
     const json = paths.find((p) => p.toLowerCase().endsWith(".json"));
-    if (json) void loadReply(json);
+    if (json) {
+      setPaste("");
+      void loadReply(json);
+    }
   }
 
   async function save() {
@@ -118,6 +138,7 @@ export function Inventory({ n }: { n: number }) {
     setOverrides(k.overrides ?? {});
     setMargin(k.marginPercent ?? 50);
     setLines(k.lines);
+    setPaste("");
     setError(null);
   }
 
@@ -175,6 +196,16 @@ export function Inventory({ n }: { n: number }) {
           </p>
 
           <h3>2 — bring the reply back</h3>
+          {/* Pasting first, because that is what actually happens: the reply comes back as a
+              ```json code block in the chat, and asking for a downloadable file is a step
+              ChatGPT does not always offer. The fence and any words around it are fine. */}
+          <textarea
+            className="inv-paste"
+            placeholder="Paste the reply here — copy the whole JSON block out of the chat, fence and all"
+            value={paste}
+            spellCheck={false}
+            onChange={(e) => pasted(e.target.value)}
+          />
           <div
             className={`drop small ${over === "json" ? "over" : ""}`}
             onDragOver={(e) => {
@@ -184,7 +215,7 @@ export function Inventory({ n }: { n: number }) {
             onDragLeave={() => setOver(null)}
             onDrop={(e) => dropped(e, "json")}
           >
-            <strong>Drop the downloaded .json here</strong>
+            <strong>…or drop a saved .json here</strong>
             <div className="picks">
               <button
                 onClick={() =>

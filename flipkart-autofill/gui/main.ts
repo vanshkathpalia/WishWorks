@@ -294,24 +294,47 @@ ipcMain.handle("materialGaps", async () => {
   return { ...gaps(materials), total: materials.length };
 });
 
+/**
+ * One code path for both ways the reply arrives — a saved `.json`, or the code block pasted
+ * straight out of the chat. `extractJson` copes with the fence and any prose around it, so a file
+ * is just text that came from disk and neither route can behave differently from the other.
+ */
+async function costFromText(
+  text: string,
+  overrides: Record<number, string>,
+  what: string,
+): Promise<Attempt<unknown>> {
+  const { costKit, extractJson, loadMaterials, readKitFile } = await inventoryEngine();
+  const json = extractJson(text);
+  if (json === null) {
+    return {
+      ok: false,
+      message: `Could not find any JSON in ${what}. Copy the whole reply from the chat — the \`\`\`json fence and any words around it are fine, but it has to contain the { … } block.`,
+    };
+  }
+  const { sku, lines } = readKitFile(json);
+  if (lines.length === 0) {
+    return {
+      ok: false,
+      message: `There are no item lines in ${what}. The reply should be a JSON object with a "lines" list in it.`,
+    };
+  }
+  return { ok: true, result: costKit(lines, loadMaterials(), overrides ?? {}, sku) };
+}
+
 ipcMain.handle(
   "costInventory",
   async (_e, file: string, overrides: Record<number, string>): Promise<Attempt<unknown>> => {
-    const { costKit, loadMaterials, readKitFile } = await inventoryEngine();
-    let json: unknown;
-    try {
-      json = JSON.parse(await readFile(file, "utf8"));
-    } catch {
-      // A .json that will not parse is the normal way this fails — the reply was copied out of
-      // the chat by hand and the code fence came with it. Say that, rather than a stack trace.
-      return { ok: false, message: `${path.basename(file)} is not valid JSON. If you pasted the reply into a file by hand, check the \`\`\`json fence did not come with it.` };
-    }
-    const { sku, lines } = readKitFile(json);
-    if (lines.length === 0) {
-      return { ok: false, message: `${path.basename(file)} has no item lines in it. The reply should be a JSON object with a "lines" list.` };
-    }
-    return { ok: true, result: costKit(lines, loadMaterials(), overrides ?? {}, sku) };
+    const text = await readFile(file, "utf8").catch(() => null);
+    if (text === null) return { ok: false, message: `Could not read ${path.basename(file)}.` };
+    return costFromText(text, overrides, path.basename(file));
   },
+);
+
+ipcMain.handle(
+  "costPasted",
+  async (_e, text: string, overrides: Record<number, string>): Promise<Attempt<unknown>> =>
+    costFromText(text, overrides, "what you pasted"),
 );
 
 ipcMain.handle(

@@ -38,6 +38,8 @@ const api: WwApi = {
   materialGaps: () => ipcRenderer.invoke("materialGaps"),
   costInventory: (file: string, overrides: Record<number, string>) =>
     ipcRenderer.invoke("costInventory", file, overrides),
+  costPasted: (text: string, overrides: Record<number, string>) =>
+    ipcRenderer.invoke("costPasted", text, overrides),
   costLines: (lines: KitLine[], overrides: Record<number, string>, sku: string) =>
     ipcRenderer.invoke("costLines", lines, overrides, sku),
   saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),

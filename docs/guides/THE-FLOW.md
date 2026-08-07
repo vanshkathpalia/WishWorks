@@ -412,8 +412,13 @@ the price that later goes *into* the listing.
    > (`Dark Pink Balloons`, `Pink Metallic Fringe Curtain`) for exactly that reason. If a reply
    > comes back as a table, say *“as JSON in the shape I asked for, colour inside the item name”*
    > — same chat, one line.
-3. **Drop the reply's `.json` back.** The table shows every line, what it was priced as, and the
-   total. **Press *Keep this kit*** to store it — reopening re-costs it at today's prices.
+3. **Paste the reply back.** It comes out of the chat as a `json` block with a copy button on it —
+   press that, click the box in the panel, paste. **Copy the whole thing**; the ```` ```json ````
+   fence and any words either side are fine, and it reads as you paste with no button to press.
+   Dropping a saved `.json` still works, for a reply you kept.
+
+   The table then shows every line, what it was priced as, and the total. **Press *Keep this kit***
+   to store it — reopening re-costs it at today's prices.
 
 Four things a line can be, and they need different fixes:
 

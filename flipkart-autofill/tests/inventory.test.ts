@@ -21,6 +21,7 @@ import {
   FLOOR,
   SURE,
   costKit,
+  extractJson,
   gaps,
   listKits,
   loadMaterials,
@@ -310,8 +311,56 @@ describe("keeping a costed kit", () => {
   });
 });
 
+describe("pasting the reply straight out of the chat", () => {
+  // The reply comes back as a ```json code block, not a download, so this is the normal route.
+  const BODY = '{ "sku": "K1", "lines": [ { "item": "ARCH TAPE", "qty": 2 } ] }';
+
+  it("takes the fence, and any words either side of it", () => {
+    for (const wrapped of [
+      BODY,
+      "```json\n" + BODY + "\n```",
+      "Here you go:\n\n```json\n" + BODY + "\n```\n\nLet me know if you need anything else.",
+      "```\n" + BODY + "\n```",
+    ]) {
+      expect(readKitFile(extractJson(wrapped)).lines, wrapped.slice(0, 20)).toEqual([
+        { item: "ARCH TAPE", qty: 2 },
+      ]);
+    }
+  });
+
+  it("returns null rather than throwing when there is no JSON in it", () => {
+    expect(extractJson("")).toBeNull();
+    expect(extractJson("I could not read the image, sorry.")).toBeNull();
+    expect(extractJson("```json\n{ oops, not json }\n```")).toBeNull();
+  });
+});
+
 describe("a real ChatGPT reading, against the real shipped price list", () => {
   const real = () => loadMaterials(path.join(import.meta.dirname, "..", "categories"));
+
+  it("costs the reply Vansh actually got, pasted with its fence", () => {
+    // Verbatim from the chat, 2026-08-07 — all caps, no sku, and no `size` on any line.
+    const pasted = `\`\`\`json
+{
+  "sku": "",
+  "lines": [
+    { "item": "DARK PINK BALLOONS", "qty": 20 },
+    { "item": "PASTEL PINK BALLOONS", "qty": 20 },
+    { "item": "HBD BANNER", "qty": 1 },
+    { "item": "KITTY FOIL", "qty": 1 },
+    { "item": "PINK METALLIC CURTAIN", "qty": 2 },
+    { "item": "GLUE TAPE", "qty": 1 },
+    { "item": "ARCH TAPE", "qty": 1 }
+  ]
+}
+\`\`\``;
+    const { sku, lines } = readKitFile(extractJson(pasted));
+    const kit = costKit(lines, real(), {}, sku);
+    expect(kit.unmatched).toBe(0);
+    expect(kit.noPrice).toBe(0);
+    expect(kit.flagged).toBe(0);
+    expect(kit.totalPaise).toBe(5850);
+  });
 
   it("costs the pink-kitty packet with nothing flagged and nothing missed", () => {
     // Vansh's own 2026-08-07 reading, item names exactly as they came back once the colour was

@@ -116,6 +116,12 @@ export interface WwApi {
    * the correction dropdown sends. Re-runs on every correction; it is a few dozen multiplications.
    */
   costInventory(file: string, overrides: Record<number, string>): Promise<Attempt<Kit>>;
+  /**
+   * The same, from text pasted straight out of the chat. The reply arrives as a ```json code
+   * block, not a download, so this is the normal route and the file is the exception. The fence
+   * and any prose around it are tolerated.
+   */
+  costPasted(text: string, overrides: Record<number, string>): Promise<Attempt<Kit>>;
   /** The same, for a kit already read once — reopening, or re-costing after a correction. */
   costLines(
     lines: KitLine[],

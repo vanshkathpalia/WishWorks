@@ -274,6 +274,29 @@ export const materialKey = (m: Material): string => `${m.category}|${m.material}
  * number is dropped — a line with no quantity priced as one unit is a wrong total nobody would
  * question.
  */
+/**
+ * Pull the JSON object out of whatever was pasted.
+ *
+ * The reply arrives as a ```json code block in the chat, not as a download — asking for a file is
+ * an extra step ChatGPT does not always offer. So the normal case is somebody selecting the block
+ * and hitting copy, and what lands on the clipboard carries the fence, sometimes a "Here you go:"
+ * before it, and sometimes a sentence after.
+ *
+ * Taking everything between the FIRST `{` and the LAST `}` handles all three without knowing
+ * anything about markdown. `null` on anything that will not parse, so the caller can say something
+ * useful instead of throwing.
+ */
+export function extractJson(text: string): unknown | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
 export function readKitFile(json: unknown): { sku: string; lines: KitLine[] } {
   const raw = (json as Record<string, unknown>) ?? {};
   const list = (raw.lines ?? raw.items ?? raw.materials ?? []) as Record<string, unknown>[];
