@@ -1,18 +1,844 @@
 {
-  "_": "PLACEHOLDER — the real price sheet has not been sent yet (WW-115).",
-  "_source": "Derived from the one SKU in 'inventory for distribution - Dropdown.csv' (MKU003). That export's cost column is a #N/A VLOOKUP into a sheet that was never exported, so these unit prices are line_cost / quantity: 16 for 20 balloons = 80 paise each, 4 for 2 confetti = 200, 8 for 2 curtains = 400. Enough to build and test against, not enough to price a real kit.",
-  "_names": "Names are copied VERBATIM from that export, misspellings included (MATALIC, CONFETI, MATTALIC, 'Glue dote stripe'). That is deliberate, not laziness: PROMPT-inventory.md hands this list to the AI and asks for these exact strings back, so the name here and the name in the reply are one key. Cleaning a name is fine — it just has to be cleaned here, where the prompt reads it from. Never in one place only.",
-  "_missing": "Banner has no price anywhere in that export, so it is absent rather than zero. A kit containing it shows 'no price' on that line and says the total is short — which is the truth.",
-  "_paise": "Cost of ONE unit, in integer paise. Money never lives in this repo as a float.",
+  "_": "The raw-material price list, and the ONLY place material names live. Ships inside the app; a price change goes out as a release.",
+  "_source": "Vansh's costing sheet, 2026-08-07 (WW-115), renamed and re-categorised to one scheme.",
+  "_naming": "One shape for every row: `<Variant> <Item Type>`, Title Case, singular — 'Golden Star Foil', not 'Star Foil Golden' or 'STAR FOIL GOLDEN'. Word order does not affect matching, but a consistent list is one a person can scan. Sizes and counts that are part of the product's identity go after a comma ('Animal Set, 5 pcs').",
+  "_aka": "Old names from the original sheet. They still MATCH — the partner's existing inventory pictures and every kit saved before the rename use them, and a cleanup that breaks yesterday's data is not a cleanup. Add to this list rather than renaming, whenever a name changes.",
+  "_paise": "Cost of ONE unit in integer paise. `null` means the material is real but its price cell is BLANK in the sheet. The panel says 'no price set', which is a different problem from 'not on the list' and has a different fix. It is never treated as free.",
+  "_categories": "Balloon (latex) · Foil Balloon · Banner · Curtain (was the opaque 'KT') · Themed Set (multi-piece character kits, which used to be split across 'Character' and 'Kit') · Decoration (standalone props, nets, lights, ribbon — was 'Extra'/'Net'/'LED') · Sash · Adhesive (was 'Tape') · Equipment · Packaging. The last two never appear on an inventory sheet; they are here so nothing is lost, not because a kit contains them.",
+  "_sizes": "No size field yet — WW-116. Do not fill these in from the web; they come from the stock.",
   "materials": [
-    { "category": "Balloon", "material": "BLUE Balloon", "paise": 80 },
-    { "category": "Balloon", "material": "BLUE Dark Balloon", "paise": 80 },
-    { "category": "Balloon", "material": "WHITE BALLOONS", "paise": 80 },
-    { "category": "Balloon", "material": "SILVER MATALIC BALLOONS", "paise": 80 },
-    { "category": "Balloon", "material": "CONFETI SILVER BALLOONS", "paise": 200 },
-    { "category": "KT", "material": "BLUE MATTALIC Curtain", "paise": 400 },
-    { "category": "Tape", "material": "Glue dote stripe", "paise": 100 },
-    { "category": "Tape", "material": "ARCH TAPE", "paise": 350 },
-    { "category": "Character", "material": "Car theme topper", "paise": 0 }
+    {
+      "category": "Balloon",
+      "material": "Black Balloon",
+      "paise": 80,
+      "aka": [
+        "BLACK BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Blue Balloon",
+      "paise": 80
+    },
+    {
+      "category": "Balloon",
+      "material": "Dark Blue Balloon",
+      "paise": 80,
+      "aka": [
+        "BLUE Dark Balloon"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Blue Metallic Balloon 741",
+      "paise": 80,
+      "aka": [
+        "BLUE MATTALIC 741"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Blue Pastel Balloon",
+      "paise": 80,
+      "aka": [
+        "BLUE PASTEL BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Brandy Balloon",
+      "paise": 80,
+      "aka": [
+        "BREANDY BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Burgundy Balloon",
+      "paise": 80,
+      "aka": [
+        "BURGENDY BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Chrome Balloon",
+      "paise": 150
+    },
+    {
+      "category": "Balloon",
+      "material": "Blue Confetti Balloon",
+      "paise": 200,
+      "aka": [
+        "CONFETI Blue BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Golden Confetti Balloon",
+      "paise": 200,
+      "aka": [
+        "CONFETI GOLDEN BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Pink Confetti Balloon",
+      "paise": 200,
+      "aka": [
+        "CONFETI PINK BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Silver Confetti Balloon",
+      "paise": 200,
+      "aka": [
+        "CONFETI SILVER BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Rose Gold Confetti Balloon",
+      "paise": 200,
+      "aka": [
+        "CONFETI Rose gold BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Dark Pink Balloon",
+      "paise": 80,
+      "aka": [
+        "DARK PINK BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Emoji Balloon",
+      "paise": 150,
+      "aka": [
+        "Emogi Balloon"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Golden Balloon",
+      "paise": 80,
+      "aka": [
+        "GOLDEN BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Golden Metallic Balloon",
+      "paise": 80
+    },
+    {
+      "category": "Balloon",
+      "material": "Green Balloon",
+      "paise": 80,
+      "aka": [
+        "GREEN BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Green Pastel Balloon",
+      "paise": 80,
+      "aka": [
+        "GREEN PASTEL BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Grey Balloon",
+      "paise": 80
+    },
+    {
+      "category": "Balloon",
+      "material": "Heart Shape Balloon",
+      "paise": 150
+    },
+    {
+      "category": "Balloon",
+      "material": "Maroon Balloon",
+      "paise": 80,
+      "aka": [
+        "Maroon"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Peach Balloon",
+      "paise": 80,
+      "aka": [
+        "PEACH COLOR BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Pink Balloon",
+      "paise": 80,
+      "aka": [
+        "PINK BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Pink Pastel Balloon",
+      "paise": 80,
+      "aka": [
+        "PINK PASTEL BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Dark Purple Balloon",
+      "paise": 80,
+      "aka": [
+        "PURPLE (Dark) BALLOON"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Light Purple Balloon",
+      "paise": 80,
+      "aka": [
+        "PURPLE (LIGHT) BALLOON"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Red Balloon",
+      "paise": 80
+    },
+    {
+      "category": "Balloon",
+      "material": "Red Metallic Balloon",
+      "paise": 80
+    },
+    {
+      "category": "Balloon",
+      "material": "Rose Gold Balloon",
+      "paise": 80,
+      "aka": [
+        "ROSE GOLD BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Silver Metallic Balloon",
+      "paise": 80,
+      "aka": [
+        "SILVER MATALIC BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "White Metallic Balloon",
+      "paise": 80,
+      "aka": [
+        "WHITE MATTALIC BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "White Balloon",
+      "paise": 80,
+      "aka": [
+        "WHITE BALLOONS"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "White Pastel Balloon",
+      "paise": 80,
+      "aka": [
+        "WHITE PASTEL BALLOONS"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "First Birthday Boy Foil",
+      "paise": 200,
+      "aka": [
+        "1 first birthday boy"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Bottle Foil",
+      "paise": 400
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Feet Foil",
+      "paise": 400
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Foil",
+      "paise": 400
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Boy Foil",
+      "paise": 700,
+      "aka": [
+        "Bally Boy"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Moon Foil, Card Packed",
+      "paise": 800,
+      "aka": [
+        "Card Packed Moon Foil Golden"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Silver Moon Foil, Card Packed",
+      "paise": 800,
+      "aka": [
+        "Card Packed Moon Foil Siver"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Green Champagne Bottle Foil",
+      "paise": 400,
+      "aka": [
+        "Champaign Green bottle"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Green Champagne Bottle Foil Big",
+      "paise": 1000,
+      "aka": [
+        "Champaign Green bottle big"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Crown Foil",
+      "paise": 400
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Girl / Boy Round Foil",
+      "paise": 600
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "GTB Foil",
+      "paise": 3500
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Happy Anniversary Foil",
+      "paise": 4000,
+      "aka": [
+        "happy anniversey"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "HBD Foil",
+      "paise": 3800
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Heart Foil",
+      "paise": 150
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Heart Foil Big",
+      "paise": 1000,
+      "aka": [
+        "Heart foil big size"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Kitty Foil",
+      "paise": 150
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Love Foil",
+      "paise": 600
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Moon Foil",
+      "paise": 600,
+      "aka": [
+        "Moon Foil Golden"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Silver Moon Foil",
+      "paise": 600,
+      "aka": [
+        "Moon Foil Silver"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Silver Moon Foil Big",
+      "paise": null,
+      "aka": [
+        "silver moon big"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Mug Foil",
+      "paise": 400
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Number Foil",
+      "paise": 300
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Boy Star Foil",
+      "paise": 200,
+      "aka": [
+        "Star Foil baly boy"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Blue Star Foil",
+      "paise": 150,
+      "aka": [
+        "Star Foil Blue"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Star Foil",
+      "paise": 150,
+      "aka": [
+        "Star Foil Golden"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Pink Star Foil",
+      "paise": 150,
+      "aka": [
+        "Star Foil pink"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Pink Star Foil Medium",
+      "paise": 1000,
+      "aka": [
+        "Star Foil pink medium"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Red Star Foil",
+      "paise": 150,
+      "aka": [
+        "Star Foil Red"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Silver Star Foil",
+      "paise": 150,
+      "aka": [
+        "Star Foil Silver"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Welcome Baby Foil",
+      "paise": 3500
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Welcome Home Foil",
+      "paise": 3800
+    },
+    {
+      "category": "Banner",
+      "material": "6 Month Birthday Banner",
+      "paise": 1000
+    },
+    {
+      "category": "Banner",
+      "material": "Annaprashan Banner",
+      "paise": 1200,
+      "aka": [
+        "Annaprasan banner"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Annaprashan Banner Kit",
+      "paise": 3500,
+      "aka": [
+        "Annaprasan banner kit"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Anniversary Banner",
+      "paise": 1200
+    },
+    {
+      "category": "Banner",
+      "material": "Baby Shower Bunting",
+      "paise": 1200,
+      "aka": [
+        "BABY SHOWER BANTING"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Haldi Banner",
+      "paise": 1200
+    },
+    {
+      "category": "Banner",
+      "material": "HBD Banner",
+      "paise": 1000,
+      "aka": [
+        "happy birthday"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "HBD Bunting",
+      "paise": 1200,
+      "aka": [
+        "HBD banner Banting"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Blue HBD Banner",
+      "paise": 1200,
+      "aka": [
+        "HBD banner blue"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Jungle HBD Banner",
+      "paise": 1200,
+      "aka": [
+        "HBD jungle banner"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Emoji Banner",
+      "paise": null,
+      "aka": [
+        "emogi banner"
+      ]
+    },
+    {
+      "category": "Curtain",
+      "material": "Blue Metallic Curtain",
+      "paise": 400,
+      "aka": [
+        "BLUE MATTALIC Curtain"
+      ]
+    },
+    {
+      "category": "Curtain",
+      "material": "Blue Pastel Curtain",
+      "paise": 400,
+      "aka": [
+        "BLUE Pestle Curtain"
+      ]
+    },
+    {
+      "category": "Curtain",
+      "material": "Golden Curtain",
+      "paise": 400
+    },
+    {
+      "category": "Curtain",
+      "material": "Pink Metallic Curtain",
+      "paise": 400
+    },
+    {
+      "category": "Curtain",
+      "material": "Pink Pastel Curtain",
+      "paise": 400,
+      "aka": [
+        "Pink Pestle Curtain"
+      ]
+    },
+    {
+      "category": "Curtain",
+      "material": "Purple Curtain",
+      "paise": 400
+    },
+    {
+      "category": "Curtain",
+      "material": "Red Curtain",
+      "paise": 400
+    },
+    {
+      "category": "Curtain",
+      "material": "Rose Curtain",
+      "paise": 400
+    },
+    {
+      "category": "Curtain",
+      "material": "Rose Gold Curtain",
+      "paise": 400
+    },
+    {
+      "category": "Curtain",
+      "material": "Silver Curtain",
+      "paise": 400
+    },
+    {
+      "category": "Themed Set",
+      "material": "Animal Set, 5 pcs",
+      "paise": 2400,
+      "aka": [
+        "ANIMAL 5 PCS SET"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Annaprashan Kit With Props",
+      "paise": 2500,
+      "aka": [
+        "Annaprasan with props kit complete"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Cocomelon Set, 5 pcs",
+      "paise": 3800,
+      "aka": [
+        "Cocomelon foil Balloon Set 5 PCs"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Doraemon Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "doremon five pcs set"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "First Birthday Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "first birthday five pcs set"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "GTB Kit",
+      "paise": 3400
+    },
+    {
+      "category": "Themed Set",
+      "material": "Mario Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "mariyo 5 pcs set"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Masha Set, Card Packed",
+      "paise": 3800,
+      "aka": [
+        "masha pack card packed"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Paw Patrol Topper, 2 packs",
+      "paise": null,
+      "aka": [
+        "Paw petrol topper 2 pkt ok"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Peppa Pig Set, 5 pcs",
+      "paise": 3800,
+      "aka": [
+        "peppa pig 5 pse set"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Sonic Set, 5 pcs",
+      "paise": 3400,
+      "aka": [
+        "Sonic 5 pcs set"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Space Theme HBD Set, 5 foils",
+      "paise": 3800,
+      "aka": [
+        "Space Theme HBD kit (5 foils)"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Welcome Home Golden Set, 100 pcs",
+      "paise": null,
+      "aka": [
+        "Welcome home golden 100 pcs ok"
+      ]
+    },
+    {
+      "category": "Decoration",
+      "material": "Butterfly 3D, 12 pcs",
+      "paise": 2500,
+      "aka": [
+        "Butter fly 3D (12 pcs)"
+      ]
+    },
+    {
+      "category": "Decoration",
+      "material": "Car Theme Topper",
+      "paise": null
+    },
+    {
+      "category": "Decoration",
+      "material": "LED String Light, 10 m",
+      "paise": 1900,
+      "aka": [
+        "led 10 mtr"
+      ]
+    },
+    {
+      "category": "Decoration",
+      "material": "Money Plant",
+      "paise": 1500,
+      "aka": [
+        "maniplant"
+      ]
+    },
+    {
+      "category": "Decoration",
+      "material": "Green Net",
+      "paise": 1400
+    },
+    {
+      "category": "Decoration",
+      "material": "Mehndi Colour Net",
+      "paise": 1400,
+      "aka": [
+        "mahndi coulor net"
+      ]
+    },
+    {
+      "category": "Decoration",
+      "material": "White Net",
+      "paise": 1400
+    },
+    {
+      "category": "Decoration",
+      "material": "Yellow Net",
+      "paise": 1400
+    },
+    {
+      "category": "Decoration",
+      "material": "Ribbon",
+      "paise": 100
+    },
+    {
+      "category": "Decoration",
+      "material": "Unicorn",
+      "paise": 500
+    },
+    {
+      "category": "Sash",
+      "material": "BTB Sash",
+      "paise": null
+    },
+    {
+      "category": "Sash",
+      "material": "GTB Sash",
+      "paise": 850
+    },
+    {
+      "category": "Sash",
+      "material": "HBD Sash",
+      "paise": null
+    },
+    {
+      "category": "Adhesive",
+      "material": "Arch Tape",
+      "paise": 350
+    },
+    {
+      "category": "Adhesive",
+      "material": "Glue Dot Strip",
+      "paise": 100,
+      "aka": [
+        "Glue dote stripe"
+      ]
+    },
+    {
+      "category": "Adhesive",
+      "material": "Glue Tape",
+      "paise": 350
+    },
+    {
+      "category": "Adhesive",
+      "material": "Adhesive Hook",
+      "paise": 150
+    },
+    {
+      "category": "Equipment",
+      "material": "Balloon Pump",
+      "paise": 1400,
+      "aka": [
+        "pump"
+      ]
+    },
+    {
+      "category": "Equipment",
+      "material": "Petti Pump",
+      "paise": null
+    },
+    {
+      "category": "Packaging",
+      "material": "Flipkart Polybag 9x12",
+      "paise": null,
+      "aka": [
+        "9×12 flip cart"
+      ]
+    },
+    {
+      "category": "Packaging",
+      "material": "Meesho Barcode Polybag 9x12",
+      "paise": null,
+      "aka": [
+        "meesho barcode 9×12"
+      ]
+    }
   ]
 }

@@ -85,6 +85,9 @@ const WORKSPACE = storedWorkspace();
 process.env.WW_IMAGES_DIR ??= path.join(WORKSPACE, "images");
 process.env.WW_META_DIR ??= path.join(WORKSPACE, "image-meta");
 process.env.WW_PRODUCTS_DIR ??= path.join(WORKSPACE, "products");
+// Costed kits are user state, like products/ — NOT categories/, which ships read-only inside the
+// app and would lose every saved kit on the next update.
+process.env.WW_KITS_DIR ??= path.join(WORKSPACE, "inventory");
 
 /**
  * Categories are the one WW_* dir that is NOT user state — they ship with the app.
@@ -285,25 +288,10 @@ const inventoryEngine = () => import("../src/inventory-core.js");
 
 ipcMain.handle("materials", async () => (await inventoryEngine()).loadMaterials());
 
-/**
- * The one prompt that is not handed over verbatim: the price list is appended to it.
- *
- * `PROMPT-inventory.md` asks for material names copied exactly from "the price list below", and
- * the list it means is the one THIS machine will look them up in. Shipping a copy of the list
- * inside the prompt file would go stale the first time a price row is renamed, and every line
- * would come back unmatched with nothing on screen explaining why.
- *
- * An append, never a substitution — nothing is parsed out of the prompt, so it stays editable in
- * the prompt editor and no edit can break this. Category is included because two suppliers'
- * "Curtain" rows would otherwise be indistinguishable in the list; the reply only needs the name.
- */
-ipcMain.handle("inventoryPrompt", async () => {
-  const { loadMaterials } = await inventoryEngine();
-  const text = (await (await promptsEngine()).readPrompt(promptDirs(), "PROMPT-inventory.md")).text;
-  const list = loadMaterials()
-    .map((m) => `- ${m.material}   (${m.category})`)
-    .join("\n");
-  return `${text.trimEnd()}\n\n${list || "- (the price list is empty — nothing to match against)"}\n`;
+ipcMain.handle("materialGaps", async () => {
+  const { gaps, loadMaterials } = await inventoryEngine();
+  const materials = loadMaterials();
+  return { ...gaps(materials), total: materials.length };
 });
 
 ipcMain.handle(
@@ -318,14 +306,25 @@ ipcMain.handle(
       // the chat by hand and the code fence came with it. Say that, rather than a stack trace.
       return { ok: false, message: `${path.basename(file)} is not valid JSON. If you pasted the reply into a file by hand, check the \`\`\`json fence did not come with it.` };
     }
-    const lines = readKitFile(json);
+    const { sku, lines } = readKitFile(json);
     if (lines.length === 0) {
       return { ok: false, message: `${path.basename(file)} has no item lines in it. The reply should be a JSON object with a "lines" list.` };
     }
-    const sku = String((json as { sku?: unknown }).sku ?? "");
-    return { ok: true, result: { sku, kit: costKit(lines, loadMaterials(), overrides ?? {}) } };
+    return { ok: true, result: costKit(lines, loadMaterials(), overrides ?? {}, sku) };
   },
 );
+
+ipcMain.handle(
+  "costLines",
+  async (_e, lines: unknown, overrides: Record<number, string>, sku: string) => {
+    const { costKit, loadMaterials } = await inventoryEngine();
+    return costKit(lines as never, loadMaterials(), overrides ?? {}, sku);
+  },
+);
+
+ipcMain.handle("saveKit", async (_e, kit: unknown) => (await inventoryEngine()).saveKit(kit as never));
+ipcMain.handle("listKits", async () => (await inventoryEngine()).listKits());
+ipcMain.handle("openKit", async (_e, file: string) => (await inventoryEngine()).readKit(file));
 
 // ---------------------------------------------------------------- the AI's pictures
 

@@ -1045,3 +1045,31 @@ label.inline input {
 .inv-steps + .error {
   margin-top: 14px;
 }
+
+.inv-saved {
+  gap: 6px;
+}
+.inv-table select.loose {
+  border-color: var(--warn);
+}
+.inv-table .warnpill {
+  margin-left: 8px;
+}
+.inv-gaps {
+  margin-top: 28px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.inv-gaps h3 {
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.inv-gaps ul.kv {
+  margin-top: 12px;
+  max-height: 260px;
+  overflow-y: auto;
+}

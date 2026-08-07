@@ -23,11 +23,11 @@ import type { FillResult, SessionStatus } from "../src/browser-core.js";
 import type { FieldRow } from "../src/listing.js";
 import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
-import type { CostedLine, Kit, Material } from "../src/inventory-core.js";
+import type { CostedLine, Kit, KitLine, Material, SavedKit } from "../src/inventory-core.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
   Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
-  FillResult, SessionStatus, FieldRow, CostedLine, Kit, Material,
+  FillResult, SessionStatus, FieldRow, CostedLine, Kit, KitLine, Material, SavedKit,
 };
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
@@ -107,22 +107,27 @@ export interface WwApi {
   /** The shipped price list, for the correction dropdowns. */
   materials(): Promise<Material[]>;
   /**
-   * `PROMPT-inventory.md` with the current price list appended.
-   *
-   * The one prompt that is not copied verbatim, and the append is deliberately an append and not
-   * a substitution: the prompt asks for names copied exactly from a list, so the list has to be
-   * the one this machine will look them up in. Pasting a stale list is how every line comes back
-   * unmatched. Nothing is parsed out of the file, so an edit in the prompt editor cannot break it.
+   * What the price list still needs — rows with a blank price cell, and rows with no size.
+   * Surfaced in the app because a gap nobody can see is a gap nobody fills.
    */
-  inventoryPrompt(): Promise<string>;
+  materialGaps(): Promise<{ noPrice: Material[]; noSize: Material[]; total: number }>;
   /**
    * Read the AI's reply and price it. `overrides` maps a line index to `category|material` — what
    * the correction dropdown sends. Re-runs on every correction; it is a few dozen multiplications.
    */
-  costInventory(
-    file: string,
+  costInventory(file: string, overrides: Record<number, string>): Promise<Attempt<Kit>>;
+  /** The same, for a kit already read once — reopening, or re-costing after a correction. */
+  costLines(
+    lines: KitLine[],
     overrides: Record<number, string>,
-  ): Promise<Attempt<{ sku: string; kit: Kit }>>;
+    sku: string,
+  ): Promise<Kit>;
+
+  /** Keep a costed kit. The reading and the corrections are stored; the total never is. */
+  saveKit(kit: SavedKit): Promise<string>;
+  /** Every kit kept on this machine, newest first. */
+  listKits(): Promise<{ sku: string; file: string; savedAt: string }[]>;
+  openKit(file: string): Promise<SavedKit>;
 
   /** Match downloaded pictures to the listing folders under an archive root. Changes nothing. */
   scanPhotos(from: string, root: string): Promise<PhotoItem[]>;

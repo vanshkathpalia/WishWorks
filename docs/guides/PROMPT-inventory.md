@@ -5,7 +5,7 @@ Reply with NOTHING but one JSON code block, in exactly this shape:
 {
   "sku": "the kit code printed on the sheet, or an empty string if there is none",
   "lines": [
-    { "material": "a name copied exactly from the price list below", "qty": 20 }
+    { "item": "Blue Metallic Balloon", "qty": 20, "size": "10 inch" }
   ]
 }
 
@@ -13,15 +13,13 @@ Rules:
 
 - One entry per item on the sheet. Read the count off the sheet. Never estimate a count, and never
   fill one in because an item usually comes in a certain number.
-- `material` must be copied **character for character** from the price list at the end of this
-  message — same spelling, same capitalisation. Several of those names are misspelt. Copy the
-  misspelling. They are the keys a costing table looks up, and a tidied-up name matches nothing.
-- If an item on the sheet is not in the price list, still include it, with the name **as printed on
-  the sheet**. Do not map it to the nearest row. It will be flagged and priced by hand, which is
-  the correct outcome — a wrong row in a cost sheet is invisible in a total.
+- `item` is the item's name **as printed on the sheet** — same words, same order. Do not translate
+  it, do not expand an abbreviation, do not tidy a spelling. It is matched against our own price
+  list afterwards, and a helpfully improved name matches less well, not more.
+- Leave the size out of `item` and put it in `size` instead — `"item": "Star Foil", "size": "18
+  inch"`, never `"item": "18 inch Star Foil"`. Omit `size` entirely if the sheet does not state
+  one. Never guess a size from what the item usually is.
 - If the same item appears twice, combine it into one line and add the counts together.
-- Ignore anything that is not an item: headers, totals, "items included", notes about size,
-  prices, and the SKU line itself.
+- Ignore anything that is not an item: headers, totals, "items included", notes about size in
+  general, prices, and the SKU line itself.
 - `qty` is a whole number, never a range and never text.
-
-THE PRICE LIST — copy these names exactly:

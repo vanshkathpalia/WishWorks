@@ -401,16 +401,26 @@ the price that later goes *into* the listing.
 
 1. **Drop the inventory picture** on the left. Nothing is read off it by the app — it is there so
    you can read the table against the sheet it came from. That glance is the check.
-2. **Copy the prompt** and attach the same picture in ChatGPT. The prompt goes out with the price
-   list appended and asks for those names back **exactly**, misspellings and all, because those
-   names are the lookup keys.
+2. **Copy the prompt** and attach the same picture in ChatGPT. It comes back with the items *in
+   the words the sheet uses*; matching them to our price list happens in the app, so there is
+   nothing to paste into the prompt and sheets written years ago still work.
 3. **Drop the reply's `.json` back.** The table shows every line, what it was priced as, and the
-   total.
+   total. **Press *Keep this kit*** to store it — reopening re-costs it at today's prices.
 
-> **The number that matters is the one next to the total: how many lines are not on the price
-> list.** Those cost nothing in the total, so a kit with four unknown items shows a total that is
-> too low. Either correct the row with the dropdown — every row is correctable, including ones
-> that matched — or the material needs adding to the price list, which means a new build.
+Four things a line can be, and they need different fixes:
+
+| On screen | What it means | What to do |
+|---|---|---|
+| *(nothing)* | matched confidently | nothing |
+| **check** | the name fitted more than one row | read that row against the picture |
+| **no price set** | the material is on the list, its price cell is blank | fill the cell in the price list |
+| *— not on the price list —* | no such material | pick the right one, or add a row |
+
+> **The last two are not in the total.** A kit with four of them shows a cost that is too low, and
+> the panel says so above the table. Do not price off a total with uncosted lines in it.
+>
+> Every row is correctable from the dropdown, including ones that matched — it opens on the
+> closest matches with a percentage next to each, then the whole list by category.
 
 The **sell at** figure is `cost / (1 - margin)`, over the **cost of materials only**. It does not
 know Meesho's commission, the shipping fee, GST or packaging, so treat it as a floor and not as a

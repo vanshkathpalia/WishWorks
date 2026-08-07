@@ -7,7 +7,9 @@
  */
 
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { CleanUp, FieldRow, PhotoItem, Row, StepId, WwApi } from "./shared.js";
+import type {
+  CleanUp, FieldRow, KitLine, PhotoItem, Row, SavedKit, StepId, WwApi,
+} from "./shared.js";
 
 const api: WwApi = {
   // Electron 32 removed the non-standard `File.path`, so a dropped folder's real location can
@@ -33,9 +35,14 @@ const api: WwApi = {
   readVersion: (file: string) => ipcRenderer.invoke("readVersion", file),
 
   materials: () => ipcRenderer.invoke("materials"),
-  inventoryPrompt: () => ipcRenderer.invoke("inventoryPrompt"),
+  materialGaps: () => ipcRenderer.invoke("materialGaps"),
   costInventory: (file: string, overrides: Record<number, string>) =>
     ipcRenderer.invoke("costInventory", file, overrides),
+  costLines: (lines: KitLine[], overrides: Record<number, string>, sku: string) =>
+    ipcRenderer.invoke("costLines", lines, overrides, sku),
+  saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),
+  listKits: () => ipcRenderer.invoke("listKits"),
+  openKit: (file: string) => ipcRenderer.invoke("openKit", file),
 
   scanPhotos: (from: string, root: string) => ipcRenderer.invoke("scanPhotos", from, root),
   importPhoto: (item: PhotoItem, position: number, opts: { move?: boolean }) =>

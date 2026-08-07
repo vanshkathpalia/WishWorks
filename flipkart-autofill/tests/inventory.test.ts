@@ -1,126 +1,239 @@
 /**
- * inventory.test.ts — the cost sheet is a money path, so the things pinned here are the ones that
- * would be wrong in a way nobody notices:
+ * inventory.test.ts — the cost sheet is a money path, and matching now happens HERE rather than
+ * being guaranteed by the prompt, so these are the things that would otherwise be wrong quietly:
  *
- *   1. A name that is in no price row is left UNPRICED and counted, never mapped to something
- *      close. A silently substituted row is invisible in a total.
- *   2. The total is in paise and stays exact. 3.5 rupees times twenty is where a sheet starts
- *      disagreeing with itself.
- *   3. `priceAt` is margin, not markup — cost / (1 - m). Getting that backwards under-prices
- *      every kit, and the number still looks plausible.
+ *   1. The ordering between `BLUE Balloon` and `BLUE Dark Balloon`. They are the pair most likely
+ *      to be confused and a wrong one is invisible in a total.
+ *   2. A plural and a real misspelling still match — those are the two commonest differences
+ *      between a sheet and the price list, and treating them as misses makes the tool useless.
+ *   3. Anything below the floor is left UNPRICED and counted, never mapped to the nearest row.
+ *   4. Saving stores the reading, not the total — a stored total freezes last month's prices.
+ *   5. `priceAt` is margin, not markup. Backwards, it under-prices every kit and still looks fine.
  *
  * Run:  npm test
  */
 
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  FLOOR,
+  SURE,
   costKit,
+  gaps,
+  listKits,
   loadMaterials,
   normalize,
   priceAt,
+  readKit,
   readKitFile,
   rupees,
+  saveKit,
+  score,
+  tokens,
   type Material,
 } from "../src/inventory-core.js";
 
 const PRICES: Material[] = [
   { category: "Balloon", material: "BLUE Balloon", paise: 80 },
-  { category: "Balloon", material: "BLUE Dark Balloon", paise: 80 },
+  { category: "Balloon", material: "BLUE Dark Balloon", paise: 120 },
+  { category: "Balloon", material: "SILVER MATALIC BALLOONS", paise: 80 },
   { category: "Balloon", material: "CONFETI SILVER BALLOONS", paise: 200 },
   { category: "Tape", material: "ARCH TAPE", paise: 350 },
+  { category: "KT", material: "BLUE MATTALIC Curtain", paise: 400 },
 ];
 
+const find = (name: string) => PRICES.find((p) => p.material === name)!;
+const tmp = () => mkdtempSync(path.join(tmpdir(), "ww-inv-"));
+
 describe("reading the AI's reply", () => {
-  it("takes lines, items or materials, and qty, quantity or count", () => {
-    expect(readKitFile({ lines: [{ material: "ARCH TAPE", qty: 1 }] })).toEqual([
-      { material: "ARCH TAPE", qty: 1 },
+  it("takes item, material or name, and qty, quantity or count", () => {
+    expect(readKitFile({ sku: "MKU003", lines: [{ item: "ARCH TAPE", qty: 1 }] })).toEqual({
+      sku: "MKU003",
+      lines: [{ item: "ARCH TAPE", qty: 1 }],
+    });
+    expect(readKitFile({ items: [{ name: "ARCH TAPE", count: 2 }] }).lines).toEqual([
+      { item: "ARCH TAPE", qty: 2 },
     ]);
-    expect(readKitFile({ items: [{ name: "ARCH TAPE", count: 2 }] })).toEqual([
-      { material: "ARCH TAPE", qty: 2 },
-    ]);
+  });
+
+  it("keeps a stated size and never invents an absent one", () => {
+    const { lines } = readKitFile({
+      lines: [
+        { item: "Star Foil", qty: 2, size: "18 inch" },
+        { item: "ARCH TAPE", qty: 1 },
+      ],
+    });
+    expect(lines[0].size).toBe("18 inch");
+    expect(lines[1].size).toBeUndefined();
   });
 
   it("drops any line without a name and a positive whole count", () => {
-    // A quantity-less line priced as one unit is a wrong total nobody would question.
-    const lines = readKitFile({
+    const { lines } = readKitFile({
       lines: [
-        { material: "ARCH TAPE" },
-        { material: "", qty: 3 },
-        { material: "BLUE Balloon", qty: 0 },
-        { material: "BLUE Balloon", qty: 2.5 },
-        { material: "BLUE Balloon", qty: "twenty" },
-        { material: "BLUE Balloon", qty: 20 },
+        { item: "ARCH TAPE" },
+        { item: "", qty: 3 },
+        { item: "BLUE Balloon", qty: 0 },
+        { item: "BLUE Balloon", qty: 2.5 },
+        { item: "BLUE Balloon", qty: "twenty" },
+        { item: "BLUE Balloon", qty: 20 },
       ],
     });
-    expect(lines).toEqual([{ material: "BLUE Balloon", qty: 20 }]);
+    expect(lines).toEqual([{ item: "BLUE Balloon", qty: 20 }]);
   });
 
-  it("accepts a quantity the model quoted, because that is not an error", () => {
-    // The prompt asks for a bare number and mostly gets one. `"20"` is still unambiguously
-    // twenty; rejecting it would drop a real line and shrink the total silently, which is
-    // strictly worse than coercing. `"twenty"` is NaN and is dropped, above.
-    expect(readKitFile({ lines: [{ material: "ARCH TAPE", qty: "20" }] })).toEqual([
-      { material: "ARCH TAPE", qty: 20 },
+  it("accepts a quantity the model quoted — `\"20\"` is still twenty", () => {
+    expect(readKitFile({ lines: [{ item: "ARCH TAPE", qty: "20" }] }).lines).toEqual([
+      { item: "ARCH TAPE", qty: 20 },
     ]);
   });
 
   it("survives a reply with no list at all rather than throwing", () => {
-    expect(readKitFile({})).toEqual([]);
-    expect(readKitFile(null)).toEqual([]);
-    expect(readKitFile({ lines: "nope" })).toEqual([]);
+    expect(readKitFile({}).lines).toEqual([]);
+    expect(readKitFile(null).lines).toEqual([]);
+    expect(readKitFile({ lines: "nope" }).lines).toEqual([]);
+  });
+});
+
+describe("matching a name to a price row", () => {
+  it("strips plurals and noise words so the commonest difference is not a miss", () => {
+    expect(tokens("20 pcs of Blue Balloons")).toEqual(["20", "blue", "balloon"]);
+    expect(score("Blue Balloons", find("BLUE Balloon"))).toBe(1);
+  });
+
+  it("prefers the shorter exact row over the longer one that contains it", () => {
+    // The pair most likely to be confused, and here they are 80 vs 120 paise.
+    expect(score("Blue Balloon", find("BLUE Balloon"))).toBe(1);
+    expect(score("Blue Balloon", find("BLUE Dark Balloon"))).toBeLessThan(1);
+    expect(score("Blue Dark Balloon", find("BLUE Dark Balloon"))).toBe(1);
+  });
+
+  it("sees through a misspelling, because the real price list is full of them", () => {
+    // "MATALIC" and "MATTALIC" are in Vansh's actual sheet; a person reading the picture writes
+    // "Metallic". All three have to land on the same row.
+    expect(score("Silver Metallic Balloons", find("SILVER MATALIC BALLOONS"))).toBeGreaterThan(FLOOR);
+    expect(score("Blue Metallic Curtain", find("BLUE MATTALIC Curtain"))).toBeGreaterThan(FLOOR);
+  });
+
+  it("does not treat two short different words as a typo", () => {
+    // 3-4 letter words must match exactly, or `red`/`led` and `12`/`18` collapse together.
+    expect(score("Red Balloon", find("BLUE Balloon"))).toBeLessThan(FLOOR);
+  });
+
+  it("scores an unrelated item at nothing", () => {
+    expect(score("Happy Birthday Banner", find("ARCH TAPE"))).toBe(0);
   });
 });
 
 describe("costing a kit", () => {
-  it("matches through case and punctuation, and multiplies by the count", () => {
-    const kit = costKit([{ material: "blue  balloon", qty: 20 }], PRICES);
+  it("prices a confident match quietly and multiplies by the count", () => {
+    const kit = costKit([{ item: "blue  balloons", qty: 20 }], PRICES);
     expect(kit.lines[0].match?.material).toBe("BLUE Balloon");
-    expect(kit.lines[0].paise).toBe(1600);
+    expect(kit.lines[0].score).toBe(1);
+    expect(kit.lines[0].flagged).toBe(false);
     expect(kit.totalPaise).toBe(1600);
-    expect(kit.unpriced).toBe(0);
+    expect(kit.uncosted).toBe(0);
   });
 
-  it("never substitutes a near name — an unknown item stays unpriced and is counted", () => {
-    // "BLUE Balloons" (plural) is not "BLUE Balloon", and "BLUE Dark Balloon" is a real, cheaper-
-    // to-confuse row sitting right next to it. Guessing here is how a kit gets costed off the
-    // wrong line and nobody ever finds out.
+  it("is confident about a plain misspelling — that is not ambiguity", () => {
+    const kit = costKit([{ item: "Silver Metallic Balloons", qty: 10 }], PRICES);
+    expect(kit.lines[0].match?.material).toBe("SILVER MATALIC BALLOONS");
+    expect(kit.lines[0].score).toBeGreaterThanOrEqual(SURE);
+    expect(kit.lines[0].flagged).toBe(false);
+  });
+
+  it("prices a genuinely ambiguous line but FLAGS it, so it is never silently right", () => {
+    // "Silver Balloons" fits SILVER MATALIC and CONFETI SILVER equally — a word is missing, not
+    // misspelt, and they are 80 vs 200 paise. Picking one and saying nothing is the failure.
+    const kit = costKit([{ item: "Silver Balloons", qty: 10 }], PRICES);
+    expect(kit.lines[0].score).toBeGreaterThanOrEqual(FLOOR);
+    expect(kit.lines[0].score).toBeLessThan(SURE);
+    expect(kit.lines[0].flagged).toBe(true);
+    expect(kit.flagged).toBe(1);
+  });
+
+  it("matches an old name, so sheets written before a rename still cost", () => {
+    // The 2026-08-07 clean-up renamed 76 rows. Every inventory picture the partner already has
+    // says the old thing, and a rename that un-matched them would be a regression, not a tidy-up.
+    const renamed: Material[] = [
+      { category: "Balloon", material: "Silver Confetti Balloon", paise: 200, aka: ["CONFETI SILVER BALLOONS"] },
+    ];
+    expect(costKit([{ item: "Confeti Silver Balloons", qty: 2 }], renamed).totalPaise).toBe(400);
+    expect(costKit([{ item: "Silver Confetti Balloon", qty: 2 }], renamed).totalPaise).toBe(400);
+  });
+
+  it("counts a blank price cell apart from an unknown item — different fixes", () => {
+    // Both leave the line uncosted, but one means "fill in a cell" and the other "add a row".
+    // Collapsing them sends somebody to add a material that is already there.
+    const list: Material[] = [
+      { category: "Sash", material: "BTB Sash", paise: null },
+      { category: "Tape", material: "ARCH TAPE", paise: 350 },
+    ];
     const kit = costKit(
       [
-        { material: "BLUE Balloonz", qty: 20 },
-        { material: "ARCH TAPE", qty: 1 },
+        { item: "BTB Sash", qty: 1 },
+        { item: "Fog Machine", qty: 1 },
+        { item: "ARCH TAPE", qty: 1 },
+      ],
+      list,
+    );
+    expect(kit.noPrice).toBe(1);
+    expect(kit.unmatched).toBe(1);
+    expect(kit.uncosted).toBe(2);
+    // The matched-but-priceless line keeps its material, so the screen can name what is missing.
+    expect(kit.lines[0].match?.material).toBe("BTB Sash");
+    expect(kit.lines[0].paise).toBeNull();
+    // Never folded in as free.
+    expect(kit.totalPaise).toBe(350);
+  });
+
+  it("leaves anything below the floor unpriced and counted, never mapped to the nearest row", () => {
+    const kit = costKit(
+      [
+        { item: "Happy Birthday Banner", qty: 1 },
+        { item: "ARCH TAPE", qty: 1 },
       ],
       PRICES,
     );
     expect(kit.lines[0].match).toBeNull();
     expect(kit.lines[0].paise).toBeNull();
-    expect(kit.unpriced).toBe(1);
+    expect(kit.uncosted).toBe(1);
     // The total counts only what it could price, so it is an underestimate — which is why the
-    // screen has to show `unpriced` next to it.
+    // screen shows `unpriced` right beside it.
     expect(kit.totalPaise).toBe(350);
   });
 
-  it("lets a human override any line, including one that matched", () => {
+  it("still offers the near misses, so an unpriced line is one click from fixed", () => {
+    const kit = costKit([{ item: "Blue Balloonzzz", qty: 1 }], PRICES);
+    expect(kit.lines[0].choices[0].material.material).toBe("BLUE Balloon");
+  });
+
+  it("lets a human override any line, including one that matched confidently", () => {
     const kit = costKit(
       [
-        { material: "BLUE Balloonz", qty: 10 },
-        { material: "BLUE Balloon", qty: 10 },
+        { item: "Blue Balloon", qty: 10 },
+        { item: "Happy Birthday Banner", qty: 1 },
       ],
       PRICES,
-      { 0: "Balloon|BLUE Balloon", 1: "Balloon|BLUE Dark Balloon" },
+      { 0: "Balloon|BLUE Dark Balloon", 1: "Tape|ARCH TAPE" },
     );
-    expect(kit.lines[0].paise).toBe(800);
-    expect(kit.lines[1].match?.material).toBe("BLUE Dark Balloon");
-    expect(kit.unpriced).toBe(0);
-    expect(kit.totalPaise).toBe(1600);
+    expect(kit.lines[0].match?.material).toBe("BLUE Dark Balloon");
+    expect(kit.lines[0].overridden).toBe(true);
+    expect(kit.lines[0].flagged).toBe(false);
+    expect(kit.totalPaise).toBe(1200 + 350);
+    expect(kit.uncosted).toBe(0);
+  });
+
+  it("lets a human say `none of these` about a line the matcher was happy with", () => {
+    const kit = costKit([{ item: "Blue Balloon", qty: 10 }], PRICES, { 0: "" });
+    expect(kit.lines[0].match).toBeNull();
+    expect(kit.uncosted).toBe(1);
+    expect(kit.totalPaise).toBe(0);
   });
 
   it("stays exact where rupees would drift", () => {
-    // 3.5 rupees x 7 is 24.5 — fine once, and the kind of thing that accumulates a paise of
-    // error per line as floats. In paise it is just integers.
-    const kit = costKit([{ material: "ARCH TAPE", qty: 7 }], PRICES);
+    const kit = costKit([{ item: "ARCH TAPE", qty: 7 }], PRICES);
     expect(kit.totalPaise).toBe(2450);
     expect(rupees(kit.totalPaise)).toBe("₹24.50");
     expect(rupees(1600)).toBe("₹16");
@@ -129,8 +242,7 @@ describe("costing a kit", () => {
 
 describe("the selling price", () => {
   it("is margin on the price, not markup on the cost", () => {
-    // 50% margin on a 100 rupee kit is 200, not 150. Markup under-prices every kit and the
-    // number still looks reasonable, which is what makes it worth a test.
+    // 50% margin on a 100 rupee kit is 200, not 150.
     expect(priceAt(10000, 50)).toBe(20000);
     expect(priceAt(10000, 0)).toBe(10000);
     expect(priceAt(10000, 60)).toBe(25000);
@@ -142,11 +254,66 @@ describe("the selling price", () => {
   });
 });
 
+describe("keeping a costed kit", () => {
+  it("stores the reading and the corrections, and no total", () => {
+    const dir = tmp();
+    const file = saveKit(
+      {
+        sku: "MKU003",
+        image: "/somewhere/sheet.png",
+        lines: [{ item: "Blue Balloons", qty: 20 }],
+        overrides: { 0: "Balloon|BLUE Dark Balloon" },
+        marginPercent: 50,
+        savedAt: "",
+      },
+      dir,
+    );
+    const raw = readFileSync(file, "utf8");
+    expect(raw).not.toMatch(/totalPaise/);
+
+    // Reopening re-costs from the reading, so a price change in materials.json reaches every kit
+    // that was ever saved. A stored total would freeze one at last month's balloon price.
+    const back = readKit(file);
+    expect(back.savedAt).not.toBe("");
+    const kit = costKit(back.lines, PRICES, back.overrides, back.sku);
+    expect(kit.lines[0].match?.material).toBe("BLUE Dark Balloon");
+    expect(kit.totalPaise).toBe(2400);
+  });
+
+  it("re-saving the same SKU overwrites instead of piling up copies", () => {
+    const dir = tmp();
+    const base = { image: null, lines: [], overrides: {}, marginPercent: 50, savedAt: "" };
+    saveKit({ ...base, sku: "GTB-2" }, dir);
+    saveKit({ ...base, sku: "GTB-2" }, dir);
+    expect(listKits(dir)).toHaveLength(1);
+  });
+
+  it("survives a SKU that is not a filename, and a missing folder", () => {
+    const dir = tmp();
+    expect(listKits(path.join(dir, "nope"))).toEqual([]);
+    const file = saveKit(
+      { sku: "ANP/003 (1)", image: null, lines: [], overrides: {}, marginPercent: 50, savedAt: "" },
+      dir,
+    );
+    expect(path.basename(file)).toBe("ANP-003-1.json");
+    expect(readKit(file).sku).toBe("ANP/003 (1)");
+  });
+
+  it("ignores a half-written file rather than failing the whole list", () => {
+    const dir = tmp();
+    saveKit(
+      { sku: "OK", image: null, lines: [], overrides: {}, marginPercent: 50, savedAt: "" },
+      dir,
+    );
+    writeFileSync(path.join(dir, "broken.json"), "{ not json");
+    expect(listKits(dir).map((k) => k.sku)).toEqual(["OK"]);
+  });
+});
+
 describe("the shipped price list", () => {
   it("reads materials.json, and an absent one is empty rather than a crash", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "ww-mat-"));
+    const dir = tmp();
     expect(loadMaterials(dir)).toEqual([]);
-
     writeFileSync(
       path.join(dir, "materials.json"),
       JSON.stringify({
@@ -157,21 +324,25 @@ describe("the shipped price list", () => {
         ],
       }),
     );
-    // A row with no number is skipped, so it reads as "not in the list" — which is honest —
-    // rather than costing zero, which would quietly shrink the total.
-    expect(loadMaterials(dir)).toEqual([{ category: "Balloon", material: "BLUE Balloon", paise: 80 }]);
+    // A row with no number is KEPT, with a null price. Dropping it would make a material that is
+    // plainly on the list report as "not on the list", sending someone to add a duplicate row.
+    expect(loadMaterials(dir)).toEqual([
+      { category: "Balloon", material: "BLUE Balloon", paise: 80 },
+      { category: "Balloon", material: "No price yet", paise: null },
+    ]);
+    expect(gaps(loadMaterials(dir)).noPrice.map((m) => m.material)).toEqual(["No price yet"]);
   });
 
-  it("ships with the repo's own list, and every row has a whole-paise price", () => {
+  it("ships with the repo's own list, priced in whole paise or explicitly not at all", () => {
     const real = loadMaterials(path.join(import.meta.dirname, "..", "categories"));
     expect(real.length).toBeGreaterThan(0);
     for (const m of real) {
-      expect(Number.isInteger(m.paise), `${m.material} is not integer paise`).toBe(true);
+      expect(m.paise === null || Number.isInteger(m.paise), `${m.material} is not integer paise`).toBe(true);
       expect(m.category).toBeTruthy();
     }
-    // Names must be unique after normalising, or two rows compete for one lookup key and which
-    // one wins is an accident of file order.
-    const keys = real.map((m) => normalize(m.material));
-    expect(new Set(keys).size).toBe(keys.length);
+    // Names AND old names must be unique after normalising, or two rows compete for one lookup
+    // key and which one wins is an accident of file order.
+    const keys = real.flatMap((m) => [m.material, ...(m.aka ?? [])]).map(normalize);
+    expect(new Set(keys).size, "two rows claim the same name").toBe(keys.length);
   });
 });

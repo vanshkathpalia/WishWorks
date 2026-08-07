@@ -45,11 +45,15 @@ new combo ideas worth listing (Combo Generator). Later: Flipkart API ops sync.
 - Money = integer paise. Timestamps = UTC.
 
 **Costing a kit** is `PROMPT-inventory.md` → the app's **Inventory cost** panel (`inventory-core.ts`,
-`categories/materials.json`). It is the one prompt **not** copied verbatim: the app appends the
-current price list, because the prompt asks for names copied exactly from it. **OCR was built and
-then removed** — `tesseract.js` worked, but reading the image only gives a string, and picking
-which price row it is needs a fuzzy matcher whose mistakes are invisible in a total. Don't
-reinstate it; the image sits beside the table and that is the check. See WW-115.
+`categories/materials.json`, 121 materials). The AI reads the picture *in the sheet's own words*;
+**the matching to a price row happens in our code, not in the prompt**. Two approaches were built
+and rejected first, both recorded in WW-115: OCR in the app (`tesseract.js` worked — but reading
+the image only yields a string, and the hard half is which row it is), and pushing the whole price
+list into the prompt (made matching exact, but sent hundreds of names per sheet and left the app
+owning no data). Don't reinstate either. The safety comes from the screen: the image sits beside
+the table, every line shows its match score, and *no price set* is a different state from *not on
+the list*. **Renaming a material means adding the old name to its `aka`** — the partner's existing
+sheets say `CONFETI SILVER BALLOONS`, and a rename that drops it silently un-matches them.
 
 ## Where we are
 P0 Listing Factory works today, driven from the terminal. **Next: the GUI pivot** — Vansh's
