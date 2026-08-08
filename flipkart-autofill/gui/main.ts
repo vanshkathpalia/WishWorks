@@ -41,6 +41,15 @@ const SETTINGS_FILE = path.join(USER_DATA, "settings.json");
  */
 interface Settings {
   workspace?: string;
+  /**
+   * Let this machine edit the prompt files even though the app is packaged.
+   *
+   * OFF by default and that is the safe default, because an edit made in a package lands in
+   * `userData` and never reaches the repo — so it cannot ship to anyone, and it then outranks
+   * every future release on this machine for that file (WW-125). Vansh runs the .dmg as well as
+   * the source, so he asked for the switch; the Settings panel says what it costs.
+   */
+  editPrompts?: boolean;
   /** Pages worth returning to, saved by the user from whatever they navigated to. */
   shortcuts?: { name: string; url: string }[];
 }
@@ -260,7 +269,9 @@ const photoEngine = () => import("../src/photo-inbox.js");
 const promptDirs = () => ({
   shipped: DOCS,
   userData: USER_DATA,
-  canEditShipped: !app.isPackaged,
+  // In development the repo file is writable and an edit is a real change git can carry. Packaged,
+  // it is off unless this machine has explicitly asked for it — see the Settings comment.
+  canEditShipped: !app.isPackaged || readSettings().editPrompts === true,
 });
 
 /**
@@ -278,6 +289,9 @@ ipcMain.handle("readPrompt", async (_e, file: string) =>
 ipcMain.handle("savePrompt", async (_e, file: string, text: string) =>
   (await promptsEngine()).savePrompt(promptDirs(), file, text),
 );
+ipcMain.handle("editPrompts", () => promptDirs().canEditShipped);
+ipcMain.handle("setEditPrompts", async (_e, on: boolean) => writeSettings({ editPrompts: on }));
+
 ipcMain.handle("readVersion", async (_e, file: string) =>
   (await promptsEngine()).readVersion(file),
 );
@@ -352,6 +366,31 @@ ipcMain.handle("parcelFor", async (_e, lines: unknown) => {
   if (!spec) return null; // no rules shipped — say nothing rather than invent a box
   const parcel = parcelFor(lines as never, loadMaterials(), spec);
   return { parcel, ...flipkartFields(parcel) };
+});
+
+/**
+ * Every kit as one spreadsheet. The JSON is the right thing to STORE and the wrong thing to READ —
+ * the partner has never opened a `.json` and should not have to start.
+ */
+ipcMain.handle("exportKits", async (_e, only: string | null) => {
+  const { listKits, loadMaterials, readKit } = await inventoryEngine();
+  const { loadPackaging } = await import("../src/packaging.js");
+  const { kitsToCsv } = await import("../src/kit-csv.js");
+
+  const rows = listKits();
+  const kits = (only ? rows.filter((k) => k.file === only) : rows).map((k) => readKit(k.file));
+  if (kits.length === 0) return null;
+
+  const suggested = only && kits[0].sku ? `${kits[0].sku}.csv` : "wishworks-kits.csv";
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: "Save the costing sheet",
+    defaultPath: path.join(app.getPath("downloads"), suggested),
+    filters: [{ name: "Spreadsheet", extensions: ["csv"] }],
+  });
+  if (canceled || !filePath) return null;
+
+  await writeFile(filePath, kitsToCsv(kits, { materials: loadMaterials(), packaging: loadPackaging() }));
+  return filePath;
 });
 
 ipcMain.handle("saveKit", async (_e, kit: unknown) => (await inventoryEngine()).saveKit(kit as never));

@@ -26,6 +26,8 @@ const api: WwApi = {
   clearFolders: () => ipcRenderer.invoke("clearFolders"),
   showFolder: (dir: string) => ipcRenderer.invoke("showFolder", dir),
   workspaceDir: () => ipcRenderer.invoke("workspaceDir"),
+  editPrompts: () => ipcRenderer.invoke("editPrompts"),
+  setEditPrompts: (on: boolean) => ipcRenderer.invoke("setEditPrompts", on),
   chooseWorkspace: () => ipcRenderer.invoke("chooseWorkspace"),
 
   listings: () => ipcRenderer.invoke("listings"),
@@ -44,6 +46,7 @@ const api: WwApi = {
     ipcRenderer.invoke("costLines", lines, overrides, sku),
   parcelFor: (lines: KitLine[]) => ipcRenderer.invoke("parcelFor", lines),
   saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),
+  exportKits: (only: string | null) => ipcRenderer.invoke("exportKits", only),
   listKits: () => ipcRenderer.invoke("listKits"),
   openKit: (file: string) => ipcRenderer.invoke("openKit", file),
 

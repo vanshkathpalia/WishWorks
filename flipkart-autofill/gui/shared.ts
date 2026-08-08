@@ -92,6 +92,10 @@ export interface WwApi {
   showFolder(dir: string): Promise<void>;
   /** Where the workspace lives, shown once in Settings so it is never a mystery. */
   workspaceDir(): Promise<string>;
+  /** Whether this machine may edit the shipped prompt files. Always true in development. */
+  editPrompts(): Promise<boolean>;
+  /** Turn that on or off. Takes effect on the next prompt opened; nothing restarts. */
+  setEditPrompts(on: boolean): Promise<void>;
   /** Pick a new workspace. Relaunches the app on success; false means the user cancelled. */
   chooseWorkspace(): Promise<boolean>;
 
@@ -142,6 +146,11 @@ export interface WwApi {
 
   /** Keep a costed kit. The reading and the corrections are stored; the total never is. */
   saveKit(kit: SavedKit): Promise<string>;
+  /**
+   * Write the kits out as a spreadsheet and return where it landed, or null if cancelled.
+   * Pass a kit's file to export just that one, or null for all of them.
+   */
+  exportKits(only: string | null): Promise<string | null>;
   /** Every kit kept on this machine, newest first. */
   listKits(): Promise<{ sku: string; file: string; savedAt: string }[]>;
   openKit(file: string): Promise<SavedKit>;

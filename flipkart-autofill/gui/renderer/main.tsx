@@ -67,10 +67,12 @@ function Panel({ step }: { step: number }) {
 function Settings({ close }: { close: () => void }) {
   const [folders, setFolders] = useState<Record<string, string>>({});
   const [workspace, setWorkspace] = useState("");
+  const [editPrompts, setEditPrompts] = useState(false);
 
   useEffect(() => {
     void window.ww.rememberedFolders().then((f) => setFolders(f as Record<string, string>));
     void window.ww.workspaceDir().then(setWorkspace);
+    void window.ww.editPrompts().then(setEditPrompts);
   }, []);
 
   return (
@@ -100,6 +102,25 @@ function Settings({ close }: { close: () => void }) {
         </button>
         <p className="muted">
           Forgetting is always safe — the app works the same, it just starts in Downloads again.
+        </p>
+
+        <h3>Editing the prompts</h3>
+        <label className="inline">
+          <input
+            type="checkbox"
+            checked={editPrompts}
+            onChange={(e) => {
+              setEditPrompts(e.target.checked);
+              void window.ww.setEditPrompts(e.target.checked);
+            }}
+          />
+          Let me change the prompt files from inside this app
+        </label>
+        <p className="muted">
+          Off by default, and worth understanding before turning it on. An edit made here is saved{" "}
+          <b>on this computer only</b> — it never reaches the project, so it cannot go out in an
+          update to anyone else, and from then on this machine ignores every future version of that
+          one prompt. To change a prompt <i>for everybody</i>, edit it in the project and release.
         </p>
 
         <h3>Where files are kept</h3>

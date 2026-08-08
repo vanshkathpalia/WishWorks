@@ -177,6 +177,13 @@ export function Inventory({ n }: { n: number }) {
     refreshSaved();
   }
 
+  async function exportAll(only: string | null) {
+    const file = await window.ww.exportKits(only);
+    if (!file) return; // cancelled, or nothing saved yet — neither is an error
+    setNote(`Saved to ${file.split(/[\\/]/).pop()}.`);
+    setTimeout(() => setNote(null), 6000);
+  }
+
   async function reopen(file: string) {
     const k = await window.ww.openKit(file);
     setSku(k.sku);
@@ -643,10 +650,14 @@ export function Inventory({ n }: { n: number }) {
             <button className="primary" onClick={() => void save()}>
               {sku ? `Keep ${sku}` : "Keep this kit"}
             </button>
+            {/* The JSON is right to store and wrong to read. This is the same kit as a
+                spreadsheet, for anyone who has never opened a .json and should not have to. */}
+            <button onClick={() => void exportAll(null)}>Save every kit as a spreadsheet</button>
             <span className="muted">
-              Stores the {kit.lines.length} lines as read, any material you corrected, both
+              Keeping stores the {kit.lines.length} lines as read, any material you corrected, both
               pricing rules, and the prices and delivery costs above. Not the total — that is
-              worked out again from today's price list every time you open it.
+              worked out again from today's price list every time you open it, so a price change
+              reaches every kit you have ever saved.
             </span>
             {note && <span className="allgood">{note}</span>}
           </div>
