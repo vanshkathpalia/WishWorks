@@ -42,6 +42,7 @@ const api: WwApi = {
     ipcRenderer.invoke("costPasted", text, overrides),
   costLines: (lines: KitLine[], overrides: Record<number, string>, sku: string) =>
     ipcRenderer.invoke("costLines", lines, overrides, sku),
+  parcelFor: (lines: KitLine[]) => ipcRenderer.invoke("parcelFor", lines),
   saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),
   listKits: () => ipcRenderer.invoke("listKits"),
   openKit: (file: string) => ipcRenderer.invoke("openKit", file),

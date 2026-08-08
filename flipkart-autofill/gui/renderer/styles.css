@@ -1132,3 +1132,23 @@ input[type="text"]:focus {
   outline: none;
   border-color: var(--accent);
 }
+
+.inv-parcel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+.inv-parcel > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.inv-parcel b {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}

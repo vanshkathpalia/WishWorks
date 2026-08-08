@@ -345,6 +345,15 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle("parcelFor", async (_e, lines: unknown) => {
+  const { loadMaterials } = await inventoryEngine();
+  const { flipkartFields, loadPackaging, parcelFor } = await import("../src/packaging.js");
+  const spec = loadPackaging();
+  if (!spec) return null; // no rules shipped — say nothing rather than invent a box
+  const parcel = parcelFor(lines as never, loadMaterials(), spec);
+  return { parcel, ...flipkartFields(parcel) };
+});
+
 ipcMain.handle("saveKit", async (_e, kit: unknown) => (await inventoryEngine()).saveKit(kit as never));
 ipcMain.handle("listKits", async () => (await inventoryEngine()).listKits());
 ipcMain.handle("openKit", async (_e, file: string) => (await inventoryEngine()).readKit(file));

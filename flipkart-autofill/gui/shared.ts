@@ -24,10 +24,11 @@ import type { FieldRow } from "../src/listing.js";
 import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, Material, SavedKit } from "../src/inventory-core.js";
+import type { Parcel } from "../src/packaging.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
   Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
-  FillResult, SessionStatus, FieldRow, CostedLine, Kit, KitLine, Material, SavedKit,
+  FillResult, SessionStatus, FieldRow, CostedLine, Kit, KitLine, Material, SavedKit, Parcel,
 };
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
@@ -128,6 +129,16 @@ export interface WwApi {
     overrides: Record<number, string>,
     sku: string,
   ): Promise<Kit>;
+
+  /**
+   * The posted parcel for a kit — size, weight, volumetric weight, and the two forms Flipkart
+   * asks for. Computed from the inventory (src/packaging.ts), never guessed per listing.
+   */
+  parcelFor(lines: KitLine[]): Promise<{
+    parcel: Parcel;
+    packageDetails: Record<string, string>;
+    dimensions: Record<string, string>;
+  } | null>;
 
   /** Keep a costed kit. The reading and the corrections are stored; the total never is. */
   saveKit(kit: SavedKit): Promise<string>;

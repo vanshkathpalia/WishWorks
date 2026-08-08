@@ -20,7 +20,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { Kit, KitLine, Material, SavedKit } from "../shared.js";
+import type { Kit, KitLine, Material, Parcel, SavedKit } from "../shared.js";
 import { CopyButton, fileUrl } from "./ui.js";
 import { PromptEditor } from "./PromptEditor.js";
 
@@ -52,6 +52,11 @@ export function Inventory({ n }: { n: number }) {
   const [over, setOver] = useState<"image" | "json" | null>(null);
   const [saved, setSaved] = useState<{ sku: string; file: string; savedAt: string }[]>([]);
   const [note, setNote] = useState<string | null>(null);
+  const [parcel, setParcel] = useState<{
+    parcel: Parcel;
+    packageDetails: Record<string, string>;
+    dimensions: Record<string, string>;
+  } | null>(null);
 
   const refreshSaved = useCallback(() => void window.ww.listKits().then(setSaved), []);
 
@@ -72,6 +77,16 @@ export function Inventory({ n }: { n: number }) {
     if (!lines) return;
     void window.ww.costLines(lines, overrides, sku).then(setKit);
   }, [lines, overrides, sku]);
+
+  // The parcel depends on WHAT is in the kit, never on what a line was priced as — correcting a
+  // material's price cannot change the size of the box.
+  useEffect(() => {
+    if (!lines) {
+      setParcel(null);
+      return;
+    }
+    void window.ww.parcelFor(lines).then(setParcel);
+  }, [lines]);
 
   const byCategory = useMemo(() => {
     const groups = new Map<string, Material[]>();
@@ -427,6 +442,106 @@ export function Inventory({ n }: { n: number }) {
             fee, GST or packaging. The real formula goes in here once the sheet that computes it
             has been sent.
           </p>
+
+          {parcel && (
+            <>
+              <h3>The parcel</h3>
+              <p className="muted">
+                Worked out from what is in the kit, not typed per listing.
+                {parcel.parcel.applied.length > 0 ? (
+                  <>
+                    {" "}
+                    This one is bigger than the standard box because it contains a{" "}
+                    <b>{parcel.parcel.applied.join(" and a ")}</b>.
+                  </>
+                ) : (
+                  " Nothing in it needs a bigger box than the standard one."
+                )}
+              </p>
+
+              <div className="inv-parcel">
+                <div>
+                  <span className="muted">Size</span>
+                  <b>
+                    {parcel.parcel.lengthCm} × {parcel.parcel.breadthCm} ×{" "}
+                    {parcel.parcel.heightCm} cm
+                  </b>
+                </div>
+                <div>
+                  <span className="muted">Real weight</span>
+                  <b>{parcel.parcel.grams} g</b>
+                </div>
+                <div>
+                  <span className="muted">Volumetric (L×B×H ÷ 5000)</span>
+                  <b>{parcel.parcel.volumetricGrams} g</b>
+                </div>
+                <div>
+                  <span className="muted">Billed on</span>
+                  <b className={parcel.parcel.billedGrams > parcel.parcel.grams ? "warnpill" : ""}>
+                    {parcel.parcel.billedGrams} g
+                  </b>
+                </div>
+              </div>
+
+              {parcel.parcel.warnings.length > 0 && (
+                <div className="problems">
+                  <ul>
+                    {parcel.parcel.warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Two tabs, two unit systems, and the app deliberately fills only one of them.
+                  `Height` and `Weight` exist on BOTH, and loadProduct() merges every defaults
+                  file into one flat map keyed by label — so one value would be typed as
+                  centimetres here and inches there. Package Details is therefore yours to type,
+                  with the numbers ready to copy; the bot fills the inch block, where nothing
+                  can collide. */}
+              <div className="two">
+                <div className="card">
+                  <b>Price, Stock &amp; Shipping → Package Details</b>
+                  <span className="muted">
+                    Type these four yourself. The app does not fill this block — the same{" "}
+                    <em>Height</em> and <em>Weight</em> labels exist on the other tab in inches,
+                    and it cannot yet tell them apart.
+                  </span>
+                  <ul className="kv">
+                    {Object.entries(parcel.packageDetails).map(([k, v]) => (
+                      <li key={k}>
+                        <b>{k}</b>
+                        <span>
+                          {v} {k === "Weight" ? "KG" : "CM"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <CopyButton
+                    label="Copy all four"
+                    text={Object.entries(parcel.packageDetails)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join("\n")}
+                  />
+                </div>
+                <div className="card">
+                  <b>Additional Description → Dimensions</b>
+                  <span className="muted">
+                    In inches, and the bot fills these — nothing to do here. Shown so you can
+                    check them against the form.
+                  </span>
+                  <ul className="kv">
+                    {Object.entries(parcel.dimensions).map(([k, v]) => (
+                      <li key={k}>
+                        <b>{k}</b>
+                        <span>{v}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
 

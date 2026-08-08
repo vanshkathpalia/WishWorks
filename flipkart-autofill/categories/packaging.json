@@ -1,0 +1,36 @@
+{
+  "_": "How big and heavy the posted parcel is, worked out from what the kit contains (WW-123).",
+  "_why": "Flipkart asks for it twice, in different units and on different tabs, and Meesho asks too. Guessing it per listing is how a listing goes out declaring 8cm when the box is 4 — and the courier weighs the real parcel at pickup and charges the difference back at settlement, which is WW-055. So it is computed from the inventory, once, in one place.",
+  "_units": "Centimetres and grams. The inch values the Additional Description tab wants are derived, never stored — two copies of one measurement drift.",
+  "_volumetric": "Couriers bill on whichever is greater, the real weight or L x B x H / 5000 kg. The panel shows both and says which one you would be charged on.",
+
+  "base": {
+    "lengthCm": 20,
+    "breadthCm": 15,
+    "heightCm": 4,
+    "grams": 250,
+    "_": "Vansh, 2026-08-08: a normal 40-60 piece kit. The 250 g is MEASURED on a real parcel; the dimensions are the standard polybag these are packed in."
+  },
+
+  "maxGrams": 490,
+  "_maxGrams": "Vansh's ceiling — he wants every parcel under 500 g, 490 to leave room. Over it, the panel warns; it does not silently shrink anything.",
+
+  "rules": [
+    {
+      "name": "net",
+      "whenAnyOf": ["Green Net", "Mehndi Colour Net", "White Net", "Yellow Net"],
+      "heightCm": 6,
+      "addGrams": 40,
+      "_": "A net does not fold flat, so the parcel gets taller — Vansh's figure. addGrams is an ESTIMATE and has not been weighed: he confirmed a net adds weight but had no number to hand. Weigh one and correct it here."
+    },
+    {
+      "name": "pump",
+      "whenAnyOf": ["Balloon Pump", "Petti Pump"],
+      "lengthCm": 22,
+      "addGrams": 50,
+      "_": "Vansh's figures, 2026-08-08: about 50 g, and the longer polybag."
+    }
+  ],
+
+  "_matching": "whenAnyOf holds MATERIAL NAMES from materials.json, matched the same way a kit line is — so an old name in its `aka` list works too, and a renamed row keeps working as long as the rename happens in materials.json. Deliberately not a keyword like 'net', which would also catch a future 'Netted Curtain'."
+}
