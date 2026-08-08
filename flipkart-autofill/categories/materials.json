@@ -616,7 +616,8 @@
       "paise": 2400,
       "aka": [
         "ANIMAL 5 PCS SET"
-      ]
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Themed Set",
@@ -624,7 +625,8 @@
       "paise": 2500,
       "aka": [
         "Annaprasan with props kit complete"
-      ]
+      ],
+      "piecesPerPack": 16
     },
     {
       "category": "Themed Set",
@@ -632,7 +634,8 @@
       "paise": 3800,
       "aka": [
         "Cocomelon foil Balloon Set 5 PCs"
-      ]
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Themed Set",
@@ -640,7 +643,8 @@
       "paise": null,
       "aka": [
         "doremon five pcs set"
-      ]
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Themed Set",
@@ -648,7 +652,8 @@
       "paise": null,
       "aka": [
         "first birthday five pcs set"
-      ]
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Themed Set",
@@ -661,7 +666,8 @@
       "paise": null,
       "aka": [
         "mariyo 5 pcs set"
-      ]
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Themed Set",
@@ -685,7 +691,8 @@
       "paise": 3800,
       "aka": [
         "peppa pig 5 pse set"
-      ]
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Themed Set",
@@ -693,7 +700,8 @@
       "paise": 3400,
       "aka": [
         "Sonic 5 pcs set"
-      ]
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Themed Set",
@@ -701,7 +709,8 @@
       "paise": 3800,
       "aka": [
         "Space Theme HBD kit (5 foils)"
-      ]
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Themed Set",
@@ -709,7 +718,8 @@
       "paise": null,
       "aka": [
         "Welcome home golden 100 pcs ok"
-      ]
+      ],
+      "piecesPerPack": 100
     },
     {
       "category": "Decoration",
@@ -717,7 +727,8 @@
       "paise": 2500,
       "aka": [
         "Butter fly 3D (12 pcs)"
-      ]
+      ],
+      "piecesPerPack": 12
     },
     {
       "category": "Decoration",
@@ -840,5 +851,6 @@
         "meesho barcode 9×12"
       ]
     }
-  ]
+  ],
+  "_piecesPerPack": "How many PIECES come in one pack, where a material is bought as a pack. The sheet counts what a buyer sees ('16 photo props'); `paise` is the price of the pack those arrive in, and multiplying the two costed a 25 rupee kit at 400 (WW-137). Set only where the pack size is STATED IN THE NAME, plus 'Annaprashan Kit With Props' = 16 which Vansh gave. NOT guessed anywhere: a wrong number here divides a cost silently, which is the very failure it exists to prevent. Absent means bought singly, like a balloon. STILL MISSING: GTB Kit, Masha Set, Paw Patrol Topper, Annaprashan Banner Kit — nobody has said how many pieces are in those, so they still cost per piece and will read high if a sheet counts their contents."
 }

@@ -46,7 +46,10 @@ export interface CsvOptions {
  * panel does it: a saved total would be last month's balloon price with nothing to say so.
  */
 function block(saved: SavedKit, opts: CsvOptions): string[] {
-  const kit: Kit = costKit(saved.lines, opts.materials, saved.overrides ?? {}, saved.sku);
+  const kit: Kit = costKit(
+    saved.lines, opts.materials, saved.overrides ?? {}, saved.sku,
+    saved.prices ?? {}, saved.counts ?? {},
+  );
   const pieces = kit.lines.reduce((n, l) => n + l.qty, 0);
   const margin = saved.marginPercent ?? 50;
   const flat = saved.flatPaise ?? 0;
@@ -63,7 +66,7 @@ function block(saved: SavedKit, opts: CsvOptions): string[] {
   }
 
   out.push("");
-  out.push(row("Category", "Material as the sheet has it", "Count", "Each", "Line cost", "Priced as", "Note"));
+  out.push(row("Category", "Material as the sheet has it", "Count", "Packs bought", "Each", "Line cost", "Priced as", "Note"));
   for (const l of kit.lines) {
     const note = l.match === null
       ? "NOT ON THE PRICE LIST"
@@ -74,9 +77,9 @@ function block(saved: SavedKit, opts: CsvOptions): string[] {
           : l.flagged
             ? "matched loosely - check it"
             : "";
-    out.push(row(l.match?.category ?? "", l.item, l.qty, money(l.match?.paise), money(l.paise), l.match?.material ?? "", note));
+    out.push(row(l.match?.category ?? "", l.item, l.qty, l.packs, money(l.each), money(l.paise), l.match?.material ?? "", note));
   }
-  out.push(row("", "", pieces, "", money(kit.totalPaise), "TOTAL", ""));
+  out.push(row("", "", pieces, "", "", money(kit.totalPaise), "TOTAL", ""));
 
   const places = Object.entries(saved.marketplaces ?? {}).filter(([, v]) => v?.pricePaise);
   if (places.length > 0) {

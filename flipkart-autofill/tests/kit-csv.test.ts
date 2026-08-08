@@ -37,8 +37,8 @@ describe("a kit as a spreadsheet", () => {
   it("puts the totals on top and the materials under them", () => {
     const csv = kitToCsv(kit(), opts);
     expect(csv).toContain("HBD-Kitty01,21,19.50,39.00,79.50");
-    expect(csv).toContain("Balloon,DARK PINK BALLOONS,20,0.80,16.00,Dark Pink Balloon,");
-    expect(csv).toContain(",,21,,19.50,TOTAL,");
+    expect(csv).toContain("Balloon,DARK PINK BALLOONS,20,20,0.80,16.00,Dark Pink Balloon,");
+    expect(csv).toContain(",,21,,,19.50,TOTAL,");
   });
 
   it("names an uncosted line and says the total is short", () => {

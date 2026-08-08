@@ -377,9 +377,10 @@ ipcMain.handle(
     overrides: Record<number, string>,
     sku: string,
     prices: Record<string, number>,
+    counts: Record<number, number>,
   ) => {
     const { costKit, loadMaterials } = await inventoryEngine();
-    return costKit(lines as never, loadMaterials(), overrides ?? {}, sku, prices ?? {});
+    return costKit(lines as never, loadMaterials(), overrides ?? {}, sku, prices ?? {}, counts ?? {});
   },
 );
 

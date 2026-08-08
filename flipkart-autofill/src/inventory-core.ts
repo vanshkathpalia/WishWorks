@@ -39,6 +39,18 @@ export interface Material {
   /** What we stock, when it is known. Free text — "10 inch", "3.3 ft x 6.5 ft". WW-116. */
   size?: string;
   /**
+   * How many PIECES come in one of these, when it is bought as a pack rather than singly.
+   *
+   * The failure this exists to stop: an inventory sheet counts what a buyer sees — *16 photo
+   * props* — while `paise` is the price of the PACK those sixteen arrive in. Multiplying them
+   * costed one ₹25 kit at ₹400 and pushed a real kit's total from ₹81.50 to ₹456.50, with every
+   * individual figure on screen correct. Set this and the cost becomes
+   * `ceil(pieces / piecesPerPack) x paise`, so sixteen pieces is one pack, and thirty-two is two.
+   *
+   * Absent means what it says: this material is bought and priced one at a time, like a balloon.
+   */
+  piecesPerPack?: number;
+  /**
    * Earlier names for the same material, which still match.
    *
    * The 2026-08-07 clean-up renamed 76 of these rows. The partner's inventory pictures and every
@@ -76,6 +88,8 @@ export interface CostedLine extends KitLine {
   overridden: boolean;
   /** The best few rows, so the dropdown opens on the likely answers. */
   choices: Candidate[];
+  /** How many PACKS this line's pieces work out to. Equals `qty` for anything sold singly. */
+  packs: number;
   /** qty x unit cost, or null when unmatched. */
   paise: number | null;
 }
@@ -113,6 +127,12 @@ export interface SavedKit {
    * NOT a correction to the list — it is a fact about one purchase.
    */
   prices?: Record<string, number>;
+  /**
+   * Corrected counts, keyed by line index. The reading in `lines` is left exactly as the AI gave
+   * it, for the same reason the material corrections are kept apart from it: what was read and
+   * what a human decided are two different facts, and one of them is evidence.
+   */
+  counts?: Record<number, number>;
   /** Both pricing methods are kept, because the panel shows both and neither is "the" answer. */
   marginPercent: number;
   /** Flat rupees added on top of cost, in paise. The partner's rule of thumb is +₹60. */
@@ -258,6 +278,14 @@ function distance(a: string, b: string): number {
  */
 function sameWord(a: string, b: string): boolean {
   if (a === b) return true;
+  // One word being the start of the other is the same root, not a typo: gold/golden,
+  // metal/metallic, confetti/confettis. Edit distance cannot see this — `gold` to `golden` is two
+  // insertions on a six-letter word, so it failed the test below, and `GOLD BALLOONS` matched
+  // **Rose Gold Balloon** over Golden Balloon on a shared exact word. Four letters minimum, which
+  // keeps the short-word guard intact: `net` still does not match `netted`.
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (short.length >= 4 && long.startsWith(short)) return true;
+
   const len = Math.max(a.length, b.length);
   if (len < 5) return false;
   return distance(a, b) <= (len >= 8 ? 2 : 1);
@@ -392,10 +420,15 @@ export function costKit(
   sku = "",
   /** Per-kit unit prices, keyed `category|material`. See `SavedKit.prices`. */
   prices: Record<string, number> = {},
+  /** Corrected counts by line index. See `SavedKit.counts`. */
+  counts: Record<number, number> = {},
 ): Kit {
   const byKey = new Map(materials.map((m) => [materialKey(m), m]));
 
-  const costed: CostedLine[] = lines.map((line, i) => {
+  const costed: CostedLine[] = lines.map((read, i) => {
+    // A corrected count replaces the read one everywhere below, so the packs, the line cost and
+    // the piece total all agree with what is on screen.
+    const line = counts[i] !== undefined ? { ...read, qty: counts[i] } : read;
     const choices = candidates(line.item, materials);
     const override = overrides[i];
     const overridden = override !== undefined;
@@ -412,6 +445,11 @@ export function costKit(
     // that is the whole point of it, for a material nobody has priced yet.
     const each = match ? (prices[materialKey(match)] ?? match.paise) : null;
 
+    // What is BOUGHT, which is not always what is counted. A sheet says "16 photo props"; the
+    // price is for the one pack they come in. `ceil` because half a pack cannot be bought.
+    const per = match?.piecesPerPack;
+    const packs = per && per > 0 ? Math.ceil(line.qty / per) : line.qty;
+
     return {
       ...line,
       match,
@@ -422,9 +460,10 @@ export function costKit(
       /** Set when this line's unit price came from the kit rather than the price list. */
       ownPrice: match !== null && prices[materialKey(match)] !== undefined,
       each,
+      packs,
       // A matched material with a blank price cell costs `null`, never 0. Zero would fold into
       // the total as if the item were free, and nothing on screen would ever say otherwise.
-      paise: each !== null && each !== undefined ? each * line.qty : null,
+      paise: each !== null && each !== undefined ? each * packs : null,
     };
   });
 

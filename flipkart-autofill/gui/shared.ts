@@ -134,6 +134,8 @@ export interface WwApi {
     sku: string,
     /** Unit prices for THIS kit only, keyed `category|material`. */
     prices: Record<string, number>,
+    /** Corrected counts, by line index. */
+    counts: Record<number, number>,
   ): Promise<Kit>;
   /**
    * Change a price in the shipped list — every kit, both machines. Refused in a packaged app,

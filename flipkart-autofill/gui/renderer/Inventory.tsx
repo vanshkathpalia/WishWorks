@@ -67,6 +67,8 @@ export function Inventory({ n }: { n: number }) {
   /** Unit prices for THIS kit only, `category|material` -> rupees as typed. */
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [priceNote, setPriceNote] = useState<string | null>(null);
+  /** Counts corrected by hand, by line index. The reading itself is never edited. */
+  const [counts, setCounts] = useState<Record<number, number>>({});
   /** A box size or weight chosen by hand for this kit. Empty means "follow the rules". */
   const [chosen, setChosen] = useState<{
     lengthCm?: number;
@@ -107,8 +109,8 @@ export function Inventory({ n }: { n: number }) {
     const paise = Object.fromEntries(
       Object.entries(prices).map(([k, v]) => [k, Math.round(v * 100)]),
     );
-    void window.ww.costLines(lines, overrides, sku, paise).then(setKit);
-  }, [lines, overrides, sku, prices]);
+    void window.ww.costLines(lines, overrides, sku, paise, counts).then(setKit);
+  }, [lines, overrides, sku, prices, counts]);
 
   // The parcel depends on WHAT is in the kit, never on what a line was priced as — correcting a
   // material's price cannot change the size of the box.
@@ -136,6 +138,7 @@ export function Inventory({ n }: { n: number }) {
     setOverrides({}); // a new reply is a new kit; the last kit's corrections do not apply
     setMarket({}); // and the last kit's prices are certainly not this one's
     setPrices({});
+    setCounts({});
     setChosen({});
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
@@ -181,6 +184,7 @@ export function Inventory({ n }: { n: number }) {
       prices: Object.fromEntries(
         Object.entries(prices).map(([k, v]) => [k, Math.round(v * 100)]),
       ),
+      counts,
       parcel: chosen,
       marginPercent: margin,
       flatPaise: flat * 100,
@@ -248,6 +252,7 @@ export function Inventory({ n }: { n: number }) {
     setPrices(
       Object.fromEntries(Object.entries(k.prices ?? {}).map(([key, v]) => [key, v / 100])),
     );
+    setCounts(k.counts ?? {});
     setChosen(k.parcel ?? {});
     setLines(k.lines);
     setPaste("");
@@ -425,7 +430,30 @@ export function Inventory({ n }: { n: number }) {
                     {l.item}
                     {l.size && <span className="muted"> · {l.size}</span>}
                   </td>
-                  <td>{l.qty}</td>
+                  {/* Editable. The AI counts what the SHEET shows, which is not always what gets
+                      bought — and where it simply miscounted, this is the fix that needs no data
+                      about the material at all. */}
+                  <td>
+                    <input
+                      type="number"
+                      min={0}
+                      value={counts[i] ?? l.qty}
+                      onChange={(e) =>
+                        setCounts((c) =>
+                          e.target.value === ""
+                            ? (({ [i]: _drop, ...rest }) => rest)(c)
+                            : { ...c, [i]: Number(e.target.value) },
+                        )
+                      }
+                    />
+                    {/* The pack maths, spelled out. This line is where a 25 rupee kit became 400,
+                        so the arithmetic is on screen rather than behind the number. */}
+                    {l.match?.piecesPerPack && (
+                      <span className="muted each-was">
+                        {l.packs} × pack of {l.match.piecesPerPack}
+                      </span>
+                    )}
+                  </td>
                   <td>
                     {/* Every row is correctable, including one that matched confidently — the
                         picture is the authority, and a name can be right and still be the wrong

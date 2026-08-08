@@ -537,3 +537,72 @@ describe("a price for one kit versus a price for the list", () => {
     expect(() => setMaterialPrice("Nope|Nothing", 100, dir)).toThrow(/No material/);
   });
 });
+
+describe("a material bought as a pack, not one at a time", () => {
+  // WW-137, and the worst kind of wrong the panel has produced: every figure on screen correct
+  // and the total 5.6x too high, because the count and the price were in different units.
+  const PACKS: Material[] = [
+    { category: "Themed Set", material: "Annaprashan Kit With Props", paise: 2500, piecesPerPack: 16 },
+    { category: "Balloon", material: "Golden Balloon", paise: 80 },
+  ];
+
+  it("charges for the pack, not for every piece in it", () => {
+    const kit = costKit([{ item: "PHOTO PROPS", qty: 16 }], PACKS, { 0: "Themed Set|Annaprashan Kit With Props" });
+    expect(kit.lines[0].packs).toBe(1);
+    expect(kit.totalPaise).toBe(2500); // not 16 x 2500 = 40000
+  });
+
+  it("rounds up, because half a pack cannot be bought", () => {
+    const two = costKit([{ item: "PHOTO PROPS", qty: 17 }], PACKS, { 0: "Themed Set|Annaprashan Kit With Props" });
+    expect(two.lines[0].packs).toBe(2);
+    expect(two.totalPaise).toBe(5000);
+  });
+
+  it("leaves anything sold singly alone", () => {
+    const kit = costKit([{ item: "Golden Balloon", qty: 20 }], PACKS);
+    expect(kit.lines[0].packs).toBe(20);
+    expect(kit.totalPaise).toBe(1600);
+  });
+
+  it("lets a corrected count replace the one that was read", () => {
+    // The general fix, for everything a pack size cannot cover.
+    const kit = costKit([{ item: "Golden Balloon", qty: 20 }], PACKS, {}, "", {}, { 0: 5 });
+    expect(kit.lines[0].qty).toBe(5);
+    expect(kit.totalPaise).toBe(400);
+  });
+
+  it("keeps every pack size honest against the shipped list", () => {
+    // A pack size on a material whose name says a different number is a silent divider.
+    for (const m of loadMaterials(path.join(import.meta.dirname, "..", "categories"))) {
+      if (m.piecesPerPack === undefined) continue;
+      expect(Number.isInteger(m.piecesPerPack) && m.piecesPerPack > 0, m.material).toBe(true);
+      const stated = m.material.match(/(\d+)\s*(?:pcs|pieces|foils)/i);
+      if (stated) expect(m.piecesPerPack, `${m.material} says ${stated[1]}`).toBe(Number(stated[1]));
+    }
+  });
+});
+
+describe("a shorter word that is the start of a longer one", () => {
+  const REAL = () => loadMaterials(path.join(import.meta.dirname, "..", "categories"));
+
+  it("reads GOLD BALLOONS as Golden Balloon, not Rose Gold Balloon", () => {
+    // Found while checking a real kit. `gold` to `golden` is two insertions on a six-letter word,
+    // so edit distance rejected it — while `gold` matched `Rose Gold Balloon` exactly and won on
+    // a shared word. Same price here, so no money was lost; but it flagged Vansh's commonest
+    // item every single time, which trains a person to ignore the flag that matters.
+    const kit = costKit([{ item: "GOLD BALLOONS", qty: 20 }], REAL());
+    expect(kit.lines[0].match?.material).toBe("Golden Balloon");
+    expect(kit.flagged).toBe(0);
+  });
+
+  it("still refuses a short word that merely starts the same", () => {
+    // The guard this could have broken: four letters minimum keeps `net` away from `netted`,
+    // and `red` away from anything.
+    expect(score("Red Balloon", { category: "x", material: "Redo Balloon", paise: 1 })).toBeLessThan(SURE);
+  });
+
+  it("does not let it swallow a genuinely more specific row", () => {
+    const kit = costKit([{ item: "Rose Gold Balloons", qty: 1 }], REAL());
+    expect(kit.lines[0].match?.material).toBe("Rose Gold Balloon");
+  });
+});
