@@ -465,12 +465,6 @@ export function Inventory({ n }: { n: number }) {
               </span>
             </div>
           </div>
-          <div className="picks">
-            <button className="primary" onClick={() => void save()}>
-              Keep this kit
-            </button>
-            {note && <span className="muted">{note}</span>}
-          </div>
           <p className="muted">
             <b>Both are floors, not listing prices.</b> Each is worked out from the cost of
             materials and nothing else — neither knows the marketplace commission, the shipping
@@ -640,6 +634,22 @@ export function Inventory({ n }: { n: number }) {
               </div>
             </>
           )}
+
+          {/* Last thing on the panel, deliberately. It used to sit directly under the two price
+              cards — above the delivery table and the parcel — so the fields below it read as
+              something other than part of the kit, and filling one after pressing Keep silently
+              did nothing. A save button belongs below everything it saves. */}
+          <div className="inv-save">
+            <button className="primary" onClick={() => void save()}>
+              {sku ? `Keep ${sku}` : "Keep this kit"}
+            </button>
+            <span className="muted">
+              Stores the {kit.lines.length} lines as read, any material you corrected, both
+              pricing rules, and the prices and delivery costs above. Not the total — that is
+              worked out again from today's price list every time you open it.
+            </span>
+            {note && <span className="allgood">{note}</span>}
+          </div>
         </>
       )}
 
