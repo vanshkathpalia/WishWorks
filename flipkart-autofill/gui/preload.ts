@@ -47,6 +47,7 @@ const api: WwApi = {
   parcelFor: (lines: KitLine[]) => ipcRenderer.invoke("parcelFor", lines),
   saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),
   exportKits: (only: string | null) => ipcRenderer.invoke("exportKits", only),
+  openKitsFolder: () => ipcRenderer.invoke("openKitsFolder"),
   listKits: () => ipcRenderer.invoke("listKits"),
   openKit: (file: string) => ipcRenderer.invoke("openKit", file),
 

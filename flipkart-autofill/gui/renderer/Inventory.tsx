@@ -58,6 +58,8 @@ export function Inventory({ n }: { n: number }) {
   const [margin, setMargin] = useState(50);
   // The partner's current advice is +60 flat. A default, not a rule — it is editable and saved.
   const [flat, setFlat] = useState(60);
+  // 5% matches the GST_5 tax code on the listings. Editable because a category can differ.
+  const [gst, setGst] = useState(5);
   const [over, setOver] = useState<"image" | "json" | null>(null);
   const [saved, setSaved] = useState<{ sku: string; file: string; savedAt: string }[]>([]);
   const [note, setNote] = useState<string | null>(null);
@@ -496,7 +498,8 @@ export function Inventory({ n }: { n: number }) {
                 <th>Listed at ₹</th>
                 <th>Delivery ₹</th>
                 <th>Delivery is</th>
-                <th>Left after materials + delivery</th>
+                <th>GST</th>
+                <th>Left after materials, delivery and GST</th>
               </tr>
             </thead>
             <tbody>
@@ -504,7 +507,13 @@ export function Inventory({ n }: { n: number }) {
                 const m = market[id] ?? {};
                 const price = (m.price ?? 0) * 100;
                 const ship = (m.ship ?? 0) * 100;
-                const left = price - total - ship;
+                // Vansh's formula: the listing price less delivery is what is taxed. Indian
+                // marketplace prices are GST-INCLUSIVE, so the tax is extracted from that figure
+                // (base x rate / (100 + rate)) rather than added on top of it — adding it on
+                // would invent money the buyer never paid.
+                const taxable = Math.max(price - ship, 0);
+                const tax = Math.round((taxable * gst) / (100 + gst));
+                const left = price - total - ship - tax;
                 const shipShare = price > 0 ? Math.round((ship / price) * 100) : null;
                 const leftShare = price > 0 ? Math.round((left / price) * 100) : null;
                 return (
@@ -527,6 +536,7 @@ export function Inventory({ n }: { n: number }) {
                       />
                     </td>
                     <td>{shipShare === null ? "—" : `${shipShare}% of the price`}</td>
+                    <td>{price === 0 ? "—" : rupees(tax)}</td>
                     <td className={price > 0 && left <= 0 ? "warnpill" : ""}>
                       {price === 0 ? "—" : `${rupees(left)}  ·  ${leftShare}%`}
                     </td>
@@ -535,12 +545,49 @@ export function Inventory({ n }: { n: number }) {
               })}
             </tbody>
           </table>
+          <div className="picks">
+            <label className="inline">
+              GST
+              <input
+                type="number"
+                min={0}
+                max={50}
+                value={gst}
+                onChange={(e) => setGst(Number(e.target.value))}
+              />
+              %
+            </label>
+            <span className="muted">
+              Taken out of <b>(listed price − delivery)</b>, treating the listed price as already
+              including it, which is how a marketplace price works. 5% matches the{" "}
+              <code>GST_5</code> tax code on the listings.
+            </span>
+          </div>
           <p className="muted">
-            <b>"Left" is still not profit.</b> It is the price minus what the materials cost and
-            what delivery cost, and nothing else — no marketplace commission, no GST, no
-            packaging, no ad spend. Treat it as the ceiling on what this kit can earn, and compare
-            kits with it rather than banking it.
+            <b>"Left" is still not profit.</b> Materials, delivery and GST are out of it — the
+            marketplace commission, its own 18% GST on that commission, packaging and ad spend are
+            not. Use it to rank kits against each other rather than to bank a figure.
           </p>
+
+
+          {/* Directly under everything that is TYPED IN — the prices, the delivery, the GST rate.
+              It used to sit at the very bottom, below the parcel, which reads as further away
+              from the fields it saves than it is; the parcel is computed and takes no input, so
+              nothing below this point is ever lost by not pressing it. */}
+          <div className="inv-save">
+            <button className="primary" onClick={() => void save()}>
+              {sku ? `Keep ${sku}` : "Keep this kit"}
+            </button>
+            <button onClick={() => void exportAll(null)}>Save every kit as a spreadsheet</button>
+            <button onClick={() => void window.ww.openKitsFolder()}>Open the saved kits folder</button>
+            <span className="muted">
+              Keeping stores the {kit.lines.length} lines as read, any material you corrected, both
+              pricing rules, and the prices, delivery and GST above. Not the total — that is worked
+              out again from today\'s price list every time you open it, so a price change reaches
+              every kit you have ever saved.
+            </span>
+            {note && <span className="allgood">{note}</span>}
+          </div>
 
           {parcel && (
             <>
@@ -642,25 +689,6 @@ export function Inventory({ n }: { n: number }) {
             </>
           )}
 
-          {/* Last thing on the panel, deliberately. It used to sit directly under the two price
-              cards — above the delivery table and the parcel — so the fields below it read as
-              something other than part of the kit, and filling one after pressing Keep silently
-              did nothing. A save button belongs below everything it saves. */}
-          <div className="inv-save">
-            <button className="primary" onClick={() => void save()}>
-              {sku ? `Keep ${sku}` : "Keep this kit"}
-            </button>
-            {/* The JSON is right to store and wrong to read. This is the same kit as a
-                spreadsheet, for anyone who has never opened a .json and should not have to. */}
-            <button onClick={() => void exportAll(null)}>Save every kit as a spreadsheet</button>
-            <span className="muted">
-              Keeping stores the {kit.lines.length} lines as read, any material you corrected, both
-              pricing rules, and the prices and delivery costs above. Not the total — that is
-              worked out again from today's price list every time you open it, so a price change
-              reaches every kit you have ever saved.
-            </span>
-            {note && <span className="allgood">{note}</span>}
-          </div>
         </>
       )}
 

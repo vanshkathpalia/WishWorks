@@ -151,6 +151,8 @@ export interface WwApi {
    * Pass a kit's file to export just that one, or null for all of them.
    */
   exportKits(only: string | null): Promise<string | null>;
+  /** Reveal the folder the saved kits live in — for looking at, backing up, or syncing. */
+  openKitsFolder(): Promise<void>;
   /** Every kit kept on this machine, newest first. */
   listKits(): Promise<{ sku: string; file: string; savedAt: string }[]>;
   openKit(file: string): Promise<SavedKit>;

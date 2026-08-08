@@ -94,9 +94,17 @@ const WORKSPACE = storedWorkspace();
 process.env.WW_IMAGES_DIR ??= path.join(WORKSPACE, "images");
 process.env.WW_META_DIR ??= path.join(WORKSPACE, "image-meta");
 process.env.WW_PRODUCTS_DIR ??= path.join(WORKSPACE, "products");
-// Costed kits are user state, like products/ — NOT categories/, which ships read-only inside the
-// app and would lose every saved kit on the next update.
-process.env.WW_KITS_DIR ??= path.join(WORKSPACE, "inventory");
+/**
+ * Costed kits are user state, like products/ — NOT categories/, which ships read-only inside the
+ * app and would lose every saved kit on the next update.
+ *
+ * It follows the workspace, which is what makes sharing them possible at all: point the workspace
+ * at a synced folder in Settings and both machines read and write the same kits. Nothing here
+ * syncs on its own, and nothing should — a folder either of them already trusts beats a sync
+ * mechanism this app would have to own.
+ */
+const KITS_DIR = path.join(WORKSPACE, "inventory");
+process.env.WW_KITS_DIR ??= KITS_DIR;
 
 /**
  * Categories are the one WW_* dir that is NOT user state — they ship with the app.
@@ -394,6 +402,18 @@ ipcMain.handle("exportKits", async (_e, only: string | null) => {
 });
 
 ipcMain.handle("saveKit", async (_e, kit: unknown) => (await inventoryEngine()).saveKit(kit as never));
+/**
+ * Reveal where the saved kits live — for looking at, backing up, or pointing at a shared drive.
+ *
+ * Created if it does not exist yet: "open the folder" failing on a fresh install because nothing
+ * has been saved is a worse answer than an empty window.
+ */
+ipcMain.handle("openKitsFolder", async () => {
+  const dir = KITS_DIR;
+  await mkdir(dir, { recursive: true });
+  await shell.openPath(dir);
+});
+
 ipcMain.handle("listKits", async () => (await inventoryEngine()).listKits());
 ipcMain.handle("openKit", async (_e, file: string) => (await inventoryEngine()).readKit(file));
 
