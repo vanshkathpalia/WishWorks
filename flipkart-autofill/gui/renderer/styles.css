@@ -421,7 +421,13 @@ label.inline {
   font-size: 14px;
   color: var(--muted);
 }
-label.inline input {
+/* Checkboxes and radios ONLY.
+   This was written as `label.inline input` and squashed every number box that later went inside a
+   label to 15x15 — margin, the flat amount, GST, the parcel weight all rendered as a circle with
+   the value invisible inside it, and the spinner arrows crammed into a few pixels. A type-less
+   selector for a type-specific size is a trap that only springs later. */
+label.inline input[type="checkbox"],
+label.inline input[type="radio"] {
   accent-color: var(--accent);
   width: 15px;
   height: 15px;
@@ -1217,4 +1223,32 @@ button.tiny {
 }
 .parcel-pick select {
   max-width: 340px;
+}
+
+/* ------------------------------------------------------------------ number boxes
+
+   The native spinner is two arrows about five pixels tall, stacked, at the right edge of the
+   field — Vansh, correctly: "a pretty uncomfortable thing to press". They are hidden, and every
+   number here is typed instead. Nothing in this app is a number you nudge one step at a time:
+   a price, a weight and a margin are all values somebody knows and types. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+/* Comfortable to hit and wide enough that four digits and a decimal are all visible at once. */
+input[type="number"],
+input[type="text"] {
+  min-width: 5.5em;
+  padding: 7px 10px;
+  line-height: 1.3;
+}
+.inv-table input[type="number"] {
+  min-width: 4.5em;
+  width: 4.5em;
 }
