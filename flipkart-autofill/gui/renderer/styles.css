@@ -1172,3 +1172,33 @@ input[type="text"]:focus {
   margin: 0;
   padding: 8px 14px;
 }
+
+/* Selects were unstyled, so they rendered as white system boxes on a dark panel. */
+select {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+/* Option lists are drawn by the OS; on a dark theme it needs telling explicitly. */
+option,
+optgroup {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+button.tiny {
+  margin-left: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.inv-table input[type="number"] {
+  width: 5em;
+  text-align: right;
+}

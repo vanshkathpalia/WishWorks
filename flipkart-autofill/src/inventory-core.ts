@@ -65,6 +65,10 @@ export interface Candidate {
 export interface CostedLine extends KitLine {
   /** Null when nothing scored above the floor — shown, costing nothing, never guessed. */
   match: Material | null;
+  /** The unit price actually used — the price list's, or this kit's own. Null when unknown. */
+  each: number | null;
+  /** True when `each` came from this kit rather than the shipped list. */
+  ownPrice: boolean;
   score: number;
   /** True when it was priced but is worth checking against the picture. */
   flagged: boolean;
@@ -100,6 +104,15 @@ export interface SavedKit {
   lines: KitLine[];
   /** Line index → `category|material`. The corrections, kept apart from the reading. */
   overrides: Record<number, string>;
+  /**
+   * Unit prices that apply to THIS KIT ONLY, keyed `category|material`, in paise.
+   *
+   * Two different things a wrong price can mean, and they must not share one control: *this batch
+   * cost me more* (belongs here, on one kit) versus *the price list is wrong* (belongs in
+   * materials.json, where it reaches every kit and both machines). Anything here is deliberately
+   * NOT a correction to the list — it is a fact about one purchase.
+   */
+  prices?: Record<string, number>;
   /** Both pricing methods are kept, because the panel shows both and neither is "the" answer. */
   marginPercent: number;
   /** Flat rupees added on top of cost, in paise. The partner's rule of thumb is +₹60. */
@@ -136,6 +149,34 @@ export function loadMaterials(dir = CATEGORIES_DIR): Material[] {
   return (parsed.materials ?? [])
     .filter((m: Material) => typeof m?.material === "string" && m.material.trim() !== "")
     .map((m: Material) => ({ ...m, paise: typeof m.paise === "number" ? m.paise : null }));
+}
+
+/**
+ * Change a material's price in the list itself — permanently, for every kit and both machines.
+ *
+ * **Deliberately separate from a kit's own price.** A wrong number means one of two things and they
+ * need different homes: *this batch cost me more* is a fact about one purchase (`SavedKit.prices`),
+ * while *the list is wrong* — Kitty Foil at ₹1.50 when a character supershape is nearer ₹35 — has
+ * to reach every kit ever costed and the other machine too. Only this one does that.
+ *
+ * Rewrites the file in place, so every `_` comment, the `aka` lists and the row order all survive;
+ * the alternative was regenerating it, which would throw away the notes explaining the data.
+ *
+ * **Fails loudly where the folder is read-only.** Packaged, `categories/` lives inside the app
+ * bundle, and a silent no-op would look exactly like a saved change until the next kit disagreed.
+ */
+export function setMaterialPrice(
+  key: string,
+  paise: number | null,
+  dir = CATEGORIES_DIR,
+): Material[] {
+  const file = path.join(dir, "materials.json");
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  const row = (parsed.materials ?? []).find((m: Material) => materialKey(m) === key);
+  if (!row) throw new Error(`No material called "${key}" in the price list.`);
+  row.paise = paise;
+  fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);
+  return loadMaterials(dir);
 }
 
 /**
@@ -340,6 +381,8 @@ export function costKit(
   materials: Material[],
   overrides: Record<number, string> = {},
   sku = "",
+  /** Per-kit unit prices, keyed `category|material`. See `SavedKit.prices`. */
+  prices: Record<string, number> = {},
 ): Kit {
   const byKey = new Map(materials.map((m) => [materialKey(m), m]));
 
@@ -356,6 +399,10 @@ export function costKit(
         : null;
     const s = overridden ? 1 : (best?.score ?? 0);
 
+    // A price given for THIS kit wins over the list, and counts even where the list has none —
+    // that is the whole point of it, for a material nobody has priced yet.
+    const each = match ? (prices[materialKey(match)] ?? match.paise) : null;
+
     return {
       ...line,
       match,
@@ -363,9 +410,12 @@ export function costKit(
       flagged: !overridden && match !== null && s < SURE,
       overridden,
       choices,
+      /** Set when this line's unit price came from the kit rather than the price list. */
+      ownPrice: match !== null && prices[materialKey(match)] !== undefined,
+      each,
       // A matched material with a blank price cell costs `null`, never 0. Zero would fold into
       // the total as if the item were free, and nothing on screen would ever say otherwise.
-      paise: match && match.paise !== null ? match.paise * line.qty : null,
+      paise: each !== null && each !== undefined ? each * line.qty : null,
     };
   });
 

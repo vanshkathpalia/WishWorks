@@ -371,9 +371,39 @@ ipcMain.handle(
 
 ipcMain.handle(
   "costLines",
-  async (_e, lines: unknown, overrides: Record<number, string>, sku: string) => {
+  async (
+    _e,
+    lines: unknown,
+    overrides: Record<number, string>,
+    sku: string,
+    prices: Record<string, number>,
+  ) => {
     const { costKit, loadMaterials } = await inventoryEngine();
-    return costKit(lines as never, loadMaterials(), overrides ?? {}, sku);
+    return costKit(lines as never, loadMaterials(), overrides ?? {}, sku, prices ?? {});
+  },
+);
+
+/**
+ * Change a price in the list itself — for every kit, and for the other machine on the next release.
+ *
+ * Refused where `categories/` is inside the app bundle, because a silent no-op there would look
+ * exactly like a saved change right up until the next kit disagreed with this one.
+ */
+ipcMain.handle(
+  "setMaterialPrice",
+  async (_e, key: string, paise: number | null): Promise<Attempt<unknown>> => {
+    if (app.isPackaged) {
+      return {
+        ok: false,
+        message:
+          "The price list ships inside the app, so it cannot be changed here — a change has to go out as a new version, or the two machines would disagree about what a kit costs. Use the price for this kit only, and ask for the list to be corrected.",
+      };
+    }
+    try {
+      return { ok: true, result: (await inventoryEngine()).setMaterialPrice(key, paise) };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
   },
 );
 

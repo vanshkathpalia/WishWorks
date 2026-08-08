@@ -32,6 +32,7 @@ import {
   rupees,
   saveKit,
   score,
+  setMaterialPrice,
   tokens,
   type Material,
 } from "../src/inventory-core.js";
@@ -475,5 +476,64 @@ describe("what a listing actually leaves", () => {
       dir,
     );
     expect(readKit(file).marketplaces).toBeUndefined();
+  });
+});
+
+describe("a price for one kit versus a price for the list", () => {
+  // They are different claims and must not share a control: "this batch cost me more" is a fact
+  // about one purchase; "the list is wrong" has to reach every kit and the other machine.
+  it("a kit's own price wins over the list, for that kit only", () => {
+    const one = costKit([{ item: "ARCH TAPE", qty: 2 }], PRICES, {}, "", { "Tape|ARCH TAPE": 900 });
+    expect(one.lines[0].each).toBe(900);
+    expect(one.lines[0].ownPrice).toBe(true);
+    expect(one.totalPaise).toBe(1800);
+    // The list is untouched, so any other kit still costs the old price.
+    expect(costKit([{ item: "ARCH TAPE", qty: 2 }], PRICES).totalPaise).toBe(700);
+  });
+
+  it("prices a material the list has no price for", () => {
+    // The case that makes this more than a convenience: 13 real materials have a blank price cell,
+    // and without this a kit containing one can never be costed at all.
+    const list: Material[] = [{ category: "Sash", material: "BTB Sash", paise: null }];
+    const kit = costKit([{ item: "BTB Sash", qty: 1 }], list, {}, "", { "Sash|BTB Sash": 850 });
+    expect(kit.totalPaise).toBe(850);
+    expect(kit.noPrice).toBe(0);
+  });
+
+  it("writes a permanent change into the price list, keeping the comments and the aka names", () => {
+    const dir = tmp();
+    writeFileSync(
+      path.join(dir, "materials.json"),
+      JSON.stringify({
+        _: "a note that must survive",
+        materials: [
+          { category: "Foil Balloon", material: "Kitty Foil", paise: 150, aka: ["KITTY FOIL"] },
+          { category: "Tape", material: "Arch Tape", paise: 350 },
+        ],
+      }, null, 2),
+    );
+
+    const after = setMaterialPrice("Foil Balloon|Kitty Foil", 3500, dir);
+    expect(after.find((m) => m.material === "Kitty Foil")?.paise).toBe(3500);
+
+    const raw = JSON.parse(readFileSync(path.join(dir, "materials.json"), "utf8"));
+    expect(raw._).toBe("a note that must survive");
+    expect(raw.materials[0].aka).toEqual(["KITTY FOIL"]);
+    expect(raw.materials[1].paise).toBe(350); // nothing else touched
+  });
+
+  it("can blank a price back out, rather than only ever setting one", () => {
+    const dir = tmp();
+    writeFileSync(
+      path.join(dir, "materials.json"),
+      JSON.stringify({ materials: [{ category: "Tape", material: "Arch Tape", paise: 350 }] }),
+    );
+    expect(setMaterialPrice("Tape|Arch Tape", null, dir)[0].paise).toBeNull();
+  });
+
+  it("refuses a material that is not on the list instead of adding one", () => {
+    const dir = tmp();
+    writeFileSync(path.join(dir, "materials.json"), JSON.stringify({ materials: [] }));
+    expect(() => setMaterialPrice("Nope|Nothing", 100, dir)).toThrow(/No material/);
   });
 });

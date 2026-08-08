@@ -132,7 +132,14 @@ export interface WwApi {
     lines: KitLine[],
     overrides: Record<number, string>,
     sku: string,
+    /** Unit prices for THIS kit only, keyed `category|material`. */
+    prices: Record<string, number>,
   ): Promise<Kit>;
+  /**
+   * Change a price in the shipped list — every kit, both machines. Refused in a packaged app,
+   * where the list is read-only and a change has to go out as a release.
+   */
+  setMaterialPrice(key: string, paise: number | null): Promise<Attempt<Material[]>>;
 
   /**
    * The posted parcel for a kit — size, weight, volumetric weight, and the two forms Flipkart

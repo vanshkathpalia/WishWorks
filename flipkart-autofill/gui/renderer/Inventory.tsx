@@ -64,6 +64,9 @@ export function Inventory({ n }: { n: number }) {
   const [saved, setSaved] = useState<{ sku: string; file: string; savedAt: string }[]>([]);
   const [note, setNote] = useState<string | null>(null);
   const [market, setMarket] = useState<Market>({});
+  /** Unit prices for THIS kit only, `category|material` -> rupees as typed. */
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [priceNote, setPriceNote] = useState<string | null>(null);
   const [parcel, setParcel] = useState<{
     parcel: Parcel;
     packageDetails: Record<string, string>;
@@ -93,8 +96,11 @@ export function Inventory({ n }: { n: number }) {
   // number at the bottom can never disagree with the rows above it.
   useEffect(() => {
     if (!lines) return;
-    void window.ww.costLines(lines, overrides, sku).then(setKit);
-  }, [lines, overrides, sku]);
+    const paise = Object.fromEntries(
+      Object.entries(prices).map(([k, v]) => [k, Math.round(v * 100)]),
+    );
+    void window.ww.costLines(lines, overrides, sku, paise).then(setKit);
+  }, [lines, overrides, sku, prices]);
 
   // The parcel depends on WHAT is in the kit, never on what a line was priced as — correcting a
   // material's price cannot change the size of the box.
@@ -121,6 +127,7 @@ export function Inventory({ n }: { n: number }) {
     setError(null);
     setOverrides({}); // a new reply is a new kit; the last kit's corrections do not apply
     setMarket({}); // and the last kit's prices are certainly not this one's
+    setPrices({});
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
     setKit(r.result);
@@ -162,6 +169,9 @@ export function Inventory({ n }: { n: number }) {
     if (!lines) return;
     const kept: SavedKit = {
       sku, image, lines, overrides,
+      prices: Object.fromEntries(
+        Object.entries(prices).map(([k, v]) => [k, Math.round(v * 100)]),
+      ),
       marginPercent: margin,
       flatPaise: flat * 100,
       marketplaces: Object.fromEntries(
@@ -177,6 +187,29 @@ export function Inventory({ n }: { n: number }) {
     setNote(`Kept as ${file.split(/[\\/]/).pop()}.`);
     setTimeout(() => setNote(null), 4000);
     refreshSaved();
+  }
+
+  /**
+   * Promote a kit's price into the shipped list. Separate from typing the price, because this one
+   * reaches every kit ever costed and the other machine on the next release — and it is refused
+   * outright in a packaged app, where the list is read-only.
+   */
+  async function fixList(materialKey: string, paise: number) {
+    const r = await window.ww.setMaterialPrice(materialKey, paise);
+    if (!r.ok) {
+      setPriceNote(r.message);
+      return;
+    }
+    setMaterials(r.result);
+    // Drop the per-kit price: the list now says the same thing, and leaving it would show this
+    // line as overridden for ever after.
+    setPrices((p) => {
+      const { [materialKey]: _done, ...rest } = p;
+      return rest;
+    });
+    void window.ww.materialGaps().then(setGaps);
+    setPriceNote(`${materialKey.split("|")[1]} is now ${rupees(paise)} in the price list, for every kit.`);
+    setTimeout(() => setPriceNote(null), 8000);
   }
 
   async function exportAll(only: string | null) {
@@ -201,6 +234,9 @@ export function Inventory({ n }: { n: number }) {
             ship: v.shippingPaise === undefined ? undefined : v.shippingPaise / 100 },
         ]),
       ),
+    );
+    setPrices(
+      Object.fromEntries(Object.entries(k.prices ?? {}).map(([key, v]) => [key, v / 100])),
     );
     setLines(k.lines);
     setPaste("");
@@ -412,7 +448,41 @@ export function Inventory({ n }: { n: number }) {
                     {l.flagged && <span className="warnpill">check</span>}
                     {l.match && l.paise === null && <span className="warnpill">no price set</span>}
                   </td>
-                  <td>{l.match && l.match.paise !== null ? rupees(l.match.paise) : "—"}</td>
+                  {/* Editable, and the two scopes are kept apart on purpose. Typing here changes
+                      THIS kit — a batch that cost more, or a material the list has no price for.
+                      "Fix the list" is a second, explicit click, because that one reaches every
+                      kit ever costed and the other machine on the next release. */}
+                  <td>
+                    {l.match ? (
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={l.each === null ? "" : l.each / 100}
+                        onChange={(e) =>
+                          setPrices((p) => {
+                            const k = key(l.match!);
+                            if (e.target.value === "") {
+                              const { [k]: _drop, ...rest } = p;
+                              return rest;
+                            }
+                            return { ...p, [k]: Number(e.target.value) };
+                          })
+                        }
+                      />
+                    ) : (
+                      "—"
+                    )}
+                    {l.ownPrice && (
+                      <button
+                        className="tiny"
+                        title="Write this price into the price list, for every kit"
+                        onClick={() => void fixList(key(l.match!), l.each!)}
+                      >
+                        fix the list
+                      </button>
+                    )}
+                  </td>
                   <td>{l.paise === null ? "—" : rupees(l.paise)}</td>
                 </tr>
               ))}
@@ -431,6 +501,14 @@ export function Inventory({ n }: { n: number }) {
               </tr>
             </tfoot>
           </table>
+
+          {priceNote && <p className="problems">{priceNote}</p>}
+          <p className="muted">
+            <b>The Each column is editable.</b> Typing in it changes <b>this kit only</b> — a batch
+            that cost more, or a material the list has no price for. If the <i>list itself</i> is
+            wrong, press <b>fix the list</b> beside it: that reaches every kit ever costed, and the
+            other machine on the next update.
+          </p>
 
           <h3>What to sell it at</h3>
           {/* Both methods, both answers, no toggle. They disagree by more the bigger the kit
@@ -583,7 +661,7 @@ export function Inventory({ n }: { n: number }) {
             <span className="muted">
               Keeping stores the {kit.lines.length} lines as read, any material you corrected, both
               pricing rules, and the prices, delivery and GST above. Not the total — that is worked
-              out again from today\'s price list every time you open it, so a price change reaches
+              out again from today&apos;s price list every time you open it, so a price change reaches
               every kit you have ever saved.
             </span>
             {note && <span className="allgood">{note}</span>}
