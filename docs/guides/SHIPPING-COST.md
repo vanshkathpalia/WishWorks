@@ -1,4 +1,11 @@
 <!--
+
+> **Everything in this file is about MEESHO.** Vansh, 2026-08-08: Meesho quotes its delivery fee
+> **before a weight has even been entered**, which is why fourteen experiments changing declared
+> things never moved it — there was nothing there to move. **Flipkart is a different mechanism
+> entirely: it charges on volume and weight**, so the parcel size genuinely does change the cost
+> there. `src/packaging.ts` computes that and its warnings name Flipkart explicitly. Do not read
+> the conclusions below as applying to both.
   Meesho "Shipping (added separately)" — what we tested, what we found, and why we stopped.
   Closed 2026-07-25 after nine live A/B tests. This file exists to stop anyone re-running them.
   REOPENED NARROWLY 2026-08-02: the border axis, the only one never tested, produced ₹60 -> ₹49

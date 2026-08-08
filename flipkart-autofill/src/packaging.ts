@@ -7,6 +7,13 @@
  * `Net Weight = 10000 g` ended up on a live listing (WW-055). So it is computed once, here, and
  * everything else derives from it.
  *
+ * **The two marketplaces price delivery differently and only one of them cares about this file.**
+ * Flipkart charges on volume and weight, so the box size genuinely moves the fee. Meesho quotes
+ * before a weight has been entered at all and its number tracks the main image — every one of
+ * SHIPPING-COST.md's fourteen failed experiments was Meesho, which is why nothing declared here
+ * ever shifted it. Warnings below say which platform they apply to; a generic "the courier bills
+ * the larger one" would send someone shrinking a box to fix a fee that ignores boxes.
+ *
  * **This is deliberately code and not a prompt.** It is arithmetic over the inventory the app
  * already holds; a model would do it silently and untestably, and CLAUDE.md's rule is that
  * deterministic code computes and Claude only writes copy.
@@ -138,9 +145,15 @@ export function parcelFor(
   if (grams > spec.maxGrams) {
     warnings.push(`${grams} g is over the ${spec.maxGrams} g ceiling for a parcel.`);
   }
+  // Named as a FLIPKART concern, not a general one. Vansh, 2026-08-08: Flipkart charges on volume
+  // and weight, so a box that grows costs more there. Meesho quotes its fee before a weight has
+  // even been entered and it tracks the main image — SHIPPING-COST.md's fourteen tests were all
+  // Meesho, and none of them moved the number by changing anything declared. Saying "a courier
+  // bills the larger one" as though it applied to both would send someone shrinking a box to fix
+  // a Meesho fee that has nothing to do with it.
   if (volumetricGrams > grams) {
     warnings.push(
-      `Volumetric weight is ${volumetricGrams} g against a real ${grams} g, so a courier bills the larger one. Flatter packing, or a smaller box, is worth more here than removing weight.`,
+      `On Flipkart this parcel bills at ${volumetricGrams} g, not its real ${grams} g — volume wins when it is larger. Packing flatter is worth more than removing weight. Meesho is unaffected: it sets its fee from the main image, before a weight is entered.`,
     );
   }
   return { lengthCm, breadthCm, heightCm, grams, volumetricGrams, billedGrams, applied, warnings };

@@ -75,7 +75,11 @@ describe("working out the parcel", () => {
     // 20 x 15 x 6 = 1800 / 5 = 360 g volumetric against 290 g real — the courier bills 360.
     expect(p.volumetricGrams).toBe(360);
     expect(p.billedGrams).toBe(360);
-    expect(p.warnings.join(" ")).toMatch(/[Vv]olumetric/);
+    // Named as a FLIPKART cost. Meesho quotes before a weight is entered and its fee tracks the
+    // main image (SHIPPING-COST.md), so a generic warning would send someone shrinking a box to
+    // fix a fee that ignores boxes.
+    expect(p.warnings.join(" ")).toContain("Flipkart");
+    expect(p.warnings.join(" ")).toContain("Meesho is unaffected");
   });
 
   it("a pump makes the box longer and heavier", () => {
