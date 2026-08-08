@@ -52,6 +52,13 @@ interface Settings {
   editPrompts?: boolean;
   /** Pages worth returning to, saved by the user from whatever they navigated to. */
   shortcuts?: { name: string; url: string }[];
+  /**
+   * Where costed kits live, when it should NOT be inside the workspace.
+   *
+   * The point is a synced folder holding the kits and nothing else — see KITS_DIR. Unset, they sit
+   * in the workspace like every other piece of user state.
+   */
+  kits?: string;
 }
 
 function readSettings(): Settings {
@@ -98,12 +105,15 @@ process.env.WW_PRODUCTS_DIR ??= path.join(WORKSPACE, "products");
  * Costed kits are user state, like products/ — NOT categories/, which ships read-only inside the
  * app and would lose every saved kit on the next update.
  *
- * It follows the workspace, which is what makes sharing them possible at all: point the workspace
- * at a synced folder in Settings and both machines read and write the same kits. Nothing here
- * syncs on its own, and nothing should — a folder either of them already trusts beats a sync
- * mechanism this app would have to own.
+ * **It has a setting of its own, separate from the workspace, and that separation is the point.**
+ * Sharing kits between two machines means a Drive or Dropbox folder, and pointing the whole
+ * workspace at one drags the images along: megabytes per listing, and worse, every sync service
+ * can evict a file and leave a placeholder behind, which `sharp` then reads as a broken image.
+ * Kits are a few kilobytes of JSON and nothing streams them, so they sync safely on their own
+ * while the images stay local. Nothing here syncs by itself and nothing should — a folder they
+ * already trust beats a sync mechanism this app would have to own.
  */
-const KITS_DIR = path.join(WORKSPACE, "inventory");
+const KITS_DIR = readSettings().kits || path.join(WORKSPACE, "inventory");
 process.env.WW_KITS_DIR ??= KITS_DIR;
 
 /**
@@ -572,6 +582,30 @@ ipcMain.handle("workspaceDir", () => WORKSPACE);
  * Move where everything is kept. Existing files are NOT moved — the old folder is left exactly
  * as it was, so a wrong choice costs nothing and is undone by choosing again.
  */
+/**
+ * Point the kits at a folder of their own — normally a shared Drive/Dropbox folder, so two
+ * machines see the same costings.
+ *
+ * Relaunches for the same reason `chooseWorkspace` does: the engine reads `WW_KITS_DIR` once, at
+ * module load, so a setting that took effect "sort of, until you restart" would be worse than one
+ * that is honest about needing to.
+ */
+ipcMain.handle("chooseKitsFolder", async (e): Promise<boolean> => {
+  const win = BrowserWindow.fromWebContents(e.sender)!;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ["openDirectory", "createDirectory"],
+    defaultPath: KITS_DIR,
+    message: "Where should the costed kits be kept? Pick a shared folder to share them.",
+  });
+  if (canceled || filePaths.length === 0) return false;
+  await writeSettings({ kits: filePaths[0] });
+  app.relaunch();
+  app.quit();
+  return true;
+});
+
+ipcMain.handle("kitsFolder", () => KITS_DIR);
+
 ipcMain.handle("chooseWorkspace", async (e): Promise<boolean> => {
   const win = BrowserWindow.fromWebContents(e.sender)!;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {

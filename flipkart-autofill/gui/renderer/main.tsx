@@ -68,11 +68,13 @@ function Settings({ close }: { close: () => void }) {
   const [folders, setFolders] = useState<Record<string, string>>({});
   const [workspace, setWorkspace] = useState("");
   const [editPrompts, setEditPrompts] = useState(false);
+  const [kits, setKits] = useState("");
 
   useEffect(() => {
     void window.ww.rememberedFolders().then((f) => setFolders(f as Record<string, string>));
     void window.ww.workspaceDir().then(setWorkspace);
     void window.ww.editPrompts().then(setEditPrompts);
+    void window.ww.kitsFolder().then(setKits);
   }, []);
 
   return (
@@ -102,6 +104,20 @@ function Settings({ close }: { close: () => void }) {
         </button>
         <p className="muted">
           Forgetting is always safe — the app works the same, it just starts in Downloads again.
+        </p>
+
+        <h3>Where the costed kits are kept</h3>
+        <p className="path">{kits}</p>
+        <div className="picks">
+          <button onClick={() => void window.ww.openKitsFolder()}>Open it</button>
+          <button onClick={() => void window.ww.chooseKitsFolder()}>Change folder…</button>
+        </div>
+        <p className="muted">
+          Put this in a shared Google Drive or Dropbox folder and both machines see the same
+          costings. <b>Only the kits</b> — a few kilobytes of text each. The images deliberately
+          stay where they are: they are megabytes per listing, and a sync service can replace a
+          synced file with a placeholder, which the image steps then cannot read. Changing this
+          restarts the app, and nothing already saved is moved.
         </p>
 
         <h3>Editing the prompts</h3>

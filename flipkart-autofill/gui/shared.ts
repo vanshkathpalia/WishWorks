@@ -153,6 +153,13 @@ export interface WwApi {
   exportKits(only: string | null): Promise<string | null>;
   /** Reveal the folder the saved kits live in — for looking at, backing up, or syncing. */
   openKitsFolder(): Promise<void>;
+  /** Where that folder is, shown in Settings so it is never a mystery. */
+  kitsFolder(): Promise<string>;
+  /**
+   * Point the kits at a folder of their own — a shared Drive folder, to share them with the other
+   * machine. Relaunches on success; false means cancelled.
+   */
+  chooseKitsFolder(): Promise<boolean>;
   /** Every kit kept on this machine, newest first. */
   listKits(): Promise<{ sku: string; file: string; savedAt: string }[]>;
   openKit(file: string): Promise<SavedKit>;
