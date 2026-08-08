@@ -127,6 +127,15 @@ export interface SavedKit {
    * spend, and it is different for the same kit on each platform.
    */
   marketplaces?: Record<string, { pricePaise?: number; shippingPaise?: number }>;
+  /**
+   * A parcel size or weight chosen by hand, overruling the rules for this kit.
+   *
+   * The rules in `packaging.json` get it right for the common cases and a human gets it right for
+   * the rest — a kit that happens to pack flatter, or a batch that came out heavier. Only the
+   * fields actually chosen are stored, so a kit that only had its weight corrected still follows
+   * the rules for its size, and picks up a corrected rule on the next release.
+   */
+  parcel?: { lengthCm?: number; breadthCm?: number; heightCm?: number; grams?: number };
   savedAt: string;
 }
 

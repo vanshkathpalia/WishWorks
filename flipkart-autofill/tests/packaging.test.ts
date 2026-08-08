@@ -114,10 +114,28 @@ describe("working out the parcel", () => {
       base: { lengthCm: 20, breadthCm: 15, heightCm: 4, grams: 600 },
       maxGrams: 490,
       rules: [],
+      boxes: [],
     };
     const p = parcelFor(PLAIN, mats(), heavy);
     expect(p.grams).toBe(600); // untouched
     expect(p.warnings.join(" ")).toContain("490");
+  });
+
+  it("says when a human chose the box, so the screen cannot claim it was derived", () => {
+    expect(parcelFor(PLAIN, mats(), spec()).overridden).toBe(false);
+    const chosen = parcelFor(PLAIN, mats(), spec(), { lengthCm: 25, breadthCm: 18, heightCm: 6 });
+    expect(chosen.overridden).toBe(true);
+    expect([chosen.lengthCm, chosen.breadthCm, chosen.heightCm]).toEqual([25, 18, 6]);
+    expect(chosen.volumetricGrams).toBe(540); // and it re-bills on the bigger box
+  });
+
+  it("offers the boxes it ships with, and every one is a real size", () => {
+    const boxes = spec().boxes;
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const b of boxes) {
+      expect(b.label).toBeTruthy();
+      for (const n of [b.lengthCm, b.breadthCm, b.heightCm]) expect(n).toBeGreaterThan(0);
+    }
   });
 
   it("lets a measured figure override the rules", () => {

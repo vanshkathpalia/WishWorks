@@ -97,10 +97,17 @@ function block(saved: SavedKit, opts: CsvOptions): string[] {
   }
 
   if (opts.packaging) {
-    const p = parcelFor(saved.lines, opts.materials, opts.packaging);
+    // The chosen size wins here too, or the spreadsheet would declare a different parcel
+    // from the one the panel showed and the one that actually gets posted.
+    const p = parcelFor(saved.lines, opts.materials, opts.packaging, saved.parcel ?? {});
     out.push("");
     out.push(row("Parcel", "Length cm", "Breadth cm", "Height cm", "Weight g", "Volumetric g", "Flipkart bills"));
-    out.push(row(p.applied.length ? `bigger: ${p.applied.join(" + ")}` : "standard box", p.lengthCm, p.breadthCm, p.heightCm, p.grams, p.volumetricGrams, `${p.billedGrams} g`));
+    const how = p.overridden
+      ? "chosen by hand"
+      : p.applied.length
+        ? `bigger: ${p.applied.join(" + ")}`
+        : "standard box";
+    out.push(row(how, p.lengthCm, p.breadthCm, p.heightCm, p.grams, p.volumetricGrams, `${p.billedGrams} g`));
   }
 
   if (saved.savedAt) out.push(row("Saved", saved.savedAt));

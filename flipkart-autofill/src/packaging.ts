@@ -37,10 +37,20 @@ export interface PackagingRule {
   addGrams?: number;
 }
 
+/** A polybag on the shelf, offered as a choice when the rules pick the wrong one. */
+export interface Box {
+  label: string;
+  lengthCm: number;
+  breadthCm: number;
+  heightCm: number;
+}
+
 export interface PackagingSpec {
   base: { lengthCm: number; breadthCm: number; heightCm: number; grams: number };
   maxGrams: number;
   rules: PackagingRule[];
+  /** The sizes a human may pick from. Empty is fine — the rules still work. */
+  boxes: Box[];
 }
 
 export interface Parcel {
@@ -54,6 +64,8 @@ export interface Parcel {
   billedGrams: number;
   /** Which rules fired, so the screen can say WHY the box got bigger. */
   applied: string[];
+  /** True when a human chose the size or the weight, so the screen must not claim it was derived. */
+  overridden: boolean;
   /** Things a human has to decide about. Never silently corrected. */
   warnings: string[];
 }
@@ -84,6 +96,12 @@ export function loadPackaging(dir = CATEGORIES_DIR): PackagingSpec | null {
       breadthCm: r.breadthCm,
       heightCm: r.heightCm,
       addGrams: r.addGrams,
+    })),
+    boxes: (p.boxes ?? []).map((b: Box) => ({
+      label: String(b.label),
+      lengthCm: Number(b.lengthCm),
+      breadthCm: Number(b.breadthCm),
+      heightCm: Number(b.heightCm),
     })),
   };
 }
@@ -156,7 +174,11 @@ export function parcelFor(
       `On Flipkart this parcel bills at ${volumetricGrams} g, not its real ${grams} g — volume wins when it is larger. Packing flatter is worth more than removing weight. Meesho is unaffected: it sets its fee from the main image, before a weight is entered.`,
     );
   }
-  return { lengthCm, breadthCm, heightCm, grams, volumetricGrams, billedGrams, applied, warnings };
+  return {
+    lengthCm, breadthCm, heightCm, grams, volumetricGrams, billedGrams, applied,
+    overridden: Object.keys(overrides).length > 0,
+    warnings,
+  };
 }
 
 /**

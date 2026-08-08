@@ -84,3 +84,19 @@ describe("a kit as a spreadsheet", () => {
     expect(() => kitToCsv(kit({ lines: [] }), opts)).not.toThrow();
   });
 });
+
+describe("a parcel chosen by hand", () => {
+  it("goes into the spreadsheet, so it declares the box that is actually posted", () => {
+    // The whole risk: the panel shows one parcel and the CSV a different one, and the courier
+    // weighs a third. The chosen size has to win in both places or none.
+    const csv = kitToCsv(
+      kit({ parcel: { lengthCm: 25, breadthCm: 18, heightCm: 6, grams: 420 } }),
+      opts,
+    );
+    expect(csv).toContain("chosen by hand,25,18,6,420,540,540 g");
+  });
+
+  it("says standard box when nothing was chosen", () => {
+    expect(kitToCsv(kit(), opts)).toContain("standard box,20,15,4,250,240,250 g");
+  });
+});

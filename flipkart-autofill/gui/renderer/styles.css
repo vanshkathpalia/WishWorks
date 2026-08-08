@@ -1210,3 +1210,11 @@ button.tiny {
   font-size: 11px;
   text-align: right;
 }
+
+.parcel-pick {
+  align-items: center;
+  margin-bottom: 14px;
+}
+.parcel-pick select {
+  max-width: 340px;
+}

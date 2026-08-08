@@ -20,7 +20,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { Kit, KitLine, Material, Parcel, SavedKit } from "../shared.js";
+import type { Box, Kit, KitLine, Material, Parcel, SavedKit } from "../shared.js";
 import { CopyButton, fileUrl } from "./ui.js";
 import { PromptEditor } from "./PromptEditor.js";
 
@@ -67,8 +67,16 @@ export function Inventory({ n }: { n: number }) {
   /** Unit prices for THIS kit only, `category|material` -> rupees as typed. */
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [priceNote, setPriceNote] = useState<string | null>(null);
+  /** A box size or weight chosen by hand for this kit. Empty means "follow the rules". */
+  const [chosen, setChosen] = useState<{
+    lengthCm?: number;
+    breadthCm?: number;
+    heightCm?: number;
+    grams?: number;
+  }>({});
   const [parcel, setParcel] = useState<{
     parcel: Parcel;
+    boxes: Box[];
     packageDetails: Record<string, string>;
     dimensions: Record<string, string>;
   } | null>(null);
@@ -109,8 +117,8 @@ export function Inventory({ n }: { n: number }) {
       setParcel(null);
       return;
     }
-    void window.ww.parcelFor(lines).then(setParcel);
-  }, [lines]);
+    void window.ww.parcelFor(lines, chosen).then(setParcel);
+  }, [lines, chosen]);
 
   const byCategory = useMemo(() => {
     const groups = new Map<string, Material[]>();
@@ -128,6 +136,7 @@ export function Inventory({ n }: { n: number }) {
     setOverrides({}); // a new reply is a new kit; the last kit's corrections do not apply
     setMarket({}); // and the last kit's prices are certainly not this one's
     setPrices({});
+    setChosen({});
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
     setKit(r.result);
@@ -172,6 +181,7 @@ export function Inventory({ n }: { n: number }) {
       prices: Object.fromEntries(
         Object.entries(prices).map(([k, v]) => [k, Math.round(v * 100)]),
       ),
+      parcel: chosen,
       marginPercent: margin,
       flatPaise: flat * 100,
       marketplaces: Object.fromEntries(
@@ -238,6 +248,7 @@ export function Inventory({ n }: { n: number }) {
     setPrices(
       Object.fromEntries(Object.entries(k.prices ?? {}).map(([key, v]) => [key, v / 100])),
     );
+    setChosen(k.parcel ?? {});
     setLines(k.lines);
     setPaste("");
     setError(null);
@@ -688,17 +699,81 @@ export function Inventory({ n }: { n: number }) {
             <>
               <h3>The parcel</h3>
               <p className="muted">
-                Worked out from what is in the kit, not typed per listing.
-                {parcel.parcel.applied.length > 0 ? (
-                  <>
-                    {" "}
-                    This one is bigger than the standard box because it contains a{" "}
-                    <b>{parcel.parcel.applied.join(" and a ")}</b>.
-                  </>
+                {parcel.parcel.overridden ? (
+                  <b>Chosen by hand for this kit.</b>
                 ) : (
-                  " Nothing in it needs a bigger box than the standard one."
+                  <>
+                    Worked out from what is in the kit, not typed per listing.
+                    {parcel.parcel.applied.length > 0 ? (
+                      <>
+                        {" "}
+                        This one is bigger than the standard box because it contains a{" "}
+                        <b>{parcel.parcel.applied.join(" and a ")}</b>.
+                      </>
+                    ) : (
+                      " Nothing in it needs a bigger box than the standard one."
+                    )}
+                  </>
                 )}
               </p>
+
+              {/* The rules get the common cases right and a human gets the rest right, so both
+                  exist and the rule is the default. Only what is actually picked is stored, so a
+                  kit whose weight was corrected still follows the rules for its size — and picks
+                  up a corrected rule on the next release instead of being frozen at today's. */}
+              <div className="picks parcel-pick">
+                <label className="inline">
+                  Box
+                  <select
+                    value={
+                      chosen.lengthCm === undefined
+                        ? ""
+                        : `${chosen.lengthCm}x${chosen.breadthCm}x${chosen.heightCm}`
+                    }
+                    onChange={(e) => {
+                      if (e.target.value === "") {
+                        setChosen(({ lengthCm: _l, breadthCm: _b, heightCm: _h, ...rest }) => rest);
+                        return;
+                      }
+                      const [lengthCm, breadthCm, heightCm] = e.target.value.split("x").map(Number);
+                      setChosen((c) => ({ ...c, lengthCm, breadthCm, heightCm }));
+                    }}
+                  >
+                    <option value="">
+                      whatever the kit needs — {parcel.parcel.lengthCm} × {parcel.parcel.breadthCm}{" "}
+                      × {parcel.parcel.heightCm} cm
+                    </option>
+                    {parcel.boxes.map((b) => (
+                      <option
+                        key={b.label}
+                        value={`${b.lengthCm}x${b.breadthCm}x${b.heightCm}`}
+                      >
+                        {b.lengthCm} × {b.breadthCm} × {b.heightCm} cm · {b.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="inline">
+                  Weight
+                  <input
+                    type="number"
+                    min={0}
+                    step={10}
+                    value={chosen.grams ?? parcel.parcel.grams}
+                    onChange={(e) =>
+                      setChosen((c) =>
+                        e.target.value === ""
+                          ? (({ grams: _g, ...rest }) => rest)(c)
+                          : { ...c, grams: Number(e.target.value) },
+                      )
+                    }
+                  />
+                  g
+                </label>
+                {(chosen.grams !== undefined || chosen.lengthCm !== undefined) && (
+                  <button onClick={() => setChosen({})}>Back to what the kit needs</button>
+                )}
+              </div>
 
               <div className="inv-parcel">
                 <div>

@@ -24,11 +24,11 @@ import type { FieldRow } from "../src/listing.js";
 import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, Material, SavedKit } from "../src/inventory-core.js";
-import type { Parcel } from "../src/packaging.js";
+import type { Box, Parcel } from "../src/packaging.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
   Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
-  FillResult, SessionStatus, FieldRow, CostedLine, Kit, KitLine, Material, SavedKit, Parcel,
+  FillResult, SessionStatus, FieldRow, CostedLine, Kit, KitLine, Material, SavedKit, Parcel, Box,
 };
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
@@ -145,8 +145,14 @@ export interface WwApi {
    * The posted parcel for a kit — size, weight, volumetric weight, and the two forms Flipkart
    * asks for. Computed from the inventory (src/packaging.ts), never guessed per listing.
    */
-  parcelFor(lines: KitLine[]): Promise<{
+  parcelFor(
+    lines: KitLine[],
+    /** A size or weight chosen by hand. Only the fields given overrule the rules. */
+    chosen: { lengthCm?: number; breadthCm?: number; heightCm?: number; grams?: number },
+  ): Promise<{
     parcel: Parcel;
+    /** The polybag sizes on the shelf, for the picker. */
+    boxes: Box[];
     packageDetails: Record<string, string>;
     dimensions: Record<string, string>;
   } | null>;
