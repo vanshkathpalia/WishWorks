@@ -439,3 +439,41 @@ describe("the shipped price list", () => {
     expect(new Set(keys).size, "two rows claim the same name").toBe(keys.length);
   });
 });
+
+describe("what a listing actually leaves", () => {
+  it("keeps the per-marketplace price and delivery cost with the kit", () => {
+    // Neither can be computed: Meesho sets its fee from the main image by a rule fourteen tests
+    // failed to pin down, and the two marketplaces are rarely listed at the same price. They are
+    // typed in, so the only thing to get right is that they survive a save and reopen.
+    const dir = tmp();
+    const file = saveKit(
+      {
+        sku: "K1",
+        image: null,
+        lines: [{ item: "ARCH TAPE", qty: 1 }],
+        overrides: {},
+        marginPercent: 50,
+        flatPaise: 6000,
+        marketplaces: {
+          meesho: { pricePaise: 29900, shippingPaise: 7700 },
+          flipkart: { pricePaise: 34900 }, // delivery not filled in yet — must stay absent
+        },
+        savedAt: "",
+      },
+      dir,
+    );
+    const back = readKit(file);
+    expect(back.marketplaces?.meesho).toEqual({ pricePaise: 29900, shippingPaise: 7700 });
+    // Absent must not come back as 0 — "not filled in" and "free delivery" are different claims.
+    expect(back.marketplaces?.flipkart?.shippingPaise).toBeUndefined();
+  });
+
+  it("opens a kit saved before marketplaces existed", () => {
+    const dir = tmp();
+    const file = saveKit(
+      { sku: "OLD", image: null, lines: [], overrides: {}, marginPercent: 50, savedAt: "" },
+      dir,
+    );
+    expect(readKit(file).marketplaces).toBeUndefined();
+  });
+});

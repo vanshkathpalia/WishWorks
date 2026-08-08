@@ -104,6 +104,16 @@ export interface SavedKit {
   marginPercent: number;
   /** Flat rupees added on top of cost, in paise. The partner's rule of thumb is +₹60. */
   flatPaise?: number;
+  /**
+   * What this kit is actually listed at, and what delivery actually costs, per marketplace.
+   *
+   * Both are typed in by hand and neither can be computed: Meesho sets the shipping fee from the
+   * main image by a rule fourteen tests failed to pin down (SHIPPING-COST.md), and the two
+   * marketplaces are rarely listed at the same price. Kept per kit because the question they
+   * answer — *what share of the price is delivery* — is the one that decides which SKU gets ad
+   * spend, and it is different for the same kit on each platform.
+   */
+  marketplaces?: Record<string, { pricePaise?: number; shippingPaise?: number }>;
   savedAt: string;
 }
 

@@ -32,6 +32,15 @@ const priceAt = (costPaise: number, margin: number) =>
 
 const key = (m: Material) => `${m.category}|${m.material}`;
 
+/** The two we sell on. Ids are the keys stored in the saved kit, so renaming a label is safe. */
+const MARKETPLACES = [
+  { id: "meesho", label: "Meesho" },
+  { id: "flipkart", label: "Flipkart" },
+] as const;
+
+/** Rupees in the boxes, paise on disk — the boundary is here, once, in both directions. */
+type Market = Record<string, { price?: number; ship?: number }>;
+
 export function Inventory({ n }: { n: number }) {
   const [prompt, setPrompt] = useState("");
   const [editing, setEditing] = useState(false);
@@ -52,11 +61,18 @@ export function Inventory({ n }: { n: number }) {
   const [over, setOver] = useState<"image" | "json" | null>(null);
   const [saved, setSaved] = useState<{ sku: string; file: string; savedAt: string }[]>([]);
   const [note, setNote] = useState<string | null>(null);
+  const [market, setMarket] = useState<Market>({});
   const [parcel, setParcel] = useState<{
     parcel: Parcel;
     packageDetails: Record<string, string>;
     dimensions: Record<string, string>;
   } | null>(null);
+
+  /** Empty stays undefined rather than becoming 0, so "not filled in" reads as "—", not "free". */
+  function setOne(id: string, field: "price" | "ship", raw: string) {
+    const v = raw === "" ? undefined : Number(raw);
+    setMarket((m) => ({ ...m, [id]: { ...m[id], [field]: v } }));
+  }
 
   const refreshSaved = useCallback(() => void window.ww.listKits().then(setSaved), []);
 
@@ -102,6 +118,7 @@ export function Inventory({ n }: { n: number }) {
     }
     setError(null);
     setOverrides({}); // a new reply is a new kit; the last kit's corrections do not apply
+    setMarket({}); // and the last kit's prices are certainly not this one's
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
     setKit(r.result);
@@ -143,7 +160,16 @@ export function Inventory({ n }: { n: number }) {
     if (!lines) return;
     const kept: SavedKit = {
       sku, image, lines, overrides,
-      marginPercent: margin, flatPaise: flat * 100, savedAt: "",
+      marginPercent: margin,
+      flatPaise: flat * 100,
+      marketplaces: Object.fromEntries(
+        Object.entries(market).map(([id, v]) => [
+          id,
+          { pricePaise: v.price === undefined ? undefined : v.price * 100,
+            shippingPaise: v.ship === undefined ? undefined : v.ship * 100 },
+        ]),
+      ),
+      savedAt: "",
     };
     const file = await window.ww.saveKit(kept);
     setNote(`Kept as ${file.split(/[\\/]/).pop()}.`);
@@ -158,6 +184,15 @@ export function Inventory({ n }: { n: number }) {
     setOverrides(k.overrides ?? {});
     setMargin(k.marginPercent ?? 50);
     setFlat(Math.round((k.flatPaise ?? 6000) / 100));
+    setMarket(
+      Object.fromEntries(
+        Object.entries(k.marketplaces ?? {}).map(([id, v]) => [
+          id,
+          { price: v.pricePaise === undefined ? undefined : v.pricePaise / 100,
+            ship: v.shippingPaise === undefined ? undefined : v.shippingPaise / 100 },
+        ]),
+      ),
+    );
     setLines(k.lines);
     setPaste("");
     setError(null);
@@ -441,6 +476,69 @@ export function Inventory({ n }: { n: number }) {
             materials and nothing else — neither knows the marketplace commission, the shipping
             fee, GST or packaging. The real formula goes in here once the sheet that computes it
             has been sent.
+          </p>
+
+          {/* Delivery is typed in, not computed, and it has to be: Meesho sets its fee from the
+              main image by a rule fourteen tests failed to pin down (SHIPPING-COST.md), and the
+              two marketplaces are rarely listed at the same price. The column that earns its
+              place is the LAST one — what is actually left — because a kit can look healthy on
+              margin and be losing money once delivery is counted. */}
+          <h3>Delivery, per marketplace</h3>
+          <p className="muted">
+            Read the fee off each listing and type it here. The point is the last column: what a
+            sale actually leaves you, which is what decides where the ad spend goes.
+          </p>
+          <table className="rows inv-table">
+            <thead>
+              <tr>
+                <th>Where</th>
+                <th>Listed at ₹</th>
+                <th>Delivery ₹</th>
+                <th>Delivery is</th>
+                <th>Left after materials + delivery</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MARKETPLACES.map(({ id, label }) => {
+                const m = market[id] ?? {};
+                const price = (m.price ?? 0) * 100;
+                const ship = (m.ship ?? 0) * 100;
+                const left = price - total - ship;
+                const shipShare = price > 0 ? Math.round((ship / price) * 100) : null;
+                const leftShare = price > 0 ? Math.round((left / price) * 100) : null;
+                return (
+                  <tr key={id}>
+                    <td>{label}</td>
+                    <td>
+                      <input
+                        type="number"
+                        min={0}
+                        value={m.price ?? ""}
+                        onChange={(e) => setOne(id, "price", e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min={0}
+                        value={m.ship ?? ""}
+                        onChange={(e) => setOne(id, "ship", e.target.value)}
+                      />
+                    </td>
+                    <td>{shipShare === null ? "—" : `${shipShare}% of the price`}</td>
+                    <td className={price > 0 && left <= 0 ? "warnpill" : ""}>
+                      {price === 0 ? "—" : `${rupees(left)}  ·  ${leftShare}%`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="muted">
+            <b>"Left" is still not profit.</b> It is the price minus what the materials cost and
+            what delivery cost, and nothing else — no marketplace commission, no GST, no
+            packaging, no ad spend. Treat it as the ceiling on what this kit can earn, and compare
+            kits with it rather than banking it.
           </p>
 
           {parcel && (

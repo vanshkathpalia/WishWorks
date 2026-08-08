@@ -447,6 +447,15 @@ Both are floors, not listing prices — each is worked out from the cost of mate
 neither knows Meesho's commission, the shipping fee, GST or packaging. Until the real formula is
 in, treat them as the number to stay above.
 
+**Delivery, per marketplace** is the table under it, and it is the one that answers *where should
+the ad spend go*. Read the fee off each live listing and type it in, with the price you actually
+list at — the two marketplaces are rarely the same, and Meesho's fee moves with the main image
+(`SHIPPING-COST.md`), so neither number can be computed. The last column is what a sale leaves
+after materials and delivery.
+
+> That column is **not profit**. It has no marketplace commission, no GST, no packaging and no ad
+> spend in it. Use it to rank kits against each other, not to bank a figure.
+
 ---
 
 ## Flow B — when the photos are already clean (`npm run finish`)
