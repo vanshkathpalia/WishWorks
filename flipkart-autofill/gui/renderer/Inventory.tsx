@@ -454,30 +454,47 @@ export function Inventory({ n }: { n: number }) {
                       kit ever costed and the other machine on the next release. */}
                   <td>
                     {l.match ? (
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.5}
-                        value={l.each === null ? "" : l.each / 100}
-                        onChange={(e) =>
-                          setPrices((p) => {
-                            const k = key(l.match!);
-                            if (e.target.value === "") {
-                              const { [k]: _drop, ...rest } = p;
-                              return rest;
-                            }
-                            return { ...p, [k]: Number(e.target.value) };
-                          })
-                        }
-                      />
+                      <>
+                        {/* Typed straight into local state and read back from local state, NOT
+                            from the engine's answer. Round-tripping every keystroke through IPC
+                            made the box blank and unresponsive the moment the engine did not
+                            return what was expected — `undefined / 100` is NaN, and React draws
+                            `value={NaN}` as an empty field, so a stale main process looked exactly
+                            like a broken control. `??` rather than `=== null` for the same reason:
+                            an absent number must fall back, never become NaN. */}
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={prices[key(l.match)] ?? (l.match.paise ?? l.each ?? 0) / 100}
+                          onChange={(e) =>
+                            setPrices((p) => {
+                              const k = key(l.match!);
+                              if (e.target.value === "") {
+                                const { [k]: _drop, ...rest } = p;
+                                return rest;
+                              }
+                              return { ...p, [k]: Number(e.target.value) };
+                            })
+                          }
+                        />
+                        {/* What the LIST says, always visible beside the box — the whole point of
+                            the column is knowing what a material is priced at, and an input on its
+                            own hides that the moment you type in it. */}
+                        <span className="muted each-was">
+                          {l.match.paise === null
+                            ? "no price in the list"
+                            : `list: ${rupees(l.match.paise)}`}
+                        </span>
+                      </>
                     ) : (
                       "—"
                     )}
-                    {l.ownPrice && (
+                    {l.match && prices[key(l.match)] !== undefined && (
                       <button
                         className="tiny"
                         title="Write this price into the price list, for every kit"
-                        onClick={() => void fixList(key(l.match!), l.each!)}
+                        onClick={() => void fixList(key(l.match!), Math.round(prices[key(l.match!)] * 100))}
                       >
                         fix the list
                       </button>

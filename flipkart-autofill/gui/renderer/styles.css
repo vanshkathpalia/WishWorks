@@ -1202,3 +1202,11 @@ button.tiny {
   width: 5em;
   text-align: right;
 }
+
+/* What the price LIST says, beside the editable box — so typing never hides it. */
+.each-was {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  text-align: right;
+}
