@@ -1717,8 +1717,20 @@ smart quotes, written before the ban. `checkValues` now flags any character outs
 ASCII and leaves that field blank, and the four files are cleaned — a ban in a prompt asks a model
 to comply, it does not check the data that came out.
 
+**It then happened a second time in the same conversation.** With the emoji theory dead, a rate
+limit was offered instead — *"each field change fires an autosave, so a single run is ~50 writes
+in under a minute"*. Vansh, alarmed and right to be: *"but that is bad, then whole point of
+listing is lost right?"* **It was invented, and one grep disproved it.** `fill.ts` has always
+ended with *"NOTHING HAS BEEN SAVED YET — closing Chrome now discards all N filled fields"*, a
+sentence that only makes sense if the form does NOT autosave. `fillField` does `el.fill()`,
+`keyboard.type()` and `selectOption()` — local DOM, every one. The only write to Flipkart is
+`clickSave()`, on a button press. **A fill makes zero writes.** The tool cannot rate-limit anyone,
+and a scary claim about it was put in front of the person who depends on it, for no reason.
+
 **The rule:** when a symptom matches a known cause, confirm the cause is PRESENT before acting on
-it. "This looks like X" and "this is X" are separated by one cheap check almost every time.
+it. "This looks like X" and "this is X" are separated by one cheap check almost every time — and
+when the guess is about OUR OWN code, the check is a grep, so there is no excuse at all. Both
+misses here were resolved by evidence already in the repository.
 
 ---
 
