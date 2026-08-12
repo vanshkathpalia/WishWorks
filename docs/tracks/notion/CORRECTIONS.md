@@ -1686,6 +1686,42 @@ by Vansh rather than by the assistant reading its own note.
 
 ---
 
+## C-054 — "Could not save your changes" has more than one cause, and the repo only knew one
+
+**Category:** Judgement · **Caught by:** Vansh, with two tests · **Date:** 2026-08-12 · **Status:** Understood
+
+Vansh hit *"Could not save your changes. Please refresh the page and try again."* while typing
+into `Series`, then into `Other Features`.
+
+The repo has a documented cause for that exact message: emoji in the Description make Flipkart
+return HTTP 500 on every save, and because the form posts the whole listing on each edit, the
+failure then follows you to every field on every tab. It fits the symptom perfectly, it is written
+down in `PROMPT-product.md`, and it was the wrong answer.
+
+**It was diagnosed before it was tested.** A scan of the product files was run — which was right,
+and found emoji in four of them — but ANP004, the listing in hand, was already clean. Vansh
+settled it in two messages: *"even if i enter N/A in any other listing this same is coming"* and
+*"now i don't have desc with emoji"*. A different listing, a two-character ASCII value, the same
+error. No content explanation survives that. He then produced the decisive evidence himself:
+**`Failed to create CPUI Request`** — Flipkart's own internal service name in a seller-facing
+message, which is a backend failure, not a rejected value.
+
+**Why this is worth an entry.** The emoji incident is real and cost a listing, so it is written
+up prominently — which makes it the first thing anyone reaching for this message will find, and
+it will fit again next time. A documented cause is a hypothesis, not a diagnosis. The tell that
+separates them costs nothing: **a validation error names YOUR field; a server error names THEIR
+service.** Ask which one is on screen before touching any data.
+
+**What was still worth doing.** The scan found four product files carrying emoji, en-dashes and
+smart quotes, written before the ban. `checkValues` now flags any character outside printable
+ASCII and leaves that field blank, and the four files are cleaned — a ban in a prompt asks a model
+to comply, it does not check the data that came out.
+
+**The rule:** when a symptom matches a known cause, confirm the cause is PRESENT before acting on
+it. "This looks like X" and "this is X" are separated by one cheap check almost every time.
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:
