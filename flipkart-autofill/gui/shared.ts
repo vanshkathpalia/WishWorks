@@ -20,15 +20,15 @@ import type { Listing } from "../src/listings.js";
 import type { PasteResult } from "../src/paste-core.js";
 import type { CheckResult } from "../src/check-core.js";
 import type { FillResult, SessionStatus } from "../src/browser-core.js";
-import type { FieldRow } from "../src/listing.js";
+import type { DefaultsTab, FieldRow, ScanResult } from "../src/listing.js";
 import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
-import type { CostedLine, Kit, KitLine, Material, SavedKit } from "../src/inventory-core.js";
+import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { Box, Parcel } from "../src/packaging.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
   Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
-  FillResult, SessionStatus, FieldRow, CostedLine, Kit, KitLine, Material, SavedKit, Parcel, Box,
+  FillResult, SessionStatus, DefaultsTab, FieldRow, ScanResult, CostedLine, Kit, KitLine, KitRow, Material, SavedKit, Parcel, Box,
 };
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
@@ -176,7 +176,7 @@ export interface WwApi {
    */
   chooseKitsFolder(): Promise<boolean>;
   /** Every kit kept on this machine, newest first. */
-  listKits(): Promise<{ sku: string; file: string; savedAt: string }[]>;
+  listKits(): Promise<KitRow[]>;
   openKit(file: string): Promise<SavedKit>;
 
   /** Match downloaded pictures to the listing folders under an archive root. Changes nothing. */
@@ -188,6 +188,21 @@ export interface WwApi {
   paste(id: string): Promise<{ ok: true; result: PasteResult } | { ok: false; message: string }>;
   /** Remove emoji from the Flipkart-bound values of a listing written before the rule existed. */
   stripEmoji(id: string): Promise<{ file: string; changed: string[] }>;
+  /** The listing file as text, for editing in the app rather than in a code editor. */
+  readProduct(id: string): Promise<Attempt<{ file: string; text: string }>>;
+  /** Save it back. Refused unless it parses, so a half-typed file can never reach the bot. */
+  saveProduct(file: string, text: string): Promise<Attempt<string>>;
+  /**
+   * Write a costed kit's parcel into `products/<id>.json`. Only the dimension keys are writable —
+   * see applyParcelToListing, which owns the whitelist.
+   */
+  applyParcel(
+    id: string,
+    dimensions: Record<string, string>,
+  ): Promise<
+    | { ok: true; result: { file: string; changed: { key: string; from: string | null; to: string }[] } }
+    | { ok: false; message: string }
+  >;
 
   /** Where the AI's downloads land. Remembered, defaults to ~/Downloads. */
   downloadsDir(): Promise<string>;
@@ -219,10 +234,14 @@ export interface WwApi {
   chromeStatus(): Promise<SessionStatus>;
   /** Closes Chrome gracefully. Only ever called from a button — never automatically. */
   closeChrome(): Promise<void>;
-  /** Type a listing's values into whatever form is open in Chrome. */
-  fillListing(id: string): Promise<Attempt<FillResult>>;
+  /** Type a listing's values into whatever form is open in Chrome. `tab` picks the defaults
+   *  file, which is what keeps an inches Height off the centimetres tab — see DefaultsTab. */
+  fillListing(id: string, tab?: DefaultsTab): Promise<Attempt<FillResult>>;
   /** Click Save. **Refuses while any field reads ⚠️** — the guard is in the engine, not here. */
   saveListing(): Promise<Attempt<{ clicked: string | null; candidates: string[] }>>;
+  /** Capture the field labels of the tab Chrome is showing, into `categories/<category>.json`.
+   *  Adds only; never types into the form, never touches a listing. */
+  scanTab(id: string): Promise<Attempt<ScanResult>>;
   /** Fields as they land during a fill. Returns an unsubscribe function. */
   onField(cb: (row: FieldRow) => void): () => void;
 }

@@ -15,6 +15,33 @@
     "NO COMMAS inside any array value: Flipkart splits multi-value fields on ','."
   ],
 
+  "_dimensions": [
+    "The Dimensions block, in INCHES, added 2026-08-12 from Vansh's screenshot of the tab he had",
+    "just filled by hand. Universal because he asked for it to be: 'lets make it universal for",
+    "every listing that we do'. These describe the PACKED parcel — flat, uninflated, foil folded.",
+    "",
+    "SAFE TO PUT HERE ONLY SINCE THE DEFAULTS BECAME PER-TAB (loadProduct's DefaultsTab).",
+    "'Height' also exists in Package Details on the Price/Stock tab, where it is CENTIMETRES, and",
+    "before the split this file's 1.5 would have been typed into both — inches here, cm there.",
+    "That is WW-123 exactly. Do not move these into a shared file.",
+    "",
+    "WEIGHT IS DELIBERATELY ABSENT and must stay absent. It is the one number here a courier",
+    "re-measures and bills back (WW-055), it differs per kit, and it carries a UNIT PICKER that has",
+    "to agree with it — packaging.ts writes 'Weight' and 'Weight (unit)' together from the measured",
+    "parcel, which is the only place that pairing is guaranteed correct. A universal weight would",
+    "be typed into every listing whose parcel was never weighed, which is the failure WW-055 is.",
+    "",
+    "DIAMETER IS ALSO ABSENT, and that is an answer to a question, not an oversight. Vansh asked",
+    "2026-08-12: 'is diameter of our use, and will it be diameter of balloon after blowing air in",
+    "it?' This block describes the PACKED PARCEL — a flat 7 x 8 x 1.5 in bag has no diameter, and",
+    "putting an INFLATED balloon's diameter in it mixes the two states C-052 was logged for. The",
+    "field is optional on the form. Fill it only for a product that is genuinely round, with a",
+    "figure from the INVENTORY, which is what PROMPT-product.md already says."
+  ],
+  "Width": "7",
+  "Height": "1.5",
+  "Depth": "8",
+
   "Foldable": "No",
   "Carry Bag Included": "No",
   "Birthday Ribbon": "No",

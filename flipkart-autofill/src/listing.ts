@@ -8,11 +8,32 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright";
-import { fillField, probeField } from "./fields.js";
+import { fillField, probeField, type FieldInfo } from "./fields.js";
 import { normalizeId } from "./id.js";
 import { CATEGORIES_DIR, PRODUCTS_DIR } from "./paths.js";
 
 export type Values = Record<string, string | number | string[]>;
+
+/**
+ * Which tab's defaults file to use — `categories/<category>[.<tab>].defaults.json`.
+ *
+ * **This exists because the same label means different things on different tabs, in different
+ * units.** `Height` is centimetres in Package Details on the Price/Stock tab and INCHES in the
+ * Dimensions block on Additional Description. `Weight` is kilograms on one and can be grams on
+ * the other. Merging every defaults file into one flat map — which is what this did until
+ * 2026-08-12 — makes those indistinguishable, so one number gets typed into both: WW-123 put
+ * 8 cm in one box and 8 inches in the other, and a 0.16 default overwrote a parcel measured at
+ * 0.250. The workaround then was to delete the colliding keys and fill Package Details by hand.
+ *
+ * Scoping by tab is the actual fix, and it is what makes a universal Dimensions block safe to
+ * store at all — without it, a `Weight: 280` meant as 280 g on the inches tab is 280 KG in the
+ * Price/Stock box, which is WW-055's failure with three more zeroes.
+ *
+ * `""` is the bare `<category>.defaults.json`, which has always been the Additional Description
+ * tab's file. `undefined` means "every file", the old behaviour, which is still what `npm run
+ * fill` does — the CLI never knew which tab you were on and still does not.
+ */
+export type DefaultsTab = "" | "pricing" | "description";
 
 export interface LoadedProduct {
   file: string;
@@ -69,21 +90,30 @@ export function listProducts(dir = PRODUCTS_DIR): string[] {
  * `values` override them — so one product file covers every tab of the form, and shared
  * answers live in one place instead of being copy-pasted per product.
  */
-export function loadProduct(file: string, catDir = CATEGORIES_DIR): LoadedProduct {
+export function loadProduct(
+  file: string,
+  catDir = CATEGORIES_DIR,
+  tab?: DefaultsTab,
+): LoadedProduct {
   const product = JSON.parse(fs.readFileSync(file, "utf8"));
   const defaults: Values = {};
   const usedDefaults: string[] = [];
+  // With a tab, ONE defaults file. Without, all of them — which is what the CLI does and what
+  // this always did. See DefaultsTab for why the distinction is worth having.
+  const want = tab === undefined ? null : `${product.category}${tab && `.${tab}`}.defaults.json`;
   if (fs.existsSync(catDir)) {
     for (const f of fs.readdirSync(catDir).sort()) {
-      if (f.startsWith(`${product.category}.`) && f.endsWith(".defaults.json")) {
-        Object.assign(defaults, JSON.parse(fs.readFileSync(path.join(catDir, f), "utf8")));
-        usedDefaults.push(f);
+      if (want ? f !== want : !(f.startsWith(`${product.category}.`) && f.endsWith(".defaults.json"))) {
+        continue;
       }
+      Object.assign(defaults, JSON.parse(fs.readFileSync(path.join(catDir, f), "utf8")));
+      usedDefaults.push(f);
     }
   }
   const values: Values = { ...defaults, ...product.values };
   // Keys starting with "_" are notes for humans, not form fields.
   for (const k of Object.keys(values)) if (k.startsWith("_")) delete values[k];
+  deriveDescriptionTab(values);
 
   const known = scannedLabels(catDir, product.category);
   const unmapped = known
@@ -91,6 +121,109 @@ export function loadProduct(file: string, catDir = CATEGORIES_DIR): LoadedProduc
     : [];
 
   return { file, category: product.category, values, usedDefaults, unmapped };
+}
+
+/**
+ * Two Product Description tab fields that are already stated elsewhere in the same file.
+ *
+ * Derived, never typed twice — one fact, one source (WW-110, and the same rule that keeps the
+ * parcel dimensions out of `PROMPT-product.md`). Both are required fields on that tab, and both
+ * were previously entered by hand, which is what this was reported as taking forever:
+ *
+ *   Model Number   = the SKU. Character for character the same string; a second copy is only
+ *                    somewhere for a typo to live.
+ *   Items Included = the "WHAT YOU GET" list PROMPT-product.md already makes ChatGPT write into
+ *                    the Description, one item per line, each line starting with its count.
+ *   Quantity       = the packed parcel, in GRAMS. Vansh, asked which weight the form means,
+ *                    2026-08-12: *"the packed parcel, 280 gm"* — so it is the same measurement
+ *                    `Weight` already carries in kilograms, and the Inventory panel already
+ *                    computes it (`packaging.ts`). Multiplying by 1000 here is the whole job;
+ *                    a second measured number would be a second thing to get wrong, which is
+ *                    the exact shape of WW-055, where a wrong weight reached a live listing.
+ *                    A product with no measured `Weight` gets NO Quantity — blank is visible,
+ *                    a guessed weight is charged back at settlement.
+ *
+ * The count is what ends the list: stop at the first non-blank line that does not start with a
+ * digit. Older listings put a heading ("KEY FEATURES", "Key Features") or two explanatory
+ * paragraphs straight after the block, and both slipped in when the stop rule was
+ * "next ALL-CAPS line" — measured against all 11 product files.
+ *
+ * A product that states either value itself always wins, and a description with no WHAT YOU GET
+ * block (the pre-template listings) simply leaves the field blank, exactly as today.
+ */
+function deriveDescriptionTab(values: Values): void {
+  if (!values["Model Number"] && values["Seller SKU ID"]) {
+    values["Model Number"] = values["Seller SKU ID"];
+  }
+  if (!values["Quantity"]) {
+    // Round: 0.245 kg × 1000 is 245.00000000000003 in binary floating point, and that is what
+    // would have been typed into the box.
+    const kg = Number(values["Weight"]);
+    if (Number.isFinite(kg) && kg > 0) values["Quantity"] = String(Math.round(kg * 1000));
+  }
+  if (values["Items Included"]) return;
+  const lines = String(values["Description"] ?? "").split(/\r?\n/).map((l) => l.trim());
+  const start = lines.findIndex((l) => /^WHAT YOU GET\b/i.test(l));
+  if (start < 0) return;
+  const items: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!line) continue;
+    if (!/^\d/.test(line)) break;
+    items.push(line);
+  }
+  if (items.length) values["Items Included"] = items;
+}
+
+export interface ScanResult {
+  category: string;
+  file: string;
+  /** Only what this pass had not seen before — the rest of the file is other tabs. */
+  added: FieldInfo[];
+  /** Every label the category knows about now, across every tab ever scanned. */
+  total: number;
+}
+
+/** Thrown instead of writing junk. Caught by name so the CLI can offer --force. */
+export class ScanTooSmall extends Error {}
+
+/**
+ * Merge one tab's captured fields into `categories/<category>.json`.
+ *
+ * MERGES, never replaces — that is the whole reason scanning is done one tab at a time. The file
+ * accumulates: Price/Stock, then Product Description, then Additional Description. New labels are
+ * appended, labels already there are left exactly as they are, so re-scanning a tab is safe and
+ * so is scanning them in any order.
+ *
+ * Shared by `npm run scan` and the app's Scan button on purpose. This is the part that must not
+ * drift between them: it decides what gets written to disk, and the two front doors differ only
+ * in how they got hold of a page.
+ */
+export function mergeScan(
+  category: string,
+  found: FieldInfo[],
+  catDir = CATEGORIES_DIR,
+  force = false,
+): ScanResult {
+  // A real listing tab has many labelled inputs. A dashboard has one or two — the search box and
+  // the account menu — and saving those poisons the template for every future fill.
+  if (found.length < 5 && !force) {
+    throw new ScanTooSmall(
+      `Only ${found.length} field(s) here — this does not look like a listing form.\n` +
+        `Found: ${found.map((f) => `"${f.label}"`).join(", ") || "(nothing)"}\n` +
+        `You are probably on the dashboard rather than a tab of Add New Listing. Nothing was saved.`,
+    );
+  }
+  fs.mkdirSync(catDir, { recursive: true });
+  const file = path.join(catDir, `${category}.json`);
+  const existing = fs.existsSync(file)
+    ? (JSON.parse(fs.readFileSync(file, "utf8")) as { category: string; fields: FieldInfo[] })
+    : { category, fields: [] as FieldInfo[] };
+  const known = new Set(existing.fields.map((f) => f.label));
+  const added = found.filter((f) => !known.has(f.label));
+  existing.fields.push(...added);
+  (existing as Record<string, unknown>).scannedAt = new Date().toISOString();
+  fs.writeFileSync(file, JSON.stringify(existing, null, 2) + "\n");
+  return { category, file, added, total: existing.fields.length };
 }
 
 export interface Problem {
@@ -118,19 +251,40 @@ export function checkValues(values: Values): Problem[] {
   return out;
 }
 
+/**
+ * The values that are safe to type, with every problem field left out.
+ *
+ * **A problem skips its own field and stops nothing else.** It used to stop the whole run: two
+ * placeholders meant sixty good fields went untyped and the operator filled the form by hand.
+ * Vansh, 2026-08-12: *"we should have the freedom to let it continue even if any issue comes —
+ * just flag, warn about it later on."*
+ *
+ * Skipped, never typed-anyway, and that half is not negotiable. `TODO_MRP` in the MRP box is a
+ * live listing carrying a fake price, and a comma inside a multi-value entry silently becomes two
+ * wrong values (WW-012) — both are worse than an empty box, because an empty box is visible and a
+ * wrong value looks filled. The bot never submits, so what it leaves blank is what the human fills
+ * before pressing Save.
+ */
+export function fillableValues(values: Values, problems: Problem[]): Values {
+  const skip = new Set(problems.map((p) => p.label));
+  return Object.fromEntries(Object.entries(values).filter(([label]) => !skip.has(label)));
+}
+
 export function describeProblems(problems: Problem[]): string {
   const lines: string[] = [];
   const todos = problems.filter((p) => p.kind === "placeholder");
   const commas = problems.filter((p) => p.kind === "comma");
   if (todos.length) {
-    lines.push(`⛔ Some values are still placeholders — fill them in first:`);
+    lines.push(`⚠️  Still placeholders — these fields are LEFT BLANK, everything else is filled:`);
     for (const p of todos) lines.push(`   ${p.label} = ${p.value}`);
   }
   if (commas.length) {
-    lines.push(`⛔ These multi-value entries contain a comma, which Flipkart would split in two:`);
+    lines.push(`⚠️  These multi-value entries contain a comma, which Flipkart would split in two,`);
+    lines.push(`    so they are LEFT BLANK too:`);
     for (const p of commas) lines.push(`   ${p.label}: "${p.value}"`);
     lines.push(`   Rewrite them without commas — "and" or a dash reads fine.`);
   }
+  if (lines.length) lines.push(`   Type these into the form yourself before you press Save.`);
   return lines.join("\n");
 }
 

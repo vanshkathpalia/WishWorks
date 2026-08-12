@@ -40,7 +40,11 @@ describe("the shipped packaging rules", () => {
   it("loads, and an absent file is null rather than a crash", () => {
     expect(loadPackaging(path.join(CATS, "nope"))).toBeNull();
     const s = spec();
-    expect(s.base).toEqual({ lengthCm: 20, breadthCm: 15, heightCm: 4, grams: 250 });
+    // 7 x 8 x 1.5 INCHES — the packed parcel Vansh measured and typed into Flipkart on
+    // 2026-08-12, in cm because cm is the stored unit. It replaced the 8 x 10 inch BAG's flat
+    // size: a polybag is not filled to its edges, so declaring the bag over-declares every
+    // listing. Ask what state a number describes (C-052) before storing it.
+    expect(s.base).toEqual({ lengthCm: 20.32, breadthCm: 17.78, heightCm: 3.81, grams: 250 });
     expect(s.maxGrams).toBe(490);
   });
 
@@ -57,24 +61,27 @@ describe("the shipped packaging rules", () => {
 });
 
 describe("working out the parcel", () => {
-  it("uses the base box for a kit with none of the awkward items", () => {
+  it("uses the base bag for a kit with none of the awkward items, and it bills on volume", () => {
     const p = parcelFor(PLAIN, mats(), spec());
-    expect([p.lengthCm, p.breadthCm, p.heightCm, p.grams]).toEqual([20, 15, 4, 250]);
+    expect([p.lengthCm, p.breadthCm, p.heightCm, p.grams]).toEqual([20.32, 17.78, 3.81, 250]);
     expect(p.applied).toEqual([]);
-    // 20 x 15 x 4 / 5000 kg = 0.24 kg. Under the real 250 g, so the real weight is what bills.
-    expect(p.volumetricGrams).toBe(240);
-    expect(p.billedGrams).toBe(250);
-    expect(p.warnings).toEqual([]);
+    // 20.32 x 17.78 x 3.81 / 5000 kg = 275 g against a real 250 g. Volume still wins, but only
+    // just — it was 412 g while this file stored the BAG rather than the parcel. Pinned
+    // deliberately: this is the number Flipkart charges, and a silent change means somebody
+    // shrank the box in the file rather than in the packing.
+    expect(p.volumetricGrams).toBe(275);
+    expect(p.billedGrams).toBe(275);
+    expect(p.warnings.join(" ")).toContain("275");
   });
 
-  it("a net makes the box taller and heavier, and says why", () => {
+  it("a net makes the bag fuller and heavier, and says why", () => {
     const p = parcelFor([...PLAIN, { item: "GREEN NET", qty: 1 }], mats(), spec());
-    expect(p.heightCm).toBe(6);
-    expect(p.grams).toBe(290);
+    expect(p.heightCm).toBe(5.08);
+    expect(p.grams).toBe(280);
     expect(p.applied).toEqual(["net"]);
-    // 20 x 15 x 6 = 1800 / 5 = 360 g volumetric against 290 g real — the courier bills 360.
-    expect(p.volumetricGrams).toBe(360);
-    expect(p.billedGrams).toBe(360);
+    // 8 x 9 x 2 in = 22.86 x 20.32 x 5.08 = 2360 / 5 = 472 g against 280 g real — bills 472.
+    expect(p.volumetricGrams).toBe(472);
+    expect(p.billedGrams).toBe(472);
     // Named as a FLIPKART cost. Meesho quotes before a weight is entered and its fee tracks the
     // main image (SHIPPING-COST.md), so a generic warning would send someone shrinking a box to
     // fix a fee that ignores boxes.
@@ -82,12 +89,18 @@ describe("working out the parcel", () => {
     expect(p.warnings.join(" ")).toContain("Meesho is unaffected");
   });
 
-  it("a pump makes the box longer and heavier", () => {
+  it("a pump moves the kit into the bigger bag, and that is what it bills on", () => {
     const p = parcelFor([...PLAIN, { item: "PUMP", qty: 1 }], mats(), spec());
-    expect([p.lengthCm, p.breadthCm, p.heightCm, p.grams]).toEqual([22, 15, 4, 300]);
+    // 8 x 9 x 2 INCHES, MEASURED by Vansh 2026-08-12, and identical to the net rule because he
+    // measured the same parcel for both: "both and even in the ones that have only each one of
+    // these and both of these". This replaced a guess of 30.5 x 25.4 x 9 that billed at 1394 g
+    // against a real ~300 g — the panel had been warning about a parcel three times the real
+    // one, which is worse than no warning because it argues for repacking a fine kit. The test
+    // exists so the next correction shows up here rather than as a settlement charge.
+    expect([p.lengthCm, p.breadthCm, p.heightCm, p.grams]).toEqual([22.86, 20.32, 5.08, 280]);
     expect(p.applied).toEqual(["pump"]);
-    expect(p.volumetricGrams).toBe(264); // still under the real weight
-    expect(p.billedGrams).toBe(300);
+    expect(p.volumetricGrams).toBe(472);
+    expect(p.billedGrams).toBe(472);
   });
 
   it("both at once takes the larger of each dimension and adds both weights", () => {
@@ -97,8 +110,11 @@ describe("working out the parcel", () => {
       mats(),
       spec(),
     );
-    expect([p.lengthCm, p.breadthCm, p.heightCm]).toEqual([22, 15, 6]);
-    expect(p.grams).toBe(340);
+    // The two rules now ask for the SAME box, because that is what was measured — so this no
+    // longer proves "the larger wins" on dimensions and only the weights still add. Kept anyway:
+    // it is the guard that catches a future split of the two rules undoing each other.
+    expect([p.lengthCm, p.breadthCm, p.heightCm]).toEqual([22.86, 20.32, 5.08]);
+    expect(p.grams).toBe(310);
     expect(p.applied.sort()).toEqual(["net", "pump"]);
   });
 
@@ -106,7 +122,7 @@ describe("working out the parcel", () => {
     // "net" as a substring would catch this; matching the MATERIAL does not.
     const p = parcelFor([{ item: "Pink Metallic Curtain", qty: 2 }], mats(), spec());
     expect(p.applied).toEqual([]);
-    expect(p.heightCm).toBe(4);
+    expect(p.heightCm).toBe(3.81);
   });
 
   it("warns over the ceiling instead of shrinking anything", () => {
@@ -142,25 +158,30 @@ describe("working out the parcel", () => {
     // Somebody who has put the parcel on a scale knows more than a rule table.
     const p = parcelFor([...PLAIN, { item: "GREEN NET", qty: 1 }], mats(), spec(), { grams: 275 });
     expect(p.grams).toBe(275);
-    expect(p.heightCm).toBe(6); // the rule still shaped the box
+    expect(p.heightCm).toBe(5.08); // the rule still shaped the box
   });
 });
 
 describe("the two forms Flipkart asks for", () => {
   it("derives both from one parcel, each in its own unit", () => {
     const f = flipkartFields(parcelFor(PLAIN, mats(), spec()));
-    // Price/Stock → Package Details: centimetres and kilograms, fixed-label units.
+    // Price/Stock → Package Details: centimetres and kilograms, fixed-label units. The panel now
+    // SHOWS inches, because that is how the bags are bought — this is the check that showing them
+    // changed nothing about what is declared. Flipkart still gets cm here.
     expect(f.packageDetails).toEqual({
-      Length: "20",
-      Breadth: "15",
-      Height: "4",
+      Length: "20.32",
+      Breadth: "17.78",
+      Height: "3.81",
       Weight: "0.250",
     });
-    // Additional Description → Dimensions: inches, and a real unit picker for weight.
+    // Additional Description → Dimensions: inches, and a real unit picker for weight. The round
+    // trip lands back on the parcel Vansh measured — 7 x 8 x 1.5 in — which is also what the
+    // universal Dimensions defaults now store, so the two agree by arithmetic rather than by
+    // somebody keeping them in step.
     expect(f.dimensions).toEqual({
-      Width: "5.9",
-      Height: "1.6",
-      Depth: "7.9",
+      Width: "7",
+      Height: "1.5",
+      Depth: "8",
       Weight: "0.250",
       "Weight (unit)": "kg",
     });

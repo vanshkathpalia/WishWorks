@@ -121,7 +121,10 @@ finish and printed/banner wording.
 Identity
   "Model Name"   – the "title" from the first file, copied exactly.
   "Pack of"      – number of units sold as one, usually "1"
-  "Series"       – product line, e.g. "Classic" / "Premium"
+  "Series"       – the occasion this kit belongs to, used as a product line: "Annaprashan",
+                   "Groom To Be", "Baby Shower", "Birthday". NOT a quality tier — "Premium" and
+                   "Classic" are banned words and empty claims. This is a REQUIRED-BY-US field:
+                   it was being skipped on every listing.
   "Design"       – what it looks like, e.g. "Heart Shaped Foil Balloons with Rose Garland"
 
 Lists (arrays — no commas inside any entry)
@@ -146,6 +149,15 @@ Lists (arrays — no commas inside any entry)
   "Search Keywords"      – the "keywords" list from the first file, copied exactly.
   "Precautions"          – safety warnings, e.g. ["Keep away from fire"]
   "Safety Features"      – e.g. ["Non-toxic"]
+  "Other Features"       – 3 to 5 TRUE things about the kit that no other field on this form has
+                           a box for. This is the catch-all, and it was blank on every listing —
+                           which is a filter we never appear in, for free. Use what the INVENTORY
+                           supports: ["Reusable Banner", "No Helium Needed", "Air Filled Balloons",
+                           "DIY Setup", "Balloon Pump Included"]. Never a quality claim, never a
+                           repeat of Key Features word for word.
+  "Other Dimensions"     – LEAVE OUT unless the INVENTORY gives a measurement that has no box of
+                           its own (a banner's length, a curtain's drop). The parcel's own size is
+                           already stored and is not this field.
 
 Single values
   "Shape"        – ONE value from the form's dropdown, e.g. "Round" / "Heart" / "Star".
@@ -304,9 +316,16 @@ Yes/No dropdowns — answer exactly "Yes" or "No"
   flat for storage and reuse. A balloon-led kit is "No" even though its banner folds —
   a partial "Yes" here earns nothing and invites a return claim.
 
-Size of the product (numbers only, in inches)
-  "Width", "Height", "Depth", "Diameter"
-  "Weight"  – in kilograms, e.g. "0.16"
+Size and weight — LEAVE THESE OUT. DO NOT GUESS THEM.
+  "Width", "Height", "Depth", "Weight", "Quantity"
+  These describe the posted parcel and its weight, and the app measures them from the packed
+  kit and writes them into this file itself. You cannot see a parcel in a photo, and a size the
+  courier disagrees with is charged back to me after the sale — so a guess here does not
+  save me a step, it costs me money. Omit all five. If you have already written them,
+  delete them. "Quantity" is a weight in GRAMS on the form, not a piece count — writing the
+  piece count there is the specific mistake to avoid.
+  "Diameter" — omit as well unless the product is genuinely round and the INVENTORY gives
+  the figure.
 
 === LEAVE THESE OUT ALWAYS ===
 This Flipkart category is shared with hand fans, party blowouts, crackers and
@@ -318,9 +337,28 @@ Mouthpiece Material, Tube Shape, Tube Material, Other Blowout Features, Burn Tim
 Visual Effects, Sound Features, Cracker Type, Other Cracker Features, Powered by,
 Power Requirement, Type of Batteries, Number of Batteries, Other Power Features.
 
+=== ALREADY WRITTEN BY THE APP — NEVER INCLUDE THESE ===
+  "Model Number"    – the app copies it from "Seller SKU ID". They are the same string, and a
+                      second copy is only a place for a typo to appear.
+  "Quantity"        – the app converts it from the parcel weight it measured. It is a WEIGHT IN
+                      GRAMS on this form, not a piece count, and writing the piece count there
+                      is the specific mistake to avoid.
+  "Items Included"  – the app reads it off the "WHAT YOU GET" lines of the "Description" you
+                      just wrote. Which means those lines have to be right: one item per line,
+                      each line starting with its count, nothing else between them.
+If any of the three appears in your answer, delete it.
+
 === ALREADY SET FOR EVERY PRODUCT — only include if THIS product differs ===
 Warranty fields, Country of Origin, HSN code, tax, manufacturer and packer details,
 stock and shipping settings are already configured. Do not include them.
+Also already set, and only worth including when this product genuinely differs: "Type"
+("Decoration Kit"), "Color" (["Multicolor"]), "Size" ("Medium") and "Size in Number" ("8").
+
+DO NOT "correct" "Size in Number" from the INVENTORY. The inventory says things like "10 INCH
+METALLIC BALLOONS", and that is the INFLATED size — but nothing ships inflated. The latex goes in
+flat and the foil is folded, so the piece the buyer receives is smaller than the number on the
+material row. Reading 10 off the inventory and writing it here describes an item that does not
+exist in the parcel. Leave the field out.
 
 === BEFORE YOU ANSWER, CHECK ===
 - Is "Model Name" character-for-character the "title" from the first file, and
@@ -329,8 +367,15 @@ stock and shipping settings are already configured. Do not include them.
 - Does any list value contain a comma? Remove it.
 - Did you invent a size or material you cannot see? Remove that field.
 - IS THE "Description" FIELD THERE? It is the longest field and the easiest to drop. So are
-  the five Yes/No dropdowns and "Weight" — a truncated answer loses the tail of the file
-  first. Count the fields against the list above before you send.
+  the five Yes/No dropdowns — a truncated answer loses the tail of the file first. Count the
+  fields against the list above before you send.
+- Are "Width", "Height", "Depth", "Weight" and "Quantity" ABSENT? They are the parcel, the app
+  measures it, and a guessed size costs me money at settlement. If any of the five is in your
+  answer, take it out. So are "Model Number" and "Items Included" — the app writes all of them
+  from things you have already given it.
+- In the Description's WHAT YOU GET block, does EVERY line start with a digit, and does the
+  block end at the next heading with nothing else mixed in? The app reads "Items Included"
+  straight off those lines, so a stray sentence in there becomes a stray listing value.
 - Does the Description mention every single INVENTORY line, accessories included?
 - Is the Description between 2500 and 4500 characters, counted with spaces, line breaks and
   emoji? Over 5000: cut in the order given and count again. Under 2500: you have left most of
@@ -366,6 +411,9 @@ If any section appears as one long paragraph, rewrite it before answering.
 - BUYER-WORD CHECK (rule 8) — read back every item name in Decoratives Attached, Key Spec,
   Key Features and What You Get. Would a buyer type it? "Foil Letter Kit" and "Mug Foil
   Balloon" fail; "Groom To Be Foil Banner" and "Beer Mug Foil Balloon" pass.
+- ARE "Series" AND "Other Features" BOTH THERE? They are the two fields that get skipped most
+  often, they are both easy to answer truthfully, and each one is a filter the listing otherwise
+  never appears in.
 - ATTRIBUTE SWEEP (rule 9) — go back through the FIELDS TO FILL list and count how many you
   actually filled. For each one you skipped, is that because you genuinely do not know, or
   because you stopped early? Filters run on these, so a blank field is a filter you never

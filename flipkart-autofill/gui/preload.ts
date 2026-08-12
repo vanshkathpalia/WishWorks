@@ -8,7 +8,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
-  CleanUp, FieldRow, KitLine, PhotoItem, Row, SavedKit, StepId, WwApi,
+  CleanUp, DefaultsTab, FieldRow, KitLine, PhotoItem, Row, SavedKit, StepId, WwApi,
 } from "./shared.js";
 
 const api: WwApi = {
@@ -67,6 +67,10 @@ const api: WwApi = {
   listingFolders: (root: string) => ipcRenderer.invoke("listingFolders", root),
   paste: (id: string) => ipcRenderer.invoke("paste", id),
   stripEmoji: (id: string) => ipcRenderer.invoke("stripEmoji", id),
+  readProduct: (id: string) => ipcRenderer.invoke("readProduct", id),
+  saveProduct: (file: string, text: string) => ipcRenderer.invoke("saveProduct", file, text),
+  applyParcel: (id: string, dimensions: Record<string, string>) =>
+    ipcRenderer.invoke("applyParcel", id, dimensions),
 
   downloadsDir: () => ipcRenderer.invoke("downloadsDir"),
   scanInbox: (from: string) => ipcRenderer.invoke("scanInbox", from),
@@ -86,8 +90,9 @@ const api: WwApi = {
   forgetPage: (name: string) => ipcRenderer.invoke("forgetPage", name),
   chromeStatus: () => ipcRenderer.invoke("chromeStatus"),
   closeChrome: () => ipcRenderer.invoke("closeChrome"),
-  fillListing: (id: string) => ipcRenderer.invoke("fillListing", id),
+  fillListing: (id: string, tab?: DefaultsTab) => ipcRenderer.invoke("fillListing", id, tab),
   saveListing: () => ipcRenderer.invoke("saveListing"),
+  scanTab: (id: string) => ipcRenderer.invoke("scanTab", id),
   onField: (cb: (row: FieldRow) => void) => {
     const handler = (_e: unknown, row: FieldRow) => cb(row);
     ipcRenderer.on("field", handler);

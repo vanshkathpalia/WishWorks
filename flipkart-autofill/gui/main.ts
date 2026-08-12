@@ -22,7 +22,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { Attempt, CleanUp, ConvertResult, Row, StepId } from "./shared.js";
+import type { Attempt, CleanUp, ConvertResult, DefaultsTab, Row, StepId } from "./shared.js";
 
 app.setName("WishWorks");
 
@@ -455,7 +455,11 @@ ipcMain.handle("openKitsFolder", async () => {
   await shell.openPath(dir);
 });
 
-ipcMain.handle("listKits", async () => (await inventoryEngine()).listKits());
+/** With the price list, so each kit can say what it leaves — the panel colours the list by it. */
+ipcMain.handle("listKits", async () => {
+  const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
+  return listKits(KITS_DIR, loadMaterials());
+});
 ipcMain.handle("openKit", async (_e, file: string) => (await inventoryEngine()).readKit(file));
 
 // ---------------------------------------------------------------- the AI's pictures
@@ -487,6 +491,43 @@ ipcMain.handle("paste", async (_e, id: string) => {
 ipcMain.handle("stripEmoji", async (_e, id: string) => {
   const { stripFlipkartEmoji } = await pasteEngine();
   return stripFlipkartEmoji(id);
+});
+
+/**
+ * The listing file as text, for editing in the app.
+ *
+ * Vansh, 2026-08-12: *"we should have the freedom to open that json in the app UI also."* Until
+ * now a `TODO_MRP` could only be filled by finding the file on disk and opening a code editor —
+ * which is exactly the thing the app exists to remove for the partner.
+ */
+ipcMain.handle("readProduct", async (_e, id: string) => {
+  const { findById } = await import("../src/id.js");
+  const { PRODUCTS_DIR } = await import("../src/paths.js");
+  const match = await findById(PRODUCTS_DIR, id);
+  if (!match) return { ok: false as const, message: `Nothing in products/ matches "${id}".` };
+  return { ok: true as const, result: { file: match.file, text: await readFile(match.file, "utf8") } };
+});
+
+/** Save it back. Refused unless it parses — a half-typed file would break every later step. */
+ipcMain.handle("saveProduct", async (_e, file: string, text: string) => {
+  try {
+    JSON.parse(text);
+  } catch (e) {
+    return { ok: false as const, message: `Not valid JSON, so nothing was saved — ${(e as Error).message}` };
+  }
+  await writeFile(file, text.endsWith("\n") ? text : `${text}\n`);
+  return { ok: true as const, result: file };
+});
+
+/** Write the costed kit's parcel into the listing the bot fills, so the two cannot disagree. */
+ipcMain.handle("applyParcel", async (_e, id: string, dimensions: Record<string, string>) => {
+  const { applyParcelToListing, PasteNotFound } = await pasteEngine();
+  try {
+    return { ok: true as const, result: await applyParcelToListing(id, dimensions) };
+  } catch (e) {
+    if (e instanceof PasteNotFound) return { ok: false as const, message: e.message };
+    throw e;
+  }
 });
 
 ipcMain.handle("scanInbox", async (_e, from: string) => (await inboxEngine()).scanInbox(from));
@@ -591,10 +632,10 @@ ipcMain.handle("closeChrome", async () => {
   return (await browserEngine()).closeSession();
 });
 
-ipcMain.handle("fillListing", (e, id: string) =>
+ipcMain.handle("fillListing", (e, id: string, tab?: DefaultsTab) =>
   guarded(async () => {
     const { fillListing } = await browserEngine();
-    const result = await fillListing(id, (row) => e.sender.send("field", row));
+    const result = await fillListing(id, (row) => e.sender.send("field", row), tab);
     lastFill = { needsEyes: result.needsEyes };
     return result;
   }),
@@ -602,6 +643,12 @@ ipcMain.handle("fillListing", (e, id: string) =>
 
 ipcMain.handle("saveListing", () =>
   guarded(async () => (await browserEngine()).saveListing(lastFill)),
+);
+
+// Calibration, and safe enough to hand to anyone: it only ADDS labels to the category file,
+// and `mergeScan`'s junk guard refuses a page that is not a form (WW-110).
+ipcMain.handle("scanTab", (_e, id: string) =>
+  guarded(async () => (await browserEngine()).scanTab(id)),
 );
 
 ipcMain.handle("rememberedFolders", remembered);

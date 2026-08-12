@@ -97,6 +97,7 @@ describe("a parcel chosen by hand", () => {
   });
 
   it("says standard box when nothing was chosen", () => {
-    expect(kitToCsv(kit(), opts)).toContain("standard box,20,15,4,250,240,250 g");
+    // The 8 x 10 inch bag, in cm — the CSV declares centimetres whatever the panel shows.
+    expect(kitToCsv(kit(), opts)).toContain("standard box,20.32,17.78,3.81,250,275,275 g");
   });
 });

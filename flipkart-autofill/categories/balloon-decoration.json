@@ -671,7 +671,74 @@
       "multi": false,
       "companion": false,
       "furniture": false
+    },
+    {
+      "label": "Model Number *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false,
+      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+    },
+    {
+      "label": "Type *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false,
+      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+    },
+    {
+      "label": "Color *",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false,
+      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+    },
+    {
+      "label": "Size *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false,
+      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+    },
+    {
+      "label": "Size in Number *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false,
+      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+    },
+    {
+      "label": "Quantity *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false,
+      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+    },
+    {
+      "label": "Items Included *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false,
+      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+    },
+    {
+      "label": "Quantity * (unit)",
+      "kind": "combobox",
+      "multi": false,
+      "options": [
+        "gExpandMore"
+      ],
+      "companion": true,
+      "furniture": false
     }
   ],
-  "scannedAt": "2026-08-03T15:50:49.375Z"
+  "scannedAt": "2026-08-12T09:46:04.344Z"
 }
