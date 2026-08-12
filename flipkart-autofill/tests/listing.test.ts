@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadProduct, mergeScan, productName, ScanTooSmall } from "../src/listing.js";
+import { checkValues, fillableValues, loadProduct, mergeScan, productName, ScanTooSmall } from "../src/listing.js";
 
 async function fixture(): Promise<{ file: string; cat: string }> {
   const dir = await mkdtemp(path.join(tmpdir(), "ww-unmapped-"));
@@ -278,5 +278,34 @@ describe("_ask, the questions raised instead of guesses made", () => {
 
   it("says nothing when there was nothing to ask", async () => {
     expect((await load({ Stock: "100" })).asks).toEqual([]);
+  });
+});
+
+// The failure mode that does not stay in its own field: Flipkart posts the whole listing on every
+// edit, so one character its backend cannot store makes "Could not save your changes" appear on
+// every field afterwards, on every tab. Proven once by deleting a Description on a live listing.
+describe("characters Flipkart's server cannot store", () => {
+  it("catches an emoji, and says which character", () => {
+    const p = checkValues({ Description: "Key Features\n\n🎈 52 Pieces" });
+    expect(p).toHaveLength(1);
+    expect(p[0].kind).toBe("nonascii");
+    expect(p[0].value).toContain("U+1F388");
+  });
+
+  it("catches an en-dash, which is the easy one to miss", () => {
+    expect(checkValues({ Design: "Red – Gold" })[0]?.value).toContain("U+2013");
+  });
+
+  it("leaves the field blank rather than filling it — a save that always fails is worse", () => {
+    const values = { Description: "🎈", Stock: "100" };
+    expect(Object.keys(fillableValues(values, checkValues(values)))).toEqual(["Stock"]);
+  });
+
+  it("allows the newlines a Description is supposed to have", () => {
+    expect(checkValues({ Description: "One line\n\nAnother line" })).toEqual([]);
+  });
+
+  it("reports one character per field, not one per occurrence", () => {
+    expect(checkValues({ Description: "🎈🎁✨" })).toHaveLength(1);
   });
 });

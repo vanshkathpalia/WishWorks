@@ -283,9 +283,34 @@ export function productName(values: Values): { name: string; warnings: string[] 
 }
 
 export interface Problem {
-  kind: "placeholder" | "comma";
+  kind: "placeholder" | "comma" | "nonascii";
   label: string;
   value: string;
+}
+
+/**
+ * The first character in a string that Flipkart's backend cannot store, or null.
+ *
+ * **This one kills the whole listing, not one field.** Emoji in a Description made Flipkart
+ * return HTTP 500 on EVERY save — and because the form posts the entire draft on each edit, the
+ * failure then follows you around: typing an unrelated word on an unrelated tab fails too, which
+ * is exactly what it looks like when the field you are touching is blamed. It was proved by
+ * deleting the Description on a live listing, at which point it saved immediately
+ * (`PROMPT-product.md`, and the prompt has banned emoji ever since).
+ *
+ * The prompt banning them is not a guard: it asks a model to comply, and four product files in
+ * this repo carry emoji and en-dashes anyway, because they were written before the ban. This is
+ * the check that runs on the data rather than trusting the instructions that produced it.
+ *
+ * Newline and tab are fine — a Description is meant to have line breaks.
+ */
+function badChar(s: string): string | null {
+  for (const ch of s) {
+    const c = ch.codePointAt(0)!;
+    if (c === 9 || c === 10 || c === 13) continue;
+    if (c < 32 || c > 126) return ch;
+  }
+  return null;
 }
 
 /**
@@ -302,6 +327,17 @@ export function checkValues(values: Values): Problem[] {
     if (String(v).startsWith("TODO_")) out.push({ kind: "placeholder", label, value: String(v) });
     if (Array.isArray(v)) {
       for (const s of v) if (s.includes(",")) out.push({ kind: "comma", label, value: s });
+    }
+    for (const s of Array.isArray(v) ? v : [String(v)]) {
+      const ch = badChar(String(s));
+      if (ch) {
+        out.push({
+          kind: "nonascii",
+          label,
+          value: `${JSON.stringify(ch)} (U+${ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")})`,
+        });
+        break;
+      }
     }
   }
   return out;
@@ -333,6 +369,15 @@ export function describeProblems(problems: Problem[]): string {
   if (todos.length) {
     lines.push(`⚠️  Still placeholders — these fields are LEFT BLANK, everything else is filled:`);
     for (const p of todos) lines.push(`   ${p.label} = ${p.value}`);
+  }
+  const bad = problems.filter((p) => p.kind === "nonascii");
+  if (bad.length) {
+    lines.push(`⛔ These contain a character Flipkart's server cannot store, so they are LEFT BLANK:`);
+    for (const p of bad) lines.push(`   ${p.label} contains ${p.value}`);
+    lines.push(`   This is the one that breaks EVERYTHING, not just its own field: the form posts the`);
+    lines.push(`   whole listing on every edit, so one emoji or en-dash makes "Could not save your`);
+    lines.push(`   changes" appear on every field you touch afterwards, on every tab. Replace them`);
+    lines.push(`   with plain ASCII — "-" for a dash, and delete emoji entirely.`);
   }
   if (commas.length) {
     lines.push(`⚠️  These multi-value entries contain a comma, which Flipkart would split in two,`);
