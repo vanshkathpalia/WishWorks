@@ -39,6 +39,21 @@ export interface Material {
   /** What we stock, when it is known. Free text — "10 inch", "3.3 ft x 6.5 ft". WW-116. */
   size?: string;
   /**
+   * What a BUYER would call this, when the stock name is not it.
+   *
+   * `material` is the name that prices correctly and matches the partner's sheets — supplier
+   * language, and eight rows here are abbreviations no shopper has ever typed: `GTB Foil`,
+   * `HBD Banner`, `BTB Sash`. Put one of those in a listing and it is invisible to search.
+   *
+   * `PROMPT-product.md` rule 8 already exists to fix this and uses this exact case as its
+   * example — *"Foil Letter Kit" -> "Groom To Be Foil Banner" (people search BANNER)*. But it
+   * fixes it by asking a model to expand an abbreviation it has to recognise first, every time,
+   * on every listing. GTB is knowable here, once, so it is data rather than a guess.
+   *
+   * Omitted when the stock name is already the buyer's name, which is most rows.
+   */
+  sellsAs?: string;
+  /**
    * How many PIECES come in one of these, when it is bought as a pack rather than singly.
    *
    * The failure this exists to stop: an inventory sheet counts what a buyer sees — *16 photo
@@ -525,7 +540,49 @@ export function saveKit(kit: SavedKit, dir = KITS_DIR): string {
   return file;
 }
 
-export function listKits(dir = KITS_DIR): { sku: string; file: string; savedAt: string }[] {
+/** The GST rate the listings carry — `GST_5` on the Flipkart form. Editable per kit on screen. */
+export const DEFAULT_GST_PERCENT = 5;
+
+/**
+ * What a sale actually leaves: the listed price, less the materials, the delivery and the GST.
+ *
+ * Indian marketplace prices are GST-INCLUSIVE, so the tax is EXTRACTED from what is left after
+ * delivery (`base × rate / (100 + rate)`) rather than added on top — adding it would invent money
+ * the buyer never paid. The Inventory panel's delivery table computes the same figure inline for
+ * the kit being edited, because there the price is being typed and cannot come from disk; keep the
+ * two in step. Still not profit: the marketplace commission, its own GST, packaging and ad spend
+ * are all outside it.
+ */
+export function leftAfterEverything(
+  pricePaise: number,
+  shippingPaise: number,
+  materialsPaise: number,
+  gstPercent = DEFAULT_GST_PERCENT,
+): number {
+  const taxable = Math.max(pricePaise - shippingPaise, 0);
+  return pricePaise - materialsPaise - shippingPaise - Math.round((taxable * gstPercent) / (100 + gstPercent));
+}
+
+export interface KitRow {
+  sku: string;
+  file: string;
+  savedAt: string;
+  /**
+   * Per marketplace, what this kit leaves after everything — present only for marketplaces that
+   * have a listed price, and only when `materials` was passed. Absent is a real state and not
+   * zero: a kit costed but never listed has no margin to be right or wrong about.
+   */
+  left?: Record<string, number>;
+}
+
+/**
+ * Every saved kit, newest first — and, when the price list is handed in, what each one leaves.
+ *
+ * Costed fresh here rather than read off the file, for the reason nothing stores a total: the
+ * prices ship with the app, so a stored figure would be last month's balloon price with nothing
+ * on screen to say so.
+ */
+export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
@@ -533,7 +590,23 @@ export function listKits(dir = KITS_DIR): { sku: string; file: string; savedAt: 
     .flatMap((f) => {
       try {
         const k = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")) as SavedKit;
-        return [{ sku: k.sku || path.basename(f, ".json"), file: path.join(dir, f), savedAt: k.savedAt ?? "" }];
+        const row: KitRow = {
+          sku: k.sku || path.basename(f, ".json"),
+          file: path.join(dir, f),
+          savedAt: k.savedAt ?? "",
+        };
+        if (materials) {
+          const cost = costKit(
+            k.lines ?? [], materials, k.overrides ?? {}, k.sku, k.prices ?? {}, k.counts ?? {},
+          ).totalPaise;
+          const left: Record<string, number> = {};
+          for (const [id, v] of Object.entries(k.marketplaces ?? {})) {
+            if (!v?.pricePaise) continue; // no price listed is not a margin of zero
+            left[id] = leftAfterEverything(v.pricePaise, v.shippingPaise ?? 0, cost);
+          }
+          if (Object.keys(left).length > 0) row.left = left;
+        }
+        return [row];
       } catch {
         return []; // a half-written file is not a reason for the list to fail
       }

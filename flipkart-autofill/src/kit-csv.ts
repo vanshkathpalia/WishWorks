@@ -66,7 +66,11 @@ function block(saved: SavedKit, opts: CsvOptions): string[] {
   }
 
   out.push("");
-  out.push(row("Category", "Material as the sheet has it", "Count", "Packs bought", "Each", "Line cost", "Priced as", "Note"));
+  // "Call it" is the name for the LISTING, and it is a third name on purpose. "Material as the
+  // sheet has it" is the partner's words, "Priced as" is the row that set the cost, and neither
+  // is what a shopper types: "GTB Foil" prices correctly and is invisible in search. Most rows
+  // repeat their material here, and the eight that do not are the whole reason the column exists.
+  out.push(row("Category", "Material as the sheet has it", "Count", "Packs bought", "Each", "Line cost", "Priced as", "Call it", "Note"));
   for (const l of kit.lines) {
     const note = l.match === null
       ? "NOT ON THE PRICE LIST"
@@ -77,9 +81,10 @@ function block(saved: SavedKit, opts: CsvOptions): string[] {
           : l.flagged
             ? "matched loosely - check it"
             : "";
-    out.push(row(l.match?.category ?? "", l.item, l.qty, l.packs, money(l.each), money(l.paise), l.match?.material ?? "", note));
+    out.push(row(l.match?.category ?? "", l.item, l.qty, l.packs, money(l.each), money(l.paise),
+      l.match?.material ?? "", l.match?.sellsAs ?? l.match?.material ?? "", note));
   }
-  out.push(row("", "", pieces, "", "", money(kit.totalPaise), "TOTAL", ""));
+  out.push(row("", "", pieces, "", "", money(kit.totalPaise), "TOTAL", "", ""));
 
   const places = Object.entries(saved.marketplaces ?? {}).filter(([, v]) => v?.pricePaise);
   if (places.length > 0) {

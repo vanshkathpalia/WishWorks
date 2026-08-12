@@ -334,7 +334,8 @@
     {
       "category": "Foil Balloon",
       "material": "GTB Foil",
-      "paise": 3500
+      "paise": 3500,
+      "sellsAs": "Groom To Be Foil Banner"
     },
     {
       "category": "Foil Balloon",
@@ -347,7 +348,8 @@
     {
       "category": "Foil Balloon",
       "material": "HBD Foil",
-      "paise": 3800
+      "paise": 3800,
+      "sellsAs": "Happy Birthday Foil Banner"
     },
     {
       "category": "Foil Balloon",
@@ -517,7 +519,8 @@
       "paise": 1000,
       "aka": [
         "happy birthday"
-      ]
+      ],
+      "sellsAs": "Happy Birthday Banner"
     },
     {
       "category": "Banner",
@@ -525,7 +528,8 @@
       "paise": 1200,
       "aka": [
         "HBD banner Banting"
-      ]
+      ],
+      "sellsAs": "Happy Birthday Bunting Banner"
     },
     {
       "category": "Banner",
@@ -658,7 +662,8 @@
     {
       "category": "Themed Set",
       "material": "GTB Kit",
-      "paise": 3400
+      "paise": 3400,
+      "sellsAs": "Groom To Be Foil Letter Kit"
     },
     {
       "category": "Themed Set",
@@ -787,17 +792,20 @@
     {
       "category": "Sash",
       "material": "BTB Sash",
-      "paise": null
+      "paise": null,
+      "sellsAs": "Bride To Be Sash"
     },
     {
       "category": "Sash",
       "material": "GTB Sash",
-      "paise": 850
+      "paise": 850,
+      "sellsAs": "Groom To Be Sash"
     },
     {
       "category": "Sash",
       "material": "HBD Sash",
-      "paise": null
+      "paise": null,
+      "sellsAs": "Happy Birthday Sash"
     },
     {
       "category": "Adhesive",

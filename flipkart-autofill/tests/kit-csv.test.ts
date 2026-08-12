@@ -101,3 +101,22 @@ describe("a parcel chosen by hand", () => {
     expect(kitToCsv(kit(), opts)).toContain("standard box,20.32,17.78,3.81,250,275,275 g");
   });
 });
+
+// "GTB Foil" prices correctly and is invisible in search. The sheet's words, the row that set the
+// price, and the name a shopper types are three different strings — only the third goes in a
+// listing, and PROMPT-product.md rule 8 uses this exact material as its example.
+describe("the name to put in the listing", () => {
+  it("prints the buyer's name beside the priced row, not instead of it", () => {
+    const csv = kitToCsv(kit({ lines: [{ item: "GTB FOIL", qty: 1 }] }), opts);
+    expect(csv).toContain("GTB Foil,Groom To Be Foil Banner");
+  });
+
+  it("repeats the material when the stock name is already the buyer's name", () => {
+    const csv = kitToCsv(kit(), opts);
+    expect(csv).toContain("Arch Tape,Arch Tape");
+  });
+
+  it("still carries the header, so the column is readable in Excel", () => {
+    expect(kitToCsv(kit(), opts)).toContain("Priced as,Call it,Note");
+  });
+});
