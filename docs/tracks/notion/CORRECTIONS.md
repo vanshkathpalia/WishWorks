@@ -1654,6 +1654,38 @@ chart describes it as used. Same unit, same noun, three different numbers.
 
 ---
 
+## C-053 — put concrete example values in a prompt, the mistake WW-147 exists to prevent
+
+**Category:** Judgement · **Caught by:** Vansh, before it shipped · **Date:** 2026-08-12 · **Status:** Fixed
+
+The new "Color and Type write the product name" section of `PROMPT-product.md` was written with
+worked examples in it — a specific occasion phrase, a specific colour-and-contents phrase, a
+specific extras phrase, and a specific tail. It read well and it was wrong.
+
+Vansh: *"i don't want these details hardcoded in a prompt, then chatgpt won't take the then given
+list details, we give these details only in any listing items and all. so use a generic version."*
+
+**This is WW-147's rule, restated by the person who set it.** That ticket's whole design was *the
+prompt contains no occasion, no colour, no kit and no example values at all*, because an example
+is what a model reaches for when the real data is harder to read — and WW-122 is a live case of an
+example ID in a prompt being copied into a real answer. A section teaching ChatGPT to write the
+most-read text on the listing is the worst possible place to leave a copyable phrase.
+
+Two smaller instances of the same slip were in the same batch: the `Series` field had been given
+four real occasions as examples, and the section quoted a live listing's misspelt word as a
+cautionary tale — a misspelling sitting in a prompt as a string to be copied.
+
+**Fix.** The section is now purely structural: what each of the three phrases must ANSWER, with
+no value that could be lifted. The evidence for the formula, the real listing and the typo all
+moved into `balloon-decoration.description.defaults.json`, which ChatGPT never sees.
+
+**The rule:** a prompt may state what a field must answer; it may not state an answer. If an
+example feels necessary to make an instruction clear, the instruction is not clear yet. And note
+which way this was caught — WW-147 was written down two days earlier and still had to be applied
+by Vansh rather than by the assistant reading its own note.
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:
