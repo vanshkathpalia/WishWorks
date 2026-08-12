@@ -181,8 +181,16 @@ function deriveDescriptionTab(values: Values): void {
   if (!values["Quantity"]) {
     // Round: 0.245 kg × 1000 is 245.00000000000003 in binary floating point, and that is what
     // would have been typed into the box.
+    //
+    // The ceiling is the guard, not decoration. `Weight` is KILOGRAMS, but grams is the unit
+    // everything else here is stored in, so writing 250 where 0.250 belongs is a slip anyone
+    // makes once — and multiplying it gives 250000, which is 250 KG declared on a balloon kit.
+    // That is WW-055 exactly ("Net Weight = 10000 g" reached a live listing and cost money at
+    // settlement). 5 kg is far above the 490 g ceiling packaging.json enforces and far below
+    // any plausible gram figure, so nothing real is refused and no slip gets through. A refused
+    // value leaves the box EMPTY, which is visible; a converted one looks filled and is wrong.
     const kg = Number(values["Weight"]);
-    if (Number.isFinite(kg) && kg > 0) values["Quantity"] = String(Math.round(kg * 1000));
+    if (Number.isFinite(kg) && kg > 0 && kg <= 5) values["Quantity"] = String(Math.round(kg * 1000));
   }
   if (values["Items Included"]) return;
   const lines = String(values["Description"] ?? "").split(/\r?\n/).map((l) => l.trim());

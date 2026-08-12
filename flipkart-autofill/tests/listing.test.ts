@@ -309,3 +309,29 @@ describe("characters Flipkart's server cannot store", () => {
     expect(checkValues({ Description: "🎈🎁✨" })).toHaveLength(1);
   });
 });
+
+// Weight is kilograms, but grams is the unit everything else here uses — so writing 250 where
+// 0.250 belongs is a slip anyone makes once, and multiplying it declares 250 kg on a balloon kit.
+describe("Quantity refuses a Weight that cannot be kilograms", () => {
+  const load = async (values: Record<string, unknown>) => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ww-kg-"));
+    const cat = path.join(dir, "cats");
+    await mkdir(cat, { recursive: true });
+    const file = path.join(dir, "p.json");
+    await writeFile(file, JSON.stringify({ category: "c", values }));
+    return loadProduct(file, cat).values;
+  };
+
+  it("converts a real parcel weight", async () => {
+    expect((await load({ Weight: "0.25" }))["Quantity"]).toBe("250");
+  });
+
+  it("leaves the box EMPTY when the figure is grams wearing a kilogram label", async () => {
+    // 250 kg on a balloon kit. Blank is visible; 250000 looks filled and is wrong.
+    expect((await load({ Weight: "250" }))["Quantity"]).toBeUndefined();
+  });
+
+  it("still allows a genuinely heavy parcel, so the guard refuses nothing real", async () => {
+    expect((await load({ Weight: "1.4" }))["Quantity"]).toBe("1400");
+  });
+});
