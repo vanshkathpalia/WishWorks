@@ -87,6 +87,39 @@ button:hover {
   font-size: 14px;
   text-align: left;
 }
+
+/* Name over one line of what the step does. `align-items: start` on the row so the number sits
+   against the NAME rather than floating to the middle of a two-line block. */
+.rail li button {
+  align-items: flex-start;
+}
+.rail li button .num {
+  margin-top: 1px;
+}
+.step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.step-text b {
+  font-weight: 600;
+}
+.step-text small,
+.rail-foot small {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #6d635b;
+}
+.rail li button.current .step-text small {
+  color: #9a8d82;
+}
+.rail-foot button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
 .rail li button:hover {
   background: #201b19;
   color: var(--ink);
@@ -1251,4 +1284,51 @@ input[type="text"] {
 .inv-table input[type="number"] {
   min-width: 4.5em;
   width: 4.5em;
+}
+
+/* The listing-file editor. Monospace and tall: it is raw JSON, and the thing being looked for is
+   usually a TODO_ line somewhere in sixty. */
+.sheet.wide {
+  max-width: 900px;
+  width: 90vw;
+}
+textarea.json {
+  width: 100%;
+  min-height: 55vh;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+/* The composed product name (Flipkart builds it from Color + Type, not Model Name). Shown, not
+   checked — a typo here is only ever caught by a person reading the finished sentence. */
+.named {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #201b19;
+}
+.named small {
+  font-size: 11.5px;
+  color: #6d635b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.named b {
+  font-size: 15px;
+  line-height: 1.4;
+  user-select: text;
+}
+.named .brandish {
+  color: #6d635b;
+  font-weight: 400;
+}
+.named em {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--bad);
 }

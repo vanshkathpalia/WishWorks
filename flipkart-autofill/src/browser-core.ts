@@ -22,7 +22,7 @@ import { clickSave, extractFields, probeField } from "./fields.js";
 import { findById } from "./id.js";
 import { PRODUCTS_DIR } from "./paths.js";
 import {
-  checkValues, fillableValues, fillAll, loadProduct, mergeScan, needsEyes,
+  checkValues, fillableValues, fillAll, loadProduct, mergeScan, needsEyes, productName,
   type DefaultsTab, type FieldRow, type Problem, type Report, type ScanResult, type Values,
 } from "./listing.js";
 
@@ -107,6 +107,12 @@ export interface FillResult {
    * value on. Reported rather than typed, and they never stop the rest of the form being filled.
    */
   skipped: Problem[];
+  /**
+   * The name buyers will see, composed from Color + Type, with anything mechanically wrong with
+   * it. Null when this tab's values do not include those two fields. Shown rather than checked:
+   * it is the most-read text on the listing and nothing displayed it before Save.
+   */
+  productName: { name: string; warnings: string[] } | null;
   /** For each mismatch, what the widget actually turned out to be — the debugging shortcut. */
   probes: { label: string; tag: string; kind: string; rowLabel: string; wrongRow: boolean; value: string; pills: string[] }[];
 }
@@ -185,6 +191,7 @@ export async function fillListing(
     // Anything left blank on purpose needs a human before Save, exactly like a mismatch does —
     // it is a count, so the skipped fields ADD to it rather than replacing it.
     needsEyes: needsEyes(report) + problems.length,
+    productName: productName(values as Values),
     probes: await explainMismatches(page, report),
   };
 }

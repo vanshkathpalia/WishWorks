@@ -23,18 +23,30 @@ import "./styles.css";
  * The listing flow, numbered in the order it is usually used — which is not the order it has to
  * be used. Logging in sits outside the numbering on purpose: it is a precondition for the last
  * two steps, not a stage a listing passes through, and it is done once a fortnight.
+ *
+ * **Each step carries a `does` line, and that is not decoration.** The names alone were written
+ * for the person who built the app: "Check" says nothing, and "Convert images" / "Build the
+ * images" / "Finish images" are three different jobs that read as one job done three times.
+ * Vansh, 2026-08-12: *"the side section bar is pretty weird, some other person won't be able to
+ * understand and it is not actually formal also"*. The app's whole reason to exist is that his
+ * business partner cannot run `npm run …`, so a rail only its author can read is the same
+ * failure in a nicer font. The `does` line is the shortest thing that fixes it — a name says
+ * which screen, a verb phrase says what happens there.
+ *
+ * Each `does` is a compressed version of the panel's own opening paragraph, deliberately: two
+ * descriptions of one screen that disagree is how a person stops trusting either.
  */
 const STEPS = [
-  "Convert images",
+  { name: "Prepare the photos", does: "Any format in, square 1500 px JPEGs out" },
   // Hero and infographic used to be two steps. They are two messages in ONE chat — the
   // infographic reads "from IMAGE 2", already in context — so splitting them invited two chats
   // and the second started blind.
-  "Build the images",
-  "Listing copy",
-  "Finish images",
-  "Check",
-  "Fill Flipkart",
-  "Fill Meesho",
+  { name: "Make the pictures", does: "AI prompts for the main photo and infographics" },
+  { name: "Write the words", does: "AI prompts for the title, description and form fields" },
+  { name: "Name and tag", does: "Renames each image and writes its description inside it" },
+  { name: "Check the images", does: "Reads the descriptions back out — nothing else can" },
+  { name: "Fill Flipkart", does: "Types the listing into the form in Chrome" },
+  { name: "Fill Meesho", does: "Copy each value into the Supplier Panel by hand" },
 ];
 
 function Panel({ step }: { step: number }) {
@@ -162,24 +174,37 @@ function App() {
   const [settings, setSettings] = useState(false);
   // Any step, any time. Nothing here checks whether an earlier one has run.
   const [step, setStep] = useState(0);
+  /**
+   * Every step visited so far. Panels are **hidden, never unmounted** — switching to the prompts
+   * and back used to throw away a half-costed kit (the whole table, the corrected counts, the
+   * typed prices), because React drops a component's state the moment it stops being rendered.
+   * Mounted on first visit rather than all at once: the Flipkart panel starts a 2-second
+   * Playwright status poll as soon as it appears, and that should not run from launch.
+   */
+  const [seen, setSeen] = useState<number[]>([0]);
+  useEffect(() => setSeen((s) => (s.includes(step) ? s : [...s, step])), [step]);
 
   return (
     <div className="app">
       <nav className="rail">
         <div className="brand">WishWorks</div>
         <ol>
-          {STEPS.map((label, i) => (
-            <li key={label}>
+          {STEPS.map((s, i) => (
+            <li key={s.name}>
               <button className={i === step ? "current" : ""} onClick={() => setStep(i)}>
                 <span className="num">{i + 1}</span>
-                {label}
+                <span className="step-text">
+                  <b>{s.name}</b>
+                  <small>{s.does}</small>
+                </span>
               </button>
             </li>
           ))}
         </ol>
         <div className="rail-foot">
           <button className={step === 7 ? "current" : ""} onClick={() => setStep(7)}>
-            Inventory cost
+            Cost a kit
+            <small>What a kit costs to make, and what to sell it for</small>
           </button>
           {/* Logging in is not a step of its own — it is the top of the Flipkart screen, where
               the indicator is next to the thing that needs it. This is a shortcut to that. */}
@@ -189,7 +214,11 @@ function App() {
       </nav>
 
       <main>
-        <Panel step={step} />
+        {seen.map((i) => (
+          <div key={i} style={i === step ? undefined : { display: "none" }}>
+            <Panel step={i} />
+          </div>
+        ))}
       </main>
 
       {settings && <Settings close={() => setSettings(false)} />}

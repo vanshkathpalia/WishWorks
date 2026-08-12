@@ -44,8 +44,29 @@
     "NO COMMAS inside any array value: Flipkart splits multi-value fields on ','."
   ],
 
+  "_title": [
+    "HOW FLIPKART BUILDS THE NAME BUYERS ACTUALLY SEE — measured off a live listing, 2026-08-12,",
+    "by comparing Vansh's form against his own product page. This is not a guess:",
+    "",
+    "  form   Type  = Balloons",
+    "         Color = Groom To Be Decoration | Mutlicolor Balloons | Sash & Foils   (entry order)",
+    "  live   'PartyDreams Groom To Be Decoration, Mutlicolor Balloons, Sash & Foils Balloons'",
+    "",
+    "  NAME = <brand> + <Color values, comma-separated, IN ENTRY ORDER> + <Type>",
+    "",
+    "The brand comes from the seller account. 'Model Name' is not part of it. The pill widget",
+    "lists newest at the TOP, which is why the form reads back-to-front against the title — the",
+    "order that matters is the order you typed, and that is the order the name uses.",
+    "",
+    "CONSEQUENCE: Color and Type are the only two fields that write the product name, so they are",
+    "worth more than any other attribute on the form. It also means a typo there is a typo in the",
+    "name — the live listing above says 'Mutlicolor', so every buyer searching 'multicolor' misses",
+    "it. The cost of using Color this way is the colour FILTER, which these values make useless.",
+    "Vansh's call, 2026-08-12: worth it, because shoppers search words far more than they filter",
+    "party decorations by colour swatch."
+  ],
+
   "Type": "Decoration Kit",
-  "Color": ["Multicolor"],
   "Size": "Medium",
   "Size in Number": "8"
 }

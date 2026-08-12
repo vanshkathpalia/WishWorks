@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadProduct, mergeScan, ScanTooSmall } from "../src/listing.js";
+import { loadProduct, mergeScan, productName, ScanTooSmall } from "../src/listing.js";
 
 async function fixture(): Promise<{ file: string; cat: string }> {
   const dir = await mkdtemp(path.join(tmpdir(), "ww-unmapped-"));
@@ -215,5 +215,33 @@ describe("mergeScan", () => {
     await mkdir(cat, { recursive: true });
     await writeFile(path.join(cat, "c.json"), "{ not json");
     expect(() => mergeScan("c", FIVE, cat)).toThrow();
+  });
+});
+
+// The product name is composed by Flipkart from Color + Type, so it is the most-read text on the
+// listing and nothing displayed it before Save. Shown, not spell-checked — see productName().
+describe("the name buyers see", () => {
+  it("joins the Color values in order and ends on Type", () => {
+    const n = productName({ Color: ["First", "Second", "Third"], Type: "Kit" });
+    expect(n?.name).toBe("First, Second, Third Kit");
+  });
+
+  it("is null when the tab in front does not carry those two fields", () => {
+    expect(productName({ Type: "Kit" })).toBeNull();
+    expect(productName({ Color: ["First"] })).toBeNull();
+  });
+
+  it("flags an ampersand, which arrives in the name as a literal &", () => {
+    expect(productName({ Color: ["Sash & Foils"], Type: "Kit" })?.warnings.join()).toMatch(/&/);
+  });
+
+  it("flags a word spent twice — both faults were in the same live title", () => {
+    const n = productName({ Color: ["Metallic Balloons", "Foil Balloons"], Type: "Kit" });
+    expect(n?.warnings.join()).toMatch(/balloons/i);
+  });
+
+  it("does not flag short joining words, which repeat harmlessly", () => {
+    const n = productName({ Color: ["Red and Gold", "Sash and Curtain"], Type: "Kit" });
+    expect(n?.warnings).toEqual([]);
   });
 });

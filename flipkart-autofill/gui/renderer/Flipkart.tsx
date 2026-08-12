@@ -385,6 +385,23 @@ export function Flipkart({ n }: { n: number }) {
         </p>
       )}
 
+      {/* The name buyers actually see, which nothing showed before Save. Flipkart composes it
+          from Color + Type — not from Model Name — so the most-read text on the listing was
+          assembled out of two fields that look like ordinary attributes. A live listing carries
+          a misspelt word for exactly that reason, and no check catches a typo; a human reading
+          the finished sentence does. */}
+      {result?.productName && (
+        <div className="named">
+          <small>Buyers will see this as the product name</small>
+          <b>
+            <span className="brandish">your brand</span> {result.productName.name}
+          </b>
+          {result.productName.warnings.map((w) => (
+            <em key={w}>⚠️ {w}</em>
+          ))}
+        </div>
+      )}
+
       {rows.length > 0 && (
         <table className="rows">
           <thead>

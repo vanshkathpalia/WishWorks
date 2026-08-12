@@ -226,6 +226,39 @@ export function mergeScan(
   return { category, file, added, total: existing.fields.length };
 }
 
+/**
+ * The name buyers actually see, and what is wrong with it.
+ *
+ * Flipkart does not show the "Model Name". It composes the product name as
+ * `<brand> <Color values, comma-separated, in order> <Type>` — measured 2026-08-12 by comparing
+ * Vansh's form against his own live product page. So the most-read text on the whole listing is
+ * assembled from two fields that look like ordinary attributes, and **nothing anywhere showed it
+ * to him before he saved**. A live listing reads "Mutlicolor" for exactly that reason.
+ *
+ * No spell-check here, deliberately — a word list of the right spellings would rot and would
+ * still miss the next typo. What this does is put the finished sentence in front of a human,
+ * which is the only thing that catches one, plus the two mechanical faults that were both
+ * present in that same live title and are cheap to prove: a word used twice, and an "&".
+ *
+ * The brand is not ours to know — it comes from the seller account — so it is left as a marker
+ * rather than guessed.
+ */
+export function productName(values: Values): { name: string; warnings: string[] } | null {
+  const colors = values["Color"];
+  const type = values["Type"];
+  if (!colors || !type) return null;
+  const parts = Array.isArray(colors) ? colors.map(String) : [String(colors)];
+  const name = `${parts.join(", ")} ${String(type)}`;
+  const warnings: string[] = [];
+  if (name.includes("&")) warnings.push(`"&" reads as a literal ampersand — write "and".`);
+  const words: string[] = name.toLowerCase().match(/[a-z]+/g) ?? [];
+  const twice = [...new Set(words.filter((w) => w.length > 3 && words.indexOf(w) !== words.lastIndexOf(w)))];
+  if (twice.length) {
+    warnings.push(`"${twice.join('", "')}" appear${twice.length > 1 ? "" : "s"} twice — the name is short, spend it once.`);
+  }
+  return { name, warnings };
+}
+
 export interface Problem {
   kind: "placeholder" | "comma";
   label: string;

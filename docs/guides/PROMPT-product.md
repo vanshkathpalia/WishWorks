@@ -121,10 +121,9 @@ finish and printed/banner wording.
 Identity
   "Model Name"   – the "title" from the first file, copied exactly.
   "Pack of"      – number of units sold as one, usually "1"
-  "Series"       – the occasion this kit belongs to, used as a product line: "Annaprashan",
-                   "Groom To Be", "Baby Shower", "Birthday". NOT a quality tier — "Premium" and
-                   "Classic" are banned words and empty claims. This is a REQUIRED-BY-US field:
-                   it was being skipped on every listing.
+  "Series"       – the occasion this kit is bought for, used as a product line, taken from the
+                   INVENTORY. NOT a quality tier: "Premium" and "Classic" are banned words and
+                   empty claims. A REQUIRED-BY-US field — it was skipped on every listing.
   "Design"       – what it looks like, e.g. "Heart Shaped Foil Balloons with Rose Garland"
 
 Lists (arrays — no commas inside any entry)
@@ -327,6 +326,46 @@ Size and weight — LEAVE THESE OUT. DO NOT GUESS THEM.
   "Diameter" — omit as well unless the product is genuinely round and the INVENTORY gives
   the figure.
 
+=== "Color" AND "Type" — THESE TWO WRITE THE PRODUCT NAME. TREAT THEM AS THE TITLE. ===
+
+This is the most valuable thing on the form and it does not look like it. Flipkart does not show
+buyers the "Model Name". It BUILDS the name they see out of these two fields:
+
+  NAME = <my brand> + <every "Color" value, comma-separated, in the order you list them> + <Type>
+
+The brand is set by my account and is added automatically. Everything after it is yours. So
+"Color" is not a colour: it is the body of the title, and "Type" is the words it ends on.
+
+GIVE ME EXACTLY THIS, ALL OF IT FROM THE INVENTORY AND THE PHOTOS:
+  "Color" – THREE phrases, in the order they should be read:
+      1st  who this kit is for and the occasion it is bought for
+      2nd  what is mainly in it, with the actual colours of those items
+      3rd  the pieces that make this kit different from a cheaper one
+  "Type"  – the last words of the name. It must read correctly straight after the 3rd phrase,
+           because Flipkart puts no comma between them.
+
+Derive all four from THIS kit. Do not carry over wording from any other listing, and do not use a
+phrase because it sounds like a product name — every word has to be answerable from the INVENTORY
+or visible in the photos.
+
+RULES, ALL OF WHICH COST REAL SEARCHES WHEN BROKEN:
+  1. SPELL EVERY WORD CORRECTLY, THEN READ IT BACK ONE WORD AT A TIME. A typo here is a typo in
+     the name every buyer sees, and a misspelt word matches nothing anybody searches for. This is
+     the most expensive single mistake available in this file, and it has already happened.
+  2. NAME THE REAL COLOURS. Never a catch-all colour word when the INVENTORY tells you what the
+     colours actually are — a colour a buyer types is worth more than a category word they do not.
+  3. NO WORD TWICE anywhere in the composed name. The name is short and every repeat spends it
+     on nothing. Compose the whole line, then check word by word.
+  4. Write "and", never "&".
+  5. NO COMMAS INSIDE a "Color" value. Flipkart splits this field on commas, so a comma silently
+     turns one phrase into two and reorders the title.
+  6. Rule 7 (brand collision) applies HARDEST here, because this is the text the checker reads.
+     Never leave a colour sitting directly in front of a noun — put the material or shape between.
+  7. Rules 6 and 10 apply too. A banned quality word or an urgency word is at its most visible,
+     and most rejectable, in the product name.
+  8. Front-load. Assume the name is cut short in the search grid and only the beginning is read.
+     That is why the occasion comes first, and it is not negotiable.
+
 === LEAVE THESE OUT ALWAYS ===
 This Flipkart category is shared with hand fans, party blowouts, crackers and
 battery-powered toys. These fields exist on the form but do NOT apply to balloons and
@@ -351,8 +390,9 @@ If any of the three appears in your answer, delete it.
 === ALREADY SET FOR EVERY PRODUCT — only include if THIS product differs ===
 Warranty fields, Country of Origin, HSN code, tax, manufacturer and packer details,
 stock and shipping settings are already configured. Do not include them.
-Also already set, and only worth including when this product genuinely differs: "Type"
-("Decoration Kit"), "Color" (["Multicolor"]), "Size" ("Medium") and "Size in Number" ("8").
+Also already set, and only worth including when this product genuinely differs: "Size"
+("Medium") and "Size in Number" ("8"). "Type" and "Color" are NOT in that list — they write the
+product name, and they have their own section above.
 
 DO NOT "correct" "Size in Number" from the INVENTORY. The inventory says things like "10 INCH
 METALLIC BALLOONS", and that is the INFLATED size — but nothing ships inflated. The latex goes in
@@ -411,6 +451,9 @@ If any section appears as one long paragraph, rewrite it before answering.
 - BUYER-WORD CHECK (rule 8) — read back every item name in Decoratives Attached, Key Spec,
   Key Features and What You Get. Would a buyer type it? "Foil Letter Kit" and "Mug Foil
   Balloon" fail; "Groom To Be Foil Banner" and "Beer Mug Foil Balloon" pass.
+- COMPOSE THE PRODUCT NAME ON PAPER: <brand> + your three "Color" phrases + "Type". Is any word
+  in it repeated? Is every word spelt correctly? Does it start with the occasion? Is there an "&"
+  or a comma inside a value? That one line is what every buyer sees; check it before anything else.
 - ARE "Series" AND "Other Features" BOTH THERE? They are the two fields that get skipped most
   often, they are both easy to answer truthfully, and each one is a filter the listing otherwise
   never appears in.
