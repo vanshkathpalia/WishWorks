@@ -74,7 +74,7 @@ WHERE EACH PART COMES FROM
    COMMAS ARE FINE everywhere under "meesho" (title, description, pack_contents) and in the
    image descriptions. I paste the Meesho values into the Supplier Panel by hand; nothing
    splits them, and in a long pack list commas read better than dashes.
-3. Do not put the brand name "WishWorks" anywhere.
+3. Do not put a brand name anywhere — not "WishWorks", not "PartyDreams". Both are ours.
 4. Write for an Indian shopper searching on a phone. Concrete over clever: say what is in the
    box, what it is for, and what the buyer gets. Every sentence must survive the question
    "how would a buyer check that?"
@@ -228,7 +228,7 @@ Flipkart shopper, which is why this text is NOT a copy of "title" above.
     reserved place in the brackets at the end, and repeating it wastes characters.
   - Open with the exact words a buyer types. "Annaprashan Decoration Kit", never
     "Premium Celebration Ensemble". Match the query, don't be clever.
-  - No brand name — nobody searches "WishWorks", so it is wasted characters.
+  - No brand name — nobody searches for ours, so it is wasted characters.
   - USE " | " (space pipe space) TO SEPARATE THE PARTS. At 90+ characters a run-on title is
     unreadable on a phone, and the pipe is what every marketplace listing uses to break it up:
       "Annaprasan Decoration Kit | Red Gold Metallic Balloons | Heart Foil Banner |

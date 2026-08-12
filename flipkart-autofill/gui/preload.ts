@@ -69,7 +69,7 @@ const api: WwApi = {
   stripEmoji: (id: string) => ipcRenderer.invoke("stripEmoji", id),
   readProduct: (id: string) => ipcRenderer.invoke("readProduct", id),
   saveProduct: (file: string, text: string) => ipcRenderer.invoke("saveProduct", file, text),
-  applyParcel: (id: string, dimensions: Record<string, string>) =>
+  applyParcel: (id: string, dimensions: Record<string, string | Record<string, string>>) =>
     ipcRenderer.invoke("applyParcel", id, dimensions),
 
   downloadsDir: () => ipcRenderer.invoke("downloadsDir"),

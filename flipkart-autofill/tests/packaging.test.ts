@@ -195,19 +195,43 @@ describe("the two forms Flipkart asks for", () => {
   });
 });
 
-describe("the pricing defaults no longer collide with the other tab", () => {
-  it("carries no dimension key at all", async () => {
-    // `loadProduct()` merges every defaults file into ONE flat map keyed by label, and Height and
-    // Weight exist on BOTH tabs in different units. While these keys lived here, this file's
-    // `Height: 8` was typed as 8 cm on Price/Stock and 8 INCHES on Additional Description, and
-    // `Weight: 0.16` overwrote a parcel measured at 0.250 kg. Package Details is hand-typed now.
+describe("the two tabs describe ONE parcel, in two units", () => {
+  // RETARGETED, not deleted. The old check here demanded this file carry NO dimension key at all,
+  // which was WW-123's WORKAROUND rather than its goal: Height and Weight exist on both tabs in
+  // different units, every defaults file was merged into one flat map, and so this file's
+  // `Height: 8` was typed as 8 cm on Price/Stock and 8 INCHES on Additional Description. Deleting
+  // the keys and hand-typing Package Details was the only fix available then.
+  //
+  // Defaults are per-tab now, so the keys are back and the real invariant can finally be checked:
+  // not that the numbers are ABSENT, but that they are the SAME BOX. A guard that outlives its
+  // cause should be pointed at the thing it was protecting, never dropped.
+  const read = async (name: string) => {
     const { readFile } = await import("node:fs/promises");
-    const raw = JSON.parse(
-      await readFile(path.join(CATS, "balloon-decoration.pricing.defaults.json"), "utf8"),
-    );
-    const keys = Object.keys(raw).filter((k) => !k.startsWith("_"));
-    for (const banned of ["Length", "Breadth", "Height", "Weight"]) {
-      expect(keys.some((k) => k === banned || k.startsWith(`${banned} (`)), `${banned} is back`).toBe(false);
+    return JSON.parse(await readFile(path.join(CATS, name), "utf8"));
+  };
+
+  it("the centimetres on Price/Stock are the inches on Additional Description", async () => {
+    const cm = await read("balloon-decoration.pricing.defaults.json");
+    const inch = await read("balloon-decoration.defaults.json");
+    // Length maps to Depth and Breadth to Width — a parcel lying flat reads the way it sits.
+    const pairs: [string, string][] = [["Length", "Depth"], ["Breadth", "Width"], ["Height", "Height"]];
+    for (const [cmKey, inchKey] of pairs) {
+      const asInches = Number(cm[cmKey]) / 2.54;
+      expect(Math.abs(asInches - Number(inch[inchKey])), `${cmKey} (${cm[cmKey]} cm) is not ${inchKey} (${inch[inchKey]} in)`).toBeLessThan(0.06);
     }
+  });
+
+  it("Weight is on the centimetres tab only, where its unit is a fixed KG label", async () => {
+    // The inches tab's Weight carries a UNIT PICKER that has to agree with it, so it is written
+    // per product by packaging.ts and never defaulted. See that file's own note.
+    expect((await read("balloon-decoration.pricing.defaults.json"))["Weight"]).toBe("0.250");
+    expect((await read("balloon-decoration.defaults.json"))["Weight"]).toBeUndefined();
+  });
+
+  it("neither file leaks its units into the other", async () => {
+    const cm = await read("balloon-decoration.pricing.defaults.json");
+    const inch = await read("balloon-decoration.defaults.json");
+    for (const inchOnly of ["Width", "Depth"]) expect(cm[inchOnly]).toBeUndefined();
+    for (const cmOnly of ["Length", "Breadth"]) expect(inch[cmOnly]).toBeUndefined();
   });
 });

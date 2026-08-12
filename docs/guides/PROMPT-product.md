@@ -71,7 +71,9 @@ reading. If there is nothing to ask, leave the key out entirely.
    (Commas ARE allowed in the free-text "Description".)
 3. Values written as ["a", "b"] are lists — one idea per entry. Values written as "text"
    are single values.
-4. Do not put the brand name "WishWorks" in Model Name.
+4. Do not put a brand name in "Model Name" — not "PartyDreams", not "WishWorks", not any
+   other. The marketplace adds the seller's brand to the front of the name by itself, so
+   writing it yourself gets it printed twice.
 5. Write for an Indian shopper searching on a phone. Concrete over clever: say what is in
    the box, what it is for, and what the buyer gets out of it. This does NOT mean flat and
    dull — the "Description" field has its own template below and it is allowed to sell.

@@ -198,7 +198,8 @@ export interface WwApi {
    */
   applyParcel(
     id: string,
-    dimensions: Record<string, string>,
+    /** The inches block, plus `packageDetails` — the same box in cm/kg for the Price/Stock tab. */
+    dimensions: Record<string, string | Record<string, string>>,
   ): Promise<
     | { ok: true; result: { file: string; changed: { key: string; from: string | null; to: string }[] } }
     | { ok: false; message: string }

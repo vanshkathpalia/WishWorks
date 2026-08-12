@@ -20,11 +20,61 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { Box, Kit, KitLine, Material, Parcel, SavedKit } from "../shared.js";
+import type { Box, Kit, KitLine, KitRow, Material, Parcel, SavedKit } from "../shared.js";
 import { CopyButton, fileUrl } from "./ui.js";
 import { PromptEditor } from "./PromptEditor.js";
 
 const rupees = (paise: number) => `₹${(paise / 100).toFixed(2).replace(/\.00$/, "")}`;
+
+/**
+ * Centimetres to inches, one decimal — SCREEN ONLY.
+ *
+ * Vansh buys polybags by their inch size and reads a parcel that way ("the smallest one I use is
+ * 8 by 10"), so cm on this panel is a number he has to convert in his head before he can tell
+ * whether it is right. Everything underneath stays in cm: `packaging.json` stores cm, the engine
+ * computes volumetric weight from cm, Flipkart's Package Details asks for cm, and the inch pair
+ * the Additional Description tab wants is derived by `toInches` in `packaging.ts`. This is that
+ * same one-liner rather than an import, because importing it would pull the engine (and `node:fs`
+ * with it) into the renderer bundle — the one thing shared.ts exists to prevent. A formula can be
+ * repeated; a measurement may not be.
+ */
+const inches = (cm: number) => Math.round((cm / 2.54) * 10) / 10;
+const inchSize = (l: number, b: number, h: number) =>
+  `${inches(l)} × ${inches(b)} × ${inches(h)} in`;
+
+/** The partner's rule of thumb: a kit should leave about ₹60 after materials, delivery and GST. */
+const TARGET_PAISE = 6000;
+
+/**
+ * How far the WORST marketplace is from the ₹60 target, 0 (on it) to 1 (₹60 out or more).
+ *
+ * The worst rather than the average, because the two marketplaces are priced separately and
+ * routinely disagree — a kit that is healthy on Flipkart and losing money on Meesho is a kit to
+ * look at, and an average would hide exactly that. `null` means nothing to judge: no listed price
+ * yet, which is a different state from a bad margin and must not be coloured like one.
+ */
+function drift(k: KitRow): number | null {
+  const each = Object.values(k.left ?? {});
+  if (each.length === 0) return null;
+  return Math.min(Math.max(...each.map((v) => Math.abs(v - TARGET_PAISE))) / TARGET_PAISE, 1);
+}
+
+/**
+ * Dark = on target and settled; light = far off and asking for attention.
+ *
+ * One hue (the app's accent), lightness carrying the meaning, so the list reads as a heat map at a
+ * glance instead of a wall of identical buttons. On this dark panel a light chip is the thing that
+ * catches the eye, which is the right way round: the kits that need fixing are the ones that
+ * should stand out.
+ */
+function driftStyle(d: number | null): React.CSSProperties | undefined {
+  if (d === null) return undefined;
+  return {
+    background: `hsl(24, ${Math.round(35 + d * 50)}%, ${Math.round(14 + d * 46)}%)`,
+    borderColor: `hsl(24, ${Math.round(35 + d * 50)}%, ${Math.round(24 + d * 46)}%)`,
+    color: d > 0.55 ? "#1a1210" : "var(--ink)",
+  };
+}
 
 /** `cost / (1 - margin)` — margin on the selling price, not markup on the cost. See the engine. */
 const priceAt = (costPaise: number, margin: number) =>
@@ -61,7 +111,8 @@ export function Inventory({ n }: { n: number }) {
   // 5% matches the GST_5 tax code on the listings. Editable because a category can differ.
   const [gst, setGst] = useState(5);
   const [over, setOver] = useState<"image" | "json" | null>(null);
-  const [saved, setSaved] = useState<{ sku: string; file: string; savedAt: string }[]>([]);
+  const [saved, setSaved] = useState<KitRow[]>([]);
+  const [showKits, setShowKits] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [market, setMarket] = useState<Market>({});
   /** Unit prices for THIS kit only, `category|material` -> rupees as typed. */
@@ -76,6 +127,16 @@ export function Inventory({ n }: { n: number }) {
     heightCm?: number;
     grams?: number;
   }>({});
+  /**
+   * What is in the three inch boxes AS TYPED, before it becomes centimetres.
+   *
+   * Kept separate because the stored unit is not the shown one: typing "8." would round-trip to
+   * cm and back as "8", the dot would vanish under the cursor, and the next keystroke would make
+   * it "87" — eighty-seven inches, silently. WW-134 is the same lesson with a different
+   * conversion. The typed string wins while you are typing; the parcel wins the moment you stop.
+   */
+  const [typed, setTyped] = useState<{ l?: string; b?: string; h?: string }>({});
+  const [sent, setSent] = useState<string | null>(null);
   const [parcel, setParcel] = useState<{
     parcel: Parcel;
     boxes: Box[];
@@ -140,6 +201,7 @@ export function Inventory({ n }: { n: number }) {
     setPrices({});
     setCounts({});
     setChosen({});
+    setTyped({});
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
     setKit(r.result);
@@ -254,12 +316,27 @@ export function Inventory({ n }: { n: number }) {
     );
     setCounts(k.counts ?? {});
     setChosen(k.parcel ?? {});
+    setTyped({});
     setLines(k.lines);
     setPaste("");
     setError(null);
   }
 
   const total = kit?.totalPaise ?? 0;
+
+  // ₹20 out on a ₹60 target is a third of the margin — far enough to be worth a second look, and
+  // loose enough that ordinary rounding does not fill the heading with warnings.
+  const offTarget = saved.filter((k) => (drift(k) ?? 0) > 20 / 60).length;
+
+  // Any axis overruled by hand counts as chosen — the rules apply per axis, so a kit can follow
+  // them for its footprint and not for its height.
+  const sizeChosen =
+    chosen.lengthCm !== undefined || chosen.breadthCm !== undefined || chosen.heightCm !== undefined;
+  const customValue = `${chosen.lengthCm}x${chosen.breadthCm}x${chosen.heightCm}`;
+  const custom =
+    sizeChosen && !(parcel?.boxes ?? []).some(
+      (b) => `${b.lengthCm}x${b.breadthCm}x${b.heightCm}` === customValue,
+    );
 
   return (
     <section className="panel">
@@ -347,20 +424,63 @@ export function Inventory({ n }: { n: number }) {
             </div>
           </div>
 
+          {/* Folded away by default: this list only grows, and it sits between the two things
+              actually used on every visit — dropping a reply in, and reading the table. The count
+              of off-target kits stays on the heading so closing it never hides the warning. */}
           {saved.length > 0 && (
             <>
-              <h3>Kits you have costed</h3>
-              <div className="picks inv-saved">
-                {saved.slice(0, 8).map((k) => (
-                  <button key={k.file} onClick={() => void reopen(k.file)}>
-                    {k.sku}
-                  </button>
-                ))}
-              </div>
-              <p className="muted">
-                Reopening re-costs from today's price list — what is stored is the reading and your
-                corrections, never a total, so a kit never shows last month's balloon price.
-              </p>
+              <h3>
+                Kits you have costed{" "}
+                <button onClick={() => setShowKits((s) => !s)}>
+                  {showKits ? "hide" : `show ${saved.length}`}
+                </button>
+              </h3>
+              {offTarget > 0 && (
+                <p className="muted">
+                  <b>{offTarget}</b> of {saved.length} {offTarget === 1 ? "is" : "are"} more than
+                  ₹20 away from the ₹60 a kit should leave. The lighter a kit reads below, the
+                  further out it is.
+                </p>
+              )}
+              {showKits && (
+                <>
+                  <div className="picks inv-saved">
+                    {saved.map((k) => {
+                      const d = drift(k);
+                      return (
+                        <button
+                          key={k.file}
+                          style={driftStyle(d)}
+                          title={
+                            k.left
+                              ? Object.entries(k.left)
+                                  .map(([id, v]) => `${id}: leaves ${rupees(v)}`)
+                                  .join("  ·  ")
+                              : "No listed price yet, so there is no margin to judge."
+                          }
+                          onClick={() => void reopen(k.file)}
+                        >
+                          {k.sku}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="muted">
+                    Shaded by what the kit <b>leaves</b> after materials, delivery and GST, against
+                    the ₹60 rule: <b>dark is on target</b>, and the further out it is the lighter it
+                    goes. The <b>worse</b> of the two marketplaces decides the colour — they are
+                    priced separately and a kit can be healthy on one and losing money on the other,
+                    which an average would hide. Hover for both figures. A kit with no listed price
+                    yet is left plain: that is not a bad margin, it is no margin.
+                  </p>
+                  <p className="muted">
+                    Reopening re-costs from today's price list — what is stored is the reading and
+                    your corrections, never a total, so a kit never shows last month's balloon
+                    price. The shading is re-costed the same way, so a price change moves these
+                    colours.
+                  </p>
+                </>
+              )}
             </>
           )}
         </div>
@@ -752,13 +872,9 @@ export function Inventory({ n }: { n: number }) {
               <div className="picks parcel-pick">
                 <label className="inline">
                   Box
-                  <select
-                    value={
-                      chosen.lengthCm === undefined
-                        ? ""
-                        : `${chosen.lengthCm}x${chosen.breadthCm}x${chosen.heightCm}`
-                    }
+                  <select value={sizeChosen ? customValue : ""}
                     onChange={(e) => {
+                      setTyped({});
                       if (e.target.value === "") {
                         setChosen(({ lengthCm: _l, breadthCm: _b, heightCm: _h, ...rest }) => rest);
                         return;
@@ -767,20 +883,62 @@ export function Inventory({ n }: { n: number }) {
                       setChosen((c) => ({ ...c, lengthCm, breadthCm, heightCm }));
                     }}
                   >
+                    {/* Inches on screen, centimetres in the value — the option's value is still
+                        the cm triple the engine and the saved kit have always used, so changing
+                        the unit shown here cannot change a stored or declared number. */}
                     <option value="">
-                      whatever the kit needs — {parcel.parcel.lengthCm} × {parcel.parcel.breadthCm}{" "}
-                      × {parcel.parcel.heightCm} cm
+                      whatever the kit needs —{" "}
+                      {inchSize(
+                        parcel.parcel.lengthCm,
+                        parcel.parcel.breadthCm,
+                        parcel.parcel.heightCm,
+                      )}
                     </option>
                     {parcel.boxes.map((b) => (
                       <option
                         key={b.label}
                         value={`${b.lengthCm}x${b.breadthCm}x${b.heightCm}`}
                       >
-                        {b.lengthCm} × {b.breadthCm} × {b.heightCm} cm · {b.label}
+                        {b.label}
                       </option>
                     ))}
+                    {/* A size typed by hand is no bag on the list, so without this the picker
+                        would fall back to showing "whatever the kit needs" — claiming the rules
+                        chose a size a human overruled. */}
+                    {custom && <option value={customValue}>typed by hand</option>}
                   </select>
                 </label>
+
+                {/* Typed, not just picked. Vansh: "sometimes we take a 25 cm envelope but the
+                    stuff we put into it is 22 max, we fold that margin on the length" — the bag
+                    is off the shelf and the parcel is not, and what gets declared has to be the
+                    parcel. Inches, because that is the unit this panel now speaks; the cm it
+                    becomes are printed under the size above. */}
+                {(["l", "b", "h"] as const).map((axis) => {
+                  const cm = { l: "lengthCm", b: "breadthCm", h: "heightCm" } as const;
+                  const label = { l: "Length", b: "Breadth", h: "Height" }[axis];
+                  return (
+                    <label className="inline" key={axis}>
+                      {label}
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={typed[axis] ?? inches(parcel.parcel[cm[axis]])}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setTyped((t) => ({ ...t, [axis]: raw }));
+                          setChosen((c) =>
+                            raw === ""
+                              ? (({ [cm[axis]]: _drop, ...rest }) => rest)(c)
+                              : { ...c, [cm[axis]]: Math.round(Number(raw) * 2.54 * 10) / 10 },
+                          );
+                        }}
+                      />
+                      in
+                    </label>
+                  );
+                })}
                 <label className="inline">
                   Weight
                   <input
@@ -798,25 +956,42 @@ export function Inventory({ n }: { n: number }) {
                   />
                   g
                 </label>
-                {(chosen.grams !== undefined || chosen.lengthCm !== undefined) && (
-                  <button onClick={() => setChosen({})}>Back to what the kit needs</button>
+                {(chosen.grams !== undefined || sizeChosen) && (
+                  <button
+                    onClick={() => {
+                      setChosen({});
+                      setTyped({});
+                    }}
+                  >
+                    Back to what the kit needs
+                  </button>
                 )}
               </div>
 
               <div className="inv-parcel">
+                {/* Inches read first because that is how the bags are bought, but the cm stay
+                    on screen underneath: they are what goes into Flipkart's Package Details
+                    block by hand, and a number you cannot see is a number you cannot check. */}
                 <div>
                   <span className="muted">Size</span>
                   <b>
+                    {inchSize(
+                      parcel.parcel.lengthCm,
+                      parcel.parcel.breadthCm,
+                      parcel.parcel.heightCm,
+                    )}
+                  </b>
+                  <span className="muted each-was">
                     {parcel.parcel.lengthCm} × {parcel.parcel.breadthCm} ×{" "}
                     {parcel.parcel.heightCm} cm
-                  </b>
+                  </span>
                 </div>
                 <div>
                   <span className="muted">Real weight</span>
                   <b>{parcel.parcel.grams} g</b>
                 </div>
                 <div>
-                  <span className="muted">Volumetric (L×B×H ÷ 5000)</span>
+                  <span className="muted">Volumetric (from the cm ÷ 5000)</span>
                   <b>{parcel.parcel.volumetricGrams} g</b>
                 </div>
                 <div>
@@ -868,11 +1043,17 @@ export function Inventory({ n }: { n: number }) {
                       .join("\n")}
                   />
                 </div>
+                {/* This card used to say "the bot fills these — nothing to do here", which was
+                    not true. The bot fills `products/<ID>.json`, and those four values were
+                    whatever the AI had guessed from a photo; the parcel below was computed from
+                    what is actually in the kit and reached the form nowhere. Two sources for one
+                    fact, and the guess was winning. The button is the join. */}
                 <div className="card">
                   <b>Additional Description → Dimensions</b>
                   <span className="muted">
-                    In inches, and the bot fills these — nothing to do here. Shown so you can
-                    check them against the form.
+                    In inches, and the bot types these — <b>once you have put them on the
+                    listing</b>. Until then the listing carries whatever the AI guessed, which is
+                    not this.
                   </span>
                   <ul className="kv">
                     {Object.entries(parcel.dimensions).map(([k, v]) => (
@@ -882,6 +1063,34 @@ export function Inventory({ n }: { n: number }) {
                       </li>
                     ))}
                   </ul>
+                  <div className="picks">
+                    <button
+                      className="primary"
+                      disabled={!sku}
+                      onClick={() =>
+                        void window.ww.applyParcel(sku, { ...parcel.dimensions, packageDetails: parcel.packageDetails }).then((r) => {
+                          setSent(
+                            !r.ok
+                              ? r.message
+                              : r.result.changed.length === 0
+                                ? `${sku} already carries this parcel — nothing to change.`
+                                : `Written into ${r.result.file.split(/[\\/]/).pop()}: ${r.result.changed
+                                    .map((c) => `${c.key} ${c.from ?? "—"} → ${c.to}`)
+                                    .join(", ")}.`,
+                          );
+                          setTimeout(() => setSent(null), 12000);
+                        })
+                      }
+                    >
+                      Put these on the {sku || "listing"}
+                    </button>
+                    <span className="muted">
+                      Overwrites the four values in <code>products/{sku || "&lt;ID&gt;"}.json</code>,
+                      and says what it changed them from. The parcel is measured; what is in the
+                      file was not.
+                    </span>
+                  </div>
+                  {sent && <p className="muted">{sent}</p>}
                 </div>
               </div>
             </>

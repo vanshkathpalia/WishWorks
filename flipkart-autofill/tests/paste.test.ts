@@ -16,10 +16,11 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyParcelToListing } from "../src/paste-core.js";
 
 const exec = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -280,5 +281,88 @@ describe("the mechanical listing rules", () => {
     await fixture("GTB002", {}, { Shape: "TODO_pick_one" });
     const { out } = await run("GTB-2");
     expect(out).toContain("still a placeholder");
+  });
+});
+
+/**
+ * The parcel is measured from the packed kit; the AI could only ever guess it from a photo. These
+ * pin the join between the two — before it existed, the panel showed one size and the bot typed
+ * another, which is WW-055's failure (a declared parcel the courier disagrees with, charged back
+ * at settlement) arriving through the front door.
+ */
+describe("putting the costed parcel on the listing", () => {
+  const DIMS = { Width: "8", Height: "1.6", Depth: "10", Weight: "0.250", "Weight (unit)": "kg" };
+  const products = () => path.join(tmp, "products");
+  const read = async (id: string) =>
+    JSON.parse(await readFile(path.join(products(), `products-${id}.json`), "utf8"));
+
+  it("overwrites the AI's guess and says what it changed it from", async () => {
+    const { applyParcelToListing } = await import("../src/paste-core.js");
+    await fixture("GTB002", {}, { Width: "12", Depth: "16", Height: "3" });
+    const r = await applyParcelToListing("GTB-2", DIMS, { products: products() });
+
+    expect((await read("GTB002")).values).toMatchObject(DIMS);
+    // Reported per key, with the old value, because the file quietly disagreeing with what was
+    // on it a moment ago is the thing this whole area exists to prevent.
+    expect(r.changed).toContainEqual({ key: "Width", from: "12", to: "8" });
+    expect(r.changed).toContainEqual({ key: "Weight", from: null, to: "0.250" });
+  });
+
+  it("touches nothing but the parcel, however it is called", async () => {
+    const { applyParcelToListing } = await import("../src/paste-core.js");
+    await fixture("GTB002");
+    await applyParcelToListing(
+      "GTB-2",
+      { ...DIMS, Description: "hijacked", "Selling Price": "1" },
+      { products: products() },
+    );
+    const { values } = await read("GTB002");
+    expect(values.Description).toBe(LONG); // the whitelist held
+    expect(values["Selling Price"]).toBeUndefined();
+  });
+
+  it("changes nothing, and rewrites nothing, when the listing already agrees", async () => {
+    const { applyParcelToListing } = await import("../src/paste-core.js");
+    await fixture("GTB002", {}, DIMS);
+    expect((await applyParcelToListing("GTB-2", DIMS, { products: products() })).changed).toEqual([]);
+  });
+
+  it("says which listing is missing rather than writing a new one", async () => {
+    const { applyParcelToListing, PasteNotFound } = await import("../src/paste-core.js");
+    await expect(applyParcelToListing("NOPE", DIMS, { products: products() })).rejects.toBeInstanceOf(
+      PasteNotFound,
+    );
+  });
+});
+
+
+// One measured parcel, written to BOTH blocks Flipkart asks for. Height is the reason the cm set
+// goes to `tabs.pricing` instead of `values`: it means centimetres there and inches in the
+// Dimensions block, and a product's own values apply on every tab.
+describe("the parcel writes both blocks", () => {
+  it("keeps the two Heights apart, in their own units", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ww-parcel-"));
+    const file = path.join(dir, "ANP004.json");
+    await writeFile(file, JSON.stringify({ category: "c", values: { "Seller SKU ID": "ANP004" } }));
+
+    await applyParcelToListing("ANP004", {
+      Width: "7", Height: "1.5", Depth: "8", Weight: "0.250", "Weight (unit)": "kg",
+      packageDetails: { Length: "20.32", Breadth: "17.78", Height: "3.81", Weight: "0.250" },
+    }, { products: dir });
+
+    const saved = JSON.parse(await readFile(file, "utf8"));
+    expect(saved.values.Height).toBe("1.5");          // inches, Additional Description
+    expect(saved.tabs.pricing.Height).toBe("3.81");   // centimetres, Price/Stock
+    expect(saved.tabs.pricing.Length).toBe("20.32");
+    expect(saved.values.Width).toBe("7");
+  });
+
+  it("still works for a caller that sends only the inches block", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ww-parcel2-"));
+    const file = path.join(dir, "X1.json");
+    await writeFile(file, JSON.stringify({ category: "c", values: {} }));
+    const r = await applyParcelToListing("X1", { Width: "7", Height: "1.5" }, { products: dir });
+    expect(r.changed.map((c) => c["key"])).toEqual(["Width", "Height"]);
+    expect(JSON.parse(await readFile(file, "utf8")).tabs).toBeUndefined();
   });
 });

@@ -124,7 +124,15 @@ export function loadProduct(
       usedDefaults.push(f);
     }
   }
-  const values: Values = { ...defaults, ...product.values };
+  // `tabs.<tab>` is the product's own per-tab block, and it exists for exactly one label: the
+  // parcel's HEIGHT, which is centimetres in Package Details and INCHES in the Dimensions block.
+  // Length/Breadth live only on the pricing tab and Width/Depth only on the other, so those are
+  // safe in the flat map; Height is the one that means two different numbers under one name, and
+  // a 1.5 meant as inches declares a 1.5 cm parcel to a courier who then re-measures it (WW-055).
+  // Scoping the DEFAULTS fixed half of this; a measured parcel is written per product, so it
+  // needed the other half. Applied after `values`, so the tab-specific answer wins.
+  const forTab = (tab !== undefined && product.tabs?.[tab]) || {};
+  const values: Values = { ...defaults, ...product.values, ...forTab };
   // Keys starting with "_" are notes for humans, not form fields. `_ask` is the one kind worth
   // carrying to the screen rather than dropping — see `asks`.
   const asks: string[] = [];
