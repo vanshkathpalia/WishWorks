@@ -131,7 +131,13 @@ Lists (arrays — no commas inside any entry)
   "Material"             – from: Latex, Foil, Paper, Plastic, Fabric, Rubber
   "Theme"                – e.g. ["Red and White", "Anniversary"]
   "Occasion"             – from: Birthday, Anniversary, Baby Shower, Wedding,
-                           Bachelorette Party, Festival, Housewarming
+                           Bachelorette Party, Festival, Housewarming.
+                           ALWAYS INCLUDE THIS, even when the answer feels obvious. It is the one
+                           field where leaving it out does NOT leave a blank: a stored default
+                           fills in, and that default is a birthday one. A kit for any other
+                           occasion then goes live claiming Birthday and Anniversary, which is a
+                           WRONG value, not a missing one. If none of the listed occasions is
+                           true for this kit, give the closest one that IS true and no others.
   "Purpose"              – usually ["Decoration"]
   "Character"            – ONLY wording actually PRINTED on an item in the photos, quoted
                            as printed, e.g. ["Happy Birthday"]. Do NOT put the occasion or
@@ -454,9 +460,10 @@ If any section appears as one long paragraph, rewrite it before answering.
 - COMPOSE THE PRODUCT NAME ON PAPER: <brand> + your three "Color" phrases + "Type". Is any word
   in it repeated? Is every word spelt correctly? Does it start with the occasion? Is there an "&"
   or a comma inside a value? That one line is what every buyer sees; check it before anything else.
-- ARE "Series" AND "Other Features" BOTH THERE? They are the two fields that get skipped most
-  often, they are both easy to answer truthfully, and each one is a filter the listing otherwise
-  never appears in.
+- ARE "Series", "Occasion" AND "Other Features" ALL THERE? They are the fields that get skipped
+  most often, they are all easy to answer truthfully, and each one is a filter the listing
+  otherwise never appears in. "Occasion" is the urgent one: skipping it does not leave a gap, it
+  lets a birthday default onto a kit that is not for a birthday.
 - ATTRIBUTE SWEEP (rule 9) — go back through the FIELDS TO FILL list and count how many you
   actually filled. For each one you skipped, is that because you genuinely do not know, or
   because you stopped early? Filters run on these, so a blank field is a filter you never
