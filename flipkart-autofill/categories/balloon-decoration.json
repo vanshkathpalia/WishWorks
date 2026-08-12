@@ -677,16 +677,14 @@
       "kind": "text",
       "multi": false,
       "companion": false,
-      "furniture": false,
-      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+      "furniture": false
     },
     {
       "label": "Type *",
       "kind": "text",
       "multi": false,
       "companion": false,
-      "furniture": false,
-      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+      "furniture": false
     },
     {
       "label": "Color *",
@@ -694,40 +692,36 @@
       "multi": true,
       "hint": "Multiple values allowed",
       "companion": false,
-      "furniture": false,
-      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+      "furniture": false
     },
     {
       "label": "Size *",
       "kind": "text",
       "multi": false,
       "companion": false,
-      "furniture": false,
-      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+      "furniture": false
     },
     {
       "label": "Size in Number *",
       "kind": "text",
       "multi": false,
       "companion": false,
-      "furniture": false,
-      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+      "furniture": false
     },
     {
       "label": "Quantity *",
       "kind": "text",
       "multi": false,
       "companion": false,
-      "furniture": false,
-      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+      "furniture": false
     },
     {
       "label": "Items Included *",
-      "kind": "text",
-      "multi": false,
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
       "companion": false,
-      "furniture": false,
-      "source": "typed by hand from the live form 2026-08-12 (WW-110) — this tab has never been scanned"
+      "furniture": false
     },
     {
       "label": "Quantity * (unit)",
@@ -740,5 +734,5 @@
       "furniture": false
     }
   ],
-  "scannedAt": "2026-08-12T09:46:04.344Z"
+  "scannedAt": "2026-08-12T16:44:40.525Z"
 }
