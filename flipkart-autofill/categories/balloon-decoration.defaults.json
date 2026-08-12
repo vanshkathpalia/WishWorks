@@ -49,7 +49,16 @@
   "Ideal For": ["Boys", "Girls", "Men", "Women"],
   "Material": ["Latex", "Foil"],
   "Theme": ["Birthday"],
-  "Occasion": ["Birthday", "Anniversary", "Baby Shower"],
+  "_occasion": [
+    "OCCASION IS NOT HERE ANY MORE, and it must not come back. It was Birthday + Anniversary +",
+    "Baby Shower, which is right for a birthday kit and FALSE for every other kind we sell — an",
+    "Annaprashan kit went out claiming Birthday because ChatGPT omitted the field and this filled",
+    "it. A wrong value is worse than a missing one, and the default made the wrong one invisible.",
+    "Vansh, 2026-08-12: 'we should let the prompt chatgpt decide it'. PROMPT-product.md now works",
+    "the occasion out from the banner wording, the props and the INVENTORY, and the form's field",
+    "is free text (kind: pills in the scan), so any real occasion is a valid answer. Missing now",
+    "means an empty box, which is visible."
+  ],
   "Purpose": ["Decoration"],
   "Hand Crafted": "No",
   "Gift Pack": "No",

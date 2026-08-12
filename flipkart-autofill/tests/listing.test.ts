@@ -335,3 +335,35 @@ describe("Quantity refuses a Weight that cannot be kilograms", () => {
     expect((await load({ Weight: "1.4" }))["Quantity"]).toBe("1400");
   });
 });
+
+// A hand-typed row is a placeholder: someone read the label off the live form and guessed the
+// widget. When a real scan finally reaches that tab, the guess must give way — otherwise the
+// placeholder blocks the measurement forever and "nothing new" reads as confirmation.
+describe("a real scan replaces a typed-in guess", () => {
+  const dir = async () => mkdtemp(path.join(tmpdir(), "ww-corr-"));
+  const F = (label: string, kind = "text") => ({ label, kind, multi: false } as never);
+  const FIVE = ["a", "b", "c", "d", "e"].map((l) => F(l));
+
+  it("overwrites a row carrying `source`, and says so", async () => {
+    const cat = await dir();
+    const typed = { label: "Type *", kind: "text", multi: false, source: "typed by hand" };
+    mergeScan("c", [...FIVE, typed as never], cat);
+    const r = mergeScan("c", [...FIVE, { label: "Type *", kind: "combobox", multi: false } as never], cat);
+    expect(r.added).toEqual([]);
+    expect(r.corrected).toHaveLength(1);
+    const saved = JSON.parse(await readFile(r.file, "utf8"));
+    const row = saved.fields.find((f: { label: string }) => f.label === "Type *");
+    expect(row.kind).toBe("combobox");
+    expect(row.source).toBeUndefined(); // the marker goes with the guess
+    expect(r.total).toBe(6); // replaced, never duplicated
+  });
+
+  it("leaves a genuinely scanned row alone — a re-scan must not churn the file", async () => {
+    const cat = await dir();
+    mergeScan("c", [...FIVE, F("Type *", "combobox")], cat);
+    const r = mergeScan("c", [...FIVE, F("Type *", "text")], cat);
+    expect(r.corrected).toEqual([]);
+    const saved = JSON.parse(await readFile(r.file, "utf8"));
+    expect(saved.fields.find((f: { label: string }) => f.label === "Type *").kind).toBe("combobox");
+  });
+});

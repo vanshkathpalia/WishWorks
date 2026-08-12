@@ -270,14 +270,23 @@ export function Flipkart({ n }: { n: number }) {
     setScanned(null);
     const r = await window.ww.scanTab(listing.id);
     if (r.ok) {
-      const { added, total, category } = r.result;
-      setScanned(
-        added.length === 0
-          ? `Nothing new on ${tab} — all ${total} of this category's fields were already known.`
-          : `Learned ${added.length} new field${added.length > 1 ? "s" : ""} from ${tab}: ${added
-              .map((f) => f.label)
-              .join(", ")}. ${category} now knows ${total}.`,
-      );
+      const { added, corrected, total, category } = r.result;
+      const parts: string[] = [];
+      if (added.length) {
+        parts.push(`Learned ${added.length} new field${added.length > 1 ? "s" : ""}: ${added.map((f) => f.label).join(", ")}.`);
+      }
+      // Worth its own sentence: these were labels somebody typed in with a GUESSED widget, and
+      // this is the moment the guess is replaced by what the form actually has.
+      if (corrected.length) {
+        parts.push(
+          `Replaced ${corrected.length} typed-in guess${corrected.length > 1 ? "es" : ""} with the real widget: ${corrected
+            .map((f) => `${f.label} is ${f.kind}${f.multi ? ", multi-value" : ""}`)
+            .join("; ")}.`,
+        );
+      }
+      if (!parts.length) parts.push(`Nothing new on ${tab} — all ${total} of this category's fields were already known.`);
+      else parts.push(`${category} now knows ${total}.`);
+      setScanned(parts.join(" "));
     } else setError(r.message);
     setBusy(null);
     setFilling(null);

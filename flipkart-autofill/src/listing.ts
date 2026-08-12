@@ -136,7 +136,7 @@ export function loadProduct(
     }
     delete values[k];
   }
-  deriveDescriptionTab(values);
+  deriveDescriptionTab(values, asks);
 
   const known = scannedLabels(catDir, product.category);
   const unmapped = known
@@ -174,7 +174,7 @@ export function loadProduct(
  * A product that states either value itself always wins, and a description with no WHAT YOU GET
  * block (the pre-template listings) simply leaves the field blank, exactly as today.
  */
-function deriveDescriptionTab(values: Values): void {
+function deriveDescriptionTab(values: Values, asks: string[] = []): void {
   if (!values["Model Number"] && values["Seller SKU ID"]) {
     values["Model Number"] = values["Seller SKU ID"];
   }
@@ -193,7 +193,8 @@ function deriveDescriptionTab(values: Values): void {
     if (Number.isFinite(kg) && kg > 0 && kg <= 5) values["Quantity"] = String(Math.round(kg * 1000));
   }
   if (values["Items Included"]) return;
-  const lines = String(values["Description"] ?? "").split(/\r?\n/).map((l) => l.trim());
+  const description = String(values["Description"] ?? "");
+  const lines = description.split(/\r?\n/).map((l) => l.trim());
   const start = lines.findIndex((l) => /^WHAT YOU GET\b/i.test(l));
   if (start < 0) return;
   const items: string[] = [];
@@ -202,7 +203,34 @@ function deriveDescriptionTab(values: Values): void {
     if (!/^\d/.test(line)) break;
     items.push(line);
   }
-  if (items.length) values["Items Included"] = items;
+  if (!items.length) return;
+  values["Items Included"] = items;
+
+  // Does the list add up to the total the description itself claims?
+  //
+  // This is a TEXT PARSER reading prose, and prose changes shape. The stop rule — first line that
+  // does not start with a digit — is right for every description written to the template, and
+  // quietly wrong for one that is not: a stray sentence between two items truncates the list, and
+  // a nine-item kit goes out declaring two. Nothing about that looks broken afterwards.
+  //
+  // The description states its own answer, in the heading: "WHAT YOU GET (69 Pieces)". Summing
+  // the counts and comparing is the whole check, and it is free — matched on all 9 product files
+  // that have the block, so it flags nothing that is already correct.
+  //
+  // The value is still filled rather than dropped. A short list is the best available answer and
+  // the panel now SHOWS this question, which is the thing that did not exist before — the reason
+  // to blank a doubtful field was always that nothing else would mention it.
+  const head = /WHAT YOU GET\s*\((\d+)/i.exec(description);
+  if (!head) return;
+  const stated = Number(head[1]);
+  const sum = items.reduce((n, line) => n + (parseInt(line, 10) || 0), 0);
+  if (sum !== stated) {
+    asks.push(
+      `Items Included may be incomplete: the ${items.length} lines read from WHAT YOU GET add up ` +
+        `to ${sum} pieces, but the description says ${stated}. Check the list against the pack ` +
+        `before saving — a line that does not start with its count ends the list early.`,
+    );
+  }
 }
 
 export interface ScanResult {
@@ -210,6 +238,8 @@ export interface ScanResult {
   file: string;
   /** Only what this pass had not seen before — the rest of the file is other tabs. */
   added: FieldInfo[];
+  /** Hand-typed placeholder rows this scan replaced with the measured widget. */
+  corrected: FieldInfo[];
   /** Every label the category knows about now, across every tab ever scanned. */
   total: number;
 }
@@ -249,12 +279,30 @@ export function mergeScan(
   const existing = fs.existsSync(file)
     ? (JSON.parse(fs.readFileSync(file, "utf8")) as { category: string; fields: FieldInfo[] })
     : { category, fields: [] as FieldInfo[] };
-  const known = new Set(existing.fields.map((f) => f.label));
-  const added = found.filter((f) => !known.has(f.label));
+  // A row typed in by hand carries `source`. It is a placeholder: someone read the label off the
+  // live form and GUESSED the widget, because scanning that tab was not possible yet. When a real
+  // scan finally sees that label, the guess must give way — otherwise the placeholder blocks the
+  // measurement forever, which is exactly what happened on the Product Description tab: pressing
+  // Learn this tab reported "nothing new" and left seven guessed `kind`s in place, because the
+  // labels already matched. Confirming the labels while silently keeping the wrong kinds is the
+  // worst of both, since it reads as confirmation.
+  const known = new Map(existing.fields.map((f, i) => [f.label, i]));
+  const added: FieldInfo[] = [];
+  const corrected: FieldInfo[] = [];
+  for (const f of found) {
+    const at = known.get(f.label);
+    if (at === undefined) {
+      added.push(f);
+      known.set(f.label, existing.fields.length + added.length - 1);
+    } else if ((existing.fields[at] as { source?: string }).source) {
+      existing.fields[at] = f; // measured beats typed, and `source` goes with it
+      corrected.push(f);
+    }
+  }
   existing.fields.push(...added);
   (existing as Record<string, unknown>).scannedAt = new Date().toISOString();
   fs.writeFileSync(file, JSON.stringify(existing, null, 2) + "\n");
-  return { category, file, added, total: existing.fields.length };
+  return { category, file, added, corrected, total: existing.fields.length };
 }
 
 /**
