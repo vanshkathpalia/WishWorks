@@ -113,6 +113,8 @@ export interface FillResult {
    * it is the most-read text on the listing and nothing displayed it before Save.
    */
   productName: { name: string; warnings: string[] } | null;
+  /** Questions ChatGPT flagged instead of guessing. Answer them before Save — see LoadedProduct. */
+  asks: string[];
   /** For each mismatch, what the widget actually turned out to be — the debugging shortcut. */
   probes: { label: string; tag: string; kind: string; rowLabel: string; wrongRow: boolean; value: string; pills: string[] }[];
 }
@@ -164,7 +166,7 @@ export async function fillListing(
 
   // The tab decides which defaults file applies. Passing it is what keeps an inches Height off
   // the centimetres tab — see DefaultsTab. Omitted (the CLI), it merges everything as before.
-  const { values, usedDefaults, category, unmapped } = loadProduct(match.file, undefined, tab);
+  const { values, usedDefaults, category, unmapped, asks } = loadProduct(match.file, undefined, tab);
   // A problem skips its own field and blocks nothing. It used to throw, so two placeholders cost
   // you sixty good fields and the form got typed by hand — Vansh, 2026-08-12: "we should have the
   // freedom to let it continue even if any issue comes, just flag it later on". What is skipped is
@@ -185,6 +187,7 @@ export async function fillListing(
     category,
     usedDefaults,
     unmapped,
+    asks,
     skipped: problems,
     rows,
     report,

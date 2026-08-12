@@ -45,6 +45,23 @@ different versions of either one is a bug, not a variation.
 Every other value comes from the INVENTORY. Use the photos only to confirm colour, shape,
 finish and printed/banner wording.
 
+=== IF YOU ARE NOT SURE, SAY SO — "_ask" ===
+
+Rule 1 tells you to leave a field out rather than invent it, and that is right. But a field left
+out because nobody knew looks exactly like a field nobody thought of, and I cannot tell them
+apart afterwards.
+
+So when you are genuinely unsure of something, add a "_ask" key to the JSON:
+
+  "_ask": ["<the question, in one sentence, naming the field it is about>"]
+
+Give your best answer in the real field as well. The app shows me every "_ask" before the listing
+goes anywhere near being live, so a flagged guess is safe and a silent one is not. Keys starting
+with "_" are never typed into the form.
+
+Use it for a real doubt, not for everything — a file that asks about ten fields is a file I stop
+reading. If there is nothing to ask, leave the key out entirely.
+
 === HARD RULES ===
 1. Counts and pack contents come ONLY from the INVENTORY. Never invent a fact; if unsure
    of a field, LEAVE IT OUT. A missing field is fine; a wrong field gets the listing
@@ -130,14 +147,19 @@ Lists (arrays — no commas inside any entry)
   "Ideal For"            – from: Boys, Girls, Men, Women
   "Material"             – from: Latex, Foil, Paper, Plastic, Fabric, Rubber
   "Theme"                – e.g. ["Red and White", "Anniversary"]
-  "Occasion"             – from: Birthday, Anniversary, Baby Shower, Wedding,
-                           Bachelorette Party, Festival, Housewarming.
-                           ALWAYS INCLUDE THIS, even when the answer feels obvious. It is the one
+  "Occasion"             – WORK IT OUT FROM THE INVENTORY AND THE PHOTOS. This is a free-text
+                           field, not a menu: whatever the kit is genuinely bought for is a valid
+                           answer, and there are far more occasions than any list would hold.
+                           Read the printed wording on the banner and cutouts, the theme of the
+                           props, and what the INVENTORY calls things. Name the ceremony or event
+                           the way an Indian shopper says it.
+                           ALWAYS INCLUDE IT, even when the answer feels obvious. It is the one
                            field where leaving it out does NOT leave a blank: a stored default
                            fills in, and that default is a birthday one. A kit for any other
                            occasion then goes live claiming Birthday and Anniversary, which is a
-                           WRONG value, not a missing one. If none of the listed occasions is
-                           true for this kit, give the closest one that IS true and no others.
+                           WRONG value, not a missing one.
+                           If you cannot tell what the occasion is, say so with "_ask" (below)
+                           and give your best answer alongside it.
   "Purpose"              – usually ["Decoration"]
   "Character"            – ONLY wording actually PRINTED on an item in the photos, quoted
                            as printed, e.g. ["Happy Birthday"]. Do NOT put the occasion or

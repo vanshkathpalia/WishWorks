@@ -245,3 +245,38 @@ describe("the name buyers see", () => {
     expect(n?.warnings).toEqual([]);
   });
 });
+
+// Vansh, 2026-08-12: "if any confusion take my permission, flag it somewhere". Rule 1 tells
+// ChatGPT to omit rather than invent — but an omission made from doubt and one made from
+// oversight are the same empty box, and only this tells them apart.
+describe("_ask, the questions raised instead of guesses made", () => {
+  const load = async (values: Record<string, unknown>, defaults?: Record<string, unknown>) => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ww-ask-"));
+    const cat = path.join(dir, "cats");
+    await mkdir(cat, { recursive: true });
+    if (defaults) await writeFile(path.join(cat, "c.defaults.json"), JSON.stringify(defaults));
+    const file = path.join(dir, "p.json");
+    await writeFile(file, JSON.stringify({ category: "c", values }));
+    return loadProduct(file, cat);
+  };
+
+  it("carries the questions out, and never types them into the form", async () => {
+    const r = await load({ _ask: ["Which occasion is this?"], Stock: "100" });
+    expect(r.asks).toEqual(["Which occasion is this?"]);
+    expect(r.values["_ask"]).toBeUndefined();
+  });
+
+  it("takes a bare string as readily as a list", async () => {
+    expect((await load({ _ask: "One question" })).asks).toEqual(["One question"]);
+  });
+
+  it("ignores every OTHER underscore key — the defaults files are full of prose", async () => {
+    const r = await load({ Stock: "1" }, { _comment: ["a paragraph", "and another"], Height: "4" });
+    expect(r.asks).toEqual([]);
+    expect(r.values["_comment"]).toBeUndefined();
+  });
+
+  it("says nothing when there was nothing to ask", async () => {
+    expect((await load({ Stock: "100" })).asks).toEqual([]);
+  });
+});

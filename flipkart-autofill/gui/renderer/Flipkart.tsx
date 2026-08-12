@@ -385,6 +385,19 @@ export function Flipkart({ n }: { n: number }) {
         </p>
       )}
 
+      {/* Questions raised instead of guesses made. A field left out because nobody knew looks
+          exactly like a field nobody thought of; this is the only thing that tells them apart,
+          and it is the reason the prompt is allowed to say "I am not sure" at all. */}
+      {result && result.asks.length > 0 && (
+        <div className="asks">
+          <small>Needs your answer before this goes live</small>
+          {result.asks.map((a) => (
+            <p key={a}>{a}</p>
+          ))}
+          <button onClick={() => setEditing(result.product)}>Open the listing file</button>
+        </div>
+      )}
+
       {/* The name buyers actually see, which nothing showed before Save. Flipkart composes it
           from Color + Type — not from Model Name — so the most-read text on the listing was
           assembled out of two fields that look like ordinary attributes. A live listing carries

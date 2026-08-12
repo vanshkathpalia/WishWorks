@@ -49,6 +49,20 @@ export interface LoadedProduct {
    * this is empty when the category has never been scanned — never a false accusation.
    */
   unmapped: string[];
+  /**
+   * Questions ChatGPT raised about this listing rather than guessing — the values of any `_ask`
+   * key in the product file.
+   *
+   * Vansh, 2026-08-12: *"if any confusion take my permission, flag it somewhere"*. The prompt
+   * forbids inventing a fact and tells it to leave a field out when unsure, which is right but
+   * silent: a field that is missing because nobody knew looks exactly like a field nobody
+   * thought of. This is the difference, and it costs one key in a file that already strips
+   * every `_`-prefixed key as a human note.
+   *
+   * Only `_ask` is collected. The other `_` keys are prose in the defaults files and would bury
+   * a real question under three paragraphs of commentary.
+   */
+  asks: string[];
 }
 
 /** Labels captured by `npm run scan`, normalised the way fields.ts matches them. */
@@ -111,8 +125,17 @@ export function loadProduct(
     }
   }
   const values: Values = { ...defaults, ...product.values };
-  // Keys starting with "_" are notes for humans, not form fields.
-  for (const k of Object.keys(values)) if (k.startsWith("_")) delete values[k];
+  // Keys starting with "_" are notes for humans, not form fields. `_ask` is the one kind worth
+  // carrying to the screen rather than dropping — see `asks`.
+  const asks: string[] = [];
+  for (const k of Object.keys(values)) {
+    if (!k.startsWith("_")) continue;
+    if (k.startsWith("_ask")) {
+      const v = values[k];
+      for (const line of Array.isArray(v) ? v.map(String) : [String(v)]) if (line.trim()) asks.push(line);
+    }
+    delete values[k];
+  }
   deriveDescriptionTab(values);
 
   const known = scannedLabels(catDir, product.category);
@@ -120,7 +143,7 @@ export function loadProduct(
     ? Object.keys(values).filter((k) => !known.has(normLabel(k)) && !String(values[k]).startsWith("TODO_"))
     : [];
 
-  return { file, category: product.category, values, usedDefaults, unmapped };
+  return { file, category: product.category, values, usedDefaults, unmapped, asks };
 }
 
 /**
