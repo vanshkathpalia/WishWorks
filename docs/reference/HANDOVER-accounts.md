@@ -1,5 +1,12 @@
 # Handover — four seller accounts, shared data, no server
 
+> **✅ BUILT 2026-08-15.** Kept as the reasoning record, not as a to-do — sections 1, 2 and 4 are
+> still the decisions and still stand. **Section 3 was built with one deviation: the SKU flag is
+> checked in the renderer, not in `src/inbox.ts`** (3.4.1) — the renderer already knows the prefix
+> and already draws every ID, so one `SkuFlag` component covers all three places, the engine stays
+> account-blind, and the import warning shows *before* the button instead of after it. Section 5's
+> release work is done (v1.0.0, tagged, `products/*.json` ignored). What is left is **WW-155**.
+>
 > **Written 2026-08-14 to start a fresh chat on WW-154.** Everything decided so far is here, with
 > the reasoning, so nothing gets re-litigated. Read `../../CLAUDE.md` first for how we work, then
 > this. The live ledger is `../tracks/notion/TICKET_STATUS.md` (WW-153, WW-154, WW-155) and the

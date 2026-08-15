@@ -302,6 +302,29 @@ save some time".* Concretely:
 - A **Settings** panel lists the remembered paths with a Clear button, so a wrong turn is
   recoverable without finding a JSON file.
 
+### Whose data is this? — seller accounts · WW-154 · built 2026-08-15
+
+Four seller accounts, roughly two people each. One account is one Gmail, which is what the
+Flipkart and Meesho logins were made from, which is what a Google Drive folder is shared with.
+So an account, in this app, is a **name, a folder and an optional SKU prefix** — and nothing else.
+
+- **No login screen, no server, no OAuth, no Drive API.** Drive Desktop syncs the folder; the app
+  reads a path. A password box inside an Electron app would be theatre — the files are on the
+  local disk and Explorer opens them whatever this UI says.
+- Settings holds the list (`accounts` + `activeAccount` in `settings.json`). The active account's
+  folder **is** the workspace, so `chooseWorkspace` writes into the account when one is live.
+- Adding, switching and removing **relaunch**, the same as the products and kits folders and for
+  the same reason: `paths.ts` resolves `WW_*_DIR` once, at module load.
+- **The account's name is on screen at all times**, under the brand in the rail. This is the real
+  safety feature — a standing answer to a question nobody thinks to ask before making the mistake.
+- **The SKU prefix flags and never blocks**, in the import list, on every listing row, and above
+  the Fill buttons. One `SkuFlag` component, one predicate (`isForAccount` in `gui/shared.ts`,
+  because the renderer cannot import `src/id.ts`). The engine stays account-blind. **Unset prefix
+  = no flagging at all.** Sometimes the file is right and the prefix is the typo.
+- A machine that never adds an account behaves exactly as it did before. Two accounts on ONE
+  machine is **WW-155 and deliberately not built** — one Chrome profile would leave you logged in
+  as the previous seller.
+
 ### The prompt steps (3, 4, 5) — one panel each
 
 The app never talks to an AI. Each prompt panel is the same three parts:

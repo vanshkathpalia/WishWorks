@@ -17,7 +17,7 @@
 
 import React, { useEffect, useState } from "react";
 import type { DefaultsTab, FieldRow, FillResult, Listing, SessionStatus } from "../shared.js";
-import { ListingPicker, ProductsFolder } from "./ui.js";
+import { ListingPicker, ProductsFolder, useSkuMismatch } from "./ui.js";
 import { ProductEditor } from "./ProductEditor.js";
 
 const MARK: Record<FieldRow["status"], string> = {
@@ -307,6 +307,12 @@ export function Flipkart({ n }: { n: number }) {
   }
 
   const blocked = result ? result.needsEyes : 0;
+  /**
+   * The last place worth saying it, and the one that costs money: this is a LIVE seller panel,
+   * and the account logged into Chrome is not the one the app can see. It still fills — the
+   * prefix is sometimes the typo — but nowhere else does a wrong guess get published.
+   */
+  const wrongAccount = useSkuMismatch(listing?.id);
 
   return (
     <section className="panel">
@@ -347,6 +353,14 @@ export function Flipkart({ n }: { n: number }) {
         in first, or point this at the folder it is sitting in. Changing the folder restarts the
         app and moves nothing.
       </p>
+
+      {wrongAccount && listing && (
+        <p className="error">
+          ⚠️ <b>{listing.label}</b> does not start with <b>{wrongAccount}</b>, and this account&apos;s
+          SKUs do. Check you are filling the right seller panel before you press Save — nothing here
+          stops you, because sometimes it is the SKU that was typed wrong.
+        </p>
+      )}
 
       <h3>One tab at a time</h3>
       <p className="muted">

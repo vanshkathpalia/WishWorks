@@ -17,7 +17,8 @@ import { Images } from "./Images.js";
 import { Inventory } from "./Inventory.js";
 import { Flipkart } from "./Flipkart.js";
 import { Check, Finish, ListingCopy, Meesho } from "./steps.js";
-import { ProductsFolder } from "./ui.js";
+import { ProductsFolder, useAccount } from "./ui.js";
+import type { Account } from "../shared.js";
 import "./styles.css";
 
 /**
@@ -77,6 +78,90 @@ function Panel({ step }: { step: number }) {
   }
 }
 
+/**
+ * Which seller account this machine works, and how to add another (WW-154).
+ *
+ * There is no login and no server. An account is a name, a Drive folder and an optional SKU
+ * prefix — Google's folder sharing is what keeps one pair's data away from another's, and it is
+ * real access control in a way a password box inside this app could never be: the files are on
+ * the local disk and Explorer opens them whatever this screen says.
+ */
+function Accounts() {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [active, setActive] = useState(0);
+  const [label, setLabel] = useState("");
+  const [prefix, setPrefix] = useState("");
+
+  useEffect(() => {
+    void window.ww.accounts().then((r) => {
+      setAccounts(r.accounts);
+      setActive(r.active);
+    });
+  }, []);
+
+  return (
+    <>
+      <h3>Which seller account</h3>
+      {accounts.length === 0 ? (
+        <p className="muted">
+          None set up. Everything is kept in the folder below and nothing is flagged, which is
+          exactly how the app worked before — add one only if this machine works a shared account.
+        </p>
+      ) : (
+        <ul className="accounts">
+          {accounts.map((a, i) => (
+            <li key={a.label + i} className={i === active ? "current" : ""}>
+              <div>
+                <b>
+                  {a.label}
+                  {i === active ? " ✓" : ""}
+                </b>
+                <span className="path">{a.workspace}</span>
+                <small>
+                  {a.skuPrefix ? `SKUs start ${a.skuPrefix}` : "no prefix — nothing is flagged"}
+                </small>
+              </div>
+              <div className="picks">
+                {i !== active && (
+                  <button onClick={() => void window.ww.switchAccount(i)}>Work this one</button>
+                )}
+                <button onClick={() => void window.ww.removeAccount(i)}>Remove</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="picks">
+        <input
+          type="text"
+          className="wide"
+          placeholder="Name, e.g. GTB — gtb.wishworks@gmail.com"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        <input
+          type="text"
+          placeholder="Prefix, e.g. GTB"
+          value={prefix}
+          onChange={(e) => setPrefix(e.target.value)}
+        />
+        <button disabled={!label.trim()} onClick={() => void window.ww.addAccount(label.trim(), prefix.trim())}>
+          Choose its folder and add…
+        </button>
+      </div>
+      <p className="muted">
+        Point it at the <b>Google Drive folder shared with the people on that account</b> — Drive
+        Desktop keeps the folder in step and the app just reads it, so there is nothing to log into
+        here. The SKU prefix is only a warning: a listing whose ID does not start with it gets
+        marked wherever it appears, and <b>nothing is ever blocked</b>, because sometimes it is the
+        SKU that was typed wrong. Leave the prefix empty and this account is never flagged at all.
+        Switching, adding or removing restarts the app, and no file is moved or deleted.
+      </p>
+    </>
+  );
+}
+
 function Settings({ close }: { close: () => void }) {
   const [folders, setFolders] = useState<Record<string, string>>({});
   const [workspace, setWorkspace] = useState("");
@@ -94,6 +179,8 @@ function Settings({ close }: { close: () => void }) {
     <div className="modal" onClick={close}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h2>Settings</h2>
+
+        <Accounts />
 
         <h3>Remembered folders</h3>
         {Object.keys(folders).length === 0 ? (
@@ -181,6 +268,12 @@ function Settings({ close }: { close: () => void }) {
 
 function App() {
   const [settings, setSettings] = useState(false);
+  /**
+   * Whose data this is, on screen at all times — the actual safety feature of WW-154, worth more
+   * than every flag put together. It is a standing answer to a question nobody thinks to ask
+   * before making the mistake.
+   */
+  const account = useAccount();
   // Any step, any time. Nothing here checks whether an earlier one has run.
   const [step, setStep] = useState(0);
   /**
@@ -196,7 +289,10 @@ function App() {
   return (
     <div className="app">
       <nav className="rail">
-        <div className="brand">WishWorks</div>
+        <div className="brand">
+          WishWorks
+          {account && <small title={account.workspace}>{account.label}</small>}
+        </div>
         <ol>
           {STEPS.map((s, i) => (
             <li key={s.name}>

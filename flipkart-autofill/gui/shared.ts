@@ -35,6 +35,37 @@ export type {
 export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string };
 
 /**
+ * One seller account: one Gmail, one Flipkart + Meesho login, one Drive folder (WW-154).
+ *
+ * There is no login screen and no server behind this. The isolation is Google's folder sharing —
+ * the pair who work an account have the folder shared with them and nobody else does. A password
+ * check inside an Electron app would be theatre: the files sit on the local disk and Explorer
+ * opens them whatever this UI says.
+ */
+export interface Account {
+  /** What goes on screen — `GTB — gtb.wishworks@gmail.com`. Free text; nothing parses it. */
+  label: string;
+  /** The Drive folder this account's images and listing files live in. */
+  workspace: string;
+  /** Optional. **Unset means no flagging at all** — an account that never wants it never sees it. */
+  skuPrefix?: string;
+}
+
+/**
+ * Does this listing ID belong to the account whose SKUs start with `prefix`?
+ *
+ * Lives here rather than in `src/` because both sides need it and `src/id.ts` imports `node:fs`,
+ * which the renderer cannot have. True when there is no prefix, which is what makes an unset
+ * `skuPrefix` mean "never flag". IDs arrive normalised (`ANP-003` → `ANP3`), so the prefix is
+ * normalised the same crude way rather than trusting however it was typed in.
+ */
+export function isForAccount(id: string, prefix?: string): boolean {
+  const strip = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
+  const p = strip(prefix ?? "");
+  return p === "" || strip(id).startsWith(p);
+}
+
+/**
  * Steps that open a picker each remember their own folder. One global "last folder" would have
  * converting (which reaches for ~/Downloads) fighting finishing (the WhatsApp archive).
  */
@@ -98,6 +129,19 @@ export interface WwApi {
   setEditPrompts(on: boolean): Promise<void>;
   /** Pick a new workspace. Relaunches the app on success; false means the user cancelled. */
   chooseWorkspace(): Promise<boolean>;
+
+  /**
+   * The seller accounts on this machine and which one is live. Empty list = nobody has set one up,
+   * and the app behaves exactly as it did before WW-154.
+   */
+  accounts(): Promise<{ accounts: Account[]; active: number }>;
+  /** Work a different account. Relaunches — the engine resolves its folders once, at startup. */
+  switchAccount(index: number): Promise<void>;
+  /** Add one: names it, then asks for its Drive folder. Relaunches; false means cancelled. */
+  addAccount(label: string, skuPrefix: string): Promise<boolean>;
+  /** Forget one. Nothing on disk is touched — only this machine stops offering it. */
+  removeAccount(index: number): Promise<void>;
+
   /** Where `products-<ID>.json` is read from — shown on Fill Flipkart, never a mystery. */
   productsFolder(): Promise<string>;
   /** Point it somewhere else, e.g. straight at Downloads. Relaunches on success. */

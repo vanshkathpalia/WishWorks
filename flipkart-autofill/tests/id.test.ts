@@ -13,6 +13,8 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { normalizeId, findById, whyNoMatch } from "../src/id.js";
+// The prefix check lives in gui/shared.ts because the renderer needs it and cannot have node:fs.
+import { isForAccount } from "../gui/shared.js";
 
 let tmp: string;
 const created: string[] = [];
@@ -121,5 +123,31 @@ describe("findById", () => {
     const d = await descriptionsFor("ANP-3");
     expect(d.source).toContain("image-meta-ANP003.json");
     expect(d.perImage["1"]).toBe("hello");
+  });
+});
+
+/**
+ * The SKU prefix flag (WW-154). It decides whether a listing gets marked as belonging to a
+ * different seller account, so the one case that must never regress is the empty prefix: an
+ * account without one has to be flagged NEVER, not always.
+ */
+describe("isForAccount", () => {
+  it("never flags an account that set no prefix", () => {
+    expect(isForAccount("ANP3", undefined)).toBe(true);
+    expect(isForAccount("ANP3", "")).toBe(true);
+    expect(isForAccount("ANP3", "  ")).toBe(true);
+  });
+
+  it("matches however the ID and the prefix were written", () => {
+    for (const id of ["GTB4", "GTB-4", "GTB 004", "gtb002"]) {
+      expect(isForAccount(normalizeId(id), "GTB")).toBe(true);
+      expect(isForAccount(normalizeId(id), "gtb")).toBe(true);
+    }
+  });
+
+  it("flags another account's SKU", () => {
+    expect(isForAccount("ANP3", "GTB")).toBe(false);
+    // A prefix that is only PART of the ID's prefix is not a match either way round.
+    expect(isForAccount("GT4", "GTB")).toBe(false);
   });
 });

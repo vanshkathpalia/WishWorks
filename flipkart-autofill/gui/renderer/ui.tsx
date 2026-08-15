@@ -8,7 +8,42 @@
  */
 
 import React, { useEffect, useState } from "react";
-import type { Listing, StepId } from "../shared.js";
+import type { Account, Listing, StepId } from "../shared.js";
+import { isForAccount } from "../shared.js";
+
+/** The seller account being worked, or null when this machine has never set one up. */
+export function useAccount(): Account | null {
+  const [account, setAccount] = useState<Account | null>(null);
+  useEffect(() => {
+    void window.ww.accounts().then((r) => setAccount(r.accounts[r.active] ?? null));
+  }, []);
+  return account;
+}
+
+/**
+ * The active account's SKU prefix when this listing does not carry it — null when it does, when
+ * the account has no prefix, or when no account is set up. Null means say nothing.
+ */
+export function useSkuMismatch(id: string | null | undefined): string | null {
+  const account = useAccount();
+  if (!id || !account?.skuPrefix) return null;
+  return isForAccount(id, account.skuPrefix) ? null : account.skuPrefix;
+}
+
+/**
+ * `ANP003 — this account is GTB`, wherever a listing is named.
+ *
+ * **It flags and never blocks**, everywhere it appears. The partners are new to this and a file
+ * with the wrong prefix is sometimes the prefix that is the typo, so stopping the work would be
+ * wrong as often as it was right. It appears in more than one place on purpose: the person who
+ * imports a file is often not the person who fills the form an hour later, and a warning that
+ * shows once and vanishes is a warning nobody sees (WW-154).
+ */
+export function SkuFlag({ id }: { id: string | null | undefined }) {
+  const prefix = useSkuMismatch(id);
+  if (!prefix) return null;
+  return <span className="warnpill" title={`This account's SKUs start with ${prefix}`}>not {prefix}</span>;
+}
 
 /**
  * Join a folder and a child name. The renderer has no `path` module, and Node accepts a forward
@@ -114,6 +149,9 @@ export function ListingPicker({
             <li key={l.id}>
               <button className={l.id === value ? "chosen" : ""} onClick={() => onChange(l.id, l)}>
                 <span className="lid">{l.label}</span>
+                {/* Stays on the row, so a wrongly-imported file is still visibly wrong to
+                    whoever picks it up an hour later. */}
+                <SkuFlag id={l.id} />
                 <span className="tags">
                   {l.meta && <em title="image-meta/ — the Meesho title, description and pack contents">copy</em>}
                   {l.product && <em title="products/ — the 66 Flipkart form fields">flipkart</em>}

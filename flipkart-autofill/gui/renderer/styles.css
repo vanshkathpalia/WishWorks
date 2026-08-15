@@ -63,6 +63,19 @@ button:hover {
   padding-left: 8px;
 }
 
+/* Whose data is on screen. Permanent, never dismissible — see WW-154. */
+.brand small {
+  display: block;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--muted);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rail ol {
   list-style: none;
   margin: 0;
@@ -402,6 +415,36 @@ code {
 .sheet h3:first-of-type {
   margin-top: 8px;
 }
+/* The seller accounts. Its own list rather than .kv, whose 80px label column was built for
+   step names and would clip an account's Gmail. */
+.accounts {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.accounts li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #221e1c;
+  font-size: 13px;
+}
+.accounts li.current b {
+  color: var(--accent);
+}
+.accounts small,
+.accounts .path {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-all;
+}
+input.wide {
+  width: 22em;
+}
+
 .kv {
   list-style: none;
   margin: 0 0 12px;

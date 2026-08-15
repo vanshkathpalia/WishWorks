@@ -29,6 +29,13 @@ const api: WwApi = {
   editPrompts: () => ipcRenderer.invoke("editPrompts"),
   setEditPrompts: (on: boolean) => ipcRenderer.invoke("setEditPrompts", on),
   chooseWorkspace: () => ipcRenderer.invoke("chooseWorkspace"),
+
+  accounts: () => ipcRenderer.invoke("accounts"),
+  switchAccount: (index: number) => ipcRenderer.invoke("switchAccount", index),
+  addAccount: (label: string, skuPrefix: string) =>
+    ipcRenderer.invoke("addAccount", label, skuPrefix),
+  removeAccount: (index: number) => ipcRenderer.invoke("removeAccount", index),
+
   productsFolder: () => ipcRenderer.invoke("productsFolder"),
   chooseProductsFolder: () => ipcRenderer.invoke("chooseProductsFolder"),
 

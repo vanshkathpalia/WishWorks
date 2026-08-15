@@ -22,7 +22,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { Attempt, CleanUp, ConvertResult, DefaultsTab, Row, StepId } from "./shared.js";
+import type { Account, Attempt, CleanUp, ConvertResult, DefaultsTab, Row, StepId } from "./shared.js";
 
 app.setName("WishWorks");
 
@@ -69,6 +69,15 @@ interface Settings {
    * legitimate answer — it is where the downloads already are.
    */
   products?: string;
+  /**
+   * The seller accounts this machine can work, and which one it is working (WW-154).
+   *
+   * An account's `workspace` outranks `workspace` above — it IS the workspace, for that account.
+   * Empty or absent and nothing changes: the app behaves exactly as it did before accounts
+   * existed, which is what every machine that never sets one up gets.
+   */
+  accounts?: Account[];
+  activeAccount?: number;
 }
 
 function readSettings(): Settings {
@@ -98,7 +107,16 @@ async function writeSettings(patch: Settings): Promise<void> {
  * the partner's machine, so it gets a folder of its own — and `chooseWorkspace` moves it
  * anywhere he likes, which is stored in settings.json and survives updates.
  */
+/** The account being worked, or null when this machine has never set one up. */
+function activeAccount(): Account | null {
+  const s = readSettings();
+  return s.accounts?.[s.activeAccount ?? 0] ?? null;
+}
+
 function storedWorkspace(): string {
+  // An account's folder IS its workspace — that is the whole of the Drive integration (WW-154).
+  const account = activeAccount();
+  if (account?.workspace) return account.workspace;
   const w = readSettings().workspace;
   if (typeof w === "string" && w.length > 0) return w;
   return app.isPackaged
@@ -680,6 +698,16 @@ ipcMain.handle("workspaceDir", () => WORKSPACE);
  * as it was, so a wrong choice costs nothing and is undone by choosing again.
  */
 /**
+ * Every folder setting ends here, because `paths.ts` resolves `WW_*_DIR` once, at module load,
+ * from env vars set above before the engine is imported. A setting that half-applied until the
+ * next restart would be worse than one that is honest about needing it.
+ */
+function relaunch(): void {
+  app.relaunch();
+  app.quit();
+}
+
+/**
  * Point the kits at a folder of their own — normally a shared Drive/Dropbox folder, so two
  * machines see the same costings.
  *
@@ -696,8 +724,7 @@ ipcMain.handle("chooseKitsFolder", async (e): Promise<boolean> => {
   });
   if (canceled || filePaths.length === 0) return false;
   await writeSettings({ kits: filePaths[0] });
-  app.relaunch();
-  app.quit();
+  relaunch();
   return true;
 });
 
@@ -720,8 +747,7 @@ ipcMain.handle("chooseProductsFolder", async (e): Promise<boolean> => {
   });
   if (canceled || filePaths.length === 0) return false;
   await writeSettings({ products: filePaths[0] });
-  app.relaunch();
-  app.quit();
+  relaunch();
   return true;
 });
 
@@ -733,10 +759,66 @@ ipcMain.handle("chooseWorkspace", async (e): Promise<boolean> => {
     message: "Where should WishWorks keep its images and listing files?",
   });
   if (canceled || filePaths.length === 0) return false;
-  await writeSettings({ workspace: filePaths[0] });
-  app.relaunch();
-  app.quit();
+  // With an account live, ITS folder is the workspace — writing the flat `workspace` setting here
+  // would store a path that `storedWorkspace()` then ignores, which looks exactly like a button
+  // that does nothing.
+  const s = readSettings();
+  const i = s.activeAccount ?? 0;
+  if (s.accounts?.[i]) {
+    await writeSettings({
+      accounts: s.accounts.map((a, n) => (n === i ? { ...a, workspace: filePaths[0] } : a)),
+    });
+  } else await writeSettings({ workspace: filePaths[0] });
+  relaunch();
   return true;
+});
+
+// ---------------------------------------------------------------- seller accounts
+
+/**
+ * Four seller accounts, two people each, and one app that says whose data is on screen (WW-154).
+ *
+ * There is nothing here but a list and an index. The sharing is Google Drive's — one account is
+ * one Gmail is one Drive folder, shared with exactly that pair — so this code never authenticates
+ * anybody, never talks to an API, and never keeps a second copy of anything. It points the
+ * workspace at a folder, which is all a Drive folder needs.
+ */
+ipcMain.handle("accounts", () => {
+  const s = readSettings();
+  return { accounts: s.accounts ?? [], active: s.activeAccount ?? 0 };
+});
+
+ipcMain.handle("switchAccount", async (_e, index: number) => {
+  await writeSettings({ activeAccount: index });
+  relaunch();
+});
+
+ipcMain.handle("addAccount", async (e, label: string, skuPrefix: string): Promise<boolean> => {
+  const win = BrowserWindow.fromWebContents(e.sender)!;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ["openDirectory", "createDirectory"],
+    message: `Which folder does ${label || "this account"} keep its work in? Pick its Google Drive folder.`,
+  });
+  if (canceled || filePaths.length === 0) return false;
+  const s = readSettings();
+  const accounts = [...(s.accounts ?? []), { label, workspace: filePaths[0], skuPrefix: skuPrefix || undefined }];
+  // Switch to what was just added: adding an account you then have to select is a two-step
+  // version of a one-step intention, and the un-switched state is the confusing one.
+  await writeSettings({ accounts, activeAccount: accounts.length - 1 });
+  relaunch();
+  return true;
+});
+
+/**
+ * Forget an account. Nothing in its folder is touched — this list is only which accounts this
+ * machine offers, so removing the wrong one costs an Add, not any data.
+ */
+ipcMain.handle("removeAccount", async (_e, index: number) => {
+  const accounts = (readSettings().accounts ?? []).filter((_, i) => i !== index);
+  // Back to the first one rather than trying to keep pointing at the same account: the surviving
+  // indices all shifted, and "which account am I on" must never be a guess.
+  await writeSettings({ accounts, activeAccount: 0 });
+  relaunch();
 });
 
 // ---------------------------------------------------------------- window

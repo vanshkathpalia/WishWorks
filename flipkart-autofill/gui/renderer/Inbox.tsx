@@ -12,6 +12,7 @@
 
 import React, { useEffect, useState } from "react";
 import type { InboxItem } from "../shared.js";
+import { SkuFlag } from "./ui.js";
 
 const ago = (t: number) => {
   const m = Math.round((Date.now() - t) / 60000);
@@ -141,7 +142,11 @@ export function Inbox({ onImported }: { onImported: () => void }) {
           <tbody>
             {pending.map((i) => (
               <tr key={i.file}>
-                <td>{i.file.split(/[\\/]/).pop()}</td>
+                {/* The flag shows here, BEFORE the button — and the button still imports it.
+                    Sometimes the file is right and the prefix is the typo. */}
+                <td>
+                  {i.file.split(/[\\/]/).pop()} <SkuFlag id={i.id} />
+                </td>
                 <td>{i.half}/</td>
                 <td>{ago(i.modified)}</td>
                 <td>{i.action === "update" ? "replaces an older copy" : "new"}</td>
