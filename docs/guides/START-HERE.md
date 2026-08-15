@@ -150,6 +150,13 @@ second prompt relies on them still being in that conversation.
 > Editing a prompt? Edit that file. Nothing else reads them, and they are deliberately kept
 > free of anything that is not the prompt itself, so that select-all stays safe.
 
+> **Meesho only, no Flipkart listing?** Then neither of those two is what you want — send
+> [`PROMPT-meesho-only.md`](PROMPT-meesho-only.md) on its own. It asks for **product name,
+> description and what is in the packet**, and prints them as three blocks of text rather than a
+> file, because with no `products/<ID>.json` there is nothing downstream to read one. No ID, no
+> downloads to file, nothing for Part 4 to check. Paste your items and counts into it; uploading
+> the photos is optional.
+
 ### After the AI replies
 
 Give it a quick read — you know the product better than it does. Two checks:

@@ -171,12 +171,15 @@ Full explanation and exact prompts: **"The main image"** and **"Prompt B"** in
      `npm run finish -- --square --border=107`, which pads the approved picture exactly and
      cannot change the balloons or the spelling.
    - *Message 2b — only if you want the balloons somewhere else.* The hero prompt always puts the
-     garland on the **top and the left**. Four follow-ups move it, and change nothing else — send
+     garland on the **top and the left**. Five follow-ups move it, and change nothing else — send
      one straight after the photo comes back, in the same chat:
      - `PROMPT-layout-right.md` — top and the **right**, mirroring the default.
      - `PROMPT-layout-both-sides.md` — top and **both** sides, like an open doorway.
      - `PROMPT-layout-corners.md` — two **diagonal corner clusters**, open in the middle.
      - `PROMPT-layout-arch.md` — a **full arch**, floor to floor.
+     - `PROMPT-layout-corner-bulk.md` — keeps the layout and **bunches the balloons into the top
+       corners** so they look heavy, thinning the middle to pay for it. The counts still cap it:
+       every balloon that joins a corner leaves the run, same colour, same size.
 
      Send one, look at it, send another to compare. The model redraws the whole photo on each of
      these, so **re-check the counts and the spelling of the foil letters** every time.
@@ -185,6 +188,12 @@ Full explanation and exact prompts: **"The main image"** and **"Prompt B"** in
 2. **Image 2 — `PROMPT-infographic.md`** builds the "what's inside" infographic — a card per
    item with **the count only, no sizes**. One step: it draws the picture straight away.
    → Save as **`2.png`**, delete the old `2.jpg`.
+3b. **Image 4 — `PROMPT-how-to-decorate.md`** builds the "HOW TO DECORATE in N easy steps" card,
+   with a *package includes* grid under it. **Nothing in that prompt names an occasion or a kit** —
+   it reads the occasion, the colours and the assembly steps out of the inventory you paste, so a
+   step can only ever name an item that is really in the box. Read the steps before keeping it:
+   telling a buyer to use something they did not receive reads as a missing item.
+   → Save as **`4.png`**.
 3. **Image 3 — `PROMPT-infographic-sizes.md`** builds the same items again **with measured
    sizes** on each card. **It answers in two steps:** first a plain text table of the sizes
    Indian sellers commonly list for those items (we don't measure them ourselves) — **read it
@@ -229,13 +238,18 @@ Meesho copy. Then, **in that same chat**, paste **`guides/PROMPT-product.md`** a
 comes **`products-<ID>.json`**, the Flipkart form fields. **Drop each download into `image-meta/`
 and `products/` exactly as it downloaded — no renaming.** `image-meta-ANP003.json`, `ANP003.json`
 and `ANP-3.json` all read as the same product as a folder called `ANP 3`; prefix, capitals,
-spaces, dashes and leading zeros are ignored when matching. A **Meesho-only** product needs only
-the first prompt. To copy text into the websites, run `npm run paste -- <ID>` — any of those ID
+spaces, dashes and leading zeros are ignored when matching. To copy text into the websites, run `npm run paste -- <ID>` — any of those ID
 shapes works — and it prints the Flipkart Description and the Meesho values with the `\n`
 escapes undone.
 
 > Save the download *and* a renamed copy and nothing breaks: both match, the **newest** is used,
 > and the older one is printed as ignored. Re-download and re-save any time — the fresh file wins.
+
+> **Not going on Flipkart at all?** Send **`guides/PROMPT-meesho-only.md`** on its own instead of
+> both of the above. It asks for the three things the Meesho panel needs — **product name,
+> description, what is in the packet** — and gives them back as three blocks of text you copy
+> straight in. No files, no ID, so Step 4 has nothing to check and you skip it. Paste your items
+> and counts into it; the photos are optional there.
 
 **Check the corners of what the AI made.** If there's a sparkle logo, generate it again.
 
@@ -483,7 +497,9 @@ Whatsapp DW/            ← wherever the downloads live
 
 **The only naming rule: name each listing folder `CODE number` (e.g. `ANP 1`, `HBD 2`), and
 number the images inside `1, 2, 3, 4`.** That is all the renaming you ever do. The tool turns
-`ANP 1` → `ANP-1` and outputs `ANP-1.1.jpg`, `ANP-1.2.jpg` … itself.
+`ANP 1` → `ANP-1` and outputs `ANP-1-annaprashan-decoration-kit-1.jpg`, `…-2.jpg` … itself — the
+ID first, the position last, and the listing's own title in between. A listing with no copy file
+yet keeps the plain `ANP-1.1.jpg`.
 
 ### Where the AI's new image goes
 
@@ -523,7 +539,8 @@ npm run finish -- --in="/Users/vansh/Downloads/Whatsapp DW" --square
 ```
 
 Everything lands **flat, all listings together**, in `~/Downloads/wishworks-ready/` —
-`ANP-1.1.jpg`, `ANP-1.2.jpg`, `ANP-2.1.jpg` … no sub-folders. Those are the upload files.
+`ANP-1-<title>-1.jpg`, `ANP-1-<title>-2.jpg`, `ANP-2-<title>-1.jpg` … no sub-folders. Those are
+the upload files, and they sort into upload order because the position number is last.
 
 ### Three things to know
 
