@@ -125,6 +125,17 @@ const MESSAGES: Message[] = [
       { file: "PROMPT-layout-both-sides.md", label: "Top + both sides" },
       { file: "PROMPT-layout-corners.md", label: "Two diagonal corners" },
       { file: "PROMPT-layout-arch.md", label: "Full arch, floor to floor" },
+      {
+        file: "PROMPT-layout-corner-bulk.md",
+        label: "Bulk up the top corners",
+        note: (
+          <>
+            Keeps the layout it already has and just <b>moves</b> balloons into the top corners so
+            they look heavy — the middle goes thinner to pay for it. The one to re-count hardest:
+            filling a corner is exactly where a model helps itself to extra balloons.
+          </>
+        ),
+      },
     ],
     attach: (
       <>
@@ -173,6 +184,20 @@ const MESSAGES: Message[] = [
         First a <b>table of sizes</b>, not a picture — read it, correct anything wrong, answer any
         row marked <i>PICK ONE</i>. Then say go, and the reply is the image. Save that as{" "}
         <b>3.png</b>.
+      </>
+    ),
+  },
+  {
+    n: "6",
+    title: "Build the how-to-decorate infographic",
+    prompts: [{ file: "PROMPT-how-to-decorate.md", label: "How to decorate" }],
+    attach: (
+      <>
+        Same chat. Paste the inventory again where it asks. It works out the <b>occasion, the
+        colours and the assembly steps from the pack itself</b> — nothing about any occasion is
+        written into the prompt — so the steps only ever name items that are really in the box.{" "}
+        <b>Read the steps before you keep it:</b> an instruction to use something the buyer did not
+        receive reads as a missing item and comes back as a return. Save it as <b>4.png</b>.
       </>
     ),
   },

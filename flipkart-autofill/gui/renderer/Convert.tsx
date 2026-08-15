@@ -116,7 +116,13 @@ export function Convert() {
 
   // Rows arrive one at a time from the engine's onRow callback, so a slow folder shows progress
   // instead of a spinner. The finished result carries them all again; this is only for the wait.
-  useEffect(() => window.ww.onRow((row) => setRows((r) => [...r, row])), []);
+  //
+  // `row` is one broadcast channel and the Finish step listens to it too — and since panels stay
+  // mounted once visited (main.tsx), both are listening at the same time. A ref, not `busy`,
+  // because it has to be true the instant the run starts: `setBusy(true)` only lands on the next
+  // render, and the first rows can arrive before that.
+  const mine = useRef(false);
+  useEffect(() => window.ww.onRow((row) => mine.current && setRows((r) => [...r, row])), []);
 
   async function run(input: string[]) {
     if (input.length === 0) return;
@@ -125,11 +131,13 @@ export function Convert() {
     setResult(null);
     setError(null);
     setBusy(true);
+    mine.current = true;
     try {
       setResult(await window.ww.convert(input, latest.current));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      mine.current = false;
       setBusy(false);
     }
   }
