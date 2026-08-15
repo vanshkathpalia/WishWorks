@@ -8,7 +8,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
-  CleanUp, DefaultsTab, FieldRow, KitLine, PhotoItem, Row, SavedKit, StepId, WwApi,
+  CleanUp, DefaultsTab, FieldRow, FolderKey, KitLine, PhotoItem, Row, SavedKit, StepId, WwApi,
 } from "./shared.js";
 
 const api: WwApi = {
@@ -36,8 +36,8 @@ const api: WwApi = {
     ipcRenderer.invoke("addAccount", label, skuPrefix),
   removeAccount: (index: number) => ipcRenderer.invoke("removeAccount", index),
 
-  productsFolder: () => ipcRenderer.invoke("productsFolder"),
-  chooseProductsFolder: () => ipcRenderer.invoke("chooseProductsFolder"),
+  folders: () => ipcRenderer.invoke("folders"),
+  chooseFolder: (key: FolderKey) => ipcRenderer.invoke("chooseFolder", key),
 
   listings: () => ipcRenderer.invoke("listings"),
   promptText: (file: string) => ipcRenderer.invoke("promptText", file),
@@ -65,8 +65,6 @@ const api: WwApi = {
   saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),
   exportKits: (only: string | null) => ipcRenderer.invoke("exportKits", only),
   openKitsFolder: () => ipcRenderer.invoke("openKitsFolder"),
-  kitsFolder: () => ipcRenderer.invoke("kitsFolder"),
-  chooseKitsFolder: () => ipcRenderer.invoke("chooseKitsFolder"),
   listKits: () => ipcRenderer.invoke("listKits"),
   openKit: (file: string) => ipcRenderer.invoke("openKit", file),
 

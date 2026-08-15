@@ -24,6 +24,20 @@ different listings, different costings.
 One PC currently holds **one account**. Several PCs can share an account. Nobody is switching
 accounts on a single machine yet, and that is what makes the first version small (see WW-155).
 
+> **Corrected 2026-08-15 (C-057) — not every account shares, and the sharing side is Vansh's.**
+> Vansh: *"i have 2 helpers and i will sync my data with them, not my partners would do. just
+> account partitioning was important for them bcz he will have diff data then me with my 2
+> helpers."* So **Drive is one group's answer, not the product's**: Vansh + 2 helpers on one
+> account, three machines, one Drive folder. **The business partner syncs nothing** — he is a
+> different account with different data, which is the whole reason accounts exist. His machine
+> needs the app and a local folder, no Drive, no settings changed.
+>
+> **Therefore Drive is optional everywhere in the app**, and must stay that way. Every folder is
+> picked in a dialog and stored per machine; a machine with no Drive falls back to its own
+> `~/Downloads/wishworks-ready`. Nothing in the code names a Drive path — verified by grep,
+> 2026-08-15. If a future change makes the app *require* a synced folder, it has broken the
+> partner's machine.
+
 Only the **finished** output has to be shared — the images with the metadata already ingested,
 the ones that go up on the marketplace. Vansh, verbatim: *"all these raw data should be insane
 [not in sync]. The final product which is going under WishWorks ready should be in sync, not the

@@ -31,6 +31,14 @@ export type {
   FillResult, SessionStatus, DefaultsTab, FieldRow, ScanResult, CostedLine, Kit, KitLine, KitRow, Material, SavedKit, Parcel, Box,
 };
 
+/**
+ * The folders a user can move, each stored in `settings.json` and read once into a `WW_*_DIR`.
+ *
+ * The finished images are not here: they are a per-step folder on the Finish panel, picked per
+ * run, because that one is chosen fresh far more often than it is configured.
+ */
+export type FolderKey = "images" | "meta" | "products" | "kits";
+
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
 export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string };
 
@@ -142,10 +150,15 @@ export interface WwApi {
   /** Forget one. Nothing on disk is touched — only this machine stops offering it. */
   removeAccount(index: number): Promise<void>;
 
-  /** Where `products-<ID>.json` is read from — shown on Fill Flipkart, never a mystery. */
-  productsFolder(): Promise<string>;
-  /** Point it somewhere else, e.g. straight at Downloads. Relaunches on success. */
-  chooseProductsFolder(): Promise<boolean>;
+  /**
+   * Every folder the app writes to, with the words the Settings panel shows for it.
+   *
+   * One call rather than a getter per folder: four channels that must stay in step is four
+   * chances for the screen to describe a folder the code does not use (WW-153).
+   */
+  folders(): Promise<Record<FolderKey, { dir: string; label: string; what: string }>>;
+  /** Point one of them somewhere else. Relaunches on success; false means cancelled. */
+  chooseFolder(key: FolderKey): Promise<boolean>;
 
   /** Every listing this machine knows about, newest first. */
   listings(): Promise<Listing[]>;
@@ -216,13 +229,6 @@ export interface WwApi {
   exportKits(only: string | null): Promise<string | null>;
   /** Reveal the folder the saved kits live in — for looking at, backing up, or syncing. */
   openKitsFolder(): Promise<void>;
-  /** Where that folder is, shown in Settings so it is never a mystery. */
-  kitsFolder(): Promise<string>;
-  /**
-   * Point the kits at a folder of their own — a shared Drive folder, to share them with the other
-   * machine. Relaunches on success; false means cancelled.
-   */
-  chooseKitsFolder(): Promise<boolean>;
   /** Every kit kept on this machine, newest first. */
   listKits(): Promise<KitRow[]>;
   openKit(file: string): Promise<SavedKit>;

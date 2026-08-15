@@ -70,6 +70,17 @@ interface Settings {
    */
   products?: string;
   /**
+   * Where the converted images live, when it should NOT be inside the workspace.
+   *
+   * Same reasoning as `products` and `kits`: every folder the app writes to should be one the
+   * user can point somewhere, because a folder nobody chose is a folder nobody can check.
+   * This one is the big one — megabytes per listing — so it is also the one most likely to
+   * belong on a different disk.
+   */
+  images?: string;
+  /** Where the AI's Meesho copy (`<ID>.json`) is kept, when not inside the workspace. */
+  meta?: string;
+  /**
    * The seller accounts this machine can work, and which one it is working (WW-154).
    *
    * An account's `workspace` outranks `workspace` above — it IS the workspace, for that account.
@@ -126,8 +137,23 @@ function storedWorkspace(): string {
 
 const WORKSPACE = storedWorkspace();
 
-process.env.WW_IMAGES_DIR ??= path.join(WORKSPACE, "images");
-process.env.WW_META_DIR ??= path.join(WORKSPACE, "image-meta");
+/**
+ * The four folders the app writes to, each movable on its own.
+ *
+ * They all default inside the workspace, which is the right default — one folder to back up, one
+ * to point at a new disk. But **every one of them has to be nameable and changeable**, because a
+ * folder nobody chose is a folder nobody can check: that is exactly what WW-153 was, where
+ * `<workspace>/products` was printed on no screen and "no file matches" could not be told apart
+ * from "it is looking somewhere you have never seen". Vansh, 2026-08-15: *"for each saving either
+ * it is about the ai gen images or json or final images or inventory json, we should be able to
+ * select the folder where they get saved."*
+ *
+ * The finished images are the fifth, and they are already a per-step folder on the Finish panel.
+ */
+const IMAGES_DIR = readSettings().images || path.join(WORKSPACE, "images");
+process.env.WW_IMAGES_DIR ??= IMAGES_DIR;
+const META_DIR = readSettings().meta || path.join(WORKSPACE, "image-meta");
+process.env.WW_META_DIR ??= META_DIR;
 /** Settable on its own, like the kits — see Settings.products for why. */
 const PRODUCTS_DIR = readSettings().products || path.join(WORKSPACE, "products");
 process.env.WW_PRODUCTS_DIR ??= PRODUCTS_DIR;
@@ -708,45 +734,55 @@ function relaunch(): void {
 }
 
 /**
- * Point the kits at a folder of their own — normally a shared Drive/Dropbox folder, so two
- * machines see the same costings.
+ * Every movable folder, in one call, so the renderer never has four channels to keep in step.
  *
- * Relaunches for the same reason `chooseWorkspace` does: the engine reads `WW_KITS_DIR` once, at
- * module load, so a setting that took effect "sort of, until you restart" would be worse than one
- * that is honest about needing to.
+ * `label`/`what` live here rather than in the renderer because this is where the default is
+ * decided — a screen that describes a folder differently from the code that picks it is how
+ * WW-153 happened.
  */
-ipcMain.handle("chooseKitsFolder", async (e): Promise<boolean> => {
-  const win = BrowserWindow.fromWebContents(e.sender)!;
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-    properties: ["openDirectory", "createDirectory"],
-    defaultPath: KITS_DIR,
-    message: "Where should the costed kits be kept? Pick a shared folder to share them.",
-  });
-  if (canceled || filePaths.length === 0) return false;
-  await writeSettings({ kits: filePaths[0] });
-  relaunch();
-  return true;
-});
+const FOLDERS = {
+  images: {
+    dir: IMAGES_DIR,
+    label: "Converted images",
+    what: "the photos this app converts and prepares — the biggest folder by far",
+  },
+  meta: {
+    dir: META_DIR,
+    label: "The AI's Meesho copy",
+    what: "the title, description and pack contents the AI writes, one .json per listing",
+  },
+  products: {
+    dir: PRODUCTS_DIR,
+    label: "Flipkart listing files",
+    what: "the 66 form fields the Fill Flipkart step types from",
+  },
+  kits: {
+    dir: KITS_DIR,
+    label: "Costed kits",
+    what: "what each kit costs to make — small text files, safe to share",
+  },
+} as const;
 
-ipcMain.handle("kitsFolder", () => KITS_DIR);
+type FolderKey = keyof typeof FOLDERS;
 
-ipcMain.handle("productsFolder", () => PRODUCTS_DIR);
+ipcMain.handle("folders", () =>
+  Object.fromEntries(Object.entries(FOLDERS).map(([k, v]) => [k, { ...v }])),
+);
 
 /**
- * Point the Fill Flipkart step at the folder the `products-<ID>.json` files are actually in.
- *
- * Relaunches for the same reason `chooseKitsFolder` does: `paths.ts` reads `WW_PRODUCTS_DIR` once,
- * at module load. Nothing is moved, so a wrong choice is undone by choosing again.
+ * Point one of them somewhere else. Relaunches, like every other folder setting — `paths.ts`
+ * reads `WW_*_DIR` once, at module load. Nothing is moved, so a wrong choice is undone by
+ * choosing again.
  */
-ipcMain.handle("chooseProductsFolder", async (e): Promise<boolean> => {
+ipcMain.handle("chooseFolder", async (e, key: FolderKey): Promise<boolean> => {
   const win = BrowserWindow.fromWebContents(e.sender)!;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     properties: ["openDirectory", "createDirectory"],
-    defaultPath: PRODUCTS_DIR,
-    message: "Where are the AI's Flipkart listing files (products-<ID>.json) kept?",
+    defaultPath: FOLDERS[key].dir,
+    message: `Where should WishWorks keep ${FOLDERS[key].what}?`,
   });
   if (canceled || filePaths.length === 0) return false;
-  await writeSettings({ products: filePaths[0] });
+  await writeSettings({ [key]: filePaths[0] });
   relaunch();
   return true;
 });
@@ -869,7 +905,33 @@ async function checkForUpdates(): Promise<void> {
   }
 }
 
+/**
+ * Create every folder the app writes to, once, at launch.
+ *
+ * **A fresh install has none of them**, because each one used to be created by whichever step
+ * wrote to it first — and the steps that only READ (the listing picker, "no file matches", every
+ * *Open it* button) got a missing folder instead. That is three different first-run symptoms with
+ * one cause: `shell.openPath` on a missing folder does nothing at all, silently; `readdir` throws
+ * ENOENT, which reads as "the button does nothing"; and `whyNoMatch` correctly says the folder
+ * does not exist, which sends someone off to create it by hand in a guessed location.
+ *
+ * Vansh, 2026-08-15, on a new Windows PC: *"when i click bring files for the first time at page 3
+ * in a new windows pc, these folders aren't created by default with correct location."* Doing it
+ * here rather than in each caller means no step can be the one that forgot — and `mkdir
+ * -recursive` on a folder that exists is free, so it costs nothing on every later launch.
+ *
+ * Deliberately NOT fatal. A folder on a disconnected drive or a path the user cannot write to is
+ * a real situation, and the panel that needs it will say so in words; refusing to start the whole
+ * app over one folder would be a far worse answer.
+ */
+async function ensureFolders(): Promise<void> {
+  for (const { dir } of Object.values(FOLDERS)) {
+    await mkdir(dir, { recursive: true }).catch(() => {});
+  }
+}
+
 app.whenReady().then(() => {
+  void ensureFolders();
   createWindow();
   void checkForUpdates();
   app.on("activate", () => {

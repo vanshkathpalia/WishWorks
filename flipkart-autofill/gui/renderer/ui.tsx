@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useState } from "react";
-import type { Account, Listing, StepId } from "../shared.js";
+import type { Account, FolderKey, Listing, StepId } from "../shared.js";
 import { isForAccount } from "../shared.js";
 
 /** The seller account being worked, or null when this machine has never set one up. */
@@ -199,30 +199,37 @@ export function FolderRow({
 }
 
 /**
- * Where the Flipkart listing files are read from, with the two buttons that make it checkable.
+ * One of the folders the app writes to, with the two buttons that make it checkable.
  *
- * Every other step names its folder in a dialog; this one was implicit (`<workspace>/products`)
- * and printed nowhere, so "no file matches" could not be told apart from "it is looking somewhere
- * you have never seen". Unlike `FolderRow` this is a stored setting, not a per-step memory, so
- * changing it restarts the app — `paths.ts` reads the folder once, at module load.
+ * **Every folder the app saves into is one of these.** A folder nobody chose is a folder nobody
+ * can check, which is what WW-153 was: `<workspace>/products` was printed on no screen, so "no
+ * file matches" could not be told apart from "it is looking somewhere you have never seen".
+ * Unlike `FolderRow` these are stored settings, not per-step memories, so changing one restarts
+ * the app — `paths.ts` reads each folder once, at module load.
+ *
+ * `label` and the dialog's wording come from main.ts, so the screen cannot describe a folder
+ * differently from the code that picks it.
  */
-export function ProductsFolder() {
-  const [dir, setDir] = useState<string | null>(null);
-  useEffect(() => void window.ww.productsFolder().then(setDir), []);
-  if (dir === null) return null;
+export function FolderSetting({ which }: { which: FolderKey }) {
+  const [info, setInfo] = useState<{ dir: string; label: string; what: string } | null>(null);
+  useEffect(() => void window.ww.folders().then((f) => setInfo(f[which])), [which]);
+  if (!info) return null;
   return (
     <div className="folder-row">
       <div>
-        <span className="folder-label">Flipkart listing files</span>
-        <span className="path">{dir}</span>
+        <span className="folder-label">{info.label}</span>
+        <span className="path">{info.dir}</span>
       </div>
       <div className="picks">
-        <button onClick={() => void window.ww.showFolder(dir)}>Open</button>
-        <button onClick={() => void window.ww.chooseProductsFolder()}>Choose…</button>
+        <button onClick={() => void window.ww.showFolder(info.dir)}>Open</button>
+        <button onClick={() => void window.ww.chooseFolder(which)}>Choose…</button>
       </div>
     </div>
   );
 }
+
+/** The Flipkart one by name, because the Fill panel shows it beside the step that reads it. */
+export const ProductsFolder = () => <FolderSetting which="products" />;
 
 /**
  * A step the app does not do yet.

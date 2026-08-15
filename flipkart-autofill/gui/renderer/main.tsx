@@ -17,7 +17,7 @@ import { Images } from "./Images.js";
 import { Inventory } from "./Inventory.js";
 import { Flipkart } from "./Flipkart.js";
 import { Check, Finish, ListingCopy, Meesho } from "./steps.js";
-import { ProductsFolder, useAccount } from "./ui.js";
+import { FolderSetting, useAccount } from "./ui.js";
 import type { Account } from "../shared.js";
 import "./styles.css";
 
@@ -154,9 +154,9 @@ function Accounts() {
         Pick a <b>normal folder on this computer — not a Google Drive one</b>. It holds this
         account&apos;s working files: the photos you drop in, the converted ones, and the{" "}
         <code>.json</code> files downloaded from the AI (<code>image-meta/</code>,{" "}
-        <code>products/</code>). None of that is shared, because none of it is finished —{" "}
-        <b>only two things sync, and each has its own setting below</b>: the finished images, and
-        the costed kits.
+        <code>products/</code>) — unless you move one of them below. None of that is shared,
+        because none of it is finished. <b>Only two things are meant to go in a shared Drive
+        folder</b>: the <b>ready folder</b> on step 4, and the <b>costed kits</b> below.
       </p>
       <p className="muted">
         The SKU prefix is only a warning: a listing whose ID does not start with it gets marked
@@ -172,13 +172,11 @@ function Settings({ close }: { close: () => void }) {
   const [folders, setFolders] = useState<Record<string, string>>({});
   const [workspace, setWorkspace] = useState("");
   const [editPrompts, setEditPrompts] = useState(false);
-  const [kits, setKits] = useState("");
 
   useEffect(() => {
     void window.ww.rememberedFolders().then((f) => setFolders(f as Record<string, string>));
     void window.ww.workspaceDir().then(setWorkspace);
     void window.ww.editPrompts().then(setEditPrompts);
-    void window.ww.kitsFolder().then(setKits);
   }, []);
 
   return (
@@ -212,26 +210,26 @@ function Settings({ close }: { close: () => void }) {
           Forgetting is always safe — the app works the same, it just starts in Downloads again.
         </p>
 
-        <h3>Where the costed kits are kept</h3>
-        <p className="path">{kits}</p>
+        <h3>Where each thing is saved</h3>
+        <p className="muted">
+          Every folder the app writes to, and each can be pointed anywhere — a different disk, a
+          shared Drive folder, or straight at Downloads. They all sit inside the workspace below
+          unless you move them. <b>Changing any of these restarts the app</b>, and nothing already
+          saved is moved, so a wrong choice costs nothing and is undone by choosing again.
+        </p>
+        <FolderSetting which="images" />
+        <FolderSetting which="meta" />
+        <FolderSetting which="products" />
+        <FolderSetting which="kits" />
         <div className="picks">
-          <button onClick={() => void window.ww.openKitsFolder()}>Open it</button>
-          <button onClick={() => void window.ww.chooseKitsFolder()}>Change folder…</button>
+          <button onClick={() => void window.ww.openKitsFolder()}>Open the kits folder</button>
         </div>
         <p className="muted">
-          Put this in a shared Google Drive or Dropbox folder and both machines see the same
-          costings. <b>Only the kits</b> — a few kilobytes of text each. The images deliberately
-          stay where they are: they are megabytes per listing, and a sync service can replace a
-          synced file with a placeholder, which the image steps then cannot read. Changing this
-          restarts the app, and nothing already saved is moved.
-        </p>
-
-        <h3>Where the Flipkart listing files are read from</h3>
-        <ProductsFolder />
-        <p className="muted">
-          The <code>products-&lt;ID&gt;.json</code> files the Fill Flipkart step types from. Inside
-          the workspace unless you move it — pointing it straight at Downloads works too, and then
-          nothing has to be imported at all. Changing it restarts the app; nothing is moved.
+          <b>Only the kits are safe to put in a shared Drive folder</b> — a few kilobytes of text
+          each. The converted images deliberately are not: they are megabytes per listing, and a
+          sync service can replace a synced file with a placeholder, which the image steps then
+          cannot read. The one folder meant for sharing is the <b>ready folder</b> on step 4,
+          where the finished images go.
         </p>
 
         <h3>Editing the prompts</h3>
