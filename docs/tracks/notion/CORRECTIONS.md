@@ -1833,3 +1833,36 @@ Counting the entries above:
   `SHIPPING-COST.md`'s "border untested" while missing the "making the product smaller has
   already failed" warning a few lines below, and re-proposed a determinism test the same file
   recorded as done. When acting on a document, read the section *around* the line you want.
+
+---
+
+## C-057 — a rule that told the model to drop the colour it could see
+
+**Category:** Design · **Caught by:** Vansh · **Date:** 2026-08-15 ·
+**Status:** Fixed (WW-162, prompt)
+
+WW-162 strengthened `PROMPT-inventory.md` about colours, and the very next reply came back with
+`Moon Foil Balloon` and `Silver Balloons` again — no colour, no finish. Vansh: *"even after your new
+prompt... i got \[the same JSON\] simply bcz i think the image say so."* He was right, and so was
+the model.
+
+**Root cause.** The rule ended *"if the sheet genuinely does not say which colour it is, leave it
+out — do not guess one."* Written for a partner's costing sheet, which is a table of words. The
+picture that actually gets attached is often the **listing infographic** — captions like
+`1 x Moon Foil Balloon` under a photograph of a plainly silver moon. The words do not say silver.
+The picture does. The rule told the model to ignore exactly the half of the sheet that held the
+answer, so it obeyed and produced the same unusable name twice.
+
+**The distinction that was missing.** *Inferring* a colour from what an item usually is, is
+guessing. *Reading* one off the photograph in front of you is reading the source document. Only the
+first needed banning. The rule now says the pictures are part of the sheet and to look at them,
+with two limits: only when the item is plainly one colour or finish (a mixed space-foil set keeps
+its caption), and still nothing when the picture does not show it.
+
+**Cheap lesson.** A prompt rule that forbids a whole class of answer will be obeyed on the cases it
+was never meant to cover. When a rule stops something bad, check what it also stops.
+
+**Not fixed in code, deliberately.** Vansh asked whether the app could verify the colour itself —
+it cannot see the image (OCR was built and removed, WW-115), and the backstop already exists: an
+incomplete name ties two rows and the table flags it. Prompt for the common case, flag for the
+rest.

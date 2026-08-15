@@ -28,8 +28,15 @@ Rules:
   foil — all three fit it equally, so it was priced as the golden. Write `Silver Star Foil`.
   The same goes for a colour that is only in a heading: if the sheet groups lines under `SILVER`,
   that word belongs on every item in the group.
-  If the sheet genuinely does not say which colour it is, leave it out — do not guess one. An
-  incomplete name gets checked by a human; an invented one does not.
+- **The pictures are part of the sheet, not decoration — LOOK at them.** A caption is often
+  shorter than the thing it names, and the missing word is usually the colour or the finish. A
+  caption reading `1 x Moon Foil Balloon` over a plainly silver moon is a `Silver Moon Foil
+  Balloon`; `10 x Silver Balloons` over shiny chrome ones is `Silver Metallic Balloons`. Taking
+  that off the picture is reading the sheet, not guessing — the picture is the sheet.
+  Two limits on it. Only when the item is plainly ONE colour or ONE finish: a set of mixed pieces
+  keeps the caption's own words, because calling a black-and-blue space set "blue" is worse than
+  leaving it alone. And if you cannot tell from the picture, leave it out — do not reason from
+  what the item usually is. An incomplete name gets checked by a human; an invented one does not.
 - Put the SIZE in `size`, not in `item`, and only when the sheet actually prints one. Omit `size`
   entirely otherwise. Never infer a size from what the item usually is.
 - Beyond that, keep the sheet's own words — same wording, same order. Do not translate, do not
