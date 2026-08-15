@@ -151,11 +151,17 @@ function Accounts() {
         </button>
       </div>
       <p className="muted">
-        Point it at the <b>Google Drive folder shared with the people on that account</b> — Drive
-        Desktop keeps the folder in step and the app just reads it, so there is nothing to log into
-        here. The SKU prefix is only a warning: a listing whose ID does not start with it gets
-        marked wherever it appears, and <b>nothing is ever blocked</b>, because sometimes it is the
-        SKU that was typed wrong. Leave the prefix empty and this account is never flagged at all.
+        Pick a <b>normal folder on this computer — not a Google Drive one</b>. It holds this
+        account&apos;s working files: the photos you drop in, the converted ones, and the{" "}
+        <code>.json</code> files downloaded from the AI (<code>image-meta/</code>,{" "}
+        <code>products/</code>). None of that is shared, because none of it is finished —{" "}
+        <b>only two things sync, and each has its own setting below</b>: the finished images, and
+        the costed kits.
+      </p>
+      <p className="muted">
+        The SKU prefix is only a warning: a listing whose ID does not start with it gets marked
+        wherever it appears, and <b>nothing is ever blocked</b>, because sometimes it is the SKU
+        that was typed wrong. Leave the prefix empty and this account is never flagged at all.
         Switching, adding or removing restarts the app, and no file is moved or deleted.
       </p>
     </>

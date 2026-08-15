@@ -1770,6 +1770,50 @@ creates the folder first.
 
 ---
 
+## C-056 — asked which data should sync after Vansh had already said, twice
+
+**Category:** Process · **Caught by:** Vansh · **Date:** 2026-08-15 ·
+**Status:** Fixed (WW-156)
+
+Straight after building WW-154 the assistant presented Vansh with two "decisions": local or Drive
+for the account folder, and whether to close an `image-meta/` sync gap. Both were already answered.
+The handover records him verbatim: *"all these raw data should be insane [not in sync]. The final
+product which is going under WishWorks ready should be in sync, not the raw data which we are
+getting from ChatGPT or getting from downloading from Meesho or Flipkart."* His reply was blunt and
+correct: *"why are you so confused with what data has to be synced... the images that are ready with
+image meta injested will be synced nothing else using the google drive, and the inventory jsons will
+be also in sync, just simple as that."*
+
+**The gap was invented, not found.** `image-meta/<ID>.json` does not need to travel, because the
+Name-and-tag step writes those words **inside the finished JPEGs**. The file is scaffolding; the
+image is the artefact. Proposing to sync it was a failure to trace what the pipeline already does
+with its own output — the exact thing this project's process notes keep saying to do first.
+
+**A worse one shipped in the commit before it.** The account panel's help text and the folder
+dialog both told the user to *"pick its Google Drive folder"*, taken from the handover's §3.1
+example path. §4 of the same document says never sync the whole workspace, because a sync service
+can leave a placeholder that `sharp` reads as a broken image. **Both sections were read; the
+contradiction between them was not.** The wording is now explicit that the account folder is local
+and names what lives in it, which is what Vansh asked for: *"for what files but? you should state
+that."*
+
+**One decision genuinely did change**, and it reverses a handover line rather than contradicting
+it. The handover has *"one folder per account for the finished output. No per-occasion or per-SKU
+folder trees — just be simple with that."* Vansh now wants the opposite inside the ready folder:
+*"in root ready folder we can make category wise folder, i mean 1 folder for all GTB and another
+for ANP."* Both are "keep it simple", applied at different scales — one shared folder per account,
+grouped inside. `skuGroup` in `finish-core.ts` does it, so the CLI and the app cannot disagree.
+**Recorded because the old line is still in the handover and reads like a rule someone would
+"restore" later.**
+
+**And it broke a sibling.** `runCheck` read one flat level, so pointing it at the ready root after
+this change would report zero images — indistinguishable from "the finish step wrote nothing". It
+now walks down. The grouping was written in `finishListing`, one place both callers route through;
+the check step was found by asking who else reads that folder, which is the question that should
+have been asked before the first commit, not after.
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:

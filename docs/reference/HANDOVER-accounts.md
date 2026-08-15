@@ -49,6 +49,11 @@ to invent, and no mapping table to keep correct.
 **One folder per account for the finished output.** No per-occasion or per-SKU folder trees —
 *"just be simple with that."*
 
+> **Superseded 2026-08-15 (WW-156, C-056), inside the ready folder only.** Vansh: *"in root ready
+> folder we can make category wise folder, i mean 1 folder for all GTB and another for ANP."* Still
+> one shared folder per account — grouped by SKU code inside it, by `skuGroup` in `finish-core.ts`.
+> The sentence above is kept because it is what he said at the time; do not "restore" it.
+
 **Flag, never block.** The partners are new to this and mistakes are expected. Nothing in this
 feature may stop work; it may only mark it.
 
@@ -103,6 +108,11 @@ warning that appears once and vanishes is a warning nobody sees:
 4. Nothing else. No blocking, no modal, no confirmation dialog.
 
 ### 3.5 The shared folder itself
+
+> **Settled 2026-08-15 (WW-156).** **Exactly two folders sync, and nothing else**: the **ready
+> folder** (the Finish step's output, which Check reads) and the **kits folder**. The account's own
+> folder is **local** — raw photos, the AI's downloads, `image-meta/`, `products/`. The Meesho copy
+> does not need to travel: the Name-and-tag step writes those words *inside* the finished JPEGs.
 
 Nothing to build. The Finish step's output folder is already a remembered per-step folder picked
 in a dialog (`renderer/steps.tsx:311`), and Check reads the same one. Point it at the account's

@@ -330,6 +330,13 @@ export function Finish({ n }: { n: number }) {
   const inDir = source === "clean" ? (listing?.folder ? `2-clean/${listing.folder}` : null) : dir;
   const outName = source === "clean" ? listing?.folder ?? null : dir?.split(/[\\/]/).pop() ?? null;
   const ready = Boolean(inDir && outDir);
+  /**
+   * Which subfolder of the ready folder this will land in. Display only — `skuGroup` in
+   * finish-core.ts is what actually decides, and the renderer cannot import it (it pulls in
+   * sharp). Same rule, the letters the name starts with; if they ever disagree the engine wins
+   * and this label is merely wrong, never the path.
+   */
+  const outGroup = /^[A-Za-z]+/.exec(outName ?? "")?.[0].toUpperCase() ?? "";
 
   async function run() {
     if (!outDir) return;
@@ -392,7 +399,21 @@ export function Finish({ n }: { n: number }) {
       )}
 
       <h3>Step 2 — where should the finished ones be saved?</h3>
-      <FolderRow step="finish" label="Save them into" value={outDir} onChange={setOutDir} />
+      <FolderRow step="finish" label="Ready folder" value={outDir} onChange={setOutDir} />
+      <p className="muted">
+        <b>This is the folder to share.</b> Put it in Google Drive and everyone on the account sees
+        every finished image — the descriptions are already written inside the files, so nothing
+        else has to travel with them. Pick the <b>top</b> folder only:{" "}
+        {outName ? (
+          <>
+            the app files each listing under its own code by itself, so these go into{" "}
+            <b>{outGroup || "the top folder"}</b>
+            {outGroup && <>, beside every other {outGroup}</>}.
+          </>
+        ) : (
+          <>the app files each listing under its own code by itself — GTB with GTB, ANP with ANP.</>
+        )}
+      </p>
 
       {outName && (
         <p className="pairing">

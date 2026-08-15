@@ -797,7 +797,9 @@ ipcMain.handle("addAccount", async (e, label: string, skuPrefix: string): Promis
   const win = BrowserWindow.fromWebContents(e.sender)!;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     properties: ["openDirectory", "createDirectory"],
-    message: `Which folder does ${label || "this account"} keep its work in? Pick its Google Drive folder.`,
+    // NOT a Drive folder. This holds the raw photos and the AI's downloads — the working files,
+    // which Vansh was explicit should never sync. Only the finished images and the costed kits do.
+    message: `Where should ${label || "this account"} keep its working files? A normal folder on this computer — not a Google Drive one.`,
   });
   if (canceled || filePaths.length === 0) return false;
   const s = readSettings();

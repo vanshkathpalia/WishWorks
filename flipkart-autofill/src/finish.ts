@@ -33,7 +33,7 @@
  *       npm run finish -- --in="/path/to/Whatsapp DW"        every listing under every category
  *       npm run finish -- --in="…" --square                  also pad/crop each to 1:1
  *       npm run finish -- --in="…" --square --border=20      inset in a 20px white frame
- *       npm run finish -- --in="…" --out="~/somewhere"       different flat output folder
+ *       npm run finish -- --in="…" --out="~/somewhere"       different ready folder (the ROOT one)
  *       npm run finish -- --in="…" --id=ANP-1                force the ID (single folder only)
  *
  * --border is EXPERIMENTAL and off by default: the seller believes a ~20px frame lowers
@@ -46,7 +46,7 @@ import path from "node:path";
 import { availableMetaIds } from "./image-meta.js";
 import { findById, normalizeId } from "./id.js";
 import { META_DIR, showPath } from "./paths.js";
-import { cleanId, numberedImages, runFinish } from "./finish-core.js";
+import { cleanId, numberedImages, runFinish, skuGroup } from "./finish-core.js";
 
 /** Ask a question on the terminal and return the typed answer. Mirrors connect.ts's `ask`,
  *  kept local so this image tool never imports the browser module. */
@@ -221,7 +221,14 @@ async function main() {
     for (const f of r.failures) console.log(`    ✖ ${f}`);
   }
 
-  console.log(`\n  ${r.rows.length} image(s) written to ${outDir}`);
+  // Names the group folders, because the images are NOT in `outDir` itself — each listing
+  // lands under the letters its ID starts with (skuGroup). Printing only the root would
+  // send someone to a folder that looks empty apart from subfolders.
+  const groups = [...new Set(r.rows.map((x) => skuGroup(x.id)).filter(Boolean))].sort();
+  console.log(
+    `\n  ${r.rows.length} image(s) written to ${outDir}` +
+      (groups.length ? `, under ${groups.map((g) => `${g}/`).join(" ")}` : ""),
+  );
   console.log(`  Your source folders were not touched.\n`);
 }
 

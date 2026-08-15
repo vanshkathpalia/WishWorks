@@ -325,6 +325,26 @@ So an account, in this app, is a **name, a folder and an optional SKU prefix** �
   machine is **WW-155 and deliberately not built** — one Chrome profile would leave you logged in
   as the previous seller.
 
+**Exactly two folders go on Drive · WW-156 · 2026-08-15.** Vansh: *"the images that are ready with
+image meta injested will be synced nothing else... and the inventory jsons will be also in sync,
+just simple as that."*
+
+| Folder | Setting | Synced |
+|---|---|---|
+| **Ready** — finished images, grouped `GTB/`, `ANP/`, … | Finish step → *Ready folder* (Check reads the same) | ✅ Drive |
+| **Kits** — the costed-kit JSONs | Settings → *Where the costed kits are kept* | ✅ Drive |
+| Account folder — raw photos, AI downloads, `image-meta/`, `products/` | Settings → account | ❌ local |
+
+- **The Meesho copy never has to travel.** Name-and-tag writes those words *inside* the finished
+  JPEGs, so the image is the artefact and `image-meta/<ID>.json` is scaffolding. A proposal to sync
+  it was withdrawn, not built (C-056).
+- The grouping lives in `skuGroup`/`finishListing` (`finish-core.ts`), so `npm run finish` and the
+  app file a listing in the same place. **`runCheck` is recursive because of it** — a flat read of
+  the ready root would report zero images, which reads as "finishing wrote nothing".
+- Drive for desktop should be on **Mirror**, or those two folders marked *Available offline*.
+  Streamed files are placeholders until opened, and a placeholder is what `sharp` reports as a
+  broken image.
+
 ### The prompt steps (3, 4, 5) — one panel each
 
 The app never talks to an AI. Each prompt panel is the same three parts:

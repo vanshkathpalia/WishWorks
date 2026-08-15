@@ -270,6 +270,24 @@ async function finishOne(o: OneOptions): Promise<Row> {
   return { id, from: file, to: outName, size: outSize, notes };
 }
 
+/**
+ * The subfolder a finished listing goes in, taken from the letters its ID starts with —
+ * `ANP-3` → `ANP`, `GTB-4` → `GTB`, `HBD-kitty` → `HBD`.
+ *
+ * The ready folder is the one folder that gets shared on Drive, so it is the one folder that
+ * fills up: everything anyone has ever finished, from every occasion, in one flat list.
+ * Vansh, 2026-08-15: *"if we have then in root ready folder we can make category wise folder,
+ * i mean 1 folder for all GTB and another for ANP"*. This supersedes the handover's *"just one
+ * folder each for each account"* — see CORRECTIONS C-056.
+ *
+ * Returns "" for an ID that starts with no letters, which keeps those files in the root rather
+ * than inventing a folder called something like `_`. A grouping nobody can predict is worse than
+ * no grouping.
+ */
+export function skuGroup(id: string): string {
+  return /^[A-Za-z]+/.exec(id)?.[0].toUpperCase() ?? "";
+}
+
 /** One listing folder → its rows. Skips folders with no readable images. */
 async function finishListing(
   id: string,
@@ -302,9 +320,13 @@ async function finishListing(
   // Read again rather than reuse `descs`: what goes INSIDE the file is whatever was picked, what
   // goes in its NAME is this listing's own copy. Keeping them apart is WW-078.
   const words = nameWords(await descriptionsFor(id));
+  // Grouped here rather than in the app, so `npm run finish` and the app cannot file the same
+  // listing in two different places — and so batch mode gets it for free.
+  const dest = path.join(outDir, skuGroup(id));
+  await mkdir(dest, { recursive: true });
   for (let i = 0; i < files.length; i++) {
     try {
-      const row = await finishOne({ id, srcDir, file: files[i], index: i + 1, outDir, descs, words, square, border });
+      const row = await finishOne({ id, srcDir, file: files[i], index: i + 1, outDir: dest, descs, words, square, border });
       rows.push(row);
       onRow?.(row);
     } catch (err) {

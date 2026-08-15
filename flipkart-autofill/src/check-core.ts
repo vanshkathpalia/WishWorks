@@ -68,8 +68,7 @@ export function readExifAscii(exif: Buffer): Record<string, string> {
   return out;
 }
 
-async function checkFile(file: string): Promise<CheckRow> {
-  const name = path.basename(file);
+async function checkFile(file: string, name = path.basename(file)): Promise<CheckRow> {
   try {
     const meta = await sharp(file).metadata();
     const fields = meta.exif ? readExifAscii(meta.exif) : {};
@@ -79,7 +78,15 @@ async function checkFile(file: string): Promise<CheckRow> {
   }
 }
 
-/** Read every JPEG in `target` (or the one file) and report what is embedded. */
+/**
+ * Read every JPEG under `target` (or the one file) and report what is embedded.
+ *
+ * **Recursive, because the ready folder has subfolders now.** `finishListing` files each listing
+ * under the letters its ID starts with (`skuGroup`), so a flat read of the ready root finds zero
+ * JPEGs — and "0 images" here is indistinguishable from "the finish step wrote nothing", which is
+ * the worst answer this tool can give. Rows keep the path relative to `target`, so the row still
+ * says which group the file is in.
+ */
 export async function runCheck(target: string): Promise<CheckResult> {
   const info = await stat(target).catch(() => null);
   if (!info) throw new CheckNotFound(target);
@@ -87,10 +94,10 @@ export async function runCheck(target: string): Promise<CheckResult> {
   const rows: CheckRow[] = info.isFile()
     ? [await checkFile(target)]
     : await Promise.all(
-        (await readdir(target))
-          .filter((f) => !f.startsWith(".") && /\.jpe?g$/i.test(f))
+        (await readdir(target, { recursive: true }))
+          .filter((f) => !path.basename(f).startsWith(".") && /\.jpe?g$/i.test(f))
           .sort()
-          .map((f) => checkFile(path.join(target, f))),
+          .map((f) => checkFile(path.join(target, f), f)),
       );
 
   return { target, rows, withDescription: rows.filter((r) => r.description).length };

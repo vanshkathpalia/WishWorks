@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { finishedName, nameWords } from "../src/finish-core.js";
+import { finishedName, nameWords, skuGroup } from "../src/finish-core.js";
 import { NO_DESCRIPTIONS } from "../src/image-meta.js";
 
 const exec = promisify(execFile);
@@ -81,12 +81,21 @@ async function makeImage(
   return file;
 }
 
+/**
+ * Every finished file, as `GROUP/name`. Finished images are filed under the letters their ID
+ * starts with (`skuGroup`) — the ready folder is the one that gets shared on Drive, so it is the
+ * one that fills up. The folder is part of what these tests assert, not scaffolding around it.
+ */
 async function outFiles(): Promise<string[]> {
-  try {
-    return (await readdir(path.join(tmp, "out"))).sort();
-  } catch {
-    return [];
+  const root = path.join(tmp, "out");
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+  const files: string[] = [];
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      files.push(...(await readdir(path.join(root, e.name))).map((f) => `${e.name}/${f}`));
+    } else files.push(e.name);
   }
+  return files.sort();
 }
 
 describe("finish — whole-tree recursion", () => {
@@ -98,7 +107,7 @@ describe("finish — whole-tree recursion", () => {
     const { code, out } = await run([`--in=${path.join(tmp, "src")}`, `--out=${path.join(tmp, "out")}`]);
 
     expect(code).toBe(0);
-    expect(await outFiles()).toEqual(["ANP-1.1.jpg", "ANP-1.2.jpg", "GTB-2.1.jpg"]);
+    expect(await outFiles()).toEqual(["ANP/ANP-1.1.jpg", "ANP/ANP-1.2.jpg", "GTB/GTB-2.1.jpg"]);
     expect(out).toMatch(/Finishing every listing/);
   });
 
@@ -109,7 +118,7 @@ describe("finish — whole-tree recursion", () => {
     const { code } = await run([`--in=${path.join(tmp, "src")}`, `--out=${path.join(tmp, "out")}`]);
 
     expect(code).toBe(0);
-    expect(await outFiles()).toEqual(["HBD-kitty.1.jpg", "HBD-space.1.jpg"]);
+    expect(await outFiles()).toEqual(["HBD/HBD-kitty.1.jpg", "HBD/HBD-space.1.jpg"]);
   });
 
   it("errors when no listing folders are found under the tree", async () => {
@@ -139,7 +148,7 @@ describe("finish — --square", () => {
     await makeImage("src/WB 1/1.png", 100, 60);
     const { code } = await run([`--in=${path.join(tmp, "src", "WB 1")}`, `--out=${path.join(tmp, "out")}`]);
     expect(code).toBe(0);
-    const meta = await sharp(path.join(tmp, "out", "WB-1.1.jpg")).metadata();
+    const meta = await sharp(path.join(tmp, "out", "WB", "WB-1.1.jpg")).metadata();
     expect(meta.width).toBe(100);
     expect(meta.height).toBe(60);
   });
@@ -174,7 +183,7 @@ describe("finish — --square", () => {
       "--square",
     ]);
     expect(code).toBe(0);
-    const meta = await sharp(path.join(tmp, "out", "WB-1.1.jpg")).metadata();
+    const meta = await sharp(path.join(tmp, "out", "WB", "WB-1.1.jpg")).metadata();
     expect(meta.width).toBe(meta.height);
     expect(meta.width).toBe(100);
   });
@@ -195,7 +204,7 @@ describe("small images are reported, never refused", () => {
     ]);
     expect(code).toBe(0);
     expect(out).toContain("SMALL 350x350");
-    expect(await readdir(path.join(tmp, "out"))).toContain("GTB-2.1.jpg");
+    expect(await outFiles()).toContain("GTB/GTB-2.1.jpg");
   });
 
   it("does not prescribe a bigger original — that is the wrong advice here", async () => {
@@ -277,8 +286,26 @@ describe("what a finished image is called", () => {
     );
     const { code } = await run([`--in=${path.join(tmp, "src", "GTB 9")}`, `--out=${path.join(tmp, "out")}`]);
     expect(code).toBe(0);
-    expect(await readdir(path.join(tmp, "out"))).toContain(
-      "GTB-9-groom-to-be-decoration-kit-black-gold-1.jpg",
+    expect(await outFiles()).toContain(
+      "GTB/GTB-9-groom-to-be-decoration-kit-black-gold-1.jpg",
     );
+  });
+});
+
+/**
+ * Which subfolder of the ready folder a listing lands in. The ready folder is the one that gets
+ * shared on Drive, so it is the one that fills up — GTB with GTB, ANP with ANP (2026-08-15).
+ */
+describe("skuGroup", () => {
+  it("groups by the letters the ID starts with, whatever follows", () => {
+    expect(skuGroup("ANP-3")).toBe("ANP");
+    expect(skuGroup("GTB-9")).toBe("GTB");
+    expect(skuGroup("HBD-kitty")).toBe("HBD"); // descriptive IDs group with their code too
+  });
+
+  it("keeps an ID with no leading letters in the root rather than inventing a folder", () => {
+    // A grouping nobody can predict is worse than no grouping.
+    expect(skuGroup("123")).toBe("");
+    expect(skuGroup("")).toBe("");
   });
 });
