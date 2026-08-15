@@ -30,6 +30,7 @@ import {
   priceAt,
   readKit,
   readKitFile,
+  resolvePicks,
   rupees,
   saveKit,
   score,
@@ -55,10 +56,42 @@ describe("reading the AI's reply", () => {
     expect(readKitFile({ sku: "MKU003", lines: [{ item: "ARCH TAPE", qty: 1 }] })).toEqual({
       sku: "MKU003",
       lines: [{ item: "ARCH TAPE", qty: 1 }],
+      picks: {}, // the AI never writes a pick; only the panel does
     });
     expect(readKitFile({ items: [{ name: "ARCH TAPE", count: 2 }] }).lines).toEqual([
       { item: "ARCH TAPE", qty: 2 },
     ]);
+  });
+
+  // A correction made in the table is written back into the box as `pick`, so the text and the
+  // table are the same kit. It has to come back in as a correction — not as a new reading, which
+  // would put the app's own answer in the column that is checked against the picture.
+  it("carries a human's pick back in, and leaves the sheet's own words alone", () => {
+    const { lines, picks } = readKitFile({
+      lines: [
+        { item: "Silver Balloons", qty: 10, pick: "CONFETI SILVER BALLOONS" },
+        { item: "ARCH TAPE", qty: 1 },
+        { item: "Fairy Lights", qty: 1, pick: "" },
+      ],
+    });
+    expect(lines[0].item).toBe("Silver Balloons"); // NOT overwritten with the picked row's name
+    expect(picks).toEqual({ 0: "CONFETI SILVER BALLOONS", 2: "" });
+
+    const resolved = resolvePicks(picks, PRICES);
+    expect(resolved).toEqual({ 0: "Balloon|CONFETI SILVER BALLOONS", 2: "" });
+
+    const kit = costKit(lines, PRICES, resolved);
+    expect(kit.lines[0].match?.material).toBe("CONFETI SILVER BALLOONS");
+    expect(kit.lines[0].overridden).toBe(true);
+    expect(kit.lines[0].flagged).toBe(false); // a human said so; it is not a guess any more
+    // An empty pick is a decision, not a missing one: this line matches nothing and costs nothing.
+    expect(kit.lines[2].match).toBe(null);
+    expect(kit.lines[2].overridden).toBe(true);
+  });
+
+  it("drops a pick that names no row, rather than guessing at the nearest", () => {
+    const { picks } = readKitFile({ lines: [{ item: "ARCH TAPE", qty: 1, pick: "Arch Tapes Deluxe" }] });
+    expect(resolvePicks(picks, PRICES)).toEqual({});
   });
 
   it("keeps a stated size and never invents an absent one", () => {

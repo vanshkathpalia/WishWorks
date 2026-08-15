@@ -1115,6 +1115,14 @@ label.inline input[type="radio"] {
   width: 100%;
   max-width: 320px;
 }
+/* Chrome paints an autofilled field with its own light background, which on this panel reads as a
+   different KIND of row rather than "the browser remembers this". Painted back with an inset
+   shadow because the background property itself is not overridable here. */
+.inv-table td input[list]:-webkit-autofill,
+.inv-table td input[list]:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 40px var(--bg) inset;
+  -webkit-text-fill-color: var(--ink);
+}
 .inv-table tfoot td {
   padding-top: 14px;
   border-bottom: none;

@@ -83,6 +83,37 @@ const priceAt = (costPaise: number, margin: number) =>
 const key = (m: Material) => `${m.category}|${m.material}`;
 
 /**
+ * The kit as JSON, in the shape it arrived in — the reading, plus any row a human overruled.
+ *
+ * `item` stays exactly as the sheet had it. It is the column that gets read against the picture,
+ * and replacing it with the price-list name would throw away the only evidence on the screen: you
+ * would no longer be able to tell whether *Silver Metallic Balloon* is what the sheet said or what
+ * the app decided. The decision goes in `pick` beside it, so the two facts stay two facts.
+ *
+ * `pick: ""` is not the same as no `pick`. It is a human saying *this is on no row at all*, and it
+ * has to survive the round trip, or the line would quietly re-match to whatever it scored best
+ * against the next time the box was read.
+ *
+ * The prices, the delivery figures and the corrected counts stay out. They are edited elsewhere on
+ * this screen and a second copy of them in a textarea is a second thing to keep in step.
+ */
+function asJson(sku: string, lines: KitLine[], overrides: Record<number, string>) {
+  return JSON.stringify(
+    {
+      sku,
+      lines: lines.map((l, i) => ({
+        item: l.item,
+        qty: l.qty,
+        ...(l.size ? { size: l.size } : {}),
+        ...(i in overrides ? { pick: overrides[i].split("|")[1] ?? "" } : {}),
+      })),
+    },
+    null,
+    2,
+  );
+}
+
+/**
  * Pick a material by TYPING, not by scrolling 121 rows.
  *
  * A `<select>` can only be searched by the first letters of a name, so finding *Silver Confetti
@@ -139,6 +170,10 @@ function MaterialPicker({
   return (
     <>
       <input
+        // Spelt out, not left to default: the app's input styling is `input[type="text"]`, and an
+        // attribute selector does not match an attribute that is not there. Without it this box
+        // renders as a white browser default in a dark panel.
+        type="text"
         className={flagged ? "loose" : ""}
         list={id}
         value={typed ?? name}
@@ -202,6 +237,8 @@ export function Inventory({ n }: { n: number }) {
   // 5% matches the GST_5 tax code on the listings. Editable because a category can differ.
   const [gst, setGst] = useState(5);
   const [over, setOver] = useState<"image" | "json" | null>(null);
+  /** True while the JSON box has the cursor. See the effect that keeps the box and the kit in step. */
+  const [boxFocused, setBoxFocused] = useState(false);
   const [saved, setSaved] = useState<KitRow[]>([]);
   /**
    * The file this kit was opened from, when it was opened from one.
@@ -289,6 +326,21 @@ export function Inventory({ n }: { n: number }) {
     void window.ww.parcelFor(lines, chosen).then(setParcel);
   }, [lines, chosen]);
 
+  /**
+   * The box mirrors the kit — EXCEPT while it is being typed in.
+   *
+   * Two things claim to own that text: the table (correct a material, renumber the SKU) and the
+   * keyboard. A plain "rewrite the box whenever the kit changes" would fight the keyboard, because
+   * every keystroke re-costs the kit and would rewrite the text under the cursor. Focus decides:
+   * while the box has it, what is typed is the truth; the moment it is let go, the kit is. That
+   * makes the two directions impossible to hold at the same time, which is why there is no case
+   * where they disagree.
+   */
+  useEffect(() => {
+    if (lines === null || boxFocused) return;
+    setPaste(asJson(sku, lines, overrides));
+  }, [sku, lines, overrides, boxFocused]);
+
   const byCategory = useMemo(() => {
     const groups = new Map<string, Material[]>();
     for (const m of materials) groups.set(m.category, [...(groups.get(m.category) ?? []), m]);
@@ -324,34 +376,19 @@ export function Inventory({ n }: { n: number }) {
     }
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
+    // A `pick` in the text IS the correction, so the box wins over whatever was in state — that is
+    // what makes editing it a real edit and not a suggestion. A reply straight out of the chat has
+    // no picks and this comes back empty, which is the reset the old code did by hand.
+    setOverrides(
+      Object.fromEntries(
+        r.result.lines.flatMap((l, i) => (l.overridden && l.match ? [[i, key(l.match)]] : [])),
+      ),
+    );
     setKit(r.result);
   }
 
   /** A dropped file fills the box too, so every route in leaves the SKU editable in one place. */
-  async function loadReply(file: string) {
-    const r = await window.ww.costInventory(file, {});
-    took(r);
-    if (r.ok) setPaste(asJson(r.result.sku, r.result.lines));
-  }
-
-  /**
-   * The reading, back in the box it came from — the SKU and the item lines, nothing else.
-   *
-   * Not the whole saved file: the prices, corrections and marketplace figures are *edited on this
-   * screen*, and a JSON copy of them sitting in a textarea would be a second place to change them
-   * that could disagree with the first. What is here is the one thing the screen has no other
-   * control for, the SKU — so a kit can be renumbered before it is kept, and the file, the
-   * `products/<ID>.json` the parcel button writes and the image folders all end up on the same ID.
-   */
-  const asJson = (id: string, ls: KitLine[]) =>
-    JSON.stringify(
-      // The three fields the reading has and nothing else — a costed line also carries its match,
-      // its price and its candidates, and printing those would put the app's answers in the box
-      // you type the question into.
-      { sku: id, lines: ls.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })) },
-      null,
-      2,
-    );
+  const loadReply = async (file: string) => took(await window.ww.costInventory(file, {}));
 
   /**
    * Pasting reads as you paste — no button. The whole interaction is copy in the chat, click here,
@@ -377,10 +414,7 @@ export function Inventory({ n }: { n: number }) {
       return;
     }
     const json = paths.find((p) => p.toLowerCase().endsWith(".json"));
-    if (json) {
-      setPaste("");
-      void loadReply(json);
-    }
+    if (json) void loadReply(json); // the box refills itself from the kit that lands
   }
 
   async function save() {
@@ -472,7 +506,6 @@ export function Inventory({ n }: { n: number }) {
     setChosen(k.parcel ?? {});
     setTyped({});
     setLines(k.lines);
-    setPaste(asJson(k.sku, k.lines));
     setOpenedFile(file);
     setError(null);
   }
@@ -554,17 +587,21 @@ export function Inventory({ n }: { n: number }) {
             value={paste}
             spellCheck={false}
             onChange={(e) => pasted(e.target.value)}
+            onFocus={() => setBoxFocused(true)}
+            onBlur={() => setBoxFocused(false)}
           />
-          {/* Opening a saved kit fills this box with that kit's own reading, so the box is where a
-              SKU gets changed — there is no second field for it, because two places to type one
-              number is two places for it to be wrong. */}
+          {/* This box is the kit, not a paste buffer: it fills itself from whatever is loaded and
+              follows the table, so the SKU has no second field and a correction has no second
+              place to live. */}
           {lines && (
             <p className="muted">
-              This is what the kit below was read from. Edit the <code>sku</code> to renumber it —
-              the file, the <code>products/&lt;ID&gt;.json</code> the parcel button writes and the
-              image folders all follow that one word. Changing the <b>items</b> makes it a different
-              kit and clears the corrections and prices, because those are held against the lines
-              that were there.
+              <b>This box and the table below are the same kit.</b> Correct a material down there
+              and its <code>pick</code> appears up here; edit the <code>sku</code> here to renumber
+              the kit — the file, the <code>products/&lt;ID&gt;.json</code> the parcel button writes
+              and the image folders all follow that one word. <code>item</code> stays as the sheet
+              had it, always: that is what you check against the picture. Changing the{" "}
+              <b>items</b> makes it a different kit and clears the corrections and prices, because
+              those are held against the lines that were there.
             </p>
           )}
           <div

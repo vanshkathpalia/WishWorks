@@ -403,20 +403,60 @@ export function extractJson(text: string): unknown | null {
   }
 }
 
-export function readKitFile(json: unknown): { sku: string; lines: KitLine[] } {
+export function readKitFile(json: unknown): {
+  sku: string;
+  lines: KitLine[];
+  /**
+   * Line index → the price-list row a HUMAN put on that line, by name.
+   *
+   * Never written by the AI: it is ours, and it is how a correction survives a trip through the
+   * text box. The reading in `item` is left exactly as the sheet had it — that column is what gets
+   * checked against the picture, and overwriting it with our own name would destroy the only
+   * evidence on the screen. Kept by index rather than by name because two lines can read the same.
+   */
+  picks: Record<number, string>;
+} {
   const raw = (json as Record<string, unknown>) ?? {};
   const list = (raw.lines ?? raw.items ?? raw.materials ?? []) as Record<string, unknown>[];
-  const lines = !Array.isArray(list)
-    ? []
-    : list.flatMap((l) => {
-        const item = String(l?.item ?? l?.material ?? l?.name ?? "").trim();
-        const qty = Number(l?.qty ?? l?.quantity ?? l?.count);
-        const size = String(l?.size ?? "").trim();
-        return item && Number.isInteger(qty) && qty > 0
-          ? [size ? { item, qty, size } : { item, qty }]
-          : [];
-      });
-  return { sku: String(raw.sku ?? "").trim(), lines };
+  const lines: KitLine[] = [];
+  const picks: Record<number, string> = {};
+  if (Array.isArray(list)) {
+    for (const l of list) {
+      const item = String(l?.item ?? l?.material ?? l?.name ?? "").trim();
+      const qty = Number(l?.qty ?? l?.quantity ?? l?.count);
+      const size = String(l?.size ?? "").trim();
+      if (!item || !Number.isInteger(qty) || qty <= 0) continue; // a line we cannot read is not a line
+      // Present-but-empty is a decision — *this is on no row at all* — and a different thing from
+      // absent, which is "nobody has said". `in`, not truthiness, is what tells them apart.
+      if (l !== null && typeof l === "object" && "pick" in l) {
+        picks[lines.length] = String(l.pick ?? "").trim();
+      }
+      lines.push(size ? { item, qty, size } : { item, qty });
+    }
+  }
+  return { sku: String(raw.sku ?? "").trim(), lines, picks };
+}
+
+/**
+ * Turn `pick` names into the `category|material` keys `costKit` takes as overrides.
+ *
+ * A name that is not on the list is DROPPED rather than guessed at — the line then matches
+ * normally and is flagged or not on its own merits, which is the same place it would have been
+ * without the pick. Silently resolving it to the nearest row would be the one thing an explicit
+ * human correction must never do.
+ */
+export function resolvePicks(
+  picks: Record<number, string>,
+  materials: Material[],
+): Record<number, string> {
+  const byName = new Map(materials.map((m) => [m.material.toLowerCase(), m]));
+  return Object.fromEntries(
+    Object.entries(picks).flatMap(([i, name]) => {
+      if (name === "") return [[Number(i), ""]]; // "on no row at all" — an override that matches nothing
+      const m = byName.get(name.toLowerCase());
+      return m ? [[Number(i), materialKey(m)]] : [];
+    }),
+  );
 }
 
 // ---------------------------------------------------------------- the costed kit

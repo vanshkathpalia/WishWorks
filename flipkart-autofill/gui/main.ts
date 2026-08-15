@@ -410,7 +410,7 @@ async function costFromText(
   overrides: Record<number, string>,
   what: string,
 ): Promise<Attempt<unknown>> {
-  const { costKit, extractJson, loadMaterials, readKitFile } = await inventoryEngine();
+  const { costKit, extractJson, loadMaterials, readKitFile, resolvePicks } = await inventoryEngine();
   const json = extractJson(text);
   if (json === null) {
     return {
@@ -418,14 +418,20 @@ async function costFromText(
       message: `Could not find any JSON in ${what}. Copy the whole reply from the chat — the \`\`\`json fence and any words around it are fine, but it has to contain the { … } block.`,
     };
   }
-  const { sku, lines } = readKitFile(json);
+  const { sku, lines, picks } = readKitFile(json);
   if (lines.length === 0) {
     return {
       ok: false,
       message: `There are no item lines in ${what}. The reply should be a JSON object with a "lines" list in it.`,
     };
   }
-  return { ok: true, result: costKit(lines, loadMaterials(), overrides ?? {}, sku) };
+  // A `pick` in the text is a correction someone already made, so it outranks nothing and is
+  // outranked by nothing — there is only ever one of the two, because the panel passes no
+  // overrides through this route. Merged rather than chosen between, so that stays true if it
+  // ever does.
+  const materials = loadMaterials();
+  const corrections = { ...resolvePicks(picks, materials), ...(overrides ?? {}) };
+  return { ok: true, result: costKit(lines, materials, corrections, sku) };
 }
 
 ipcMain.handle(
