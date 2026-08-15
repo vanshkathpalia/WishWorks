@@ -17,7 +17,7 @@
 
 import React, { useEffect, useState } from "react";
 import type { DefaultsTab, FieldRow, FillResult, Listing, SessionStatus } from "../shared.js";
-import { ListingPicker } from "./ui.js";
+import { ListingPicker, ProductsFolder } from "./ui.js";
 import { ProductEditor } from "./ProductEditor.js";
 
 const MARK: Record<FieldRow["status"], string> = {
@@ -339,6 +339,14 @@ export function Flipkart({ n }: { n: number }) {
         onChange={(_id, l) => setListing(l)}
         need={(l) => (!l.product ? "no Flipkart file" : null)}
       />
+      <ProductsFolder />
+      <p className="muted">
+        This step fills the form from <code>products-&lt;ID&gt;.json</code> — the AI&apos;s second
+        download, the one <b>Listing copy</b> brings in. A row tagged <em>copy</em> but not{" "}
+        <em>flipkart</em> has only the Meesho half, so there is nothing here to type: get that file
+        in first, or point this at the folder it is sitting in. Changing the folder restarts the
+        app and moves nothing.
+      </p>
 
       <h3>One tab at a time</h3>
       <p className="muted">

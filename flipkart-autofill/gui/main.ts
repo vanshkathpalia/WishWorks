@@ -59,6 +59,16 @@ interface Settings {
    * in the workspace like every other piece of user state.
    */
   kits?: string;
+  /**
+   * Where the AI's Flipkart files (`products-<ID>.json`) are read from, when it should NOT be
+   * inside the workspace.
+   *
+   * Every other step names its own folder in a dialog; this one silently used
+   * `<workspace>/products` and said so nowhere, so "no file matches" was indistinguishable from
+   * "the app is looking in a folder you have never seen". Pointing it straight at Downloads is a
+   * legitimate answer — it is where the downloads already are.
+   */
+  products?: string;
 }
 
 function readSettings(): Settings {
@@ -100,7 +110,9 @@ const WORKSPACE = storedWorkspace();
 
 process.env.WW_IMAGES_DIR ??= path.join(WORKSPACE, "images");
 process.env.WW_META_DIR ??= path.join(WORKSPACE, "image-meta");
-process.env.WW_PRODUCTS_DIR ??= path.join(WORKSPACE, "products");
+/** Settable on its own, like the kits — see Settings.products for why. */
+const PRODUCTS_DIR = readSettings().products || path.join(WORKSPACE, "products");
+process.env.WW_PRODUCTS_DIR ??= PRODUCTS_DIR;
 /**
  * Costed kits are user state, like products/ — NOT categories/, which ships read-only inside the
  * app and would lose every saved kit on the next update.
@@ -501,10 +513,10 @@ ipcMain.handle("stripEmoji", async (_e, id: string) => {
  * which is exactly the thing the app exists to remove for the partner.
  */
 ipcMain.handle("readProduct", async (_e, id: string) => {
-  const { findById } = await import("../src/id.js");
+  const { findById, whyNoMatch } = await import("../src/id.js");
   const { PRODUCTS_DIR } = await import("../src/paths.js");
   const match = await findById(PRODUCTS_DIR, id);
-  if (!match) return { ok: false as const, message: `Nothing in products/ matches "${id}".` };
+  if (!match) return { ok: false as const, message: await whyNoMatch(PRODUCTS_DIR, id) };
   return { ok: true as const, result: { file: match.file, text: await readFile(match.file, "utf8") } };
 });
 
@@ -653,7 +665,14 @@ ipcMain.handle("scanTab", (_e, id: string) =>
 
 ipcMain.handle("rememberedFolders", remembered);
 ipcMain.handle("clearFolders", () => rm(MEMORY_FILE, { force: true }));
-ipcMain.handle("showFolder", (_e, dir: string) => shell.openPath(dir).then(() => undefined));
+// Created first: `shell.openPath` on a folder that does not exist yet does NOTHING, silently —
+// and the folders most worth looking at (products/, a workspace just moved) are exactly the ones
+// nothing has written to yet. A button that opens an empty folder is an answer; one that appears
+// broken is not.
+ipcMain.handle("showFolder", async (_e, dir: string) => {
+  await mkdir(dir, { recursive: true }).catch(() => {});
+  await shell.openPath(dir);
+});
 ipcMain.handle("workspaceDir", () => WORKSPACE);
 
 /**
@@ -683,6 +702,28 @@ ipcMain.handle("chooseKitsFolder", async (e): Promise<boolean> => {
 });
 
 ipcMain.handle("kitsFolder", () => KITS_DIR);
+
+ipcMain.handle("productsFolder", () => PRODUCTS_DIR);
+
+/**
+ * Point the Fill Flipkart step at the folder the `products-<ID>.json` files are actually in.
+ *
+ * Relaunches for the same reason `chooseKitsFolder` does: `paths.ts` reads `WW_PRODUCTS_DIR` once,
+ * at module load. Nothing is moved, so a wrong choice is undone by choosing again.
+ */
+ipcMain.handle("chooseProductsFolder", async (e): Promise<boolean> => {
+  const win = BrowserWindow.fromWebContents(e.sender)!;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ["openDirectory", "createDirectory"],
+    defaultPath: PRODUCTS_DIR,
+    message: "Where are the AI's Flipkart listing files (products-<ID>.json) kept?",
+  });
+  if (canceled || filePaths.length === 0) return false;
+  await writeSettings({ products: filePaths[0] });
+  app.relaunch();
+  app.quit();
+  return true;
+});
 
 ipcMain.handle("chooseWorkspace", async (e): Promise<boolean> => {
   const win = BrowserWindow.fromWebContents(e.sender)!;

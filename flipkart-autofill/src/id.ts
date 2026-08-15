@@ -41,6 +41,26 @@ export function normalizeId(name: string): string {
     .replace(/([A-Z])0+(\d)/g, "$1$2"); // ANP003 → ANP3
 }
 
+/**
+ * Why `findById` came back null, in words, naming the folder it actually looked in.
+ *
+ * A missing folder, an empty folder and a folder full of OTHER listings are three different
+ * problems with three different fixes, and every caller used to report all three as the same
+ * sentence — one that never said where it looked. So creating the folder by hand changed nothing
+ * visible and read as "the button cannot see my folder", when the file was simply never imported.
+ */
+export async function whyNoMatch(dir: string, id: string): Promise<string> {
+  const names = await readdir(dir).catch(() => null);
+  const jsons = names?.filter((f) => /\.json$/i.test(f) && !f.startsWith(".") && !f.startsWith("_"));
+  const state =
+    jsons === undefined
+      ? "that folder does not exist yet"
+      : jsons.length === 0
+        ? "that folder is empty"
+        : `it holds ${jsons.slice(0, 8).join(", ")}`;
+  return `No file in ${dir} matches "${normalizeId(id)}" — ${state}.`;
+}
+
 export interface IdMatch {
   /** Full path to the file to use. */
   file: string;

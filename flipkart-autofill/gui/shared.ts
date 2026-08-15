@@ -98,6 +98,10 @@ export interface WwApi {
   setEditPrompts(on: boolean): Promise<void>;
   /** Pick a new workspace. Relaunches the app on success; false means the user cancelled. */
   chooseWorkspace(): Promise<boolean>;
+  /** Where `products-<ID>.json` is read from — shown on Fill Flipkart, never a mystery. */
+  productsFolder(): Promise<string>;
+  /** Point it somewhere else, e.g. straight at Downloads. Relaunches on success. */
+  chooseProductsFolder(): Promise<boolean>;
 
   /** Every listing this machine knows about, newest first. */
   listings(): Promise<Listing[]>;

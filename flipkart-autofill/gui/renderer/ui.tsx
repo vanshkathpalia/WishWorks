@@ -161,6 +161,32 @@ export function FolderRow({
 }
 
 /**
+ * Where the Flipkart listing files are read from, with the two buttons that make it checkable.
+ *
+ * Every other step names its folder in a dialog; this one was implicit (`<workspace>/products`)
+ * and printed nowhere, so "no file matches" could not be told apart from "it is looking somewhere
+ * you have never seen". Unlike `FolderRow` this is a stored setting, not a per-step memory, so
+ * changing it restarts the app — `paths.ts` reads the folder once, at module load.
+ */
+export function ProductsFolder() {
+  const [dir, setDir] = useState<string | null>(null);
+  useEffect(() => void window.ww.productsFolder().then(setDir), []);
+  if (dir === null) return null;
+  return (
+    <div className="folder-row">
+      <div>
+        <span className="folder-label">Flipkart listing files</span>
+        <span className="path">{dir}</span>
+      </div>
+      <div className="picks">
+        <button onClick={() => void window.ww.showFolder(dir)}>Open</button>
+        <button onClick={() => void window.ww.chooseProductsFolder()}>Choose…</button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * A step the app does not do yet.
  *
  * It deliberately does **not** print a terminal command. The person this app exists for has no

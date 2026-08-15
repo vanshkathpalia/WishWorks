@@ -1734,6 +1734,42 @@ misses here were resolved by evidence already in the repository.
 
 ---
 
+## C-055 — one sentence for three different failures, and it named no folder
+
+**Category:** Design · **Caught by:** Vansh, from the partner's screen · **Date:** 2026-08-14 ·
+**Status:** Fixed (WW-153)
+
+The partner pressed **Fill this tab** on ANP003 and got `No file in products/ matches "ANP3"`. He
+then created a `products` folder inside the workspace by hand — and got the identical sentence.
+Vansh's reading was the reasonable one: *"this fill this form button is not able to check for the
+products folder"*.
+
+**The folder was being read correctly the whole time.** The proof was already on his screen: the
+listing picker draws a row for **any** `.json` in `PRODUCTS_DIR` whatever it is named, and ANP003
+showed only the `copy` tag with *no Flipkart file* beside it. Nothing was there to find —
+`products-ANP003.json` had never been imported. The bug is not the lookup, it is that the lookup
+could not say so.
+
+**`findById` returns `null` for three different situations** — folder missing, folder empty, folder
+full of other listings — and every caller printed one sentence for all three, naming a relative
+`products/` that appears on no screen anywhere. So the one action the message provoked (create the
+folder) produced no visible change, which reads as a broken button rather than a missing file.
+`whyNoMatch` now separates the three and prints the absolute path, at all three call sites.
+
+**The deeper miss is a consistency one, and Vansh named it before the fix was written:** *"in the
+finish image page we are able to select where these JSON will be picked, same freedom we should
+have for the product JSON also."* Every other step in the app names its folder in a dialog and
+remembers it. This step alone used an implicit `<workspace>/products` that was printed nowhere —
+so when it disagreed with where the files actually were, there was no way to see the disagreement,
+let alone fix it. **A path the user cannot see is a path they cannot be wrong about, and that is
+not a feature.**
+
+**Also worth keeping:** "Open it" buttons ran `shell.openPath` on folders that may not exist yet,
+where it does nothing at all, silently — a second dead-end dressed as a working control. It now
+creates the folder first.
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:

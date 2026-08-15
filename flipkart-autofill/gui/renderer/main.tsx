@@ -17,6 +17,7 @@ import { Images } from "./Images.js";
 import { Inventory } from "./Inventory.js";
 import { Flipkart } from "./Flipkart.js";
 import { Check, Finish, ListingCopy, Meesho } from "./steps.js";
+import { ProductsFolder } from "./ui.js";
 import "./styles.css";
 
 /**
@@ -130,6 +131,14 @@ function Settings({ close }: { close: () => void }) {
           stay where they are: they are megabytes per listing, and a sync service can replace a
           synced file with a placeholder, which the image steps then cannot read. Changing this
           restarts the app, and nothing already saved is moved.
+        </p>
+
+        <h3>Where the Flipkart listing files are read from</h3>
+        <ProductsFolder />
+        <p className="muted">
+          The <code>products-&lt;ID&gt;.json</code> files the Fill Flipkart step types from. Inside
+          the workspace unless you move it — pointing it straight at Downloads works too, and then
+          nothing has to be imported at all. Changing it restarts the app; nothing is moved.
         </p>
 
         <h3>Editing the prompts</h3>

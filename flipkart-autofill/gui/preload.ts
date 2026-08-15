@@ -29,6 +29,8 @@ const api: WwApi = {
   editPrompts: () => ipcRenderer.invoke("editPrompts"),
   setEditPrompts: (on: boolean) => ipcRenderer.invoke("setEditPrompts", on),
   chooseWorkspace: () => ipcRenderer.invoke("chooseWorkspace"),
+  productsFolder: () => ipcRenderer.invoke("productsFolder"),
+  chooseProductsFolder: () => ipcRenderer.invoke("chooseProductsFolder"),
 
   listings: () => ipcRenderer.invoke("listings"),
   promptText: (file: string) => ipcRenderer.invoke("promptText", file),

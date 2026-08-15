@@ -19,7 +19,7 @@ import path from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import { openBrowser, activePage, looksLoggedIn, APP_URL, type Session } from "./connect.js";
 import { clickSave, extractFields, probeField } from "./fields.js";
-import { findById } from "./id.js";
+import { findById, whyNoMatch } from "./id.js";
 import { PRODUCTS_DIR } from "./paths.js";
 import {
   checkValues, fillableValues, fillAll, loadProduct, mergeScan, needsEyes, productName,
@@ -123,6 +123,20 @@ export interface FillResult {
 export class FillBlocked extends Error {}
 
 /**
+ * "There is no listing file" — with the folder it looked in and what is actually in there.
+ *
+ * Both callers ask the same question, so they say the same thing. The old message named neither
+ * the folder nor the state, so an empty `products/`, a missing one and a mis-named download were
+ * one indistinguishable sentence.
+ */
+async function noProductFile(id: string): Promise<FillBlocked> {
+  return new FillBlocked(
+    `${await whyNoMatch(PRODUCTS_DIR, id)} Use Listing copy to bring the AI's products-<ID>.json` +
+      ` in from Downloads, or press Choose… on this step to point at the folder it is already in.`,
+  );
+}
+
+/**
  * Capture the fields of whatever tab Chrome is showing (WW-110).
  *
  * The calibration step, and until now it was `npm run scan` — which put it out of reach of the
@@ -142,7 +156,7 @@ export class FillBlocked extends Error {}
 export async function scanTab(id: string): Promise<ScanResult> {
   if (!session) throw new FillBlocked("Chrome is not open — open it first.");
   const match = await findById(PRODUCTS_DIR, id);
-  if (!match) throw new FillBlocked(`No file in products/ matches "${id}".`);
+  if (!match) throw await noProductFile(id);
   const { category } = loadProduct(match.file);
   return mergeScan(category, await extractFields(await activePage(session.context)));
 }
@@ -162,7 +176,7 @@ export async function fillListing(
   if (!session) throw new FillBlocked("Chrome is not open — open it first.");
 
   const match = await findById(PRODUCTS_DIR, id);
-  if (!match) throw new FillBlocked(`No file in products/ matches "${id}".`);
+  if (!match) throw await noProductFile(id);
 
   // The tab decides which defaults file applies. Passing it is what keeps an inches Height off
   // the centimetres tab — see DefaultsTab. Omitted (the CLI), it merges everything as before.
