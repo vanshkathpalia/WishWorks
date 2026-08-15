@@ -23,6 +23,7 @@ import {
   costKit,
   extractJson,
   gaps,
+  leftAfterEverything,
   listKits,
   loadMaterials,
   normalize,
@@ -604,5 +605,69 @@ describe("a shorter word that is the start of a longer one", () => {
   it("does not let it swallow a genuinely more specific row", () => {
     const kit = costKit([{ item: "Rose Gold Balloons", qty: 1 }], REAL());
     expect(kit.lines[0].match?.material).toBe("Rose Gold Balloon");
+  });
+});
+
+/**
+ * What a kit LEAVES, which is what the saved-kit list is shaded by. The arithmetic is the panel's
+ * delivery table, and it is the one place GST is extracted rather than added: an Indian
+ * marketplace price already includes it, so adding it on top invents money the buyer never paid.
+ */
+describe("what a sale actually leaves", () => {
+  it("takes the tax out of the price rather than putting it on top", () => {
+    // ₹200 listed, ₹40 delivery, ₹50 of materials. Taxable = 200 - 40 = 160, and 5% GST INSIDE
+    // that is 160 x 5 / 105 = ₹7.62 — not ₹8, which is what adding 5% on top would give.
+    expect(leftAfterEverything(20000, 4000, 5000)).toBe(20000 - 5000 - 4000 - 762);
+  });
+
+  it("never taxes a negative, when delivery is more than the price", () => {
+    expect(leftAfterEverything(3000, 5000, 1000)).toBe(3000 - 1000 - 5000);
+  });
+
+  it("gives the saved list a figure per marketplace, and none at all when nothing is listed", () => {
+    const dir = tmp();
+    const base = {
+      image: null,
+      lines: [{ item: "ARCH TAPE", qty: 2 }], // ₹7.00 of materials
+      overrides: {},
+      marginPercent: 50,
+      savedAt: "",
+    };
+    saveKit({ ...base, sku: "LISTED", marketplaces: { meesho: { pricePaise: 12000, shippingPaise: 4000 } } }, dir);
+    saveKit({ ...base, sku: "NOT-LISTED" }, dir);
+
+    const rows = listKits(dir, PRICES);
+    const listed = rows.find((r) => r.sku === "LISTED")!;
+    expect(listed.left!.meesho).toBe(leftAfterEverything(12000, 4000, 700));
+    // A kit costed but never listed has NO margin — which the panel must not colour as a bad one.
+    expect(rows.find((r) => r.sku === "NOT-LISTED")!.left).toBeUndefined();
+  });
+
+  it("costs from today's price list, so a price change moves the figure", () => {
+    const dir = tmp();
+    saveKit(
+      {
+        sku: "K", image: null, lines: [{ item: "ARCH TAPE", qty: 1 }], overrides: {},
+        marginPercent: 50, savedAt: "",
+        marketplaces: { flipkart: { pricePaise: 10000, shippingPaise: 0 } },
+      },
+      dir,
+    );
+    const dearer = PRICES.map((m) => (m.material === "ARCH TAPE" ? { ...m, paise: 1000 } : m));
+    expect(listKits(dir, PRICES)[0].left!.flipkart).toBeGreaterThan(
+      listKits(dir, dearer)[0].left!.flipkart,
+    );
+  });
+
+  it("says nothing about margins when the price list is not handed in", () => {
+    const dir = tmp();
+    saveKit(
+      {
+        sku: "K", image: null, lines: [], overrides: {}, marginPercent: 50, savedAt: "",
+        marketplaces: { meesho: { pricePaise: 12000 } },
+      },
+      dir,
+    );
+    expect(listKits(dir)[0].left).toBeUndefined();
   });
 });
