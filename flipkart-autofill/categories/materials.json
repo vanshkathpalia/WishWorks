@@ -823,7 +823,11 @@
     {
       "category": "Adhesive",
       "material": "Glue Tape",
-      "paise": 350
+      "paise": 350,
+      "_note": "The roll of glue dots. `Glue Dot Strip` above is a DIFFERENT product at a third of the price, so only the name that says ROLL is listed here — a sheet that just says `glue dot` ties the two and gets flagged for a human, which is the correct answer to a genuinely ambiguous word.",
+      "aka": [
+        "Glue Dot Roll"
+      ]
     },
     {
       "category": "Adhesive",

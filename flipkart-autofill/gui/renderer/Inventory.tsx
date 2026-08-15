@@ -20,7 +20,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { Box, Kit, KitLine, KitRow, Material, Parcel, SavedKit } from "../shared.js";
+import type { Box, CostedLine, Kit, KitLine, KitRow, Material, Parcel, SavedKit } from "../shared.js";
 import { CopyButton, fileUrl } from "./ui.js";
 import { PromptEditor } from "./PromptEditor.js";
 
@@ -81,6 +81,97 @@ const priceAt = (costPaise: number, margin: number) =>
   Math.round(costPaise / (1 - Math.min(Math.max(margin, 0), 95) / 100));
 
 const key = (m: Material) => `${m.category}|${m.material}`;
+
+/**
+ * Pick a material by TYPING, not by scrolling 121 rows.
+ *
+ * A `<select>` can only be searched by the first letters of a name, so finding *Silver Confetti
+ * Balloon* meant knowing it starts with "Silver" and scrolling past everything else that does.
+ * `<input list>` is the same control with substring search, and it is native — no combobox
+ * library, no keyboard handling, no popup positioning of our own.
+ *
+ * **It cannot be left in a half-typed state.** Only a name that IS a row commits; anything else is
+ * held as text and thrown away on blur, so the box always goes back to saying what the line is
+ * actually costed as. An empty box is the one other real answer — *not on the price list* — and
+ * commits as such.
+ */
+function MaterialPicker({
+  id,
+  name,
+  flagged,
+  choices,
+  byCategory,
+  onPick,
+}: {
+  id: string;
+  /** The material this line is costed as right now, or "" for none. */
+  name: string;
+  flagged: boolean;
+  choices: CostedLine["choices"];
+  byCategory: [string, Material[]][];
+  onPick: (key: string) => void;
+}) {
+  /** What is being typed, while it is not yet a row. `null` means the box shows `name`. */
+  const [typed, setTyped] = useState<string | null>(null);
+  const byName = useMemo(
+    () => new Map(byCategory.flatMap(([, rows]) => rows.map((m) => [m.material.toLowerCase(), m]))),
+    [byCategory],
+  );
+  // The near misses go first so they are what an unopened list offers; showing them again inside
+  // their category would just be the same row twice.
+  const ranked = choices.map((c) => c.material.material);
+
+  function commit(text: string) {
+    const hit = byName.get(text.trim().toLowerCase());
+    if (hit) {
+      onPick(key(hit));
+      setTyped(null);
+      return;
+    }
+    if (text.trim() === "") {
+      onPick("");
+      setTyped(null);
+      return;
+    }
+    setTyped(text);
+  }
+
+  return (
+    <>
+      <input
+        className={flagged ? "loose" : ""}
+        list={id}
+        value={typed ?? name}
+        placeholder={name ? "type to search, or pick from the list" : "— not on the price list —"}
+        spellCheck={false}
+        onChange={(e) => commit(e.target.value)}
+        // Clicking in empties the box so the list opens on EVERYTHING. The browser filters a
+        // datalist by whatever is already in the field, so a line matched to "Silver Confetti
+        // Balloon" would otherwise open a list of exactly that one row — useless for the case this
+        // control exists for, which is not remembering what the list holds. Nothing is committed
+        // here: blur puts the current match straight back.
+        onFocus={() => setTyped("")}
+        onBlur={() => setTyped(null)}
+      />
+      <datalist id={id}>
+        {choices.map((c) => (
+          <option key={`c-${key(c.material)}`} value={c.material.material}>
+            closest · {Math.round(c.score * 100)}%
+          </option>
+        ))}
+        {byCategory.map(([category, rows]) =>
+          rows
+            .filter((m) => !ranked.includes(m.material))
+            .map((m) => (
+              <option key={key(m)} value={m.material}>
+                {category} · {m.paise === null ? "no price" : rupees(m.paise)}
+              </option>
+            )),
+        )}
+      </datalist>
+    </>
+  );
+}
 
 /** The two we sell on. Ids are the keys stored in the saved kit, so renaming a label is safe. */
 const MARKETPLACES = [
@@ -655,31 +746,14 @@ export function Inventory({ n }: { n: number }) {
                         picture is the authority, and a name can be right and still be the wrong
                         material. The near misses are in the list too, so an unmatched line is one
                         click from fixed rather than a hunt through 121 rows. */}
-                    <select
-                      className={l.flagged ? "loose" : ""}
-                      value={l.match ? key(l.match) : ""}
-                      onChange={(e) => setOverrides((o) => ({ ...o, [i]: e.target.value }))}
-                    >
-                      <option value="">— not on the price list —</option>
-                      {!l.overridden && l.choices.length > 0 && (
-                        <optgroup label="closest matches">
-                          {l.choices.map((c) => (
-                            <option key={`c-${key(c.material)}`} value={key(c.material)}>
-                              {c.material.material} · {Math.round(c.score * 100)}%
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {byCategory.map(([category, rows]) => (
-                        <optgroup key={category} label={category}>
-                          {rows.map((m) => (
-                            <option key={key(m)} value={key(m)}>
-                              {m.material} · {m.paise === null ? "no price" : rupees(m.paise)}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                    <MaterialPicker
+                      id={`mat-${i}`}
+                      name={l.match ? l.match.material : ""}
+                      flagged={l.flagged}
+                      choices={l.overridden ? [] : l.choices}
+                      byCategory={byCategory}
+                      onPick={(k) => setOverrides((o) => ({ ...o, [i]: k }))}
+                    />
                     {l.flagged && <span className="warnpill">check</span>}
                     {l.match && l.paise === null && <span className="warnpill">no price set</span>}
                   </td>

@@ -465,11 +465,23 @@ export function costKit(
     const per = match?.piecesPerPack;
     const packs = per && per > 0 ? Math.ceil(line.qty / per) : line.qty;
 
+    /**
+     * Another row scored exactly as well, so which one won was the order of the list.
+     *
+     * `Star Foil` against `Blue Star Foil`, `Golden Star Foil` and `Pink Star Foil` is 0.80 three
+     * times over — the read name simply does not say which, and the one that gets picked is
+     * whichever `materials.json` happens to list first. That is a coin toss, and a coin toss must
+     * never be quiet: this flags on top of the score band, so a tie is checked even if it lands
+     * above SURE. The right fix is at the source (the prompt asks for the colour), but the sheet
+     * does not always print one, and this is the case where being wrong costs real money.
+     */
+    const tied = !overridden && best !== undefined && choices.filter((c) => c.score === best.score).length > 1;
+
     return {
       ...line,
       match,
       score: s,
-      flagged: !overridden && match !== null && s < SURE,
+      flagged: !overridden && match !== null && (s < SURE || tied),
       overridden,
       choices,
       /** Set when this line's unit price came from the kit rather than the price list. */

@@ -156,6 +156,24 @@ describe("costing a kit", () => {
     expect(kit.flagged).toBe(1);
   });
 
+  it("flags a tie even when it scores well, because the winner was just list order", () => {
+    // `Glue Dot` fits `Glue Dot Strip` and `Glue Tape` (aka `Glue Dot Roll`) exactly as well, and
+    // they are ₹1 and ₹3.50. Whichever came first in the file would have won, silently, at any
+    // score band — so the tie itself has to raise the flag, not the score.
+    const two: Material[] = [
+      { category: "Adhesive", material: "Glue Dot Strip", paise: 100 },
+      { category: "Adhesive", material: "Glue Tape", paise: 350, aka: ["Glue Dot Roll"] },
+    ];
+    const tie = costKit([{ item: "Glue Dot", qty: 1 }], two);
+    expect(tie.lines[0].choices[0].score).toBe(tie.lines[0].choices[1].score);
+    expect(tie.lines[0].flagged).toBe(true);
+
+    // …and naming which one it is settles it, quietly and correctly, both ways round.
+    expect(costKit([{ item: "Glue Dot Roll", qty: 1 }], two).lines[0].match?.material).toBe("Glue Tape");
+    expect(costKit([{ item: "Glue Dot Roll", qty: 1 }], two).lines[0].flagged).toBe(false);
+    expect(costKit([{ item: "Glue Dot Strip", qty: 1 }], two).lines[0].match?.material).toBe("Glue Dot Strip");
+  });
+
   it("matches an old name, so sheets written before a rename still cost", () => {
     // The 2026-08-07 clean-up renamed 76 rows. Every inventory picture the partner already has
     // says the old thing, and a rename that un-matched them would be a regression, not a tidy-up.

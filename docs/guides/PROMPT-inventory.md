@@ -23,6 +23,13 @@ Rules:
   This matters more than it looks: `item` is matched against a price list where a single word is
   often the only difference between two rows, at two different costs. A name reduced to what kind
   of thing it is fits dozens of rows equally and gets priced off the wrong one.
+  **The colour is the word most often dropped, and dropping it is never harmless.** `Star Foil`
+  is a real answer we got for a silver one, and the list holds a blue, a golden and a pink star
+  foil — all three fit it equally, so it was priced as the golden. Write `Silver Star Foil`.
+  The same goes for a colour that is only in a heading: if the sheet groups lines under `SILVER`,
+  that word belongs on every item in the group.
+  If the sheet genuinely does not say which colour it is, leave it out — do not guess one. An
+  incomplete name gets checked by a human; an invented one does not.
 - Put the SIZE in `size`, not in `item`, and only when the sheet actually prints one. Omit `size`
   entirely otherwise. Never infer a size from what the item usually is.
 - Beyond that, keep the sheet's own words — same wording, same order. Do not translate, do not

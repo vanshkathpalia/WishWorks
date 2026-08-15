@@ -1109,7 +1109,9 @@ label.inline input[type="radio"] {
 .inv-table td {
   vertical-align: middle;
 }
-.inv-table select {
+.inv-table select,
+/* The material picker is an <input list>, not a <select> — same box, searchable. */
+.inv-table td input[list] {
   width: 100%;
   max-width: 320px;
 }
@@ -1131,7 +1133,8 @@ label.inline input[type="radio"] {
 .inv-saved {
   gap: 6px;
 }
-.inv-table select.loose {
+.inv-table select.loose,
+.inv-table td input[list].loose {
   border-color: var(--warn);
 }
 .inv-table .warnpill {
