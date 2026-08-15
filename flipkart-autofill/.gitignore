@@ -16,6 +16,14 @@ images/3-final/*
 image-meta/*
 !image-meta/EXAMPLE-*.json
 
+# The 66-field Flipkart files, for the same reason as image-meta/ above: business data, not code.
+# In development the app's workspace IS this folder (gui/main.ts storedWorkspace), so every
+# listing anyone builds lands here — and committed, a partner cloning the repo would find Vansh's
+# real listings sitting in his own app looking like his. The bundled EXAMPLE stays.
+products/*
+!products/EXAMPLE-*.json
+!products/.gitkeep
+
 # Costed kits (WW-115). Business data like image-meta/ — the reading off one inventory sheet
 # plus whoever corrected it. The price list they are costed against DOES ship, in categories/.
 inventory/
