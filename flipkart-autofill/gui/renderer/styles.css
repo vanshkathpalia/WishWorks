@@ -1141,6 +1141,18 @@ label.inline input[type="radio"] {
 .inv-saved {
   gap: 6px;
 }
+/* One block per SKU code — the same grouping the ready folder uses on disk. */
+.inv-group {
+  margin: 10px 0 14px;
+}
+.inv-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
 .inv-table select.loose,
 .inv-table td input[list].loose {
   border-color: var(--warn);

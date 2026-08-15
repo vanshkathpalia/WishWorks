@@ -19,7 +19,7 @@
  */
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
-import { readFile, writeFile, mkdir, readdir, rm, copyFile, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, rename, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type {
@@ -835,6 +835,44 @@ const FOLDERS = {
 ipcMain.handle("folders", () =>
   Object.fromEntries(Object.entries(FOLDERS).map(([k, v]) => [k, { ...v }])),
 );
+
+/**
+ * Put loose files in the ready folder into the `GTB/`, `ANP/` … folders they belong in.
+ *
+ * The finish step has grouped by SKU code since WW-156, but everything finished BEFORE that is
+ * still lying in the root — 48 files on Vansh's machine — and the grouping is only useful if it
+ * covers the lot. This is that one-off catch-up, and it stays available because a file can always
+ * arrive in the root by hand.
+ *
+ * `skuGroup` from the engine, not a copy: this MOVES files, so it has to agree with the code that
+ * names the folders, not merely follow the same rule. Only the root is read, only files, and
+ * nothing is ever overwritten — a name already taken in the group folder is left where it is and
+ * reported, because two different images called `GTB-2.1.jpg` is a real possibility and silently
+ * keeping one of them is the wrong answer to it. Folders in the root are left alone entirely.
+ */
+ipcMain.handle("tidyReady", async () => {
+  const { skuGroup } = await import("../src/finish-core.js");
+  const dir = FOLDERS.ready.dir;
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  let moved = 0;
+  const clashed: string[] = [];
+  const groups = new Set<string>();
+  for (const e of entries) {
+    if (!e.isFile() || e.name.startsWith(".")) continue;
+    const group = skuGroup(e.name);
+    if (!group) continue; // no leading letters — a folder nobody could predict is worse than none
+    const to = path.join(dir, group, e.name);
+    if (existsSync(to)) {
+      clashed.push(e.name);
+      continue;
+    }
+    await mkdir(path.join(dir, group), { recursive: true });
+    await rename(path.join(dir, e.name), to);
+    moved += 1;
+    groups.add(group);
+  }
+  return { moved, clashed, groups: [...groups].sort() };
+});
 
 /**
  * Point one of them somewhere else. Relaunches, like every other folder setting — `paths.ts`

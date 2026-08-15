@@ -75,6 +75,31 @@ export interface Account {
 }
 
 /**
+ * The letters an ID starts with, uppercased — `ANP-3` → `ANP`, `GTB002(2)` → `GTB`.
+ *
+ * The same rule as `skuGroup` in `finish-core.ts`, which is what actually names the subfolders in
+ * the ready folder. Repeated rather than imported because that file pulls in sharp and `node:fs`,
+ * and the renderer must not; if the two ever disagree the ENGINE wins and this is merely a label.
+ * Kept identical on purpose: a kit grouped under `GTB` on screen and filed under `GTB` on disk is
+ * the whole point.
+ *
+ * "" for an ID starting with no letters, which groups nothing rather than inventing a group.
+ */
+export const skuPrefix = (id: string): string => /^[A-Za-z]+/.exec(id)?.[0].toUpperCase() ?? "";
+
+/**
+ * Every `<letters><number>` pair in an ID, so a combo says which numbers it uses up.
+ *
+ * `WKU003-GTB001` is one listing and it takes BOTH `WKU003` and `GTB001` — asking "what is the
+ * next free GTB" while only reading the leading letters would happily hand back a number that is
+ * already on a kit. Leading zeros are dropped, so `ANP004` and `ANP4` are the same number, because
+ * on disk they have been written both ways.
+ */
+export function skuNumbers(id: string): [string, number][] {
+  return [...id.matchAll(/([A-Za-z]+)[\s_-]*0*(\d+)/g)].map(([, p, n]) => [p.toUpperCase(), Number(n)]);
+}
+
+/**
  * Does this listing ID belong to the account whose SKUs start with `prefix`?
  *
  * Lives here rather than in `src/` because both sides need it and `src/id.ts` imports `node:fs`,
@@ -244,6 +269,11 @@ export interface WwApi {
   exportKits(only: string | null): Promise<string | null>;
   /** Reveal the folder the saved kits live in — for looking at, backing up, or syncing. */
   openKitsFolder(): Promise<void>;
+  /**
+   * File every loose image in the ready folder under its SKU code — `GTB-2.1.jpg` into `GTB/`.
+   * Never overwrites: a name already taken in the group folder is left alone and named back.
+   */
+  tidyReady(): Promise<{ moved: number; clashed: string[]; groups: string[] }>;
   /** Every kit kept on this machine, newest first. */
   listKits(): Promise<KitRow[]>;
   openKit(file: string): Promise<SavedKit>;

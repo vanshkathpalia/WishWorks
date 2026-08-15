@@ -212,17 +212,46 @@ export function FolderRow({
  */
 export function FolderSetting({ which }: { which: FolderKey }) {
   const [info, setInfo] = useState<{ dir: string; label: string; what: string } | null>(null);
+  const [tidied, setTidied] = useState<string | null>(null);
   useEffect(() => void window.ww.folders().then((f) => setInfo(f[which])), [which]);
   if (!info) return null;
+
+  /**
+   * Only the ready folder, because it is the only one that is GROUPED. Finishing has filed images
+   * under their SKU code since WW-156, but everything finished before that is still lying in the
+   * root, and a grouping that covers half the folder is worse than none — you cannot tell whether
+   * `GTB/` is all the GTBs or only the recent ones.
+   */
+  async function tidy() {
+    const r = await window.ww.tidyReady();
+    setTidied(
+      r.moved === 0 && r.clashed.length === 0
+        ? "Nothing loose — every file is already in its folder."
+        : `Filed ${r.moved} file${r.moved === 1 ? "" : "s"} into ${r.groups.join(", ")}.` +
+            (r.clashed.length > 0
+              ? ` ${r.clashed.length} left where they are: that name is already taken in its folder (${r.clashed.slice(0, 3).join(", ")}${r.clashed.length > 3 ? "…" : ""}).`
+              : ""),
+    );
+  }
+
   return (
     <div className="folder-row">
       <div>
         <span className="folder-label">{info.label}</span>
         <span className="path">{info.dir}</span>
+        {tidied && <span className="path allgood">{tidied}</span>}
       </div>
       <div className="picks">
         <button onClick={() => void window.ww.showFolder(info.dir)}>Open</button>
         <button onClick={() => void window.ww.chooseFolder(which)}>Choose…</button>
+        {which === "ready" && (
+          <button
+            onClick={() => void tidy()}
+            title="Move loose files into GTB/, ANP/ … by the letters their name starts with. Nothing is ever overwritten."
+          >
+            Sort into groups
+          </button>
+        )}
       </div>
     </div>
   );

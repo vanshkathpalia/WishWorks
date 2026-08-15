@@ -20,7 +20,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { Box, CostedLine, Kit, KitLine, KitRow, Material, Parcel, SavedKit } from "../shared.js";
+import type { Box, CostedLine, Kit, KitLine, KitRow, Listing, Material, Parcel, SavedKit } from "../shared.js";
+import { skuNumbers, skuPrefix } from "../shared.js";
 import { CopyButton, fileUrl } from "./ui.js";
 import { PromptEditor } from "./PromptEditor.js";
 
@@ -240,6 +241,8 @@ export function Inventory({ n }: { n: number }) {
   /** True while the JSON box has the cursor. See the effect that keeps the box and the kit in step. */
   const [boxFocused, setBoxFocused] = useState(false);
   const [saved, setSaved] = useState<KitRow[]>([]);
+  /** Every listing on this machine, only ever read for which SKU numbers are already used. */
+  const [listings, setListings] = useState<Listing[]>([]);
   /**
    * The file this kit was opened from, when it was opened from one.
    *
@@ -303,6 +306,7 @@ export function Inventory({ n }: { n: number }) {
   useEffect(() => {
     void window.ww.materials().then(setMaterials);
     void window.ww.materialGaps().then(setGaps);
+    void window.ww.listings().then(setListings);
     refreshSaved();
   }, [refreshSaved]);
 
@@ -340,6 +344,66 @@ export function Inventory({ n }: { n: number }) {
     if (lines === null || boxFocused) return;
     setPaste(asJson(sku, lines, overrides));
   }, [sku, lines, overrides, boxFocused]);
+
+  /**
+   * The kits by their code, and what the next free number under each one is.
+   *
+   * The question this answers is the one Vansh kept having to answer by scrolling: *what number
+   * does the next ANP get?* Getting it wrong writes a second `ANP004` — one folder of images, one
+   * `products/` file and one kit all fighting over the same name.
+   *
+   * **Every number anything uses counts as taken, not just the costed kits.** A listing exists as
+   * soon as there is a product file, a description or a folder of images, long before anyone costs
+   * it, and `listings()` already unions all four — using only the kits would hand back a number a
+   * half-built listing is already sitting on. The width of the number is copied from the highest
+   * one seen (`ANP004` → `ANP005`, `GTB-1` → `GTB-2`), because the existing files disagree about
+   * padding and the useful suggestion is the one that looks like its neighbours.
+   */
+  const groups = useMemo(() => {
+    const kits = new Map<string, KitRow[]>();
+    for (const k of saved) {
+      const p = skuPrefix(k.sku);
+      kits.set(p, [...(kits.get(p) ?? []), k]);
+    }
+    /**
+     * A code only becomes a heading if something is actually NAMED with it — a kit or a listing
+     * whose name STARTS with it. The number scan reads every code in a name, which is what makes
+     * `WKU003-GTB001` count against GTB, but on real data it also turns up `DORE` and `KITTY` out
+     * of `HBD-DORE01` and `HBD-Kitty01`. Those are not categories; they are the middle of a name.
+     */
+    const codes = new Set([...kits.keys(), ...listings.map((l) => skuPrefix(l.label))]);
+    codes.delete("");
+
+    const highest = new Map<string, { n: number; from: string }>();
+    const note = (id: string) => {
+      for (const [prefix, n] of skuNumbers(id)) {
+        if (!codes.has(prefix)) continue;
+        if (n > (highest.get(prefix)?.n ?? 0)) highest.set(prefix, { n, from: id });
+      }
+    };
+    for (const k of saved) note(k.sku);
+    for (const l of listings) note(l.label);
+
+    return [...codes]
+      // A code with neither a number nor a costed kit is a stray file, not a category — `hello`
+      // and `example` are both really in the folders. Nothing is hidden that anyone named.
+      .filter((p) => highest.has(p) || (kits.get(p)?.length ?? 0) > 0)
+      .sort()
+      .map((prefix) => {
+        const top = highest.get(prefix);
+        // Padded like its neighbours: the files disagree (`GTB-1` and `GTB005` both exist), so the
+        // useful suggestion is the one shaped like the highest number already in use.
+        const digits = top ? (/\d+$/.exec(top.from)?.[0].length ?? 0) : 0;
+        return {
+          prefix,
+          kits: kits.get(prefix) ?? [],
+          latest: top?.from ?? null,
+          next: top ? `${prefix}${String(top.n + 1).padStart(digits, "0")}` : null,
+          // `listings()` comes back newest first, so the first hit is the most recent one.
+          newest: listings.find((l) => skuPrefix(l.label) === prefix)?.label ?? null,
+        };
+      });
+  }, [saved, listings]);
 
   const byCategory = useMemo(() => {
     const groups = new Map<string, Material[]>();
@@ -648,27 +712,61 @@ export function Inventory({ n }: { n: number }) {
               )}
               {showKits && (
                 <>
-                  <div className="picks inv-saved">
-                    {saved.map((k) => {
-                      const d = drift(k);
-                      return (
-                        <button
-                          key={k.file}
-                          style={driftStyle(d)}
-                          title={
-                            k.left
-                              ? Object.entries(k.left)
-                                  .map(([id, v]) => `${id}: leaves ${rupees(v)}`)
-                                  .join("  ·  ")
-                              : "No listed price yet, so there is no margin to judge."
-                          }
-                          onClick={() => void reopen(k.file)}
-                        >
-                          {k.sku}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {/* Grouped the same way the ready folder is, so "all the GTBs together" means
+                      the same thing on this screen and on disk. */}
+                  {groups.map((g) => (
+                    <div key={g.prefix} className="inv-group">
+                      <div className="inv-group-head">
+                        <b>{g.prefix || "no code"}</b>
+                        {g.next ? (
+                          <span className="muted">
+                            next free: <b>{g.next}</b>
+                            {g.latest && <> · highest so far {g.latest}</>}
+                          </span>
+                        ) : (
+                          <span className="muted">nothing numbered yet</span>
+                        )}
+                        {g.newest && (
+                          <span className="muted">
+                            newest listing: <b>{g.newest}</b>
+                          </span>
+                        )}
+                      </div>
+                      <div className="picks inv-saved">
+                        {g.kits.map((k) => {
+                          const d = drift(k);
+                          return (
+                            <button
+                              key={k.file}
+                              style={driftStyle(d)}
+                              title={
+                                k.left
+                                  ? Object.entries(k.left)
+                                      .map(([id, v]) => `${id}: leaves ${rupees(v)}`)
+                                      .join("  ·  ")
+                                  : "No listed price yet, so there is no margin to judge."
+                              }
+                              onClick={() => void reopen(k.file)}
+                            >
+                              {k.sku}
+                            </button>
+                          );
+                        })}
+                        {g.kits.length === 0 && (
+                          <span className="muted">no kit costed under this code yet</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="muted">
+                    <b>next free</b> is one past the highest number anything on this machine uses —
+                    kits, listings, product files, descriptions and finished images all counted, and
+                    a combo like <code>WKU003-GTB001</code> counts for <b>both</b> of its codes. It
+                    is a suggestion, not a reservation: nothing is taken until you save something
+                    with that number on it. <b>The file it came from is named beside it</b> — if a
+                    number looks far too high, that is the file to go and look at, because the
+                    answer is only ever as good as what is in the folders.
+                  </p>
                   <p className="muted">
                     Shaded by what the kit <b>leaves</b> after materials, delivery and GST, against
                     the ₹60 rule: <b>dark is on target</b>, and the further out it is the lighter it

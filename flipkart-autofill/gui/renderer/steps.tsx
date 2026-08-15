@@ -8,6 +8,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { CheckResult, FinishResult, Listing, PasteResult, Row } from "../shared.js";
+import { skuPrefix } from "../shared.js";
 import { CopyButton, FolderRow, FolderSetting, ListingPicker, joinPath } from "./ui.js";
 import { Inbox } from "./Inbox.js";
 import { PromptEditor } from "./PromptEditor.js";
@@ -331,13 +332,8 @@ export function Finish({ n }: { n: number }) {
   const inDir = source === "clean" ? (listing?.folder ? `2-clean/${listing.folder}` : null) : dir;
   const outName = source === "clean" ? listing?.folder ?? null : dir?.split(/[\\/]/).pop() ?? null;
   const ready = Boolean(inDir && outDir);
-  /**
-   * Which subfolder of the ready folder this will land in. Display only — `skuGroup` in
-   * finish-core.ts is what actually decides, and the renderer cannot import it (it pulls in
-   * sharp). Same rule, the letters the name starts with; if they ever disagree the engine wins
-   * and this label is merely wrong, never the path.
-   */
-  const outGroup = /^[A-Za-z]+/.exec(outName ?? "")?.[0].toUpperCase() ?? "";
+  /** Which subfolder of the ready folder this will land in. Display only — see `skuPrefix`. */
+  const outGroup = skuPrefix(outName ?? "");
 
   async function run() {
     if (!outDir) return;

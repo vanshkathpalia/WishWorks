@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { normalizeId, findById, whyNoMatch } from "../src/id.js";
 // The prefix check lives in gui/shared.ts because the renderer needs it and cannot have node:fs.
-import { isForAccount } from "../gui/shared.js";
+import { isForAccount, skuNumbers, skuPrefix } from "../gui/shared.js";
 
 let tmp: string;
 const created: string[] = [];
@@ -149,5 +149,43 @@ describe("isForAccount", () => {
     expect(isForAccount("ANP3", "GTB")).toBe(false);
     // A prefix that is only PART of the ID's prefix is not a match either way round.
     expect(isForAccount("GT4", "GTB")).toBe(false);
+  });
+});
+
+/**
+ * The SKU code and the numbers under it. This decides what the Inventory panel offers as the next
+ * free number, so the failure it exists to stop is handing back a number something already uses —
+ * two listings called ANP004, one folder of images, one products file, and no sign of it.
+ */
+describe("skuPrefix and skuNumbers", () => {
+  it("groups by the letters a name starts with, the same rule the ready folder uses", () => {
+    expect(skuPrefix("ANP-3")).toBe("ANP");
+    expect(skuPrefix("gtb002(2)")).toBe("GTB");
+    expect(skuPrefix("HBD-Kitty01")).toBe("HBD");
+    // No leading letters means no group — never a folder nobody could predict.
+    expect(skuPrefix("2026-kit")).toBe("");
+  });
+
+  it("reads a number however it was padded or punctuated", () => {
+    expect(skuNumbers("ANP004")).toEqual([["ANP", 4]]);
+    expect(skuNumbers("ANP4")).toEqual([["ANP", 4]]);
+    expect(skuNumbers("GTB-1")).toEqual([["GTB", 1]]);
+    expect(skuNumbers("GTB 004")).toEqual([["GTB", 4]]);
+  });
+
+  it("counts BOTH codes of a combo, because both numbers are used up", () => {
+    expect(skuNumbers("WKU003-GTB001")).toEqual([
+      ["WKU", 3],
+      ["GTB", 1],
+    ]);
+    expect(skuNumbers("SVP033 - ANP002")).toEqual([
+      ["SVP", 33],
+      ["ANP", 2],
+    ]);
+  });
+
+  it("finds no number where there is none, rather than inventing a zero", () => {
+    expect(skuNumbers("kit")).toEqual([]);
+    expect(skuNumbers("hello")).toEqual([]);
   });
 });

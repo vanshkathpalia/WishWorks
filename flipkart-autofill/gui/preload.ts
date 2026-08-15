@@ -65,6 +65,7 @@ const api: WwApi = {
   saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),
   exportKits: (only: string | null) => ipcRenderer.invoke("exportKits", only),
   openKitsFolder: () => ipcRenderer.invoke("openKitsFolder"),
+  tidyReady: () => ipcRenderer.invoke("tidyReady"),
   listKits: () => ipcRenderer.invoke("listKits"),
   openKit: (file: string) => ipcRenderer.invoke("openKit", file),
   deleteKit: (file: string) => ipcRenderer.invoke("deleteKit", file),
