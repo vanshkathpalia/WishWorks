@@ -37,8 +37,6 @@ export interface PromptVersion {
 export interface PromptFile {
   name: string;
   text: string;
-  /** True when this machine has an edited copy overriding the shipped one. */
-  edited: boolean;
   /** Where a save would land, shown so it is never a mystery. Null when editing is off. */
   savesTo: string | null;
   /**
@@ -74,23 +72,33 @@ const versionsDir = (d: PromptDirs, name: string) =>
   path.join(d.userData, "prompt-versions", path.basename(name, ".md"));
 
 /**
- * The file actually read.
+ * The file actually read: **always the shipped one, in every mode.**
  *
- * **Where editing is off, the shipped copy always wins** — an override left behind by an older
- * build is ignored rather than obeyed. That is the whole point: the failure being fixed is a local
- * edit quietly outranking every future release, and honouring the leftovers would keep it alive on
- * exactly the machines that already have one.
+ * An override left behind by an older build is ignored rather than obeyed. The failure being fixed
+ * is a local edit quietly outranking every future release, and honouring the leftovers would keep
+ * it alive on exactly the machines that already have one.
+ *
+ * **This used to say `if (!dirs.canEditShipped) return shipped`, and that "safe" guard was the
+ * bug.** In development — which is how Vansh runs the app, `npm run app` — editing IS allowed, so
+ * the override won here; but `savePrompt` writes to `dirs.shipped` regardless. Read from one file,
+ * write to another. An edit made in the app on 2026-08-07 therefore sat in `userData` looking
+ * correct on screen for four days while the repo copy stayed four days older, git saw nothing to
+ * commit, and the packaged app — which ignores overrides — would have shipped the partner the old
+ * one. Caught 2026-08-11 by Vansh asking whether an edit of his was being written on top of.
+ * Reading and writing must name the same file or they will drift, and the drift is silent by
+ * construction: the screen shows the copy that is right.
  */
 async function activeFile(dirs: PromptDirs, name: string): Promise<string> {
-  const shipped = path.join(dirs.shipped, name);
-  if (!dirs.canEditShipped) return shipped;
-  const mine = path.join(overrideDir(dirs), name);
-  return (await stat(mine).catch(() => null)) ? mine : shipped;
+  return path.join(dirs.shipped, name);
 }
 
-/** An override this machine still has on disk but no longer reads. Null when there is none. */
+/**
+ * An override this machine still has on disk but no longer reads. Null when there is none.
+ *
+ * Reported in EVERY mode now, not only in a packaged app: a leftover in development was exactly
+ * the file being silently obeyed, so development is where naming it matters most.
+ */
 async function leftoverOverride(dirs: PromptDirs, name: string): Promise<string | null> {
-  if (dirs.canEditShipped) return null;
   const mine = path.join(overrideDir(dirs), name);
   return (await stat(mine).catch(() => null)) ? mine : null;
 }
@@ -116,7 +124,6 @@ export async function readPrompt(dirs: PromptDirs, name: string): Promise<Prompt
   return {
     name,
     text: await readFile(file, "utf8"),
-    edited: file.startsWith(overrideDir(dirs)),
     savesTo: dirs.canEditShipped ? path.join(dirs.shipped, name) : null,
     readOnly: !dirs.canEditShipped,
     ignoredOverride: await leftoverOverride(dirs, name),

@@ -60,7 +60,6 @@ export function PromptEditor({ file, close }: { file: string; close: () => void 
 
         <p className="muted">
           {text.length.toLocaleString()} characters
-          {prompt?.edited && " · this machine has its own edited copy"}
           {prompt?.savesTo && <> · saves to {prompt.savesTo}</>}
         </p>
 

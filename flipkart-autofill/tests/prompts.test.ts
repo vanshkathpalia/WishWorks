@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { readPrompt, savePrompt, type PromptDirs } from "../src/prompts.js";
@@ -64,5 +64,34 @@ describe("in a packaged app, prompts are read-only", () => {
     const p = await readPrompt(d, "P.md");
     expect(p.text).toBe("the shipped one");
     expect(p.ignoredOverride).toContain("prompts");
+  });
+});
+
+/**
+ * The read/write split that actually bit us (2026-08-11).
+ *
+ * In DEVELOPMENT editing is allowed, and the old `activeFile` preferred an override there — while
+ * `savePrompt` has always written to the shipped file. Read one, write the other. An edit made in
+ * the app sat in `userData` looking right on screen for four days while the repo copy stayed old,
+ * git saw nothing to commit, and the packaged app would have shipped the partner the stale one.
+ */
+describe("development reads the same file it writes", () => {
+  it("ignores a leftover override even where editing is allowed", async () => {
+    const d = dirs(true);
+    mkdirSync(path.join(d.userData, "prompts"), { recursive: true });
+    writeFileSync(path.join(d.userData, "prompts", "P.md"), "the local copy nobody can see");
+    const p = await readPrompt(d, "P.md");
+    expect(p.text).toBe("the shipped one");
+    // Named, not silently dropped — and named HERE, which is the mode it was being obeyed in.
+    expect(p.ignoredOverride).toContain("prompts");
+  });
+
+  it("saves where it reads, so an edit is visible to git and to the next release", async () => {
+    const d = dirs(true);
+    mkdirSync(path.join(d.userData, "prompts"), { recursive: true });
+    writeFileSync(path.join(d.userData, "prompts", "P.md"), "the local copy nobody can see");
+    await savePrompt(d, "P.md", "edited in the app");
+    expect(readFileSync(path.join(d.shipped, "P.md"), "utf8")).toBe("edited in the app");
+    expect((await readPrompt(d, "P.md")).text).toBe("edited in the app");
   });
 });
