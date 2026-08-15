@@ -10,7 +10,7 @@ import { clickSave } from "./fields.js";
 import { findById } from "./id.js";
 import { PRODUCTS_DIR, showPath } from "./paths.js";
 import {
-  loadProduct, checkValues, describeProblems,
+  loadProduct, checkValues, describeProblems, fillableValues,
   fillAll, printReport, needsEyes, explainMismatches,
 } from "./listing.js";
 
@@ -48,11 +48,12 @@ for (const f of usedDefaults) console.log(`↳ defaults: ${f}`);
 
 // Everything that can be caught without a browser, is — a placeholder or a comma-split
 // value would otherwise only surface after 30 fields had already been typed.
+// A problem now skips its own field and stops nothing else — two placeholders used to mean
+// sixty good fields went untyped. Skipped, never typed anyway: TODO_MRP in the MRP box is a
+// live listing carrying a fake price.
 const problems = checkValues(values);
-if (problems.length) {
-  console.error(`\n${describeProblems(problems)}\n`);
-  process.exit(1);
-}
+if (problems.length) console.warn(`\n${describeProblems(problems)}\n`);
+const fillable = fillableValues(values, problems);
 
 // No `close` handle on purpose — fill must never close the browser (see the end of this
 // file). Ctrl+C is handled inside openBrowser and closes Chrome gracefully.
@@ -72,7 +73,7 @@ and leave that tab in the FOREGROUND
 const page = await activePage(context);
 console.log(`\nFilling on: ${page.url()}\n`);
 
-const report = await fillAll(page, values);
+const report = await fillAll(page, fillable);
 printReport(report);
 await explainMismatches(page, report, probeHtml);
 
