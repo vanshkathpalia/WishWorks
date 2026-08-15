@@ -1862,6 +1862,14 @@ its caption), and still nothing when the picture does not show it.
 **Cheap lesson.** A prompt rule that forbids a whole class of answer will be obeyed on the cases it
 was never meant to cover. When a rule stops something bad, check what it also stops.
 
+**Second pass, same day.** The fix was first written with real examples — a moon foil balloon and
+silver balloons, named. Vansh: *"i think this example should be generic, if we point to particular
+an item name chatgpt will give in every response."* Correct, and it is the standing risk with
+examples in a prompt: a concrete product name reads as a suggestion, and this prompt already
+carries a line telling the model not to copy wording out of the message precisely because that
+happens. Both examples are now structural — *a caption that names only the kind of item, over a
+photo showing it plainly in one colour* — which teaches the same pattern with no noun to echo.
+
 **Not fixed in code, deliberately.** Vansh asked whether the app could verify the colour itself —
 it cannot see the image (OCR was built and removed, WW-115), and the backstop already exists: an
 incomplete name ties two rows and the table flags it. Prompt for the common case, flag for the
