@@ -8,7 +8,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { CheckResult, FinishResult, Listing, PasteResult, Row } from "../shared.js";
-import { CopyButton, FolderRow, ListingPicker, joinPath } from "./ui.js";
+import { CopyButton, FolderRow, FolderSetting, ListingPicker, joinPath } from "./ui.js";
 import { Inbox } from "./Inbox.js";
 import { PromptEditor } from "./PromptEditor.js";
 
@@ -303,12 +303,13 @@ export function Finish({ n }: { n: number }) {
   // rows are only taken while this step is the one running. See the note in Convert.tsx.
   const mine = useRef(false);
   useEffect(() => window.ww.onRow((r) => mine.current && setRows((x) => [...x, r])), []);
-  // Defaults to ~/Downloads/wishworks-ready — the same folder `npm run finish` has always used,
-  // and somewhere a person can actually find. The workspace lives under Application Support,
-  // which is hidden in Finder; finished photos are the one output that gets picked up by hand
-  // and uploaded, so they do not belong in a folder you cannot navigate to.
+  // From the `ready` folder SETTING, which is per-account — not from this step's own memory.
+  // Two accounts on one machine must not write their finished images into one folder, and this
+  // is the folder that gets shared on Drive, so it is the one where a mix-up travels furthest.
+  // It still defaults to ~/Downloads/wishworks-ready, which is where `npm run finish` has always
+  // written and somewhere a person can actually find.
   useEffect(() => {
-    void window.ww.downloadsDir().then((d) => setOutDir((o) => o ?? joinPath(d, "wishworks-ready")));
+    void window.ww.folders().then((f) => setOutDir((o) => o ?? f.ready.dir));
   }, []);
 
   // Descriptions follow the listing you picked. Changing the listing must not silently leave
@@ -399,7 +400,9 @@ export function Finish({ n }: { n: number }) {
       )}
 
       <h3>Step 2 — where should the finished ones be saved?</h3>
-      <FolderRow step="finish" label="Ready folder" value={outDir} onChange={setOutDir} />
+      {/* The setting itself, not a per-run pick: this folder is configured once and shared, and
+          the same control appears in Settings so the two can never say different things. */}
+      <FolderSetting which="ready" />
       <p className="muted">
         <b>This is the folder to share.</b> Put it in Google Drive and everyone on the account sees
         every finished image — the descriptions are already written inside the files, so nothing
@@ -509,7 +512,9 @@ export function Check({ n }: { n: number }) {
   // pipeline's folder and NOT where finishing lands — so the default checked an empty folder.
   // It must keep matching step 5's default or this one goes back to checking nothing.
   useEffect(() => {
-    void window.ww.downloadsDir().then((r0) => setReady((r) => r ?? joinPath(r0, "wishworks-ready")));
+    // The SAME setting the Finish step writes into. Checking a different folder from the one just
+    // written to is the whole failure this step exists to catch, so it must not guess.
+    void window.ww.folders().then((f) => setReady((r) => r ?? f.ready.dir));
   }, []);
 
   const dir = source === "ready" ? ready : other;

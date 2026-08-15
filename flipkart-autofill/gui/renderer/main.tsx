@@ -86,6 +86,18 @@ function Panel({ step }: { step: number }) {
  * real access control in a way a password box inside this app could never be: the files are on
  * the local disk and Explorer opens them whatever this screen says.
  */
+/**
+ * Does another account keep its working files in this same folder?
+ *
+ * Vansh, 2026-08-15: *"if 2 accounts login with same computer, that raw data they are going to
+ * use is coming from one machine only hence no separation will be made... if they are not
+ * pointing to two diff folders you know."* Exactly right, and the app cannot enforce it — a
+ * folder is whatever the user picks. So it says so, loudly, wherever an account is listed.
+ * Flag, never block: two accounts sharing a folder on purpose, mid-setup, is a real state.
+ */
+const sharesFolder = (accounts: Account[], i: number) =>
+  accounts.some((o, n) => n !== i && o.workspace === accounts[i].workspace);
+
 function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [active, setActive] = useState(0);
@@ -120,6 +132,11 @@ function Accounts() {
                 <small>
                   {a.skuPrefix ? `SKUs start ${a.skuPrefix}` : "no prefix — nothing is flagged"}
                 </small>
+                {sharesFolder(accounts, i) && (
+                  <small className="warnpill">
+                    another account uses this same folder — they see each other&apos;s data
+                  </small>
+                )}
               </div>
               <div className="picks">
                 {i !== active && (
@@ -213,14 +230,16 @@ function Settings({ close }: { close: () => void }) {
         <h3>Where each thing is saved</h3>
         <p className="muted">
           Every folder the app writes to, and each can be pointed anywhere — a different disk, a
-          shared Drive folder, or straight at Downloads. They all sit inside the workspace below
-          unless you move them. <b>Changing any of these restarts the app</b>, and nothing already
-          saved is moved, so a wrong choice costs nothing and is undone by choosing again.
+          shared Drive folder, or straight at Downloads. <b>These belong to the account above</b>,
+          so another account on this machine keeps its own. <b>Changing any of them restarts the
+          app</b>, and nothing already saved is moved, so a wrong choice costs nothing and is
+          undone by choosing again.
         </p>
         <FolderSetting which="images" />
         <FolderSetting which="meta" />
         <FolderSetting which="products" />
         <FolderSetting which="kits" />
+        <FolderSetting which="ready" />
         <div className="picks">
           <button onClick={() => void window.ww.openKitsFolder()}>Open the kits folder</button>
         </div>
@@ -270,8 +289,80 @@ function Settings({ close }: { close: () => void }) {
   );
 }
 
+/**
+ * "Whose data are you working in?" — asked once, at launch, before anything else.
+ *
+ * **This is a confirmation, not a login.** There is no password and nothing to authenticate; the
+ * access control is which Drive folder is shared with whom (WW-154). What this fixes is a
+ * different failure: the permanent label in the rail answers the question *if you look at it*,
+ * and the whole point is that nobody looks before making the mistake. Making the first click of
+ * the day be "yes, I am working GTB" means the answer was seen at least once, deliberately.
+ *
+ * **Only shown when this machine holds more than one account**, which today is nobody — one PC,
+ * one account (WW-155). A screen you dismiss every launch to tell you the only thing it could
+ * possibly say is worse than no screen, so a single account skips it entirely.
+ *
+ * Picking a DIFFERENT account relaunches, and this screen comes back with that one marked live.
+ * The second click is not a bug: switching accounts is rare and worth confirming twice.
+ */
+function AccountGate({
+  accounts,
+  active,
+  onConfirm,
+}: {
+  accounts: Account[];
+  active: number;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="modal">
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <h2>Whose data are you working in?</h2>
+        <p className="muted">
+          This machine is set up for more than one seller account, and they do not share data —
+          different SKUs, different listings, different costings. Pick the one you are working
+          today.
+        </p>
+        <ul className="accounts">
+          {accounts.map((a, i) => (
+            <li key={a.label + i} className={i === active ? "current" : ""}>
+              <div>
+                <b>
+                  {a.label}
+                  {i === active ? " — currently open" : ""}
+                </b>
+                <span className="path">{a.workspace}</span>
+              </div>
+              <div className="picks">
+                {i === active ? (
+                  <button className="primary" onClick={onConfirm}>
+                    Work as this
+                  </button>
+                ) : (
+                  <button onClick={() => void window.ww.switchAccount(i)}>Switch to this</button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="muted">
+          Switching restarts the app — the folders are read once, at startup. Nothing is moved and
+          nothing is deleted either way. You can change this any time under <b>Settings</b>.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [settings, setSettings] = useState(false);
+  /**
+   * Null until the accounts have been read. The gate must not flash up and vanish on a machine
+   * with one account, so nothing is decided until the answer is actually in.
+   */
+  const [gate, setGate] = useState<{ accounts: Account[]; active: number } | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => void window.ww.accounts().then(setGate), []);
   /**
    * Whose data this is, on screen at all times — the actual safety feature of WW-154, worth more
    * than every flag put together. It is a standing answer to a question nobody thinks to ask
@@ -331,6 +422,14 @@ function App() {
       </main>
 
       {settings && <Settings close={() => setSettings(false)} />}
+
+      {gate !== null && gate.accounts.length > 1 && !confirmed && (
+        <AccountGate
+          accounts={gate.accounts}
+          active={gate.active}
+          onConfirm={() => setConfirmed(true)}
+        />
+      )}
     </div>
   );
 }

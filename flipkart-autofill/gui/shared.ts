@@ -34,10 +34,11 @@ export type {
 /**
  * The folders a user can move, each stored in `settings.json` and read once into a `WW_*_DIR`.
  *
- * The finished images are not here: they are a per-step folder on the Finish panel, picked per
- * run, because that one is chosen fresh far more often than it is configured.
+ * **Every one of them is per-account.** Two accounts on one machine do not share data — that is
+ * the entire point of accounts — so they must not share the folders that data lives in either.
+ * An account's own value wins; without one, the machine-wide value; without that, the default.
  */
-export type FolderKey = "images" | "meta" | "products" | "kits";
+export type FolderKey = "images" | "meta" | "products" | "kits" | "ready";
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
 export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string };
@@ -53,8 +54,22 @@ export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string 
 export interface Account {
   /** What goes on screen — `GTB — gtb.wishworks@gmail.com`. Free text; nothing parses it. */
   label: string;
-  /** The Drive folder this account's images and listing files live in. */
+  /** The folder this account's working files live in — local, not Drive. */
   workspace: string;
+  /**
+   * This account's own folder overrides, when one should not sit inside its workspace.
+   *
+   * Per-account and not machine-wide, because *"after logging in for my account, my folder
+   * details should stay diff then my partner's one"* (Vansh, 2026-08-15). The `ready` folder is
+   * the one that matters most: it is the shared Drive folder, and two accounts pointing at one
+   * would put two sellers' finished images in the same place.
+   */
+  folders?: Partial<Record<FolderKey, string>>;
+  /**
+   * Seller-panel pages saved for THIS account. A remembered URL carries that seller's own ids,
+   * so a shared list would open the wrong seller's dashboard from a correctly-named button.
+   */
+  shortcuts?: { name: string; url: string }[];
   /** Optional. **Unset means no flagging at all** — an account that never wants it never sees it. */
   skuPrefix?: string;
 }

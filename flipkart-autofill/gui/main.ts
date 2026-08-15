@@ -22,7 +22,9 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { Account, Attempt, CleanUp, ConvertResult, DefaultsTab, Row, StepId } from "./shared.js";
+import type {
+  Account, Attempt, CleanUp, ConvertResult, DefaultsTab, FolderKey, Row, StepId,
+} from "./shared.js";
 
 app.setName("WishWorks");
 
@@ -80,6 +82,8 @@ interface Settings {
   images?: string;
   /** Where the AI's Meesho copy (`<ID>.json`) is kept, when not inside the workspace. */
   meta?: string;
+  /** Where finished images are written. The one folder meant to live in a shared Drive folder. */
+  ready?: string;
   /**
    * The seller accounts this machine can work, and which one it is working (WW-154).
    *
@@ -150,12 +154,26 @@ const WORKSPACE = storedWorkspace();
  *
  * The finished images are the fifth, and they are already a per-step folder on the Finish panel.
  */
-const IMAGES_DIR = readSettings().images || path.join(WORKSPACE, "images");
+/**
+ * One folder's path: **this account's own choice first**, then the machine-wide one, then the
+ * default beside the workspace.
+ *
+ * The account comes first because two accounts on one machine do not share data — Vansh:
+ * *"after logging in for my account, my folder details should stay diff then my partner's one"*.
+ * The machine-wide layer is kept because it is what every existing settings file already holds,
+ * and a machine with no accounts at all must keep behaving exactly as it did.
+ */
+function folderPath(key: FolderKey, fallback: string): string {
+  const st = readSettings();
+  return activeAccount()?.folders?.[key] || st[key] || fallback;
+}
+
+const IMAGES_DIR = folderPath("images", path.join(WORKSPACE, "images"));
 process.env.WW_IMAGES_DIR ??= IMAGES_DIR;
-const META_DIR = readSettings().meta || path.join(WORKSPACE, "image-meta");
+const META_DIR = folderPath("meta", path.join(WORKSPACE, "image-meta"));
 process.env.WW_META_DIR ??= META_DIR;
 /** Settable on its own, like the kits — see Settings.products for why. */
-const PRODUCTS_DIR = readSettings().products || path.join(WORKSPACE, "products");
+const PRODUCTS_DIR = folderPath("products", path.join(WORKSPACE, "products"));
 process.env.WW_PRODUCTS_DIR ??= PRODUCTS_DIR;
 /**
  * Costed kits are user state, like products/ — NOT categories/, which ships read-only inside the
@@ -169,7 +187,7 @@ process.env.WW_PRODUCTS_DIR ??= PRODUCTS_DIR;
  * while the images stay local. Nothing here syncs by itself and nothing should — a folder they
  * already trust beats a sync mechanism this app would have to own.
  */
-const KITS_DIR = readSettings().kits || path.join(WORKSPACE, "inventory");
+const KITS_DIR = folderPath("kits", path.join(WORKSPACE, "inventory"));
 process.env.WW_KITS_DIR ??= KITS_DIR;
 
 /**
@@ -665,21 +683,43 @@ ipcMain.handle("openChrome", (_e, url?: string) =>
  * because it looks like it worked. So the user navigates once and presses Remember, which works
  * for every page including ones this code has never heard of.
  */
-ipcMain.handle("shortcuts", () => readSettings().shortcuts ?? []);
+/**
+ * Saved pages are **per-account**, like the folders.
+ *
+ * A remembered URL is a seller-panel page — it carries that seller's own ids (`vid=`,
+ * `requestId=`). Shared across accounts it would take you straight into the wrong seller's
+ * dashboard from a button labelled with the right name, which is the worst shape a shortcut can
+ * have. Machines with no accounts keep the flat list they already have.
+ */
+function readShortcuts(): { name: string; url: string }[] {
+  return activeAccount()?.shortcuts ?? readSettings().shortcuts ?? [];
+}
+
+async function writeShortcuts(shortcuts: { name: string; url: string }[]): Promise<void> {
+  const st = readSettings();
+  const i = st.activeAccount ?? 0;
+  if (st.accounts?.[i]) {
+    await writeSettings({
+      accounts: st.accounts.map((a, n) => (n === i ? { ...a, shortcuts } : a)),
+    });
+  } else await writeSettings({ shortcuts });
+}
+
+ipcMain.handle("shortcuts", readShortcuts);
 
 ipcMain.handle("rememberPage", async (_e, name: string) => {
   const { sessionStatus } = await browserEngine();
   const { url } = await sessionStatus();
   if (!url || url === "about:blank") return null;
-  const shortcuts = (readSettings().shortcuts ?? []).filter((s) => s.name !== name);
+  const shortcuts = readShortcuts().filter((s) => s.name !== name);
   shortcuts.unshift({ name, url });
-  await writeSettings({ shortcuts });
+  await writeShortcuts(shortcuts);
   return { name, url };
 });
 
 ipcMain.handle("forgetPage", async (_e, name: string) => {
-  const shortcuts = (readSettings().shortcuts ?? []).filter((s) => s.name !== name);
-  await writeSettings({ shortcuts });
+  const shortcuts = readShortcuts().filter((s) => s.name !== name);
+  await writeShortcuts(shortcuts);
   return shortcuts;
 });
 ipcMain.handle("chromeStatus", async () => (await browserEngine()).sessionStatus());
@@ -761,9 +801,19 @@ const FOLDERS = {
     label: "Costed kits",
     what: "what each kit costs to make — small text files, safe to share",
   },
+  /**
+   * The one folder meant to be SHARED, and the only one that defaults outside the workspace.
+   *
+   * `~/Downloads/wishworks-ready` is where `npm run finish` has always written and where a person
+   * can actually find things — the workspace can sit under Application Support, which is hidden
+   * in Finder, and these are the files that get picked up by hand and uploaded.
+   */
+  ready: {
+    dir: folderPath("ready", path.join(app.getPath("downloads"), "wishworks-ready")),
+    label: "Finished images (the ready folder)",
+    what: "the finished images, descriptions already inside them — the folder to share on Drive",
+  },
 } as const;
-
-type FolderKey = keyof typeof FOLDERS;
 
 ipcMain.handle("folders", () =>
   Object.fromEntries(Object.entries(FOLDERS).map(([k, v]) => [k, { ...v }])),
@@ -782,7 +832,17 @@ ipcMain.handle("chooseFolder", async (e, key: FolderKey): Promise<boolean> => {
     message: `Where should WishWorks keep ${FOLDERS[key].what}?`,
   });
   if (canceled || filePaths.length === 0) return false;
-  await writeSettings({ [key]: filePaths[0] });
+  // Into the ACTIVE ACCOUNT when there is one. Writing the machine-wide key instead would hand
+  // the partner's account this account's folders, which is the one thing accounts exist to stop.
+  const st = readSettings();
+  const i = st.activeAccount ?? 0;
+  if (st.accounts?.[i]) {
+    await writeSettings({
+      accounts: st.accounts.map((a, n) =>
+        n === i ? { ...a, folders: { ...a.folders, [key]: filePaths[0] } } : a,
+      ),
+    });
+  } else await writeSettings({ [key]: filePaths[0] });
   relaunch();
   return true;
 });
