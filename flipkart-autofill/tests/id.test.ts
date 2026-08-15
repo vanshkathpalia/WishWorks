@@ -158,12 +158,28 @@ describe("isForAccount", () => {
  * two listings called ANP004, one folder of images, one products file, and no sign of it.
  */
 describe("skuPrefix and skuNumbers", () => {
-  it("groups by the letters a name starts with, the same rule the ready folder uses", () => {
+  it("groups by the letters a name starts with, when there is only one code", () => {
     expect(skuPrefix("ANP-3")).toBe("ANP");
     expect(skuPrefix("gtb002(2)")).toBe("GTB");
-    expect(skuPrefix("HBD-Kitty01")).toBe("HBD");
+    expect(skuPrefix("WB001")).toBe("WB");
     // No leading letters means no group — never a folder nobody could predict.
     expect(skuPrefix("2026-kit")).toBe("");
+  });
+
+  // A combo belongs to what it IS, not to the number it was given: *"also keep this under anp
+  // only"*. The trailing code wins.
+  it("gives a combo to its LAST code", () => {
+    expect(skuPrefix("SVP033 - ANP002")).toBe("ANP");
+    expect(skuPrefix("WKU001-ANP001")).toBe("ANP");
+    expect(skuPrefix("WKU003-GTB001")).toBe("GTB");
+  });
+
+  // The case that makes the rule fussy. These are Happy Birthday kits NAMED Kitty and Doraemon —
+  // a variant name, not a second code — and a looser rule files them under KITTY and DORE.
+  it("does not mistake a variant name for a second code", () => {
+    expect(skuPrefix("HBD-Kitty01")).toBe("HBD");
+    expect(skuPrefix("HBD-DORE01-doubt-price")).toBe("HBD");
+    expect(skuPrefix("HBD-space001")).toBe("HBD");
   });
 
   it("reads a number however it was padded or punctuated", () => {

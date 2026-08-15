@@ -271,8 +271,8 @@ async function finishOne(o: OneOptions): Promise<Row> {
 }
 
 /**
- * The subfolder a finished listing goes in, taken from the letters its ID starts with —
- * `ANP-3` → `ANP`, `GTB-4` → `GTB`, `HBD-kitty` → `HBD`.
+ * The subfolder a finished listing goes in, taken from the LAST code in its ID —
+ * `ANP-3` → `ANP`, `GTB-4` → `GTB`, `HBD-kitty` → `HBD`, `SVP033 - ANP002` → `ANP`.
  *
  * The ready folder is the one folder that gets shared on Drive, so it is the one folder that
  * fills up: everything anyone has ever finished, from every occasion, in one flat list.
@@ -285,6 +285,13 @@ async function finishOne(o: OneOptions): Promise<Row> {
  * no grouping.
  */
 export function skuGroup(id: string): string {
+  // The LAST code wins, so a combo lands with what it IS rather than with the number it was
+  // given: `SVP033 - ANP002` is an Annaprashan kit. A code is two or three capitals with digits
+  // against them — that shape is what separates a second code from a variant NAME, and it is
+  // why `HBD-Kitty01` and `HBD-DORE01` stay under HBD instead of inventing `KITTY` and `DORE`.
+  // `skuPrefix` in gui/shared.ts is the renderer's copy of this; keep them identical.
+  const codes = [...id.matchAll(/\b([A-Z]{2,3})\d+/g)];
+  if (codes.length > 0) return codes[codes.length - 1][1];
   return /^[A-Za-z]+/.exec(id)?.[0].toUpperCase() ?? "";
 }
 

@@ -303,6 +303,30 @@ describe("skuGroup", () => {
     expect(skuGroup("HBD-kitty")).toBe("HBD"); // descriptive IDs group with their code too
   });
 
+  // A combo carries two codes and belongs to what it IS, not to the number it was given.
+  it("files a combo under its LAST code", () => {
+    expect(skuGroup("SVP033 - ANP002")).toBe("ANP");
+    expect(skuGroup("WKU003-GTB001")).toBe("GTB");
+  });
+
+  // The fussy half: these are HBD kits NAMED Kitty and Doraemon, not a KITTY category.
+  it("does not mistake a variant name for a second code", () => {
+    expect(skuGroup("HBD-Kitty01")).toBe("HBD");
+    expect(skuGroup("HBD-DORE01-doubt-price")).toBe("HBD");
+  });
+
+  // The renderer draws the groups from its own copy of this rule; if they drift, a kit reads ANP
+  // on screen and sits in WKU/ on the Drive folder everyone shares.
+  it("agrees with skuPrefix, the renderer's copy", async () => {
+    const { skuPrefix } = await import("../gui/shared.js");
+    for (const id of [
+      "ANP-3", "GTB-9", "HBD-kitty", "123", "", "SVP033 - ANP002", "WKU003-GTB001",
+      "WKU001-ANP001", "HBD-Kitty01", "HBD-DORE01-doubt-price", "gtb002(2)", "WB001", "kit",
+    ]) {
+      expect(skuPrefix(id)).toBe(skuGroup(id));
+    }
+  });
+
   it("keeps an ID with no leading letters in the root rather than inventing a folder", () => {
     // A grouping nobody can predict is worse than no grouping.
     expect(skuGroup("123")).toBe("");

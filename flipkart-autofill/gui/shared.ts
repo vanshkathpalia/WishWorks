@@ -75,17 +75,31 @@ export interface Account {
 }
 
 /**
- * The letters an ID starts with, uppercased — `ANP-3` → `ANP`, `GTB002(2)` → `GTB`.
+ * Which category an ID belongs to — the LAST code in it, or the letters it starts with.
+ *
+ * A combo carries two: `SVP033 - ANP002` is an Annaprashan kit that also has a combo number, and
+ * Vansh files it under `ANP`. *"also keep this under anp only"* — the trailing code is what the
+ * kit IS; the leading one is a number it was given.
+ *
+ * A code is spelt `AA9` or `AAA9` — two or three capitals with digits against them — and that
+ * shape is the whole rule, because it is the only thing separating a second code from a variant
+ * NAME. `HBD-Kitty01` and `HBD-DORE01` are Happy Birthday kits called Kitty and Doraemon, not
+ * kits of some `KITTY` category, and every looser rule put them there: mixed case is out on
+ * `Kitty`, and the two-or-three-letter limit is what keeps `DORE` out. Falling back to the
+ * leading letters covers `GTB-1` and `HBD-space001`, where nothing matches that shape at all.
  *
  * The same rule as `skuGroup` in `finish-core.ts`, which is what actually names the subfolders in
  * the ready folder. Repeated rather than imported because that file pulls in sharp and `node:fs`,
  * and the renderer must not; if the two ever disagree the ENGINE wins and this is merely a label.
- * Kept identical on purpose: a kit grouped under `GTB` on screen and filed under `GTB` on disk is
- * the whole point.
+ * Kept identical on purpose: a kit grouped under `GTB` on screen is filed under `GTB` on disk.
  *
  * "" for an ID starting with no letters, which groups nothing rather than inventing a group.
  */
-export const skuPrefix = (id: string): string => /^[A-Za-z]+/.exec(id)?.[0].toUpperCase() ?? "";
+export function skuPrefix(id: string): string {
+  const codes = [...id.matchAll(/\b([A-Z]{2,3})\d+/g)];
+  if (codes.length > 0) return codes[codes.length - 1][1];
+  return /^[A-Za-z]+/.exec(id)?.[0].toUpperCase() ?? "";
+}
 
 /**
  * Every `<letters><number>` pair in an ID, so a combo says which numbers it uses up.

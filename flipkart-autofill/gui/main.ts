@@ -853,23 +853,38 @@ ipcMain.handle("folders", () =>
 ipcMain.handle("tidyReady", async () => {
   const { skuGroup } = await import("../src/finish-core.js");
   const dir = FOLDERS.ready.dir;
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   let moved = 0;
   const clashed: string[] = [];
   const groups = new Set<string>();
-  for (const e of entries) {
-    if (!e.isFile() || e.name.startsWith(".")) continue;
-    const group = skuGroup(e.name);
-    if (!group) continue; // no leading letters — a folder nobody could predict is worse than none
-    const to = path.join(dir, group, e.name);
-    if (existsSync(to)) {
-      clashed.push(e.name);
-      continue;
+
+  /**
+   * The root, plus the group folders this button made — and nothing else.
+   *
+   * Its own folders are re-read so the button is **self-correcting**: the grouping rule changed
+   * once already (WW-165 moved combos from their first code to their last), and a file filed
+   * under the old rule has to be able to find its way to the new one. `^[A-Z]+$` is how it tells
+   * its own folders from a real one somebody made — `Inventory list/` is a folder Vansh keeps
+   * there, and walking into it would scatter its contents across the tree.
+   */
+  const top = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  const from = ["", ...top.filter((e) => e.isDirectory() && /^[A-Z]+$/.test(e.name)).map((e) => e.name)];
+
+  for (const sub of from) {
+    const here = path.join(dir, sub);
+    for (const e of await readdir(here, { withFileTypes: true }).catch(() => [])) {
+      if (!e.isFile() || e.name.startsWith(".")) continue;
+      const group = skuGroup(e.name);
+      if (!group || group === sub) continue; // no code, or already where it belongs
+      const to = path.join(dir, group, e.name);
+      if (existsSync(to)) {
+        clashed.push(e.name);
+        continue;
+      }
+      await mkdir(path.join(dir, group), { recursive: true });
+      await rename(path.join(here, e.name), to);
+      moved += 1;
+      groups.add(group);
     }
-    await mkdir(path.join(dir, group), { recursive: true });
-    await rename(path.join(dir, e.name), to);
-    moved += 1;
-    groups.add(group);
   }
   return { moved, clashed, groups: [...groups].sort() };
 });
