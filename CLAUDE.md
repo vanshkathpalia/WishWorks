@@ -12,11 +12,22 @@
 > `PROMPT-add-border.md` when the plain photo already exists and only needs framing;
 > the infographic is either counts-only (`PROMPT-infographic.md`) or the same items with
 > measured sizes (`PROMPT-infographic-sizes.md`).
+> The hero always puts the garland top-left. `PROMPT-layout-{right,both-sides,corners,arch,corner-bulk}.md`
+> are **follow-up messages** that move it and change nothing else — three lines each, deliberately
+> not five copies of the hero prompt, so a fix to the counts/props/SEO rules is made once.
+> `corner-bulk` is the odd one: it changes *density*, not position — balloons bunch into the top
+> corners and the middle thins to pay for it, because the count is a cap and the only way to make
+> a corner heavier is to take from somewhere else.
 > Then, in one chat, `PROMPT-meta.md` describes the finished ones and writes the Meesho
 > copy (→ `image-meta/<ID>.json`) and `PROMPT-product.md` fills the Flipkart fields
 > (→ `products/<ID>.json`). **Those two are split because the ANSWER got truncated, not the
 > prompt** — ChatGPT silently dropped the tail of a combined reply (WW-081). Send them back to
 > back in the SAME chat: the photos must still be in context when the second one runs.
+> **`PROMPT-meesho-only.md` replaces both** when a product is never going on Flipkart: name,
+> description and pack contents as three blocks of text, no file, no ID — there is no
+> `products/<ID>.json`, so nothing downstream would read one. It duplicates the banned-words,
+> brand-collision and buyer-word rules rather than referencing them, for the same reason
+> `PROMPT-product.md` does: each file has to survive select-all-copy alone (WW-081).
 > `docs/image-playbook.md` is the *reasoning* behind them, not a thing to copy from.
 > `docs/guides/SHIPPING-COST.md` — Meesho's shipping fee is set by the main image, but **fourteen
 > tests found no way to steer it. Closed, don't re-run.** Two rules survive: read the shipping
@@ -40,6 +51,27 @@ new combo ideas worth listing (Combo Generator). Later: Flipkart API ops sync.
 - Deterministic code computes scores/validations; **Claude only writes copy and explains** —
   grounded in the keyword bank, never inventing attribute values.
 - Money = integer paise. Timestamps = UTC.
+
+**Costing a kit** is `PROMPT-inventory.md` → the app's **Inventory cost** panel (`inventory-core.ts`,
+`categories/materials.json`, 121 materials). The AI reads the picture *in the sheet's own words*;
+**the matching to a price row happens in our code, not in the prompt**. Two approaches were built
+and rejected first, both recorded in WW-115: OCR in the app (`tesseract.js` worked — but reading
+the image only yields a string, and the hard half is which row it is), and pushing the whole price
+list into the prompt (made matching exact, but sent hundreds of names per sheet and left the app
+owning no data). Don't reinstate either. The safety comes from the screen: the image sits beside
+the table, every line shows its match score, and *no price set* is a different state from *not on
+the list*. **Renaming a material means adding the old name to its `aka`** — the partner's existing
+sheets say `CONFETI SILVER BALLOONS`, and a rename that drops it silently un-matches them.
+
+**The parcel** (`packaging.json`, `packaging.ts`) is stored in **centimetres and grams, always** —
+volumetric weight and Flipkart's Package Details both want cm — but the panel *shows* inches,
+because bags are bought in inch sizes (8×10, 10×12, 12×16) and that is the unit Vansh can check by
+eye. Convert at the edges; never store a second copy. The panel's *Put these on the &lt;SKU&gt;*
+button is what carries it into `products/<ID>.json` for the fill bot, and `PROMPT-product.md` is
+told **not** to guess `Width/Height/Depth/Weight` — one fact, one source, and it is the measured
+one (WW-142, C-049). Sizes and weights in that file are marked per value as measured / his figure /
+his guess; the pump parcel is a guess and bills volumetric at ~1.4 kg, so measure one before
+trusting it.
 
 ## Where we are
 P0 Listing Factory works today, driven from the terminal. **Next: the GUI pivot** — Vansh's

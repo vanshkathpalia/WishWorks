@@ -111,7 +111,11 @@ jobs:
         shell: bash
         run: |
           set -e
-          for f in docs/guides/PROMPT-meta.md categories/balloon-decoration.defaults.json; do
+          # materials.json is the third file in this class: absent, the Inventory tab has an
+          # empty price list and every line of every kit comes back unpriced. The panel says so
+          # loudly rather than showing a wrong total, but a build that cannot cost anything
+          # should not reach the partner in the first place.
+          for f in docs/guides/PROMPT-meta.md categories/balloon-decoration.defaults.json categories/materials.json categories/packaging.json; do
             found=$(find dist -ipath "*resources/$f" | head -1)
             if [ -z "$found" ]; then
               echo "::error::$f is not in the package — extraResources did not ship it"

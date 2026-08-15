@@ -12,11 +12,13 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, mkdir, readdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import { finishedName, nameWords } from "../src/finish-core.js";
+import { NO_DESCRIPTIONS } from "../src/image-meta.js";
 
 const exec = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -218,5 +220,65 @@ describe("small images are reported, never refused", () => {
     await makeImage("src/GTB 4/1.png", 1254, 1254);
     const { out } = await run([`--in=${path.join(tmp, "src", "GTB 4")}`, `--out=${path.join(tmp, "out")}`]);
     expect(out).not.toContain("SMALL");
+  });
+});
+
+/**
+ * The finished filename (WW-149). The rename always happened — this is only about which string it
+ * writes. Whether a marketplace reads any of it is unproven (image-playbook Part 4); what these
+ * pin is the part that is not about SEO at all: the ID leads so a listing's images sort together,
+ * and the POSITION stays last so 1-2-3-4 upload in order. Image 1 is the main image, and a name
+ * that sorts wrong puts the infographic on the search grid.
+ */
+describe("what a finished image is called", () => {
+  const words = (title: string | null, keywords: string[] = []) =>
+    nameWords({ ...NO_DESCRIPTIONS, title, keywords });
+
+  it("puts the ID first, the words in the middle and the position last", () => {
+    expect(finishedName("ANP003", 1, words("Annaprashan Decoration Kit Red Gold"))).toBe(
+      "ANP003-annaprashan-decoration-kit-red-gold-1.jpg",
+    );
+  });
+
+  it("drops the piece count in brackets — it is length, and it changes per listing", () => {
+    expect(finishedName("GTB-2", 2, words("Groom To Be Kit (Set of 44 Pcs)"))).toBe(
+      "GTB-2-groom-to-be-kit-2.jpg",
+    );
+  });
+
+  it("falls back to a keyword when there is no title, and to the plain name when there is neither", () => {
+    expect(finishedName("K1", 1, words(null, ["baby shower decoration"]))).toBe(
+      "K1-baby-shower-decoration-1.jpg",
+    );
+    // No copy file yet is normal — a listing is often finished before its copy exists, so this
+    // must keep working rather than fail or invent words.
+    expect(finishedName("K1", 3, nameWords(NO_DESCRIPTIONS))).toBe("K1.3.jpg");
+  });
+
+  it("cuts a long title on a whole word, never mid-syllable", () => {
+    const name = finishedName("X", 1, words(
+      "Annaprashan Rice Ceremony Decoration Kit Red And Golden Metallic Balloons With Banner",
+    ));
+    expect(name.length).toBeLessThan(80);
+    expect(name).toBe("X-annaprashan-rice-ceremony-decoration-kit-red-and-golden-1.jpg");
+  });
+
+  it("survives punctuation, symbols and runs of spaces without producing a broken filename", () => {
+    const name = finishedName("ID", 1, words("  Kit: 20% More!! — Red/Gold  "));
+    expect(name).toBe("ID-kit-20-more-red-gold-1.jpg");
+    expect(name).not.toMatch(/[^A-Za-z0-9.\-]/); // nothing a filesystem would argue with
+  });
+
+  it("really reaches the file on disk, not just the helper", async () => {
+    await makeImage("src/GTB 9/1.png");
+    await writeFile(
+      path.join(tmp, "image-meta", "GTB-9.json"),
+      JSON.stringify({ title: "Groom To Be Decoration Kit Black Gold", keywords: [], images: {} }),
+    );
+    const { code } = await run([`--in=${path.join(tmp, "src", "GTB 9")}`, `--out=${path.join(tmp, "out")}`]);
+    expect(code).toBe(0);
+    expect(await readdir(path.join(tmp, "out"))).toContain(
+      "GTB-9-groom-to-be-decoration-kit-black-gold-1.jpg",
+    );
   });
 });

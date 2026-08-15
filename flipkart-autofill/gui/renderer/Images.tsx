@@ -19,6 +19,13 @@
  * SupplierHub's 60 -> 49 shipping result was traced to (see docs/guides/SHIPPING-COST.md). Same
  * for the two infographics, which are genuinely two different pictures: 2.png shows counts only,
  * 3.png repeats them with measured sizes.
+ *
+ * Message 2b is the same idea for LAYOUT. The hero prompt puts the garland on the top and left,
+ * every time, and that is the only composition we have ever shipped. The four alternatives are
+ * follow-up messages rather than four copies of the hero prompt on purpose: a copy would mean
+ * every future fix to the counts rules, the no-props rules or the SEO wording has to be made five
+ * times, and four of them would be missed. Each layout file is three lines that change where the
+ * balloons sit and nothing else.
  */
 
 import React, { useEffect, useState } from "react";
@@ -107,6 +114,40 @@ const MESSAGES: Message[] = [
     ),
   },
   {
+    n: "2b",
+    title: "Move the balloons — only if you want a different layout",
+    prompts: [
+      {
+        file: "PROMPT-layout-right.md",
+        label: "Top + right",
+        note: <>Mirrors the default, which frames the top and the left.</>,
+      },
+      { file: "PROMPT-layout-both-sides.md", label: "Top + both sides" },
+      { file: "PROMPT-layout-corners.md", label: "Two diagonal corners" },
+      { file: "PROMPT-layout-arch.md", label: "Full arch, floor to floor" },
+      {
+        file: "PROMPT-layout-corner-bulk.md",
+        label: "Bulk up the top corners",
+        note: (
+          <>
+            Keeps the layout it already has and just <b>moves</b> balloons into the top corners so
+            they look heavy — the middle goes thinner to pay for it. The one to re-count hardest:
+            filling a corner is exactly where a model helps itself to extra balloons.
+          </>
+        ),
+      },
+    ],
+    attach: (
+      <>
+        Nothing to attach — same chat, straight after the photo comes back. Each of these changes{" "}
+        <b>only where the balloons sit</b> and says to keep the counts, but the model redraws the
+        whole picture, so <b>re-check the counts and the spelling of the foil letters</b> on what
+        comes back. Send one, look at it, send another if you want to compare — the one you keep is
+        the one you save as <b>1.png</b>.
+      </>
+    ),
+  },
+  {
     n: "3",
     title: "Fix a count — only if one is wrong",
     prompts: [],
@@ -143,6 +184,20 @@ const MESSAGES: Message[] = [
         First a <b>table of sizes</b>, not a picture — read it, correct anything wrong, answer any
         row marked <i>PICK ONE</i>. Then say go, and the reply is the image. Save that as{" "}
         <b>3.png</b>.
+      </>
+    ),
+  },
+  {
+    n: "6",
+    title: "Build the how-to-decorate infographic",
+    prompts: [{ file: "PROMPT-how-to-decorate.md", label: "How to decorate" }],
+    attach: (
+      <>
+        Same chat. Paste the inventory again where it asks. It works out the <b>occasion, the
+        colours and the assembly steps from the pack itself</b> — nothing about any occasion is
+        written into the prompt — so the steps only ever name items that are really in the box.{" "}
+        <b>Read the steps before you keep it:</b> an instruction to use something the buyer did not
+        receive reads as a missing item and comes back as a return. Save it as <b>4.png</b>.
       </>
     ),
   },

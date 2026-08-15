@@ -34,7 +34,8 @@ export function PromptEditor({ file, close }: { file: string; close: () => void 
     });
   }, [file]);
 
-  const dirty = prompt !== null && text !== prompt.text;
+  const readOnly = prompt?.readOnly ?? false;
+  const dirty = prompt !== null && !readOnly && text !== prompt.text;
 
   async function save() {
     const p = await window.ww.savePrompt(file, text);
@@ -50,21 +51,45 @@ export function PromptEditor({ file, close }: { file: string; close: () => void 
         <div className="editor-head">
           <h2>{file}</h2>
           <CopyButton text={text} label="Copy the prompt" />
-          <button className="primary" disabled={!dirty} onClick={() => void save()}>
-            {dirty ? "Save changes" : "Saved"}
-          </button>
+          {!readOnly && (
+            <button className="primary" disabled={!dirty} onClick={() => void save()}>
+              {dirty ? "Save changes" : "Saved"}
+            </button>
+          )}
         </div>
 
         <p className="muted">
           {text.length.toLocaleString()} characters
-          {prompt?.edited && " · this machine has its own edited copy"}
-          {prompt && <> · saves to {prompt.savesTo}</>}
+          {prompt?.savesTo && <> · saves to {prompt.savesTo}</>}
         </p>
+
+        {/* Read-only in the installed app, and said out loud rather than left as a box that
+            will not type. The prompts ship WITH the app, so an edit here would live on this
+            machine only and would then outrank every future release — silently, for that one
+            file. Changing a prompt is a release. */}
+        {readOnly && (
+          <p className="problems">
+            <b>This prompt is read-only here.</b> The prompts ship inside the app, so changing one
+            is a new version rather than a setting — that way both machines are always running the
+            same prompt, and a fix reaches everyone. Read it, copy it, and ask for a change; it
+            arrives with the next update.
+          </p>
+        )}
+
+        {prompt?.ignoredOverride && (
+          <p className="problems">
+            <b>An older version of this app saved an edited copy of this prompt on this machine,
+            and it is no longer being used.</b> What you are reading is the one that shipped. The
+            old file is still on disk at <span className="path">{prompt.ignoredOverride}</span> if
+            anything in it is worth keeping — send it over and it can go into the next release.
+          </p>
+        )}
 
         <textarea
           className="editor"
           value={text}
           spellCheck={false}
+          readOnly={readOnly}
           onChange={(e) => setText(e.target.value)}
         />
         {saved && <p className="muted">{saved}</p>}
@@ -89,18 +114,20 @@ export function PromptEditor({ file, close }: { file: string; close: () => void 
                 >
                   Look at it
                 </button>
-                <button
-                  onClick={() =>
-                    void window.ww.readVersion(v.file).then((t) => {
-                      // Restoring is an ordinary edit: it goes through save, so the version you
-                      // are replacing is itself kept. Nothing here is a one-way door.
-                      setText(t);
-                      setViewing(null);
-                    })
-                  }
-                >
-                  Put it back
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() =>
+                      void window.ww.readVersion(v.file).then((t) => {
+                        // Restoring is an ordinary edit: it goes through save, so the version you
+                        // are replacing is itself kept. Nothing here is a one-way door.
+                        setText(t);
+                        setViewing(null);
+                      })
+                    }
+                  >
+                    Put it back
+                  </button>
+                )}
               </li>
             ))}
           </ul>

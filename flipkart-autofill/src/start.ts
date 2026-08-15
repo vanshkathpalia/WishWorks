@@ -13,7 +13,7 @@ import path from "node:path";
 import { openBrowser, pressEnter, activePage, checkLogin, ask } from "./connect.js";
 import { clickSave } from "./fields.js";
 import {
-  listProducts, loadProduct, checkValues, describeProblems,
+  listProducts, loadProduct, checkValues, describeProblems, fillableValues,
   fillAll, printReport, needsEyes, explainMismatches,
 } from "./listing.js";
 
@@ -45,16 +45,16 @@ const chosen = products[pick - 1];
 
 // ---- 2. check the data before touching the browser --------------------------
 const { values, usedDefaults, category } = loadProduct(chosen);
+// Warn and carry on: a placeholder skips its own field, never the other sixty (2026-08-12).
 const problems = checkValues(values);
-if (problems.length) {
-  console.error(`\n${describeProblems(problems)}\n
-Nothing was typed. Fix the file above, then run npm start again.`);
-  process.exit(1);
-}
+if (problems.length) console.warn(`\n${describeProblems(problems)}\n`);
+const fillable = fillableValues(values, problems);
 console.log(`\nProduct : ${path.basename(chosen, ".json")}
 Category: ${category}
 Using   : ${usedDefaults.join(" + ") || "(no defaults file)"}
-Values  : ${Object.keys(values).length} fields ready`);
+Values  : ${Object.keys(fillable).length} fields ready${
+  problems.length ? ` (${problems.length} skipped — see above)` : ""
+}`);
 
 // ---- 3. fill ----------------------------------------------------------------
 const { context } = await openBrowser();
@@ -74,7 +74,7 @@ In the Chrome window that just opened:
 
 const page = await activePage(context);
 console.log(`\nFilling…\n`);
-const report = await fillAll(page, values);
+const report = await fillAll(page, fillable);
 printReport(report);
 await explainMismatches(page, report);
 

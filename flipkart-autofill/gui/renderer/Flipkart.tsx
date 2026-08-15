@@ -16,8 +16,9 @@
  */
 
 import React, { useEffect, useState } from "react";
-import type { FieldRow, FillResult, Listing, SessionStatus } from "../shared.js";
-import { ListingPicker } from "./ui.js";
+import type { DefaultsTab, FieldRow, FillResult, Listing, SessionStatus } from "../shared.js";
+import { ListingPicker, ProductsFolder } from "./ui.js";
+import { ProductEditor } from "./ProductEditor.js";
 
 const MARK: Record<FieldRow["status"], string> = {
   filled: "✅",
@@ -171,16 +172,22 @@ const FORM_TABS = [
   {
     name: "Price, Stock and Shipping",
     count: 17,
+    defaults: "pricing",
     holds: "SKU, MRP, your price, stock, dimensions, HSN, tax",
   },
   {
+    // The seven were read off the live form by Vansh on 2026-08-12 (WW-110). They had been
+    // GUESSED here before that, and every one of the guesses was wrong — this tab is the
+    // model/size/contents tab, not the origin/manufacturer one.
     name: "Product Description",
     count: 7,
-    holds: "country of origin, manufacturer, packer, model name, EAN, pack of",
+    defaults: "description",
+    holds: "model number, type, colour, size, size in number, quantity, items included",
   },
   {
     name: "Additional Description",
     count: 66,
+    defaults: "",
     holds: "everything else — material, theme, occasion, description, keywords, warranty",
   },
 ] as const;
@@ -190,12 +197,16 @@ export function Flipkart({ n }: { n: number }) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [rows, setRows] = useState<FieldRow[]>([]);
   const [result, setResult] = useState<FillResult | null>(null);
-  const [busy, setBusy] = useState<null | "opening" | "filling" | "saving">(null);
+  const [busy, setBusy] = useState<null | "opening" | "filling" | "saving" | "scanning">(null);
   const [error, setError] = useState<string | null>(null);
+  /** Which listing's JSON is open for editing. Null when the editor is closed. */
+  const [editing, setEditing] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   /** Which tab's button is running, and which have been run — so three passes are trackable. */
   const [filling, setFilling] = useState<string | null>(null);
   const [done, setDone] = useState<string[]>([]);
+  /** What the last Scan learned. Its own line, not an error and not a fill result. */
+  const [scanned, setScanned] = useState<string | null>(null);
 
   useEffect(() => window.ww.onField((row) => setRows((r) => [...r, row])), []);
 
@@ -216,11 +227,16 @@ export function Flipkart({ n }: { n: number }) {
   }
 
   /**
-   * `tab` is a label for the person, not an instruction to the engine — `fillListing` fills
-   * whatever rows Chrome is actually showing. Passing the wrong one cannot fill the wrong tab;
-   * the worst case is a tick next to the wrong name, which the next run corrects.
+   * `tab` is still only a label for the person — `fillListing` types into whatever rows Chrome is
+   * actually showing, so pressing the wrong button cannot fill the wrong tab.
+   *
+   * **`defaults` is not a label.** It picks which `categories/*.defaults.json` applies, and that
+   * is load-bearing: `Height` and `Weight` exist on two tabs in different units, so the same key
+   * means centimetres in one place and inches in another (WW-123). Press the wrong button and the
+   * values are still only offered to rows that exist on screen — but a `Height` present on both
+   * tabs would land in the wrong unit, which is the one mistake here that reaches a courier.
    */
-  async function fill(tab: string) {
+  async function fill(tab: string, defaults: DefaultsTab) {
     if (!listing) return;
     setBusy("filling");
     setFilling(tab);
@@ -228,10 +244,49 @@ export function Flipkart({ n }: { n: number }) {
     setResult(null);
     setError(null);
     setSaved(null);
-    const r = await window.ww.fillListing(listing.id);
+    const r = await window.ww.fillListing(listing.id, defaults);
     if (r.ok) {
       setResult(r.result);
       setDone((d) => (d.includes(tab) ? d : [...d, tab]));
+    } else setError(r.message);
+    setBusy(null);
+    setFilling(null);
+  }
+
+  /**
+   * Teach the app what is on this tab.
+   *
+   * Separate button, not folded into Fill, because they answer different questions and only one
+   * of them is routine. Fill is every listing; this is once per tab, ever — and pressing it is
+   * how a field the app has never heard of stops being reported as "belongs to another tab"
+   * forever. It only ADDS labels, so pressing it twice does nothing and pressing it on the wrong
+   * page is refused by the engine.
+   */
+  async function scan(tab: string) {
+    if (!listing) return;
+    setBusy("scanning");
+    setFilling(tab);
+    setError(null);
+    setScanned(null);
+    const r = await window.ww.scanTab(listing.id);
+    if (r.ok) {
+      const { added, corrected, total, category } = r.result;
+      const parts: string[] = [];
+      if (added.length) {
+        parts.push(`Learned ${added.length} new field${added.length > 1 ? "s" : ""}: ${added.map((f) => f.label).join(", ")}.`);
+      }
+      // Worth its own sentence: these were labels somebody typed in with a GUESSED widget, and
+      // this is the moment the guess is replaced by what the form actually has.
+      if (corrected.length) {
+        parts.push(
+          `Replaced ${corrected.length} typed-in guess${corrected.length > 1 ? "es" : ""} with the real widget: ${corrected
+            .map((f) => `${f.label} is ${f.kind}${f.multi ? ", multi-value" : ""}`)
+            .join("; ")}.`,
+        );
+      }
+      if (!parts.length) parts.push(`Nothing new on ${tab} — all ${total} of this category's fields were already known.`);
+      else parts.push(`${category} now knows ${total}.`);
+      setScanned(parts.join(" "));
     } else setError(r.message);
     setBusy(null);
     setFilling(null);
@@ -284,6 +339,14 @@ export function Flipkart({ n }: { n: number }) {
         onChange={(_id, l) => setListing(l)}
         need={(l) => (!l.product ? "no Flipkart file" : null)}
       />
+      <ProductsFolder />
+      <p className="muted">
+        This step fills the form from <code>products-&lt;ID&gt;.json</code> — the AI&apos;s second
+        download, the one <b>Listing copy</b> brings in. A row tagged <em>copy</em> but not{" "}
+        <em>flipkart</em> has only the Meesho half, so there is nothing here to type: get that file
+        in first, or point this at the folder it is sitting in. Changing the folder restarts the
+        app and moves nothing.
+      </p>
 
       <h3>One tab at a time</h3>
       <p className="muted">
@@ -307,15 +370,23 @@ export function Flipkart({ n }: { n: number }) {
             <button
               className="primary"
               disabled={!listing || !status.open || busy !== null}
-              onClick={() => void fill(t.name)}
+              onClick={() => void fill(t.name, t.defaults)}
             >
               {busy === "filling" && filling === t.name ? `Filling… ${rows.length}` : "Fill this tab"}
+            </button>
+            <button
+              disabled={!listing || !status.open || busy !== null}
+              title="Teach the app which fields exist on this tab. Once per tab, ever — it only adds, and it never types anything into the form."
+              onClick={() => void scan(t.name)}
+            >
+              {busy === "scanning" && filling === t.name ? "Reading…" : "Learn this tab"}
             </button>
             {done.includes(t.name) && <em>✓ run</em>}
           </div>
         ))}
       </div>
 
+      {scanned && <p className="allgood">{scanned}</p>}
       {error && <p className="error">{error}</p>}
 
       {/* The distinction a "not found" count cannot make on its own: a field on ANOTHER tab
@@ -329,6 +400,36 @@ export function Flipkart({ n }: { n: number }) {
           will never be filled: <b>{result.unmapped.join(", ")}</b>. Fix the label in{" "}
           <code>categories/</code> or the product file — re-running will not help.
         </p>
+      )}
+
+      {/* Questions raised instead of guesses made. A field left out because nobody knew looks
+          exactly like a field nobody thought of; this is the only thing that tells them apart,
+          and it is the reason the prompt is allowed to say "I am not sure" at all. */}
+      {result && result.asks.length > 0 && (
+        <div className="asks">
+          <small>Needs your answer before this goes live</small>
+          {result.asks.map((a) => (
+            <p key={a}>{a}</p>
+          ))}
+          <button onClick={() => setEditing(result.product)}>Open the listing file</button>
+        </div>
+      )}
+
+      {/* The name buyers actually see, which nothing showed before Save. Flipkart composes it
+          from Color + Type — not from Model Name — so the most-read text on the listing was
+          assembled out of two fields that look like ordinary attributes. A live listing carries
+          a misspelt word for exactly that reason, and no check catches a typo; a human reading
+          the finished sentence does. */}
+      {result?.productName && (
+        <div className="named">
+          <small>Buyers will see this as the product name</small>
+          <b>
+            <span className="brandish">your brand</span> {result.productName.name}
+          </b>
+          {result.productName.warnings.map((w) => (
+            <em key={w}>⚠️ {w}</em>
+          ))}
+        </div>
       )}
 
       {rows.length > 0 && (
@@ -366,6 +467,47 @@ export function Flipkart({ n }: { n: number }) {
               ❌ {result.report.failed.length} failed
             </span>
           </div>
+
+          {/* Left blank on purpose, and said plainly. These used to abort the whole run before
+              Chrome was touched, so two missing prices cost you sixty good fields. Now the field
+              is skipped and named — and the fix is one click away, because the alternative was
+              finding the file on disk and opening a code editor. */}
+          {result.skipped.length > 0 && (
+            <div className="problems">
+              <h3>
+                {result.skipped.length} field{result.skipped.length === 1 ? " was" : "s were"} left
+                blank — type {result.skipped.length === 1 ? "it" : "them"} in yourself before Save
+              </h3>
+              <ul>
+                {result.skipped.map((p) => (
+                  <li key={p.label}>
+                    <b>{p.label}</b>
+                    {p.kind === "placeholder" ? (
+                      <>
+                        {" "}
+                        — still says <code>{p.value}</code>. Nothing was typed, because a made-up
+                        price on a live listing is worse than an empty box.
+                      </>
+                    ) : (
+                      <>
+                        {" "}
+                        — contains a comma (<code>{p.value}</code>), which Flipkart reads as the end
+                        of the value and would silently split in two. Rewrite it with "and" or a
+                        dash.
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <div className="picks">
+                <button onClick={() => setEditing(result.product)}>Open the listing file</button>
+                <span className="muted">
+                  Fill them in here, then press <b>Fill this tab</b> again — the fields already
+                  typed will just be typed the same way twice.
+                </span>
+              </div>
+            </div>
+          )}
 
           {result.probes.length > 0 && (
             <div className="problems">
@@ -409,6 +551,8 @@ export function Flipkart({ n }: { n: number }) {
           </p>
         </>
       )}
+
+      {editing && <ProductEditor id={editing} close={() => setEditing(null)} />}
     </section>
   );
 }

@@ -87,6 +87,39 @@ button:hover {
   font-size: 14px;
   text-align: left;
 }
+
+/* Name over one line of what the step does. `align-items: start` on the row so the number sits
+   against the NAME rather than floating to the middle of a two-line block. */
+.rail li button {
+  align-items: flex-start;
+}
+.rail li button .num {
+  margin-top: 1px;
+}
+.step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.step-text b {
+  font-weight: 600;
+}
+.step-text small,
+.rail-foot small {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #6d635b;
+}
+.rail li button.current .step-text small {
+  color: #9a8d82;
+}
+.rail-foot button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
 .rail li button:hover {
   background: #201b19;
   color: var(--ink);
@@ -421,7 +454,13 @@ label.inline {
   font-size: 14px;
   color: var(--muted);
 }
-label.inline input {
+/* Checkboxes and radios ONLY.
+   This was written as `label.inline input` and squashed every number box that later went inside a
+   label to 15x15 — margin, the flat amount, GST, the parcel weight all rendered as a circle with
+   the value invisible inside it, and the spinner arrows crammed into a few pixels. A type-less
+   selector for a type-specific size is a trap that only springs later. */
+label.inline input[type="checkbox"],
+label.inline input[type="radio"] {
   accent-color: var(--accent);
   width: 15px;
   height: 15px;
@@ -970,4 +1009,348 @@ label.inline input {
   color: var(--muted);
   font-style: normal;
   font-size: 0.85em;
+}
+
+/* ------------------------------------------------------------------ inventory cost
+
+   The sheet and the table read together or not at all: the picture is the only check on whether
+   the AI read it correctly, so it gets equal billing at the top rather than a thumbnail. It
+   collapses under the controls on a narrow window, because on a laptop the table is the thing
+   you scroll and the picture is what you glance back at. */
+
+.inv-top {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.15fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .inv-top {
+    grid-template-columns: 1fr;
+  }
+}
+.inv-image {
+  height: auto;
+  min-height: 260px;
+  padding: 10px;
+  overflow: hidden;
+}
+.inv-image img {
+  width: 100%;
+  max-height: 460px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.inv-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inv-steps h3 {
+  margin: 0;
+}
+.inv-steps .drop.small {
+  height: 100px;
+}
+
+/* Numbers line up down the column, so a total that looks wrong looks wrong immediately. */
+.inv-table td:nth-child(2),
+.inv-table td:nth-child(4),
+.inv-table td:nth-child(5),
+.inv-table th:nth-child(2),
+.inv-table th:nth-child(4),
+.inv-table th:nth-child(5) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.inv-table td {
+  vertical-align: middle;
+}
+.inv-table select {
+  width: 100%;
+  max-width: 320px;
+}
+.inv-table tfoot td {
+  padding-top: 14px;
+  border-bottom: none;
+  font-size: 15px;
+}
+.inv-price {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.inv-steps + .error {
+  margin-top: 14px;
+}
+
+.inv-saved {
+  gap: 6px;
+}
+.inv-table select.loose {
+  border-color: var(--warn);
+}
+.inv-table .warnpill {
+  margin-left: 8px;
+}
+.inv-gaps {
+  margin-top: 28px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.inv-gaps h3 {
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.inv-gaps ul.kv {
+  margin-top: 12px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* The paste box is the main way a reply arrives, so it is a real field, not an afterthought. */
+.inv-paste {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.inv-paste:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Two pricing methods side by side. Neither is "the" answer, so neither gets to be the default
+   and the other a setting — the point is reading them against each other. */
+.inv-prices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.inv-method {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.inv-method .inline {
+  gap: 8px;
+}
+
+/* Number inputs were unstyled, so they rendered as a tiny white box with the value invisible
+   against it — the margin field looked empty on a dark theme. */
+input[type="number"],
+input[type="text"] {
+  width: 5.5em;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+input[type="number"]:focus,
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.inv-parcel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+.inv-parcel > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.inv-parcel b {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The save button lives at the bottom, under everything it saves. */
+.inv-save {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.inv-save .muted {
+  flex: 1;
+  min-width: 260px;
+  line-height: 1.5;
+}
+.inv-save .allgood {
+  margin: 0;
+  padding: 8px 14px;
+}
+
+/* Selects were unstyled, so they rendered as white system boxes on a dark panel. */
+select {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+/* Option lists are drawn by the OS; on a dark theme it needs telling explicitly. */
+option,
+optgroup {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+button.tiny {
+  margin-left: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.inv-table input[type="number"] {
+  width: 5em;
+  text-align: right;
+}
+
+/* What the price LIST says, beside the editable box — so typing never hides it. */
+.each-was {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  text-align: right;
+}
+
+.parcel-pick {
+  align-items: center;
+  margin-bottom: 14px;
+}
+.parcel-pick select {
+  max-width: 340px;
+}
+
+/* ------------------------------------------------------------------ number boxes
+
+   The native spinner is two arrows about five pixels tall, stacked, at the right edge of the
+   field — Vansh, correctly: "a pretty uncomfortable thing to press". They are hidden, and every
+   number here is typed instead. Nothing in this app is a number you nudge one step at a time:
+   a price, a weight and a margin are all values somebody knows and types. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+/* Comfortable to hit and wide enough that four digits and a decimal are all visible at once. */
+input[type="number"],
+input[type="text"] {
+  min-width: 5.5em;
+  padding: 7px 10px;
+  line-height: 1.3;
+}
+.inv-table input[type="number"] {
+  min-width: 4.5em;
+  width: 4.5em;
+}
+
+/* The listing-file editor. Monospace and tall: it is raw JSON, and the thing being looked for is
+   usually a TODO_ line somewhere in sixty. */
+.sheet.wide {
+  max-width: 900px;
+  width: 90vw;
+}
+textarea.json {
+  width: 100%;
+  min-height: 55vh;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+/* The composed product name (Flipkart builds it from Color + Type, not Model Name). Shown, not
+   checked — a typo here is only ever caught by a person reading the finished sentence. */
+.named {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #201b19;
+}
+.named small {
+  font-size: 11.5px;
+  color: #6d635b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.named b {
+  font-size: 15px;
+  line-height: 1.4;
+  user-select: text;
+}
+.named .brandish {
+  color: #6d635b;
+  font-weight: 400;
+}
+.named em {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--bad);
+}
+
+/* Questions ChatGPT raised rather than guessing. Deliberately not styled as an error — nothing
+   is wrong yet, and a red box would train the eye to dismiss it. */
+.asks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+.asks small {
+  font-size: 11.5px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.asks p {
+  margin: 0;
+  user-select: text;
 }

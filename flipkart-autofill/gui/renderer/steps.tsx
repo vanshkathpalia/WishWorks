@@ -6,7 +6,7 @@
  * path is remembered by a human.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { CheckResult, FinishResult, Listing, PasteResult, Row } from "../shared.js";
 import { CopyButton, FolderRow, ListingPicker, joinPath } from "./ui.js";
 import { Inbox } from "./Inbox.js";
@@ -165,6 +165,25 @@ export function ListingCopy({ n }: { n: number }) {
         <PromptCard file="PROMPT-product.md" title="Second — fills the Flipkart fields" />
       </div>
 
+      {/* The short way, for a product that is never going on Flipkart. The pair above exist to
+          produce two FILES the app reads; this one produces three blocks of text and no file,
+          because there is nothing downstream to read them — the Meesho panel is typed into by
+          hand either way. Kept separate rather than made a mode of PROMPT-meta: that one's whole
+          first half is image descriptions and Flipkart title/keywords, none of which a
+          Meesho-only listing has any use for. */}
+      <h3>Listing on Meesho only?</h3>
+      <p className="muted">
+        Send this one <b>instead of the two above</b>. It asks for the three things the Meesho
+        panel needs — <b>product name, description, and what is in the packet</b> — and nothing
+        else: no <code>image-meta</code> file, no Flipkart file, no listing ID. The reply comes
+        back as three blocks of text you copy straight into the panel, so there is nothing to
+        bring back here and the checks below will have nothing to check.
+      </p>
+      <PromptCard
+        file="PROMPT-meesho-only.md"
+        title="Meesho only — name, description and pack contents"
+      />
+
       <Inbox onImported={() => setNonce((x) => x + 1)} />
 
       <h3>Check a listing</h3>
@@ -280,7 +299,10 @@ export function Finish({ n }: { n: number }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => window.ww.onRow((r) => setRows((x) => [...x, r])), []);
+  // Same broadcast channel the Convert step uses, and both panels stay mounted (main.tsx), so
+  // rows are only taken while this step is the one running. See the note in Convert.tsx.
+  const mine = useRef(false);
+  useEffect(() => window.ww.onRow((r) => mine.current && setRows((x) => [...x, r])), []);
   // Defaults to ~/Downloads/wishworks-ready — the same folder `npm run finish` has always used,
   // and somewhere a person can actually find. The workspace lives under Application Support,
   // which is hidden in Finder; finished photos are the one output that gets picked up by hand
@@ -312,6 +334,7 @@ export function Finish({ n }: { n: number }) {
   async function run() {
     if (!outDir) return;
     setBusy(true);
+    mine.current = true;
     setRows([]);
     setResult(null);
     setError(null);
@@ -324,6 +347,7 @@ export function Finish({ n }: { n: number }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      mine.current = false;
       setBusy(false);
     }
   }
@@ -334,8 +358,9 @@ export function Finish({ n }: { n: number }) {
         <h1>{n}. Finish images</h1>
         <p>
           Takes a folder of photos, writes each one's description <b>inside</b> the file, and saves
-          them out renamed after the listing — <code>ANP-3.1.jpg</code>, <code>ANP-3.2.jpg</code>{" "}
-          and so on. Your originals are never changed.
+          them out renamed after the listing —{" "}
+          <code>ANP-3-annaprashan-decoration-kit-red-gold-1.jpg</code> and so on. Your originals are
+          never changed.
         </p>
       </header>
 
@@ -373,9 +398,10 @@ export function Finish({ n }: { n: number }) {
         <p className="pairing">
           <b>Step 3 — check this reads correctly, then press the button.</b>
           <br />
-          The photos will be saved as <b>{outName}.1.jpg, {outName}.2.jpg …</b> — the name comes
-          from the folder, so it is exactly what is on disk. The wording written inside them comes
-          from{" "}
+          The photos will be saved as <b>{outName}-&lt;the listing's own title&gt;-1.jpg, -2.jpg …</b>{" "}
+          — the <b>{outName}</b> comes from the folder, so it is exactly what is on disk, and the
+          words after it come from that listing's own copy file (plain <b>{outName}.1.jpg</b> if it
+          has none yet). The wording written inside them comes from{" "}
           <select value={descs} onChange={(e) => setDescs(e.target.value)}>
             {hasCopy && <option value={listing!.id}>{listing!.label}</option>}
             <option value="none">none — embed nothing</option>

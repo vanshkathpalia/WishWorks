@@ -28,6 +28,68 @@ import { addBorder, squareImage } from "./square.js";
 
 /** Below this on the short side, a listing image is soft once a buyer zooms. */
 const SMALL_BELOW = 1000;
+
+/**
+ * How much of the title goes into the filename. 60 characters is long enough to carry the product
+ * and the occasion and short enough that `<ID>-<slug>-<n>.jpg` stays well inside Windows' 260
+ * character path limit, even under a deep Downloads folder.
+ */
+const SLUG_MAX = 60;
+
+/** Words to a filename fragment: lowercase, hyphen-joined, cut on a word boundary. */
+function slug(text: string): string {
+  const cleaned = text
+    // The title ends "(Set of 44 Pcs)". The count belongs on the picture, not in the filename,
+    // where it is just length — and it changes per listing while the words do not.
+    .replace(/\([^)]*\)/g, " ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (cleaned.length <= SLUG_MAX) return cleaned;
+  // Cut back to the last whole word, so a name never ends mid-syllable.
+  const cut = cleaned.slice(0, SLUG_MAX);
+  return cut.slice(0, cut.lastIndexOf("-")).replace(/-+$/, "") || cut;
+}
+
+/**
+ * The words a listing's own copy contributes to its filenames. Empty when it has no copy yet.
+ *
+ * **Read this from the LISTING'S OWN descriptions, never from the picked `metaId`.** The two are
+ * separate controls on purpose (WW-078): the folder decides the NAME, the picker decides the
+ * DESCRIPTIONS, and one variable doing both is how a descriptions answer once renamed a listing
+ * and wrote Annaprashan copy into Groom-To-Be photos. Feeding the picked copy into the filename
+ * would rebuild that coupling in a new place — and the Finish panel promises out loud that
+ * choosing a different description source does not change the file names.
+ */
+export function nameWords(d: Descriptions): string {
+  return slug(d.title ?? d.keywords[0] ?? "");
+}
+
+/**
+ * What a finished image is called.
+ *
+ * `<ID>-<words-from-its-own-title>-<position>.jpg`, e.g.
+ * `ANP003-annaprashan-decoration-kit-red-gold-1.jpg`.
+ *
+ * Three things decide this shape, and only the third is about search:
+ *  - **the ID stays first**, so a listing's images sort together in a folder and the token you
+ *    scan for in an upload picker is the one you searched on;
+ *  - **the position stays last**, because 1-2-3-4 must sort in upload order — image 1 is the main
+ *    image, and getting that wrong puts the infographic on the search grid;
+ *  - the words in the middle come from the copy already written for this listing, so they cost
+ *    no extra step and can never disagree with the listing.
+ *
+ * **With no copy file yet it falls back to `<ID>.<n>.jpg`** — the name this has always produced.
+ * A listing gets finished before its copy exists often enough that failing, or inventing words
+ * from the filename, would both be worse than a plain name.
+ *
+ * Whether a marketplace reads any of this is **unproven** — see `image-playbook.md` Part 4. The
+ * rename was already happening; this only changes which string it writes.
+ */
+export function finishedName(id: string, index: number, words: string): string {
+  return words ? `${id}-${words}-${index}.jpg` : `${id}.${index}.jpg`;
+}
+
 /** Under this, Meesho may refuse the image. Blog-sourced, never confirmed — worded as a maybe. */
 const LIKELY_REJECTED = 500;
 
@@ -42,7 +104,7 @@ export type Row = { id: string; from: string; to: string; size: string; notes: s
 export interface FinishOptions {
   /** A single listing folder, a category, or the whole tree — it walks down to find listings. */
   inDir: string;
-  /** Flat output folder. Every finished image lands here as <ID>.<n>.jpg. */
+  /** Flat output folder. Every finished image lands here — see finishedName for the shape. */
   outDir: string;
   /** Force the output name prefix. Single-listing only — this is the ONLY thing that renames. */
   id?: string | null;
@@ -106,6 +168,8 @@ interface OneOptions {
   index: number;
   outDir: string;
   descs: Descriptions;
+  /** From the listing's OWN copy, never from `descs` — see nameWords. */
+  words: string;
   square: boolean;
   border: number;
 }
@@ -113,7 +177,7 @@ interface OneOptions {
 async function finishOne(o: OneOptions): Promise<Row> {
   const { id, file, index, descs, square, border } = o;
   const src = path.join(o.srcDir, file);
-  const outName = `${id}.${index}.jpg`;
+  const outName = finishedName(id, index, o.words);
   const out = path.join(o.outDir, outName);
   const notes: string[] = [];
 
@@ -235,9 +299,12 @@ async function finishListing(
     failures.push(`${id}: two files share a position number (${detail}). Keep ONE file per number — delete the one you replaced.`);
     return;
   }
+  // Read again rather than reuse `descs`: what goes INSIDE the file is whatever was picked, what
+  // goes in its NAME is this listing's own copy. Keeping them apart is WW-078.
+  const words = nameWords(await descriptionsFor(id));
   for (let i = 0; i < files.length; i++) {
     try {
-      const row = await finishOne({ id, srcDir, file: files[i], index: i + 1, outDir, descs, square, border });
+      const row = await finishOne({ id, srcDir, file: files[i], index: i + 1, outDir, descs, words, square, border });
       rows.push(row);
       onRow?.(row);
     } catch (err) {

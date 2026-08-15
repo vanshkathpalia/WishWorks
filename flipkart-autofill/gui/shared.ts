@@ -20,13 +20,15 @@ import type { Listing } from "../src/listings.js";
 import type { PasteResult } from "../src/paste-core.js";
 import type { CheckResult } from "../src/check-core.js";
 import type { FillResult, SessionStatus } from "../src/browser-core.js";
-import type { FieldRow } from "../src/listing.js";
+import type { DefaultsTab, FieldRow, ScanResult } from "../src/listing.js";
 import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
+import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
+import type { Box, Parcel } from "../src/packaging.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
   Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
-  FillResult, SessionStatus, FieldRow,
+  FillResult, SessionStatus, DefaultsTab, FieldRow, ScanResult, CostedLine, Kit, KitLine, KitRow, Material, SavedKit, Parcel, Box,
 };
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
@@ -36,7 +38,8 @@ export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string 
  * Steps that open a picker each remember their own folder. One global "last folder" would have
  * converting (which reaches for ~/Downloads) fighting finishing (the WhatsApp archive).
  */
-export type StepId = "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox";
+export type StepId =
+  | "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox" | "inventory";
 
 /**
  * The tag clean-up, which belongs on this step because the engine does it here: cropping and
@@ -89,8 +92,16 @@ export interface WwApi {
   showFolder(dir: string): Promise<void>;
   /** Where the workspace lives, shown once in Settings so it is never a mystery. */
   workspaceDir(): Promise<string>;
+  /** Whether this machine may edit the shipped prompt files. Always true in development. */
+  editPrompts(): Promise<boolean>;
+  /** Turn that on or off. Takes effect on the next prompt opened; nothing restarts. */
+  setEditPrompts(on: boolean): Promise<void>;
   /** Pick a new workspace. Relaunches the app on success; false means the user cancelled. */
   chooseWorkspace(): Promise<boolean>;
+  /** Where `products-<ID>.json` is read from — shown on Fill Flipkart, never a mystery. */
+  productsFolder(): Promise<string>;
+  /** Point it somewhere else, e.g. straight at Downloads. Relaunches on success. */
+  chooseProductsFolder(): Promise<boolean>;
 
   /** Every listing this machine knows about, newest first. */
   listings(): Promise<Listing[]>;
@@ -102,6 +113,76 @@ export interface WwApi {
   savePrompt(file: string, text: string): Promise<PromptFile>;
   readVersion(file: string): Promise<string>;
 
+  /** The shipped price list, for the correction dropdowns. */
+  materials(): Promise<Material[]>;
+  /**
+   * What the price list still needs — rows with a blank price cell, and rows with no size.
+   * Surfaced in the app because a gap nobody can see is a gap nobody fills.
+   */
+  materialGaps(): Promise<{ noPrice: Material[]; noSize: Material[]; total: number }>;
+  /**
+   * Read the AI's reply and price it. `overrides` maps a line index to `category|material` — what
+   * the correction dropdown sends. Re-runs on every correction; it is a few dozen multiplications.
+   */
+  costInventory(file: string, overrides: Record<number, string>): Promise<Attempt<Kit>>;
+  /**
+   * The same, from text pasted straight out of the chat. The reply arrives as a ```json code
+   * block, not a download, so this is the normal route and the file is the exception. The fence
+   * and any prose around it are tolerated.
+   */
+  costPasted(text: string, overrides: Record<number, string>): Promise<Attempt<Kit>>;
+  /** The same, for a kit already read once — reopening, or re-costing after a correction. */
+  costLines(
+    lines: KitLine[],
+    overrides: Record<number, string>,
+    sku: string,
+    /** Unit prices for THIS kit only, keyed `category|material`. */
+    prices: Record<string, number>,
+    /** Corrected counts, by line index. */
+    counts: Record<number, number>,
+  ): Promise<Kit>;
+  /**
+   * Change a price in the shipped list — every kit, both machines. Refused in a packaged app,
+   * where the list is read-only and a change has to go out as a release.
+   */
+  setMaterialPrice(key: string, paise: number | null): Promise<Attempt<Material[]>>;
+
+  /**
+   * The posted parcel for a kit — size, weight, volumetric weight, and the two forms Flipkart
+   * asks for. Computed from the inventory (src/packaging.ts), never guessed per listing.
+   */
+  parcelFor(
+    lines: KitLine[],
+    /** A size or weight chosen by hand. Only the fields given overrule the rules. */
+    chosen: { lengthCm?: number; breadthCm?: number; heightCm?: number; grams?: number },
+  ): Promise<{
+    parcel: Parcel;
+    /** The polybag sizes on the shelf, for the picker. */
+    boxes: Box[];
+    packageDetails: Record<string, string>;
+    dimensions: Record<string, string>;
+  } | null>;
+
+  /** Keep a costed kit. The reading and the corrections are stored; the total never is. */
+  saveKit(kit: SavedKit): Promise<string>;
+  /**
+   * Write the kits out as a spreadsheet and return where it landed, or null if cancelled.
+   * Pass a kit's file to export just that one, or null for all of them.
+   */
+  exportKits(only: string | null): Promise<string | null>;
+  /** Reveal the folder the saved kits live in — for looking at, backing up, or syncing. */
+  openKitsFolder(): Promise<void>;
+  /** Where that folder is, shown in Settings so it is never a mystery. */
+  kitsFolder(): Promise<string>;
+  /**
+   * Point the kits at a folder of their own — a shared Drive folder, to share them with the other
+   * machine. Relaunches on success; false means cancelled.
+   */
+  chooseKitsFolder(): Promise<boolean>;
+  /** Every kit kept on this machine, newest first. */
+  listKits(): Promise<KitRow[]>;
+  openKit(file: string): Promise<SavedKit>;
+
   /** Match downloaded pictures to the listing folders under an archive root. Changes nothing. */
   scanPhotos(from: string, root: string): Promise<PhotoItem[]>;
   /** File one picture as `<position>.<ext>`, removing whatever else held that position. */
@@ -111,6 +192,22 @@ export interface WwApi {
   paste(id: string): Promise<{ ok: true; result: PasteResult } | { ok: false; message: string }>;
   /** Remove emoji from the Flipkart-bound values of a listing written before the rule existed. */
   stripEmoji(id: string): Promise<{ file: string; changed: string[] }>;
+  /** The listing file as text, for editing in the app rather than in a code editor. */
+  readProduct(id: string): Promise<Attempt<{ file: string; text: string }>>;
+  /** Save it back. Refused unless it parses, so a half-typed file can never reach the bot. */
+  saveProduct(file: string, text: string): Promise<Attempt<string>>;
+  /**
+   * Write a costed kit's parcel into `products/<id>.json`. Only the dimension keys are writable —
+   * see applyParcelToListing, which owns the whitelist.
+   */
+  applyParcel(
+    id: string,
+    /** The inches block, plus `packageDetails` — the same box in cm/kg for the Price/Stock tab. */
+    dimensions: Record<string, string | Record<string, string>>,
+  ): Promise<
+    | { ok: true; result: { file: string; changed: { key: string; from: string | null; to: string }[] } }
+    | { ok: false; message: string }
+  >;
 
   /** Where the AI's downloads land. Remembered, defaults to ~/Downloads. */
   downloadsDir(): Promise<string>;
@@ -142,10 +239,14 @@ export interface WwApi {
   chromeStatus(): Promise<SessionStatus>;
   /** Closes Chrome gracefully. Only ever called from a button — never automatically. */
   closeChrome(): Promise<void>;
-  /** Type a listing's values into whatever form is open in Chrome. */
-  fillListing(id: string): Promise<Attempt<FillResult>>;
+  /** Type a listing's values into whatever form is open in Chrome. `tab` picks the defaults
+   *  file, which is what keeps an inches Height off the centimetres tab — see DefaultsTab. */
+  fillListing(id: string, tab?: DefaultsTab): Promise<Attempt<FillResult>>;
   /** Click Save. **Refuses while any field reads ⚠️** — the guard is in the engine, not here. */
   saveListing(): Promise<Attempt<{ clicked: string | null; candidates: string[] }>>;
+  /** Capture the field labels of the tab Chrome is showing, into `categories/<category>.json`.
+   *  Adds only; never types into the form, never touches a listing. */
+  scanTab(id: string): Promise<Attempt<ScanResult>>;
   /** Fields as they land during a fill. Returns an unsubscribe function. */
   onField(cb: (row: FieldRow) => void): () => void;
 }

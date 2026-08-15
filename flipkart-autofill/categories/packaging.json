@@ -1,0 +1,80 @@
+{
+  "_": "How big and heavy the posted parcel is, worked out from what the kit contains (WW-123).",
+  "_why": "Flipkart asks for it twice, in different units and on different tabs, and Meesho asks too. Guessing it per listing is how a listing goes out declaring 8cm when the box is 4 — and the courier weighs the real parcel at pickup and charges the difference back at settlement, which is WW-055. So it is computed from the inventory, once, in one place.",
+  "_units": "STORED IN CENTIMETRES AND GRAMS, always. Inches are derived on the way out — the Inventory panel shows them because Vansh buys and thinks in inch bag sizes, and the Additional Description tab asks for them. Never store a second copy: two copies of one measurement drift, and this one is declared to a courier who weighs the real parcel.",
+  "_bags": "The parcels are POLYBAGS, and polybags are sold in a fixed family of inch sizes — 8x10, 10x12, 10x14, 12x16, 14x18 (checked against Indian courier-bag suppliers, 2026-08-11). So a size here is a bag you can actually buy, not a number somebody rounded. What varies per kit is the THICKNESS of the packed bag, which is `heightCm`.",
+  "_volumetric": "Couriers bill on whichever is greater, the real weight or L x B x H / 5000 kg. The panel shows both and says which one you would be charged on.",
+  "base": {
+    "lengthCm": 20.32,
+    "breadthCm": 17.78,
+    "heightCm": 3.81,
+    "grams": 250,
+    "_": "7 x 8 x 1.5 INCHES — the PACKED PARCEL as Vansh measured it and typed it into Flipkart's Dimensions block on 2026-08-12 (screenshot). The 250 g is MEASURED on a real parcel (2026-08-08) and is unchanged.",
+    "_correction": "Was 25.4 x 20.3 x 4 (the 8 x 10 inch BAG). That was the bag's flat size, not the sealed parcel's — a polybag is not filled to its edges, so the thing the courier measures is smaller than the bag it went into. Declaring the bag over-declares every listing. Same class of error as C-052: ask what STATE a number describes before storing it."
+  },
+  "maxGrams": 490,
+  "_maxGrams": "Vansh's ceiling — he wants every parcel under 500 g, 490 to leave room. Over it, the panel warns; it does not silently shrink anything.",
+  "rules": [
+    {
+      "name": "net",
+      "whenAnyOf": [
+        "Green Net",
+        "Mehndi Colour Net",
+        "White Net",
+        "Yellow Net"
+      ],
+      "lengthCm": 22.86,
+      "breadthCm": 20.32,
+      "heightCm": 5.08,
+      "addGrams": 30,
+      "_": "8 x 9 x 2 INCHES. Vansh MEASURED it, 2026-08-12, and it is the same parcel whether the kit has a net, a pump, or both: 'both and even in the ones that have only each one of these and both of these'. So the net and pump rules are deliberately IDENTICAL — two rules with one answer, kept apart only because a future measurement may split them again. 30 g is his figure for what either one adds."
+    },
+    {
+      "name": "pump",
+      "whenAnyOf": [
+        "Balloon Pump",
+        "Petti Pump"
+      ],
+      "lengthCm": 22.86,
+      "breadthCm": 20.32,
+      "heightCm": 5.08,
+      "addGrams": 30,
+      "_": "8 x 9 x 2 INCHES — identical to the net rule above, on purpose. See that rule.",
+      "_correction": "Was 30.5 x 25.4 x 9 cm, which was Vansh's own guess (the file said so, twice) and billed volumetric at ~1394 g against a real ~300 g. He measured it on 2026-08-12 and the answer is 472 g. Vansh: 'very wrong that is, remove that conclusion.' The panel had been warning about a parcel three times the real one, which is worse than no warning — it argues for repacking a kit that is already fine."
+    }
+  ],
+  "_matching": "whenAnyOf holds MATERIAL NAMES from materials.json, matched the same way a kit line is — so an old name in its `aka` list works too, and a renamed row keeps working as long as the rename happens in materials.json. Deliberately not a keyword like 'net', which would also catch a future 'Netted Curtain'.",
+  "_boxes": "The bags to choose from, offered as a dropdown on the Inventory panel. The rules above pick one automatically; this is how a human overrules that for one kit. Rewritten 2026-08-11 around the real bag sizes: three purchasable footprints, each at the thickness it actually packs to, instead of seven guessed cm numbers whose smallest was below the smallest bag Vansh owns. THE FOOTPRINTS ARE REAL AND THE THICKNESSES ARE NOT — 4 cm is Vansh's measured flat kit, 6 cm the net (his figure, 2026-08-08, unweighed), 9 cm the pump (his guess). Correct a thickness here and the rules pick it up, since they read these same numbers.",
+  "boxes": [
+    {
+      "label": "8 x 10 in bag, flat — the smallest we use, 30-60 pieces",
+      "lengthCm": 25.4,
+      "breadthCm": 20.3,
+      "heightCm": 4
+    },
+    {
+      "label": "8 x 10 in bag, fuller — with a net in it",
+      "lengthCm": 25.4,
+      "breadthCm": 20.3,
+      "heightCm": 6
+    },
+    {
+      "label": "10 x 12 in bag, flat — 60-80 pieces",
+      "lengthCm": 30.5,
+      "breadthCm": 25.4,
+      "heightCm": 4
+    },
+    {
+      "label": "10 x 12 in bag, fat — with a pump in it",
+      "lengthCm": 30.5,
+      "breadthCm": 25.4,
+      "heightCm": 9
+    },
+    {
+      "label": "12 x 16 in bag — the biggest we use",
+      "lengthCm": 40.6,
+      "breadthCm": 30.5,
+      "heightCm": 5
+    }
+  ]
+}

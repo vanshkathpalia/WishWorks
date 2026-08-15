@@ -442,6 +442,33 @@ that, download the served `.avif`, and check whether its description survived.
 
 Until then: free, harmless, unproven. **Don't build strategy on it.**
 
+### The filename question (WW-149) — same shape, cheaper to settle
+
+**Status: unproven, and probably no.** Raised 2026-08-12: a well-known Meesho seller says on
+YouTube that the uploaded **file name** should be keyword-rich for SEO and CTR.
+
+**What the reading actually supports.** Every source that says filenames matter is about **a site
+you own** — Shopify, your own CDN, image sitemaps — and the mechanism they all describe is
+*persistence*: your filename becomes the URL, and Google reads the URL. On a marketplace you
+upload into a form and the platform re-encodes onto its own CDN with a generated path
+(`rukminim*.flixcart.com/.../original/<hash>.jpeg`,
+`images.meesho.com/images/products/<id>/<hash>_512.jpg`), so there is no URL of ours for a name to
+persist into. Neither of the current Meesho listing guides mentions file naming at all — they
+cover size, background, count and rejection reasons. Part 3 above has said *"filenames are
+discarded"* since the beginning, **and that line was never measured either**, so it is a claim
+standing next to a claim.
+
+**The test, and it costs nothing because it rides on a real upload.** On the next listing you
+were going to put up anyway, name the main image with words instead of a number —
+`<occasion>-decoration-kit-<colours>.jpg` — upload it as normal, then open the live listing,
+right-click the image, *Copy image address*, and read the URL. **Words in the URL: it works, and
+the rename is one line** (`finish-core.ts`, `outName`), sourced from the Meesho title and keywords
+already sitting in `image-meta/<ID>.json` — no new AI step. **A hash: it is dead**, and this
+section says so for good.
+
+Do not skip straight to renaming because it is cheap. It is cheap, and that is exactly how an
+unproven lever gets into the flow and then gets defended.
+
 ---
 
 ## Part 5 — Priorities

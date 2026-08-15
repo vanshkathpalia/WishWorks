@@ -111,7 +111,7 @@ Nothing here has an unknown in it except step 9's form, which one `scan` answers
 | 3 | **WW-089** | The listing frame: selector, step rail, state derived from disk | Everything after this hangs off a chosen listing |
 | 4 | **WW-069** | Remaining image steps: prepare → finish → check | Wraps `runImages`/`runFinish`, which already return what these screens draw |
 | 5 | **WW-090** | Prompt panels (steps 3, 4, 5) + the `paste` checks inline | The only part with no CLI whose behaviour can be copied, so it goes after the frame that hosts it |
-| 6 | **WW-066b** | Split the browser CLIs the way WW-066 split the image ones | `login`, `scan`, `fill`, `check`, `start`. Do each when its screen is built, so the result shape follows what the screen draws |
+| 6 | **WW-066b** | Split the browser CLIs the way WW-066 split the image ones | `login`, `scan`, `fill`, `check`, `start`. Do each when its screen is built, so the result shape follows what the screen draws. **`scan` done 2026-08-12** — `browser-core.scanTab()` plus a *Learn this tab* button beside each Fill button, because calibration that only exists as `npm run scan` is calibration the non-technical half of the business cannot do. The merge and the junk guard live in `listing.mergeScan()`, shared with the CLI: it is the code that decides what reaches disk, so it is the last thing that should exist twice |
 | 7 | **WW-093** | `scan` the Meesho Supplier Panel, then fill it | **The one genuine unknown, and the biggest prize.** Step 9 is 100% hand-typed today |
 
 **The contract, unchanged:** all 108 tests, `npm run verify`, and every `npm run …` keep passing
@@ -322,6 +322,15 @@ both ends, Model Name drift, banned and urgency words, commas on the Flipkart si
 the point of putting the prompts in the app** — today those problems surface only if you
 remember to run `npm run paste`; here the reply is checked the moment it lands.
 
+**The Meesho-only route sits on the Listing copy panel · added 2026-08-11 (WW-140).** Some
+products never go on Flipkart, and for those the pair above is the wrong shape: they exist to
+produce two *files* the app reads, and half of `PROMPT-meta.md` is image descriptions and Flipkart
+title/keywords. `PROMPT-meesho-only.md` asks for the three things the Supplier Panel needs — name,
+description, pack contents — and returns **three blocks of text and no file**, because with no
+`products/<ID>.json` there is nothing downstream to read one and the panel is typed into by hand
+regardless. It therefore has no drop zone and nothing for the checks below it to check, and the
+screen says so rather than leaving somebody hunting for the download.
+
 **Skipping is explicit and allowed.** A "skip this step" control on steps 3, 4 and 5, because
 some listings genuinely do not need a new hero image. Skipping marks the step ⏭️, never ✅, so
 the difference between *done* and *not needed* stays visible — same distinction as C-036.
@@ -346,6 +355,15 @@ is computed from the filesystem when it opens, so a step entered "out of order" 
 disk and shows the same truth. A stored cursor would have been the thing that made order matter.
 **Steps not yet in the app are still reachable**; their panel names the command that does the job
 today, which is more use than a disabled tab.
+
+**And leaving a step must never cost you what you typed into it · added 2026-08-11 (WW-139).** The
+freedom to wander is worth nothing if wandering wipes the screen. A panel is **hidden, not
+unmounted**, once visited — half a costed kit survives a trip to the prompts and back. Only *typed*
+state needs this; every ✅ is still derived from disk, so nothing here reintroduces a stored cursor.
+Two things follow for any new panel: it mounts on **first visit** (a panel that polls or opens a
+browser must not start doing so at launch), and anything it subscribes to on a **shared** IPC
+channel — today only `row` — has to ignore what is not its own, because more than one panel is now
+alive at a time.
 
 ### Step 1 — Convert images  ·  WW-067  ·  built 2026-07-31
 Drag a folder in. Thumbnails, then a result row per image. Carries the warnings the CLI already
@@ -415,7 +433,7 @@ Before any file is written, show the resolved pairing as a table:
 
 ```
 Photos              Descriptions from        Output will be named
-GTB 1  (4 photos)   image-meta/GTB-1.json    GTB-1.1.jpg … GTB-1.4.jpg
+GTB 1  (4 photos)   image-meta/GTB-1.json    GTB-1-<its own title>-1.jpg … -4.jpg
 ANP 3  (4 photos)   ✖ none found             — cannot finish
 ```
 

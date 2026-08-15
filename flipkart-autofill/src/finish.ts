@@ -16,10 +16,13 @@
  *   <in>/<Listing Folder>/1.jpg 2.png …     clean numbered images (your archive, kept as-is)
  *   image-meta/<ID>.json                     your descriptions  { "images": { "1": "…" } }
  *        |  npm run finish -- --in="<path>"
- *   ~/Downloads/wishworks-ready/<ID>.<n>.jpg  flat · description embedded · ready to upload
+ *   ~/Downloads/wishworks-ready/<ID>-<title>-<n>.jpg  flat · description embedded · ready to upload
  *
- * The folder name becomes the ID: "ANP 1 - p" → "ANP-1", so its images come out ANP-1.1.jpg,
- * ANP-1.2.jpg. Override a single folder's ID with --id=ANP-1 if the auto-clean guesses wrong.
+ * The folder name becomes the ID: "ANP 1 - p" → "ANP-1", so its images come out
+ * ANP-1-annaprashan-decoration-kit-1.jpg — ID first so a listing's images sort together, position
+ * LAST so 1-2-3-4 upload in order, and the words in between from that listing's own copy file (see
+ * finishedName). No copy file yet and it stays ANP-1.1.jpg. Override a single folder's ID with
+ * --id=ANP-1 if the auto-clean guesses wrong.
  *
  * --in can point at ANY level: a single listing folder, a category (ANP/), or the whole tree
  * (Whatsapp DW/ with categories inside). It walks down until it finds folders that hold numbered
@@ -78,7 +81,7 @@ async function chooseMeta(auto: string): Promise<{ id: string; skip: boolean }> 
   // calling it "a DIFFERENT product" is how you get talked into picking the wrong one.
   const want = normalizeId(auto);
   const match = ids.some((id) => normalizeId(id) === want);
-  console.log(`\n  These photos will be named ${auto}.1.jpg, ${auto}.2.jpg …`);
+  console.log(`\n  These photos will be named ${auto}-<its own title>-1.jpg, -2.jpg …`);
   console.log(`  Which descriptions should go INSIDE them? (this does not rename anything)\n`);
   ids.forEach((id, i) => {
     const mark = normalizeId(id) === want
@@ -126,7 +129,7 @@ async function resolveMeta(auto: string): Promise<string | "none" | null> {
   if (chosen.skip) return "none";
   if (normalizeId(chosen.id) !== normalizeId(auto)) {
     console.log(`\n  ⚠️  These photos are "${auto}" but you picked descriptions from "${chosen.id}".`);
-    console.log(`      The files stay named ${auto}.1.jpg … — only the descriptions come from`);
+    console.log(`      The files stay named after ${auto} — only the descriptions come from`);
     console.log(`      ${chosen.id}. If that is not what you meant, press Ctrl+C now.`);
   }
   return chosen.id;

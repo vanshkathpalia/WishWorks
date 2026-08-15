@@ -22,7 +22,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { CleanUp, ConvertResult, Row, StepId } from "./shared.js";
+import type { Attempt, CleanUp, ConvertResult, DefaultsTab, Row, StepId } from "./shared.js";
 
 app.setName("WishWorks");
 
@@ -41,8 +41,34 @@ const SETTINGS_FILE = path.join(USER_DATA, "settings.json");
  */
 interface Settings {
   workspace?: string;
+  /**
+   * Let this machine edit the prompt files even though the app is packaged.
+   *
+   * OFF by default and that is the safe default, because an edit made in a package lands in
+   * `userData` and never reaches the repo — so it cannot ship to anyone, and it then outranks
+   * every future release on this machine for that file (WW-125). Vansh runs the .dmg as well as
+   * the source, so he asked for the switch; the Settings panel says what it costs.
+   */
+  editPrompts?: boolean;
   /** Pages worth returning to, saved by the user from whatever they navigated to. */
   shortcuts?: { name: string; url: string }[];
+  /**
+   * Where costed kits live, when it should NOT be inside the workspace.
+   *
+   * The point is a synced folder holding the kits and nothing else — see KITS_DIR. Unset, they sit
+   * in the workspace like every other piece of user state.
+   */
+  kits?: string;
+  /**
+   * Where the AI's Flipkart files (`products-<ID>.json`) are read from, when it should NOT be
+   * inside the workspace.
+   *
+   * Every other step names its own folder in a dialog; this one silently used
+   * `<workspace>/products` and said so nowhere, so "no file matches" was indistinguishable from
+   * "the app is looking in a folder you have never seen". Pointing it straight at Downloads is a
+   * legitimate answer — it is where the downloads already are.
+   */
+  products?: string;
 }
 
 function readSettings(): Settings {
@@ -84,7 +110,23 @@ const WORKSPACE = storedWorkspace();
 
 process.env.WW_IMAGES_DIR ??= path.join(WORKSPACE, "images");
 process.env.WW_META_DIR ??= path.join(WORKSPACE, "image-meta");
-process.env.WW_PRODUCTS_DIR ??= path.join(WORKSPACE, "products");
+/** Settable on its own, like the kits — see Settings.products for why. */
+const PRODUCTS_DIR = readSettings().products || path.join(WORKSPACE, "products");
+process.env.WW_PRODUCTS_DIR ??= PRODUCTS_DIR;
+/**
+ * Costed kits are user state, like products/ — NOT categories/, which ships read-only inside the
+ * app and would lose every saved kit on the next update.
+ *
+ * **It has a setting of its own, separate from the workspace, and that separation is the point.**
+ * Sharing kits between two machines means a Drive or Dropbox folder, and pointing the whole
+ * workspace at one drags the images along: megabytes per listing, and worse, every sync service
+ * can evict a file and leave a placeholder behind, which `sharp` then reads as a broken image.
+ * Kits are a few kilobytes of JSON and nothing streams them, so they sync safely on their own
+ * while the images stay local. Nothing here syncs by itself and nothing should — a folder they
+ * already trust beats a sync mechanism this app would have to own.
+ */
+const KITS_DIR = readSettings().kits || path.join(WORKSPACE, "inventory");
+process.env.WW_KITS_DIR ??= KITS_DIR;
 
 /**
  * Categories are the one WW_* dir that is NOT user state — they ship with the app.
@@ -257,7 +299,9 @@ const photoEngine = () => import("../src/photo-inbox.js");
 const promptDirs = () => ({
   shipped: DOCS,
   userData: USER_DATA,
-  canEditShipped: !app.isPackaged,
+  // In development the repo file is writable and an edit is a real change git can carry. Packaged,
+  // it is off unless this machine has explicitly asked for it — see the Settings comment.
+  canEditShipped: !app.isPackaged || readSettings().editPrompts === true,
 });
 
 /**
@@ -275,9 +319,160 @@ ipcMain.handle("readPrompt", async (_e, file: string) =>
 ipcMain.handle("savePrompt", async (_e, file: string, text: string) =>
   (await promptsEngine()).savePrompt(promptDirs(), file, text),
 );
+ipcMain.handle("editPrompts", () => promptDirs().canEditShipped);
+ipcMain.handle("setEditPrompts", async (_e, on: boolean) => writeSettings({ editPrompts: on }));
+
 ipcMain.handle("readVersion", async (_e, file: string) =>
   (await promptsEngine()).readVersion(file),
 );
+
+// ---------------------------------------------------------------- inventory costing
+
+const inventoryEngine = () => import("../src/inventory-core.js");
+
+ipcMain.handle("materials", async () => (await inventoryEngine()).loadMaterials());
+
+ipcMain.handle("materialGaps", async () => {
+  const { gaps, loadMaterials } = await inventoryEngine();
+  const materials = loadMaterials();
+  return { ...gaps(materials), total: materials.length };
+});
+
+/**
+ * One code path for both ways the reply arrives — a saved `.json`, or the code block pasted
+ * straight out of the chat. `extractJson` copes with the fence and any prose around it, so a file
+ * is just text that came from disk and neither route can behave differently from the other.
+ */
+async function costFromText(
+  text: string,
+  overrides: Record<number, string>,
+  what: string,
+): Promise<Attempt<unknown>> {
+  const { costKit, extractJson, loadMaterials, readKitFile } = await inventoryEngine();
+  const json = extractJson(text);
+  if (json === null) {
+    return {
+      ok: false,
+      message: `Could not find any JSON in ${what}. Copy the whole reply from the chat — the \`\`\`json fence and any words around it are fine, but it has to contain the { … } block.`,
+    };
+  }
+  const { sku, lines } = readKitFile(json);
+  if (lines.length === 0) {
+    return {
+      ok: false,
+      message: `There are no item lines in ${what}. The reply should be a JSON object with a "lines" list in it.`,
+    };
+  }
+  return { ok: true, result: costKit(lines, loadMaterials(), overrides ?? {}, sku) };
+}
+
+ipcMain.handle(
+  "costInventory",
+  async (_e, file: string, overrides: Record<number, string>): Promise<Attempt<unknown>> => {
+    const text = await readFile(file, "utf8").catch(() => null);
+    if (text === null) return { ok: false, message: `Could not read ${path.basename(file)}.` };
+    return costFromText(text, overrides, path.basename(file));
+  },
+);
+
+ipcMain.handle(
+  "costPasted",
+  async (_e, text: string, overrides: Record<number, string>): Promise<Attempt<unknown>> =>
+    costFromText(text, overrides, "what you pasted"),
+);
+
+ipcMain.handle(
+  "costLines",
+  async (
+    _e,
+    lines: unknown,
+    overrides: Record<number, string>,
+    sku: string,
+    prices: Record<string, number>,
+    counts: Record<number, number>,
+  ) => {
+    const { costKit, loadMaterials } = await inventoryEngine();
+    return costKit(lines as never, loadMaterials(), overrides ?? {}, sku, prices ?? {}, counts ?? {});
+  },
+);
+
+/**
+ * Change a price in the list itself — for every kit, and for the other machine on the next release.
+ *
+ * Refused where `categories/` is inside the app bundle, because a silent no-op there would look
+ * exactly like a saved change right up until the next kit disagreed with this one.
+ */
+ipcMain.handle(
+  "setMaterialPrice",
+  async (_e, key: string, paise: number | null): Promise<Attempt<unknown>> => {
+    if (app.isPackaged) {
+      return {
+        ok: false,
+        message:
+          "The price list ships inside the app, so it cannot be changed here — a change has to go out as a new version, or the two machines would disagree about what a kit costs. Use the price for this kit only, and ask for the list to be corrected.",
+      };
+    }
+    try {
+      return { ok: true, result: (await inventoryEngine()).setMaterialPrice(key, paise) };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
+  },
+);
+
+ipcMain.handle("parcelFor", async (_e, lines: unknown, chosen: unknown) => {
+  const { loadMaterials } = await inventoryEngine();
+  const { flipkartFields, loadPackaging, parcelFor } = await import("../src/packaging.js");
+  const spec = loadPackaging();
+  if (!spec) return null; // no rules shipped — say nothing rather than invent a box
+  const parcel = parcelFor(lines as never, loadMaterials(), spec, (chosen as never) ?? {});
+  return { parcel, boxes: spec.boxes, ...flipkartFields(parcel) };
+});
+
+/**
+ * Every kit as one spreadsheet. The JSON is the right thing to STORE and the wrong thing to READ —
+ * the partner has never opened a `.json` and should not have to start.
+ */
+ipcMain.handle("exportKits", async (_e, only: string | null) => {
+  const { listKits, loadMaterials, readKit } = await inventoryEngine();
+  const { loadPackaging } = await import("../src/packaging.js");
+  const { kitsToCsv } = await import("../src/kit-csv.js");
+
+  const rows = listKits();
+  const kits = (only ? rows.filter((k) => k.file === only) : rows).map((k) => readKit(k.file));
+  if (kits.length === 0) return null;
+
+  const suggested = only && kits[0].sku ? `${kits[0].sku}.csv` : "wishworks-kits.csv";
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: "Save the costing sheet",
+    defaultPath: path.join(app.getPath("downloads"), suggested),
+    filters: [{ name: "Spreadsheet", extensions: ["csv"] }],
+  });
+  if (canceled || !filePath) return null;
+
+  await writeFile(filePath, kitsToCsv(kits, { materials: loadMaterials(), packaging: loadPackaging() }));
+  return filePath;
+});
+
+ipcMain.handle("saveKit", async (_e, kit: unknown) => (await inventoryEngine()).saveKit(kit as never));
+/**
+ * Reveal where the saved kits live — for looking at, backing up, or pointing at a shared drive.
+ *
+ * Created if it does not exist yet: "open the folder" failing on a fresh install because nothing
+ * has been saved is a worse answer than an empty window.
+ */
+ipcMain.handle("openKitsFolder", async () => {
+  const dir = KITS_DIR;
+  await mkdir(dir, { recursive: true });
+  await shell.openPath(dir);
+});
+
+/** With the price list, so each kit can say what it leaves — the panel colours the list by it. */
+ipcMain.handle("listKits", async () => {
+  const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
+  return listKits(KITS_DIR, loadMaterials());
+});
+ipcMain.handle("openKit", async (_e, file: string) => (await inventoryEngine()).readKit(file));
 
 // ---------------------------------------------------------------- the AI's pictures
 
@@ -308,6 +503,43 @@ ipcMain.handle("paste", async (_e, id: string) => {
 ipcMain.handle("stripEmoji", async (_e, id: string) => {
   const { stripFlipkartEmoji } = await pasteEngine();
   return stripFlipkartEmoji(id);
+});
+
+/**
+ * The listing file as text, for editing in the app.
+ *
+ * Vansh, 2026-08-12: *"we should have the freedom to open that json in the app UI also."* Until
+ * now a `TODO_MRP` could only be filled by finding the file on disk and opening a code editor —
+ * which is exactly the thing the app exists to remove for the partner.
+ */
+ipcMain.handle("readProduct", async (_e, id: string) => {
+  const { findById, whyNoMatch } = await import("../src/id.js");
+  const { PRODUCTS_DIR } = await import("../src/paths.js");
+  const match = await findById(PRODUCTS_DIR, id);
+  if (!match) return { ok: false as const, message: await whyNoMatch(PRODUCTS_DIR, id) };
+  return { ok: true as const, result: { file: match.file, text: await readFile(match.file, "utf8") } };
+});
+
+/** Save it back. Refused unless it parses — a half-typed file would break every later step. */
+ipcMain.handle("saveProduct", async (_e, file: string, text: string) => {
+  try {
+    JSON.parse(text);
+  } catch (e) {
+    return { ok: false as const, message: `Not valid JSON, so nothing was saved — ${(e as Error).message}` };
+  }
+  await writeFile(file, text.endsWith("\n") ? text : `${text}\n`);
+  return { ok: true as const, result: file };
+});
+
+/** Write the costed kit's parcel into the listing the bot fills, so the two cannot disagree. */
+ipcMain.handle("applyParcel", async (_e, id: string, dimensions: Record<string, string>) => {
+  const { applyParcelToListing, PasteNotFound } = await pasteEngine();
+  try {
+    return { ok: true as const, result: await applyParcelToListing(id, dimensions) };
+  } catch (e) {
+    if (e instanceof PasteNotFound) return { ok: false as const, message: e.message };
+    throw e;
+  }
 });
 
 ipcMain.handle("scanInbox", async (_e, from: string) => (await inboxEngine()).scanInbox(from));
@@ -412,10 +644,10 @@ ipcMain.handle("closeChrome", async () => {
   return (await browserEngine()).closeSession();
 });
 
-ipcMain.handle("fillListing", (e, id: string) =>
+ipcMain.handle("fillListing", (e, id: string, tab?: DefaultsTab) =>
   guarded(async () => {
     const { fillListing } = await browserEngine();
-    const result = await fillListing(id, (row) => e.sender.send("field", row));
+    const result = await fillListing(id, (row) => e.sender.send("field", row), tab);
     lastFill = { needsEyes: result.needsEyes };
     return result;
   }),
@@ -425,15 +657,74 @@ ipcMain.handle("saveListing", () =>
   guarded(async () => (await browserEngine()).saveListing(lastFill)),
 );
 
+// Calibration, and safe enough to hand to anyone: it only ADDS labels to the category file,
+// and `mergeScan`'s junk guard refuses a page that is not a form (WW-110).
+ipcMain.handle("scanTab", (_e, id: string) =>
+  guarded(async () => (await browserEngine()).scanTab(id)),
+);
+
 ipcMain.handle("rememberedFolders", remembered);
 ipcMain.handle("clearFolders", () => rm(MEMORY_FILE, { force: true }));
-ipcMain.handle("showFolder", (_e, dir: string) => shell.openPath(dir).then(() => undefined));
+// Created first: `shell.openPath` on a folder that does not exist yet does NOTHING, silently —
+// and the folders most worth looking at (products/, a workspace just moved) are exactly the ones
+// nothing has written to yet. A button that opens an empty folder is an answer; one that appears
+// broken is not.
+ipcMain.handle("showFolder", async (_e, dir: string) => {
+  await mkdir(dir, { recursive: true }).catch(() => {});
+  await shell.openPath(dir);
+});
 ipcMain.handle("workspaceDir", () => WORKSPACE);
 
 /**
  * Move where everything is kept. Existing files are NOT moved — the old folder is left exactly
  * as it was, so a wrong choice costs nothing and is undone by choosing again.
  */
+/**
+ * Point the kits at a folder of their own — normally a shared Drive/Dropbox folder, so two
+ * machines see the same costings.
+ *
+ * Relaunches for the same reason `chooseWorkspace` does: the engine reads `WW_KITS_DIR` once, at
+ * module load, so a setting that took effect "sort of, until you restart" would be worse than one
+ * that is honest about needing to.
+ */
+ipcMain.handle("chooseKitsFolder", async (e): Promise<boolean> => {
+  const win = BrowserWindow.fromWebContents(e.sender)!;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ["openDirectory", "createDirectory"],
+    defaultPath: KITS_DIR,
+    message: "Where should the costed kits be kept? Pick a shared folder to share them.",
+  });
+  if (canceled || filePaths.length === 0) return false;
+  await writeSettings({ kits: filePaths[0] });
+  app.relaunch();
+  app.quit();
+  return true;
+});
+
+ipcMain.handle("kitsFolder", () => KITS_DIR);
+
+ipcMain.handle("productsFolder", () => PRODUCTS_DIR);
+
+/**
+ * Point the Fill Flipkart step at the folder the `products-<ID>.json` files are actually in.
+ *
+ * Relaunches for the same reason `chooseKitsFolder` does: `paths.ts` reads `WW_PRODUCTS_DIR` once,
+ * at module load. Nothing is moved, so a wrong choice is undone by choosing again.
+ */
+ipcMain.handle("chooseProductsFolder", async (e): Promise<boolean> => {
+  const win = BrowserWindow.fromWebContents(e.sender)!;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ["openDirectory", "createDirectory"],
+    defaultPath: PRODUCTS_DIR,
+    message: "Where are the AI's Flipkart listing files (products-<ID>.json) kept?",
+  });
+  if (canceled || filePaths.length === 0) return false;
+  await writeSettings({ products: filePaths[0] });
+  app.relaunch();
+  app.quit();
+  return true;
+});
+
 ipcMain.handle("chooseWorkspace", async (e): Promise<boolean> => {
   const win = BrowserWindow.fromWebContents(e.sender)!;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {

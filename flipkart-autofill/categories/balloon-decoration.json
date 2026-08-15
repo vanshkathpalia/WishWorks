@@ -671,7 +671,68 @@
       "multi": false,
       "companion": false,
       "furniture": false
+    },
+    {
+      "label": "Model Number *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Type *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Color *",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Size *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Size in Number *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Quantity *",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Items Included *",
+      "kind": "pills",
+      "multi": true,
+      "hint": "Multiple values allowed",
+      "companion": false,
+      "furniture": false
+    },
+    {
+      "label": "Quantity * (unit)",
+      "kind": "combobox",
+      "multi": false,
+      "options": [
+        "gExpandMore"
+      ],
+      "companion": true,
+      "furniture": false
     }
   ],
-  "scannedAt": "2026-08-03T15:50:49.375Z"
+  "scannedAt": "2026-08-12T16:44:40.525Z"
 }

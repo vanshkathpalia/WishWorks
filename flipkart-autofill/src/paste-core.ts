@@ -131,6 +131,84 @@ export async function stripFlipkartEmoji(
   return { file: match.file, changed };
 }
 
+/**
+ * The only keys a parcel is allowed to write into a listing.
+ *
+ * A whitelist rather than "whatever was sent", because the caller is the renderer and this
+ * function overwrites a file the bot then types into a live form. Everything else in that file —
+ * the description, the keywords, the price — is unreachable from here by construction.
+ */
+const PARCEL_KEYS = ["Width", "Height", "Depth", "Weight", "Weight (unit)"] as const;
+
+/**
+ * The same parcel again, in the units the Price/Stock tab's Package Details asks for.
+ *
+ * Both blocks describe ONE box, and until now only the inches one was written — so Package
+ * Details sat empty on every listing and was filled by hand, which is what WW-123 left behind
+ * when it deleted the colliding defaults instead of scoping them.
+ *
+ * These go into `tabs.pricing`, not `values`, because `Height` appears in both blocks meaning
+ * different units. Length and Breadth exist only here and would have been safe either way; they
+ * are kept together with Height so the block reads as one measurement rather than three keys in
+ * one place and one in another.
+ */
+const PACKAGE_KEYS = ["Length", "Breadth", "Height", "Weight"] as const;
+
+/**
+ * Put the costed kit's parcel into `products/<id>.json`, so the form gets the box that is
+ * actually posted.
+ *
+ * **The mismatch this closes.** `PROMPT-product.md` used to ask the AI for the product's size in
+ * inches, which it could only ever guess from a photo, while the Inventory panel computed the real
+ * parcel from what is in the kit — two sources for one fact, and the wrong one won, because the
+ * bot fills the product file and nobody was writing the parcel into it. The panel said "the bot
+ * fills these" beside numbers the bot had never seen. That is WW-055's failure with a shorter
+ * fuse: a declared size the courier disagrees with is charged back at settlement.
+ *
+ * Overwrites without asking, and that is the point — the parcel is the measurement and whatever
+ * is in the file is not. It returns every key it changed and what it changed it from, so the
+ * screen can say so rather than the file quietly disagreeing with what was on it a moment ago.
+ */
+export async function applyParcelToListing(
+  id: string,
+  dimensions: Record<string, string | Record<string, string>>,
+  dirs: { products?: string } = {},
+): Promise<{ file: string; changed: { key: string; from: string | null; to: string }[] }> {
+  const dir = dirs.products ?? PRODUCTS_DIR;
+  const match = await findById(dir, id);
+  if (!match) throw new PasteNotFound(dir, id);
+
+  const data = JSON.parse(await readFile(match.file, "utf8"));
+  data.values ??= {};
+  const changed: { key: string; from: string | null; to: string }[] = [];
+
+  for (const key of PARCEL_KEYS) {
+    const to = dimensions[key];
+    if (typeof to !== "string") continue;
+    const from = data.values[key];
+    if (String(from ?? "") === to) continue;
+    changed.push({ key, from: from === undefined ? null : String(from), to });
+    data.values[key] = to;
+  }
+
+  const pkg = (dimensions as Record<string, unknown>).packageDetails as Record<string, string> | undefined;
+  if (pkg) {
+    data.tabs ??= {};
+    data.tabs.pricing ??= {};
+    for (const key of PACKAGE_KEYS) {
+      const to = pkg[key];
+      if (to === undefined) continue;
+      const from = data.tabs.pricing[key];
+      if (String(from ?? "") === to) continue;
+      changed.push({ key: `Package Details / ${key}`, from: from === undefined ? null : String(from), to });
+      data.tabs.pricing[key] = to;
+    }
+  }
+
+  if (changed.length) await writeFile(match.file, JSON.stringify(data, null, 2) + "\n");
+  return { file: match.file, changed };
+}
+
 async function readHalf(dir: string, id: string): Promise<{ data: any; file: string; others: string[] }> {
   const match = await findById(dir, id);
   if (!match) throw new PasteNotFound(dir, id);

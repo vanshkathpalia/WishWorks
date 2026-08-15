@@ -17,19 +17,26 @@ I am giving you TWO things:
 (b) an INVENTORY table exported from my stock sheet. I packed this kit, so the inventory
     is the AUTHORITATIVE list of what is in the pack and how many.
 
-INVENTORY (category / specific material / number — use these exact items and counts.
+INVENTORY (the items and counts in this pack — use these exact items and counts.
 Do NOT recount from the photos, do NOT adjust, do NOT add anything not listed):
-<PASTE YOUR EXCEL ROWS HERE>
+<PASTE THE INVENTORY HERE — the JSON from the Inventory panel, or the rows from the sheet>
 
-THE LISTING ID is in the inventory's own header row, which carries two codes like
-"WKU004  ANP003". The SECOND code is the listing ID — here "ANP003". Use it exactly as
-written, same capitals, no spaces. If the header has only one code, use that one; if you
-cannot find a code at all, say so in one line and stop.
+THE LISTING ID comes from the inventory I just pasted, and you must take it from there
+rather than inventing one:
 
-GIVE ME THE ANSWER AS A DOWNLOADABLE FILE named image-meta-<ID>.json — e.g.
-image-meta-ANP003.json. The file contains ONLY the JSON object below, nothing else: no
-commentary, no markdown fences, no closing offer to help. If you cannot attach files, print
-the JSON on its own instead. Either way the content is identical.
+  - If the inventory is JSON, the ID is its "sku" value. Use that, and nothing else.
+  - If it is spreadsheet rows, the ID is in the header row, which carries two codes; the
+    SECOND one is the ID. If there is only one code, use that.
+  - Use it EXACTLY as written — same letters, same capitals, same digits, same hyphens.
+    Do not tidy it, do not pad or strip zeros, do not substitute a code you have seen
+    before in this conversation or in any instructions.
+  - If you cannot find an ID, say so in one line and stop. Do not make one up.
+
+GIVE ME THE ANSWER AS A DOWNLOADABLE FILE named image-meta-<ID>.json, where <ID> is that
+value — so an inventory whose sku is ABC-123 gives image-meta-ABC-123.json. The file
+contains ONLY the JSON object below, nothing else: no commentary, no markdown fences, no
+closing offer to help. If you cannot attach files, print the JSON on its own instead.
+Either way the content is identical.
 
 {
   "title": "",
@@ -67,7 +74,7 @@ WHERE EACH PART COMES FROM
    COMMAS ARE FINE everywhere under "meesho" (title, description, pack_contents) and in the
    image descriptions. I paste the Meesho values into the Supplier Panel by hand; nothing
    splits them, and in a long pack list commas read better than dashes.
-3. Do not put the brand name "WishWorks" anywhere.
+3. Do not put a brand name anywhere — not "WishWorks", not "PartyDreams". Both are ours.
 4. Write for an Indian shopper searching on a phone. Concrete over clever: say what is in the
    box, what it is for, and what the buyer gets. Every sentence must survive the question
    "how would a buyer check that?"
@@ -221,7 +228,7 @@ Flipkart shopper, which is why this text is NOT a copy of "title" above.
     reserved place in the brackets at the end, and repeating it wastes characters.
   - Open with the exact words a buyer types. "Annaprashan Decoration Kit", never
     "Premium Celebration Ensemble". Match the query, don't be clever.
-  - No brand name — nobody searches "WishWorks", so it is wasted characters.
+  - No brand name — nobody searches for ours, so it is wasted characters.
   - USE " | " (space pipe space) TO SEPARATE THE PARTS. At 90+ characters a run-on title is
     unreadable on a phone, and the pipe is what every marketplace listing uses to break it up:
       "Annaprasan Decoration Kit | Red Gold Metallic Balloons | Heart Foil Banner |

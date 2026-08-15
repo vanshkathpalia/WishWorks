@@ -8,14 +8,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { CleanUp, ConvertResult, Row } from "../shared.js";
-
-/**
- * A local path as a `file://` URL for an <img>. Handles `C:\Users\…` as well as `/Users/…`,
- * because the renderer is the one place that has to build these by hand and Windows is where a
- * `/`-only version would silently show broken thumbnails.
- */
-const fileUrl = (p: string) =>
-  "file:///" + p.replace(/\\/g, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+import { fileUrl } from "./ui.js";
 
 /** A comma-separated position list ("2,3,4") both ways. Empty means every image. */
 const parsePositions = (s: string) =>
@@ -123,7 +116,13 @@ export function Convert() {
 
   // Rows arrive one at a time from the engine's onRow callback, so a slow folder shows progress
   // instead of a spinner. The finished result carries them all again; this is only for the wait.
-  useEffect(() => window.ww.onRow((row) => setRows((r) => [...r, row])), []);
+  //
+  // `row` is one broadcast channel and the Finish step listens to it too — and since panels stay
+  // mounted once visited (main.tsx), both are listening at the same time. A ref, not `busy`,
+  // because it has to be true the instant the run starts: `setBusy(true)` only lands on the next
+  // render, and the first rows can arrive before that.
+  const mine = useRef(false);
+  useEffect(() => window.ww.onRow((row) => mine.current && setRows((r) => [...r, row])), []);
 
   async function run(input: string[]) {
     if (input.length === 0) return;
@@ -132,11 +131,13 @@ export function Convert() {
     setResult(null);
     setError(null);
     setBusy(true);
+    mine.current = true;
     try {
       setResult(await window.ww.convert(input, latest.current));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      mine.current = false;
       setBusy(false);
     }
   }

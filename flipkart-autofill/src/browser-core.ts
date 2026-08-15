@@ -18,12 +18,12 @@
 import path from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import { openBrowser, activePage, looksLoggedIn, APP_URL, type Session } from "./connect.js";
-import { clickSave, probeField } from "./fields.js";
-import { findById } from "./id.js";
+import { clickSave, extractFields, probeField } from "./fields.js";
+import { findById, whyNoMatch } from "./id.js";
 import { PRODUCTS_DIR } from "./paths.js";
 import {
-  checkValues, describeProblems, fillAll, loadProduct, needsEyes,
-  type FieldRow, type Report, type Values,
+  checkValues, fillableValues, fillAll, loadProduct, mergeScan, needsEyes, productName,
+  type DefaultsTab, type FieldRow, type Problem, type Report, type ScanResult, type Values,
 } from "./listing.js";
 
 /** The one live session. Null until `openSession()`, and only `closeSession()` clears it. */
@@ -100,6 +100,21 @@ export interface FillResult {
    * means broken, not "try the other tab". Empty when the category has never been scanned.
    */
   unmapped: string[];
+  /** The product file this came from, so the app can offer to open it. */
+  file: string;
+  /**
+   * Fields deliberately left blank — a `TODO_` placeholder, or a comma Flipkart would split the
+   * value on. Reported rather than typed, and they never stop the rest of the form being filled.
+   */
+  skipped: Problem[];
+  /**
+   * The name buyers will see, composed from Color + Type, with anything mechanically wrong with
+   * it. Null when this tab's values do not include those two fields. Shown rather than checked:
+   * it is the most-read text on the listing and nothing displayed it before Save.
+   */
+  productName: { name: string; warnings: string[] } | null;
+  /** Questions ChatGPT flagged instead of guessing. Answer them before Save — see LoadedProduct. */
+  asks: string[];
   /** For each mismatch, what the widget actually turned out to be — the debugging shortcut. */
   probes: { label: string; tag: string; kind: string; rowLabel: string; wrongRow: boolean; value: string; pills: string[] }[];
 }
@@ -108,39 +123,92 @@ export interface FillResult {
 export class FillBlocked extends Error {}
 
 /**
+ * "There is no listing file" — with the folder it looked in and what is actually in there.
+ *
+ * Both callers ask the same question, so they say the same thing. The old message named neither
+ * the folder nor the state, so an empty `products/`, a missing one and a mis-named download were
+ * one indistinguishable sentence.
+ */
+async function noProductFile(id: string): Promise<FillBlocked> {
+  return new FillBlocked(
+    `${await whyNoMatch(PRODUCTS_DIR, id)} Use Listing copy to bring the AI's products-<ID>.json` +
+      ` in from Downloads, or press Choose… on this step to point at the folder it is already in.`,
+  );
+}
+
+/**
+ * Capture the fields of whatever tab Chrome is showing (WW-110).
+ *
+ * The calibration step, and until now it was `npm run scan` — which put it out of reach of the
+ * person who most needs it. Vansh: *"can't we have a button for this in the app itself? so that
+ * my partner is able to scan too"*. Nothing about it is dangerous: it only ever ADDS labels to
+ * `categories/<category>.json`, it touches no listing and types nothing into the form, and the
+ * junk guard in `mergeScan` refuses a page that is not a form. The worst outcome of a stray
+ * press is that nothing changes.
+ *
+ * Like `fillListing`, it reads the tab in the foreground and does not navigate — one press per
+ * tab, same as filling.
+ *
+ * Takes a LISTING, not a category name, for the same reason the Fill button does: the category
+ * is a fact stored in the product file, and asking a non-technical user to type "balloon-
+ * decoration" correctly is inviting a second category file that nothing ever reads.
+ */
+export async function scanTab(id: string): Promise<ScanResult> {
+  if (!session) throw new FillBlocked("Chrome is not open — open it first.");
+  const match = await findById(PRODUCTS_DIR, id);
+  if (!match) throw await noProductFile(id);
+  const { category } = loadProduct(match.file);
+  return mergeScan(category, await extractFields(await activePage(session.context)));
+}
+
+/**
  * Fill the form that is currently open in Chrome, from `products/<id>.json`.
  *
- * The value check runs BEFORE the browser is touched, exactly as the CLI does it: a file with a
- * problem should cost you nothing, and half a listing typed into a live draft is worse than none.
+ * The value check still runs BEFORE the browser is touched — but it now decides which FIELDS to
+ * skip, not whether to run at all. A missing price is one empty box the human fills before Save;
+ * it is not a reason to hand-type the other sixty.
  */
 export async function fillListing(
   id: string,
   onField?: (row: FieldRow) => void,
+  tab?: DefaultsTab,
 ): Promise<FillResult> {
   if (!session) throw new FillBlocked("Chrome is not open — open it first.");
 
   const match = await findById(PRODUCTS_DIR, id);
-  if (!match) throw new FillBlocked(`No file in products/ matches "${id}".`);
+  if (!match) throw await noProductFile(id);
 
-  const { values, usedDefaults, category, unmapped } = loadProduct(match.file);
+  // The tab decides which defaults file applies. Passing it is what keeps an inches Height off
+  // the centimetres tab — see DefaultsTab. Omitted (the CLI), it merges everything as before.
+  const { values, usedDefaults, category, unmapped, asks } = loadProduct(match.file, undefined, tab);
+  // A problem skips its own field and blocks nothing. It used to throw, so two placeholders cost
+  // you sixty good fields and the form got typed by hand — Vansh, 2026-08-12: "we should have the
+  // freedom to let it continue even if any issue comes, just flag it later on". What is skipped is
+  // never typed anyway: an empty box is visible, a fake price looks filled.
   const problems = checkValues(values as Values);
-  if (problems.length) throw new FillBlocked(describeProblems(problems));
+  const fillable = fillableValues(values as Values, problems);
 
   const page = await activePage(session.context);
   const rows: FieldRow[] = [];
-  const report = await fillAll(page, values as Values, (row) => {
+  const report = await fillAll(page, fillable, (row) => {
     rows.push(row);
     onField?.(row);
   });
 
   return {
     product: path.basename(match.file, ".json"),
+    file: match.file,
     category,
     usedDefaults,
     unmapped,
+    asks,
+    skipped: problems,
     rows,
     report,
-    needsEyes: needsEyes(report),
+    // Anything left blank on purpose needs a human before Save, exactly like a mismatch does —
+    // it is a count, so the skipped fields ADD to it rather than replacing it.
+    needsEyes: needsEyes(report) + problems.length,
+    productName: productName(values as Values),
     probes: await explainMismatches(page, report),
   };
 }

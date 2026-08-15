@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { normalizeId, findById } from "../src/id.js";
+import { normalizeId, findById, whyNoMatch } from "../src/id.js";
 
 let tmp: string;
 const created: string[] = [];
@@ -93,6 +93,21 @@ describe("findById", () => {
     await writeFile(path.join(tmp, "_ANP-5.json"), "{}");
     expect(await findById(tmp, "ANP-1042")).toBeNull();
     expect(await findById(tmp, "ANP-5")).toBeNull();
+  });
+
+  // The three ways "no file matches" happens used to be ONE sentence that named no folder, so
+  // creating products/ by hand changed nothing visible and read as "it cannot see my folder".
+  it("says which of the three no-match states it is, and where it looked", async () => {
+    const missing = path.join(tmp, "nope");
+    expect(await whyNoMatch(missing, "ANP-3")).toContain(missing);
+    expect(await whyNoMatch(missing, "ANP-3")).toContain("does not exist");
+
+    expect(await whyNoMatch(tmp, "ANP-3")).toContain("empty");
+
+    await writeFile(path.join(tmp, "GTB002.json"), "{}");
+    const busy = await whyNoMatch(tmp, "ANP-3");
+    expect(busy).toContain("GTB002.json"); // what IS there is the whole point
+    expect(busy).toContain('"ANP3"'); // the normalised key it looked for
   });
 
   it("is what descriptionsFor uses — a prefixed file reaches the images", async () => {

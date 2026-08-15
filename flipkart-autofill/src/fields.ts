@@ -325,7 +325,12 @@ export async function fillField(
       await page.waitForTimeout(150);
     } else {
       await el.click();
-      await el.fill(values[0]);
+      // Join, never values[0]. A list aimed at a plain text box used to type its first entry
+      // and drop the rest — and the read-back said ✅, because what landed was genuinely what
+      // we typed. "Items Included" is nine items on one line if the widget is a text box and
+      // nine chips if it is a pill input; we cannot know which until we are on the tab, so the
+      // value stays a list and this branch is what makes a list survive the plain-box case.
+      await el.fill(values.join(", "));
     }
     await page.waitForTimeout(150); // let React settle before reading back
   } catch {

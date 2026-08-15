@@ -7,7 +7,9 @@
  */
 
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { CleanUp, FieldRow, PhotoItem, Row, StepId, WwApi } from "./shared.js";
+import type {
+  CleanUp, DefaultsTab, FieldRow, KitLine, PhotoItem, Row, SavedKit, StepId, WwApi,
+} from "./shared.js";
 
 const api: WwApi = {
   // Electron 32 removed the non-standard `File.path`, so a dropped folder's real location can
@@ -24,7 +26,11 @@ const api: WwApi = {
   clearFolders: () => ipcRenderer.invoke("clearFolders"),
   showFolder: (dir: string) => ipcRenderer.invoke("showFolder", dir),
   workspaceDir: () => ipcRenderer.invoke("workspaceDir"),
+  editPrompts: () => ipcRenderer.invoke("editPrompts"),
+  setEditPrompts: (on: boolean) => ipcRenderer.invoke("setEditPrompts", on),
   chooseWorkspace: () => ipcRenderer.invoke("chooseWorkspace"),
+  productsFolder: () => ipcRenderer.invoke("productsFolder"),
+  chooseProductsFolder: () => ipcRenderer.invoke("chooseProductsFolder"),
 
   listings: () => ipcRenderer.invoke("listings"),
   promptText: (file: string) => ipcRenderer.invoke("promptText", file),
@@ -32,12 +38,41 @@ const api: WwApi = {
   savePrompt: (file: string, text: string) => ipcRenderer.invoke("savePrompt", file, text),
   readVersion: (file: string) => ipcRenderer.invoke("readVersion", file),
 
+  materials: () => ipcRenderer.invoke("materials"),
+  materialGaps: () => ipcRenderer.invoke("materialGaps"),
+  costInventory: (file: string, overrides: Record<number, string>) =>
+    ipcRenderer.invoke("costInventory", file, overrides),
+  costPasted: (text: string, overrides: Record<number, string>) =>
+    ipcRenderer.invoke("costPasted", text, overrides),
+  costLines: (
+    lines: KitLine[],
+    overrides: Record<number, string>,
+    sku: string,
+    prices: Record<string, number>,
+    counts: Record<number, number>,
+  ) => ipcRenderer.invoke("costLines", lines, overrides, sku, prices, counts),
+  setMaterialPrice: (key: string, paise: number | null) =>
+    ipcRenderer.invoke("setMaterialPrice", key, paise),
+  parcelFor: (lines: KitLine[], chosen: Record<string, number | undefined>) =>
+    ipcRenderer.invoke("parcelFor", lines, chosen),
+  saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),
+  exportKits: (only: string | null) => ipcRenderer.invoke("exportKits", only),
+  openKitsFolder: () => ipcRenderer.invoke("openKitsFolder"),
+  kitsFolder: () => ipcRenderer.invoke("kitsFolder"),
+  chooseKitsFolder: () => ipcRenderer.invoke("chooseKitsFolder"),
+  listKits: () => ipcRenderer.invoke("listKits"),
+  openKit: (file: string) => ipcRenderer.invoke("openKit", file),
+
   scanPhotos: (from: string, root: string) => ipcRenderer.invoke("scanPhotos", from, root),
   importPhoto: (item: PhotoItem, position: number, opts: { move?: boolean }) =>
     ipcRenderer.invoke("importPhoto", item, position, opts),
   listingFolders: (root: string) => ipcRenderer.invoke("listingFolders", root),
   paste: (id: string) => ipcRenderer.invoke("paste", id),
   stripEmoji: (id: string) => ipcRenderer.invoke("stripEmoji", id),
+  readProduct: (id: string) => ipcRenderer.invoke("readProduct", id),
+  saveProduct: (file: string, text: string) => ipcRenderer.invoke("saveProduct", file, text),
+  applyParcel: (id: string, dimensions: Record<string, string | Record<string, string>>) =>
+    ipcRenderer.invoke("applyParcel", id, dimensions),
 
   downloadsDir: () => ipcRenderer.invoke("downloadsDir"),
   scanInbox: (from: string) => ipcRenderer.invoke("scanInbox", from),
@@ -57,8 +92,9 @@ const api: WwApi = {
   forgetPage: (name: string) => ipcRenderer.invoke("forgetPage", name),
   chromeStatus: () => ipcRenderer.invoke("chromeStatus"),
   closeChrome: () => ipcRenderer.invoke("closeChrome"),
-  fillListing: (id: string) => ipcRenderer.invoke("fillListing", id),
+  fillListing: (id: string, tab?: DefaultsTab) => ipcRenderer.invoke("fillListing", id, tab),
   saveListing: () => ipcRenderer.invoke("saveListing"),
+  scanTab: (id: string) => ipcRenderer.invoke("scanTab", id),
   onField: (cb: (row: FieldRow) => void) => {
     const handler = (_e: unknown, row: FieldRow) => cb(row);
     ipcRenderer.on("field", handler);

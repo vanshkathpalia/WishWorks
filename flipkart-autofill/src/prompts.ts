@@ -6,11 +6,20 @@
  * file, hope, find out on the next listing. Keeping the previous version with a date makes
  * "the copy got worse after Tuesday" answerable instead of a feeling.
  *
- * **Where an edit is written depends on whether this is a package.** In development the repo file
- * is the source of truth — CLAUDE.md is explicit that each prompt lives in its own file and is
- * edited there — so saving writes straight back to `docs/guides/`, where git can see it. Inside a
- * packaged app that folder is read-only, so the edit goes to `userData/prompts/` and is read in
- * preference to the shipped copy from then on. History always lives in `userData`, because it is
+ * **Editing is a development-only thing, and that is the fix for a real trap.** In development the
+ * repo file is the source of truth — CLAUDE.md is explicit that each prompt lives in its own file
+ * and is edited there — so saving writes straight back to `docs/guides/`, where git can see it and
+ * a release carries it to everyone.
+ *
+ * Inside a packaged app the prompts are **read-only**. They used to be editable, landing in
+ * `userData/prompts/` and winning over the shipped copy **for ever after**: every later fix was
+ * then silently ignored on that machine, for that file, with nothing on screen to say so — and the
+ * person it would happen to is the one who cannot read a diff to find out why the copy got worse.
+ * The prompts ship with the app because they ARE the app, so changing one is a release.
+ *
+ * An override left by an older build is **ignored, not obeyed** — honouring it would keep the bug
+ * alive on exactly the machines that already have one — and named on screen, because silently
+ * dropping someone's edit is its own surprise. History still lives in `userData`; it is
  * per-machine working state and has no business in the repo.
  */
 
@@ -28,10 +37,24 @@ export interface PromptVersion {
 export interface PromptFile {
   name: string;
   text: string;
-  /** True when this machine has an edited copy overriding the shipped one. */
-  edited: boolean;
-  /** Where a save would land, shown so it is never a mystery. */
-  savesTo: string;
+  /** Where a save would land, shown so it is never a mystery. Null when editing is off. */
+  savesTo: string | null;
+  /**
+   * True in a packaged app: the prompts are read-only there, and this is deliberate.
+   *
+   * A prompt edited inside a package used to land in `userData/prompts/` and win over the shipped
+   * copy **from then on, for ever**. Every later fix Vansh released was then silently ignored on
+   * that machine, for that file, with nothing on screen to say so — and the person it would happen
+   * to is the one who cannot read a diff to find out. The prompts ship with the app because they
+   * ARE the app; changing one is a release, not a local setting.
+   */
+  readOnly: boolean;
+  /**
+   * An override file left on this machine by a version that allowed editing. It is NO LONGER
+   * READ — `text` above is the shipped copy — but saying nothing would be its own silent
+   * surprise, so the screen names it.
+   */
+  ignoredOverride: string | null;
   versions: PromptVersion[];
 }
 
@@ -48,10 +71,36 @@ const overrideDir = (d: PromptDirs) => path.join(d.userData, "prompts");
 const versionsDir = (d: PromptDirs, name: string) =>
   path.join(d.userData, "prompt-versions", path.basename(name, ".md"));
 
-/** The file actually read: this machine's edit if it has one, otherwise the shipped default. */
+/**
+ * The file actually read: **always the shipped one, in every mode.**
+ *
+ * An override left behind by an older build is ignored rather than obeyed. The failure being fixed
+ * is a local edit quietly outranking every future release, and honouring the leftovers would keep
+ * it alive on exactly the machines that already have one.
+ *
+ * **This used to say `if (!dirs.canEditShipped) return shipped`, and that "safe" guard was the
+ * bug.** In development — which is how Vansh runs the app, `npm run app` — editing IS allowed, so
+ * the override won here; but `savePrompt` writes to `dirs.shipped` regardless. Read from one file,
+ * write to another. An edit made in the app on 2026-08-07 therefore sat in `userData` looking
+ * correct on screen for four days while the repo copy stayed four days older, git saw nothing to
+ * commit, and the packaged app — which ignores overrides — would have shipped the partner the old
+ * one. Caught 2026-08-11 by Vansh asking whether an edit of his was being written on top of.
+ * Reading and writing must name the same file or they will drift, and the drift is silent by
+ * construction: the screen shows the copy that is right.
+ */
 async function activeFile(dirs: PromptDirs, name: string): Promise<string> {
+  return path.join(dirs.shipped, name);
+}
+
+/**
+ * An override this machine still has on disk but no longer reads. Null when there is none.
+ *
+ * Reported in EVERY mode now, not only in a packaged app: a leftover in development was exactly
+ * the file being silently obeyed, so development is where naming it matters most.
+ */
+async function leftoverOverride(dirs: PromptDirs, name: string): Promise<string | null> {
   const mine = path.join(overrideDir(dirs), name);
-  return (await stat(mine).catch(() => null)) ? mine : path.join(dirs.shipped, name);
+  return (await stat(mine).catch(() => null)) ? mine : null;
 }
 
 export async function listVersions(dirs: PromptDirs, name: string): Promise<PromptVersion[]> {
@@ -75,8 +124,9 @@ export async function readPrompt(dirs: PromptDirs, name: string): Promise<Prompt
   return {
     name,
     text: await readFile(file, "utf8"),
-    edited: file.startsWith(overrideDir(dirs)),
-    savesTo: dirs.canEditShipped ? path.join(dirs.shipped, name) : path.join(overrideDir(dirs), name),
+    savesTo: dirs.canEditShipped ? path.join(dirs.shipped, name) : null,
+    readOnly: !dirs.canEditShipped,
+    ignoredOverride: await leftoverOverride(dirs, name),
     versions: await listVersions(dirs, name),
   };
 }
@@ -89,6 +139,14 @@ export async function readPrompt(dirs: PromptDirs, name: string): Promise<Prompt
  * here; a prompt is a few kilobytes and the whole point is that a bad edit is recoverable.
  */
 export async function savePrompt(dirs: PromptDirs, name: string, text: string): Promise<PromptFile> {
+  // Refused rather than quietly written somewhere harmless: a save that appears to work and
+  // changes nothing is the worse of the two failures, and the UI already hides the button.
+  if (!dirs.canEditShipped) {
+    throw new Error(
+      "Prompts are read-only in the installed app. They ship with it, so a change to one goes out as a new version — edit it in the project and release.",
+    );
+  }
+
   const current = await activeFile(dirs, name);
   const before = await readFile(current, "utf8").catch(() => null);
 
@@ -100,9 +158,7 @@ export async function savePrompt(dirs: PromptDirs, name: string, text: string): 
     await writeFile(path.join(dir, `${new Date().toISOString().replace(/:/g, "_")}.md`), before);
   }
 
-  const target = dirs.canEditShipped
-    ? path.join(dirs.shipped, name)
-    : path.join(overrideDir(dirs), name);
+  const target = path.join(dirs.shipped, name);
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, text);
 

@@ -69,8 +69,10 @@ So you are not surprised by it:
 
 - **Meesho is still copy-paste.** The app shows you the values with a copy button per
   field; you paste them into the Meesho Supplier Panel yourself.
-- **On Flipkart, only some tabs fill automatically.** *Additional Description* is done.
-  The *Product Description* tab is not mapped yet, so check it by hand before submitting.
+- **On Flipkart, all three tabs fill — but one pass each.** The app does not switch tabs.
+  Open a tab, press Fill, open the next, press Fill again. It only touches what it can see.
+  *Quantity* on the *Product Description* tab is the one field that is often blank: it is a
+  weight in grams and only gets filled for listings that have been weighed.
 - **Writing the words** — titles, descriptions — happens in ChatGPT via the prompts the
   app hands you. The app itself never talks to any AI.
 

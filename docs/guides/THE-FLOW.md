@@ -170,11 +170,30 @@ Full explanation and exact prompts: **"The main image"** and **"Prompt B"** in
      If you want the border, the safe way is **not** the AI: take the plain photo and run
      `npm run finish -- --square --border=107`, which pads the approved picture exactly and
      cannot change the balloons or the spelling.
+   - *Message 2b — only if you want the balloons somewhere else.* The hero prompt always puts the
+     garland on the **top and the left**. Five follow-ups move it, and change nothing else — send
+     one straight after the photo comes back, in the same chat:
+     - `PROMPT-layout-right.md` — top and the **right**, mirroring the default.
+     - `PROMPT-layout-both-sides.md` — top and **both** sides, like an open doorway.
+     - `PROMPT-layout-corners.md` — two **diagonal corner clusters**, open in the middle.
+     - `PROMPT-layout-arch.md` — a **full arch**, floor to floor.
+     - `PROMPT-layout-corner-bulk.md` — keeps the layout and **bunches the balloons into the top
+       corners** so they look heavy, thinning the middle to pay for it. The counts still cap it:
+       every balloon that joins a corner leaves the run, same colour, same size.
+
+     Send one, look at it, send another to compare. The model redraws the whole photo on each of
+     these, so **re-check the counts and the spelling of the foil letters** every time.
    - *Message 3 — only if a count is off* (e.g. "4 confetti but there are 3 — remove one").
    → Save it as **`1.png`**, and **delete the old `1.jpg`** — one file per number.
 2. **Image 2 — `PROMPT-infographic.md`** builds the "what's inside" infographic — a card per
    item with **the count only, no sizes**. One step: it draws the picture straight away.
    → Save as **`2.png`**, delete the old `2.jpg`.
+3b. **Image 4 — `PROMPT-how-to-decorate.md`** builds the "HOW TO DECORATE in N easy steps" card,
+   with a *package includes* grid under it. **Nothing in that prompt names an occasion or a kit** —
+   it reads the occasion, the colours and the assembly steps out of the inventory you paste, so a
+   step can only ever name an item that is really in the box. Read the steps before keeping it:
+   telling a buyer to use something they did not receive reads as a missing item.
+   → Save as **`4.png`**.
 3. **Image 3 — `PROMPT-infographic-sizes.md`** builds the same items again **with measured
    sizes** on each card. **It answers in two steps:** first a plain text table of the sizes
    Indian sellers commonly list for those items (we don't measure them ourselves) — **read it
@@ -219,13 +238,18 @@ Meesho copy. Then, **in that same chat**, paste **`guides/PROMPT-product.md`** a
 comes **`products-<ID>.json`**, the Flipkart form fields. **Drop each download into `image-meta/`
 and `products/` exactly as it downloaded — no renaming.** `image-meta-ANP003.json`, `ANP003.json`
 and `ANP-3.json` all read as the same product as a folder called `ANP 3`; prefix, capitals,
-spaces, dashes and leading zeros are ignored when matching. A **Meesho-only** product needs only
-the first prompt. To copy text into the websites, run `npm run paste -- <ID>` — any of those ID
+spaces, dashes and leading zeros are ignored when matching. To copy text into the websites, run `npm run paste -- <ID>` — any of those ID
 shapes works — and it prints the Flipkart Description and the Meesho values with the `\n`
 escapes undone.
 
 > Save the download *and* a renamed copy and nothing breaks: both match, the **newest** is used,
 > and the older one is printed as ignored. Re-download and re-save any time — the fresh file wins.
+
+> **Not going on Flipkart at all?** Send **`guides/PROMPT-meesho-only.md`** on its own instead of
+> both of the above. It asks for the three things the Meesho panel needs — **product name,
+> description, what is in the packet** — and gives them back as three blocks of text you copy
+> straight in. No files, no ID, so Step 4 has nothing to check and you skip it. Paste your items
+> and counts into it; the photos are optional there.
 
 **Check the corners of what the AI made.** If there's a sparkle logo, generate it again.
 
@@ -383,6 +407,71 @@ in the same order.
 
 ---
 
+## Costing a kit — the Inventory panel (in the app only)
+
+Not a step of the listing flow, which is why it sits at the bottom of the rail beside **Log in**
+rather than in the numbered list: you cost a kit once when you design it, and what comes out is
+the price that later goes *into* the listing.
+
+1. **Drop the inventory picture** on the left. Nothing is read off it by the app — it is there so
+   you can read the table against the sheet it came from. That glance is the check.
+2. **Copy the prompt** and attach the same picture in ChatGPT. It comes back with the items *in
+   the words the sheet uses*; matching them to our price list happens in the app, so there is
+   nothing to paste into the prompt and sheets written years ago still work.
+
+   > **This is not the same as the pack-reading message in step 3 of a listing.** That one replies
+   > with a *table* and puts the colour in its own column — useful to read, useless here. An item
+   > called just **“Balloons”** fits all thirty-four balloon rows and gets priced off whichever
+   > one sorts first. `PROMPT-inventory.md` asks for **JSON with the colour inside the name**
+   > (`Dark Pink Balloons`, `Pink Metallic Fringe Curtain`) for exactly that reason. If a reply
+   > comes back as a table, say *“as JSON in the shape I asked for, colour inside the item name”*
+   > — same chat, one line.
+3. **Paste the reply back.** It comes out of the chat as a `json` block with a copy button on it —
+   press that, click the box in the panel, paste. **Copy the whole thing**; the ```` ```json ````
+   fence and any words either side are fine, and it reads as you paste with no button to press.
+   Dropping a saved `.json` still works, for a reply you kept.
+
+   The table then shows every line, what it was priced as, and the total. **Press *Keep this kit***
+   to store it — reopening re-costs it at today's prices.
+
+Four things a line can be, and they need different fixes:
+
+| On screen | What it means | What to do |
+|---|---|---|
+| *(nothing)* | matched confidently | nothing |
+| **check** | the name fitted more than one row | read that row against the picture |
+| **no price set** | the material is on the list, its price cell is blank | fill the cell in the price list |
+| *— not on the price list —* | no such material | pick the right one, or add a row |
+
+> **The last two are not in the total.** A kit with four of them shows a cost that is too low, and
+> the panel says so above the table. Do not price off a total with uncosted lines in it.
+>
+> Every row is correctable from the dropdown, including ones that matched — it opens on the
+> closest matches with a percentage next to each, then the whole list by category.
+
+**What to sell it at** shows **two** numbers side by side, and neither is the app's answer:
+
+- **Margin %** — `cost / (1 - margin)`. Scales with the kit, so a bigger kit earns proportionally.
+- **Add ₹ flat** — `cost + 60` by default, the partner's rule of thumb.
+
+They sit together on purpose, because they disagree more the bigger the kit gets: **+₹60 is 100%
+of a ₹60 kit and 20% of a ₹300 one.** Both are editable, and both are kept with the kit.
+
+Both are floors, not listing prices — each is worked out from the cost of materials only, and
+neither knows Meesho's commission, the shipping fee, GST or packaging. Until the real formula is
+in, treat them as the number to stay above.
+
+**Delivery, per marketplace** is the table under it, and it is the one that answers *where should
+the ad spend go*. Read the fee off each live listing and type it in, with the price you actually
+list at — the two marketplaces are rarely the same, and Meesho's fee moves with the main image
+(`SHIPPING-COST.md`), so neither number can be computed. The last column is what a sale leaves
+after materials and delivery.
+
+> That column is **not profit**. It has no marketplace commission, no GST, no packaging and no ad
+> spend in it. Use it to rank kits against each other, not to bank a figure.
+
+---
+
 ## Flow B — when the photos are already clean (`npm run finish`)
 
 Everything above is **Flow A**: raw Meesho downloads with the tag on, going through
@@ -408,7 +497,9 @@ Whatsapp DW/            ← wherever the downloads live
 
 **The only naming rule: name each listing folder `CODE number` (e.g. `ANP 1`, `HBD 2`), and
 number the images inside `1, 2, 3, 4`.** That is all the renaming you ever do. The tool turns
-`ANP 1` → `ANP-1` and outputs `ANP-1.1.jpg`, `ANP-1.2.jpg` … itself.
+`ANP 1` → `ANP-1` and outputs `ANP-1-annaprashan-decoration-kit-1.jpg`, `…-2.jpg` … itself — the
+ID first, the position last, and the listing's own title in between. A listing with no copy file
+yet keeps the plain `ANP-1.1.jpg`.
 
 ### Where the AI's new image goes
 
@@ -448,7 +539,8 @@ npm run finish -- --in="/Users/vansh/Downloads/Whatsapp DW" --square
 ```
 
 Everything lands **flat, all listings together**, in `~/Downloads/wishworks-ready/` —
-`ANP-1.1.jpg`, `ANP-1.2.jpg`, `ANP-2.1.jpg` … no sub-folders. Those are the upload files.
+`ANP-1-<title>-1.jpg`, `ANP-1-<title>-2.jpg`, `ANP-2-<title>-1.jpg` … no sub-folders. Those are
+the upload files, and they sort into upload order because the position number is last.
 
 ### Three things to know
 

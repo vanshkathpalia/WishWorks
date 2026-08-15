@@ -1464,6 +1464,312 @@ prose summary — including your own from a previous session.
 
 ---
 
+## C-047 — the app threw away a half-costed kit every time somebody opened another tab
+
+**Category:** Design · **Caught by:** Vansh, using it · **Date:** 2026-08-11 · **Status:** Fixed
+
+The window rendered one panel — `<Panel step={step} />` — so switching steps unmounted the panel
+you left and React discarded its state with it. On the costing screen that is twenty read lines,
+the corrected counts, the typed prices, the delivery figures and the dropped picture; on the others
+it is the convert options and the picked listing. Nothing warned, and **Keep** worked, so it looked
+like a save bug rather than what it was.
+
+**Root cause of the mistake, not the code:** every session on this screen added state to
+`Inventory.tsx` — WW-132's prices, WW-135's parcel, WW-137's counts — and not one of them asked
+what happens to that state when the panel stops being rendered. The step rail was written first,
+when a panel was a copy button and a folder picker and had nothing to lose.
+
+**The tell that was there to be read:** `main.tsx`'s own header says *"Every step opens at any time
+and nothing gates anything… a run that died halfway needs one step re-run on its own."* A design
+built around wandering between steps, on top of a shell that punished it.
+
+**The rule:** state that a person **typed** is not derived data. Before a component can be
+unmounted, ask what was typed into it — and fix it where the mounting is decided, not by teaching
+one screen to remember itself, or the next screen with a form will arrive with the same bug.
+
+---
+
+## C-048 — the standard parcel was smaller than the smallest bag the business owns
+
+**Category:** Fact · **Caught by:** Vansh, reading the panel · **Date:** 2026-08-11 · **Status:** Fixed
+
+`packaging.json`'s base was `20 × 15 × 4 cm`. That is **7.9 × 5.9 inches**, and the smallest polybag
+Vansh buys is **8 × 10**. So the size every listing declared, and every volumetric weight computed
+from it, was for a bag that does not exist here — under the real one on both sides. Seven `boxes`
+were guessed around the same wrong centre.
+
+**Root cause.** The number was written in the unit the *code* wanted (cm, because volumetric weight
+is `L×B×H/5000` in cm and Flipkart's Package Details asks in cm) rather than the unit the *world*
+uses. Polybags are bought in a fixed inch family — 8×10, 10×12, 12×16 — so a cm figure here was
+never going to be a bag; it was always going to be an approximation of one. The panel then showed
+those cm back to the one person who could have spotted it, in the unit he cannot check by eye.
+
+**What it cost.** Nothing yet, because it under-declared and the ceiling warning never fired; the
+real bill is what a courier weighs at pickup and charges back at settlement (WW-055). Corrected, an
+ordinary kit bills volumetric at 412 g rather than the 240 g the guess implied.
+
+**Why it survived.** The file said `UNCONFIRMED` in three places and WW-135 listed "measure a real
+net kit and a real pump kit" as the open blocker, so nothing was hidden — but **a labelled guess
+still ships as a number**. Marking a value unconfirmed protects the reader; it does not protect the
+listing.
+
+**The rule:** for anything physical, store the unit the thing is *bought and measured in*, and
+convert at the edges. When code needs a different unit, that is the code's problem, not the file's.
+And show a measurement back in the unit the person who can falsify it actually uses — a number
+nobody can check by looking is a number nobody will check.
+
+---
+
+## C-049 — a panel said "the bot fills these" about numbers the bot had never seen
+
+**Category:** Design · **Caught by:** Vansh, asking where the numbers went · **Date:** 2026-08-11 · **Status:** Fixed
+
+The Inventory panel printed the parcel's four inch values under the heading *Additional Description
+→ Dimensions*, with the words *"the bot fills these — nothing to do here."* The bot fills
+`products/<ID>.json`. Nothing ever wrote the parcel into that file. What the bot actually typed
+came from `PROMPT-product.md`, which asked the AI for the product's size in inches — a number it
+could only guess from a photo.
+
+So the screen showed a measured parcel, the form received a guessed one, and the sentence between
+them said they were the same thing. Vansh: *"otherwise what is the use of having this all flow if
+mismatch is actually happening there."*
+
+**Root cause.** WW-123 built the parcel as a *display*, and the display was never joined to the
+pipeline — a feature can be finished as far as the eye can see and still be wired to nothing. The
+comment even reasoned carefully about *which tab* fills which block (Package Details by hand,
+Dimensions by the bot) and never checked that the second half was true.
+
+**The tell:** two places in this repo could produce the same fact — `packaging.ts` computed it and
+`PROMPT-product.md` asked for it — and nobody had asked which one wins. When a value has two
+sources, it has one source and a decoy, and it is never obvious from either side which is which.
+
+**The rule:** a number on a screen that another system is supposed to consume is not done until
+something writes it there. Before describing what a component does with a value ("the bot fills
+these"), grep for the write. And when a fact has two producers, delete one — the fix here was as
+much the deletion from the prompt as the new code.
+
+---
+
+## C-050 — the app read one prompt file and saved to another, so an edit went nowhere for four days
+
+**Category:** Code · **Caught by:** Vansh, asking a question · **Date:** 2026-08-11 · **Status:** Fixed
+
+Vansh: *"i am assuming that you are writing on top of the latest prompt — i mean if i had changed
+and edited any prompt, then you are editing the most latest one right?"* Checked instead of
+answered, and the answer was no for one file.
+
+`activeFile()` read `userData/prompts/<name>.md` when one existed **and editing was allowed** —
+which is development, which is how he runs the app (`npm run app`). `savePrompt()` writes to
+`docs/guides/` in that same mode. **Read one file, write another.** An edit he made in the app on
+2026-08-07 landed in `userData`, the panel showed it back correctly every time he opened it, the
+repo copy stayed at its 2026-08-02 version, and `git status` was clean because nothing in the repo
+had changed. The packaged app ignores overrides entirely, so the partner would have been shipped
+the older prompt while Vansh's screen showed the newer one.
+
+The lost edit was not cosmetic: it added the total-piece arithmetic guard (*calculate the total
+from the inventory, never copy a total printed in IMAGE 2*), which is the exact class of error
+WW-122 and learning note 9 are about.
+
+**Root cause.** The guard `if (!dirs.canEditShipped) return shipped` was added to fix the packaged
+case and reads as the cautious choice — it only *ignores* an override where editing is off. But
+the override was never safe to prefer anywhere, because the writer never wrote there. Fixing half
+a path left the two halves pointing at different files, and the failure is silent **by
+construction**: the screen shows the copy that is correct.
+
+**Fix.** `activeFile` returns the shipped file in every mode, `ignoredOverride` is reported in
+every mode (development is where it mattered most and was the one place it stayed quiet), and the
+now-meaningless `edited` flag is deleted. The 2026-08-07 override was promoted into
+`docs/guides/PROMPT-infographic.md` and moved into that prompt's version history rather than
+deleted.
+
+**The rule:** whenever a component resolves *which file to read*, find the writer and check it
+resolves the same one. A read path and a write path that disagree do not error — they diverge, and
+the more the tool is used the further apart they get.
+
+---
+
+## C-051 — a list aimed at a plain text box typed its first entry and reported success
+
+**Category:** Code · **Caught by:** the assistant, while building WW-110 · **Date:** 2026-08-12 · **Status:** Fixed
+
+`fillField`'s last branch — the one that handles every ordinary text input and textarea — was
+`await el.fill(values[0])`. `values` is always an array there, because the caller wraps a single
+value in one. So a field whose product value is a **list** put its first entry in the box and
+silently dropped the rest.
+
+It had never bitten, for one reason: until now every list-valued label happened to be a pill field
+on the live form. `Items Included` is the first list we cannot classify in advance — nobody has
+scanned that tab, so whether it is nine chips or one comma-separated line is unknown until the
+browser is on it. That is what surfaced the branch.
+
+**Why it would have been hard to catch.** The read-back verification that exists precisely to stop
+this — type it, re-read it, compare — **passes**. It compares the box against what was typed, and
+what was typed really was `values[0]`. The check can only catch the form disagreeing with us; it
+cannot catch us asking for the wrong thing. A nine-item field reading `1 Shubh Annaprashan Banner`
+would have shown a green ✅.
+
+**Fix.** `el.fill(values.join(", "))`. One value joins to itself, so nothing else changes, and a
+list now survives both widget types: chips if the row is a pill input, one comma-separated line if
+it is a text box.
+
+**The rule:** when a shared function narrows a collection to one element (`[0]`, `.first()`,
+`find`), ask what makes the other elements safe to lose. "No caller has ever passed more than one"
+is a fact about today's data, not a property of the function.
+
+---
+
+## C-052 — proposed sourcing a listing's size from the inventory, which describes an inflated balloon
+
+**Category:** Judgement · **Caught by:** Vansh, before it shipped · **Date:** 2026-08-12 · **Status:** Fixed
+
+The Product Description tab's `Size in Number` was defaulted to 8 inches from what Vansh had typed
+on ANP004. Asked whether that was right for kits built from 10" or 12" balloons, the answer offered
+was: make it per-product, and have `PROMPT-product.md` read the real figure off the INVENTORY,
+which names materials as `10 INCH METALLIC BALLOONS`.
+
+Vansh: *"then 10 inch foil we are folding, the 10 inch balloon are not blown and then packed so
+they are small, so like that everything almost mostly fits under 8-10 inches only."*
+
+**The inventory's inch figure is the INFLATED size. Nothing ships inflated.** Latex goes in the
+parcel flat, foil is folded. So the proposed rule would have written a dimension describing an
+object that is not in the box, on every listing, sourced from a place that looks authoritative.
+The default was not a lazy placeholder — it was the measured packed reality, and "improving" it
+would have been a regression dressed as precision.
+
+**What makes this worth an entry rather than a shrug:** WW-148 is an OPEN ticket about this exact
+distinction, in the size infographic, and it is open precisely because the inflated figures have
+never been measured. The same trap was walked into a second time, in a different file, four days
+later — and the second time the *direction* was reversed: the infographic wrongly used a generic
+inflated size where it needed a measured one, and here a measured packed size was nearly replaced
+by an inventory inflated one. One distinction, two opposite mistakes.
+
+**Fix.** `Size in Number` stays a default at 8. `PROMPT-product.md` now carries an explicit
+*do not "correct" this from the INVENTORY* instruction with the reason, because the next reader
+will have the same good idea. The defaults file records both numbers and says neither is a
+correction of the other.
+
+**The rule:** before sourcing a measurement from a data file, ask what STATE the file describes.
+A material list describes stock as sold; a listing field describes the item as shipped; a size
+chart describes it as used. Same unit, same noun, three different numbers.
+
+---
+
+## C-053 — put concrete example values in a prompt, the mistake WW-147 exists to prevent
+
+**Category:** Judgement · **Caught by:** Vansh, before it shipped · **Date:** 2026-08-12 · **Status:** Fixed
+
+The new "Color and Type write the product name" section of `PROMPT-product.md` was written with
+worked examples in it — a specific occasion phrase, a specific colour-and-contents phrase, a
+specific extras phrase, and a specific tail. It read well and it was wrong.
+
+Vansh: *"i don't want these details hardcoded in a prompt, then chatgpt won't take the then given
+list details, we give these details only in any listing items and all. so use a generic version."*
+
+**This is WW-147's rule, restated by the person who set it.** That ticket's whole design was *the
+prompt contains no occasion, no colour, no kit and no example values at all*, because an example
+is what a model reaches for when the real data is harder to read — and WW-122 is a live case of an
+example ID in a prompt being copied into a real answer. A section teaching ChatGPT to write the
+most-read text on the listing is the worst possible place to leave a copyable phrase.
+
+Two smaller instances of the same slip were in the same batch: the `Series` field had been given
+four real occasions as examples, and the section quoted a live listing's misspelt word as a
+cautionary tale — a misspelling sitting in a prompt as a string to be copied.
+
+**Fix.** The section is now purely structural: what each of the three phrases must ANSWER, with
+no value that could be lifted. The evidence for the formula, the real listing and the typo all
+moved into `balloon-decoration.description.defaults.json`, which ChatGPT never sees.
+
+**The rule:** a prompt may state what a field must answer; it may not state an answer. If an
+example feels necessary to make an instruction clear, the instruction is not clear yet. And note
+which way this was caught — WW-147 was written down two days earlier and still had to be applied
+by Vansh rather than by the assistant reading its own note.
+
+---
+
+## C-054 — "Could not save your changes" has more than one cause, and the repo only knew one
+
+**Category:** Judgement · **Caught by:** Vansh, with two tests · **Date:** 2026-08-12 · **Status:** Understood
+
+Vansh hit *"Could not save your changes. Please refresh the page and try again."* while typing
+into `Series`, then into `Other Features`.
+
+The repo has a documented cause for that exact message: emoji in the Description make Flipkart
+return HTTP 500 on every save, and because the form posts the whole listing on each edit, the
+failure then follows you to every field on every tab. It fits the symptom perfectly, it is written
+down in `PROMPT-product.md`, and it was the wrong answer.
+
+**It was diagnosed before it was tested.** A scan of the product files was run — which was right,
+and found emoji in four of them — but ANP004, the listing in hand, was already clean. Vansh
+settled it in two messages: *"even if i enter N/A in any other listing this same is coming"* and
+*"now i don't have desc with emoji"*. A different listing, a two-character ASCII value, the same
+error. No content explanation survives that. He then produced the decisive evidence himself:
+**`Failed to create CPUI Request`** — Flipkart's own internal service name in a seller-facing
+message, which is a backend failure, not a rejected value.
+
+**Why this is worth an entry.** The emoji incident is real and cost a listing, so it is written
+up prominently — which makes it the first thing anyone reaching for this message will find, and
+it will fit again next time. A documented cause is a hypothesis, not a diagnosis. The tell that
+separates them costs nothing: **a validation error names YOUR field; a server error names THEIR
+service.** Ask which one is on screen before touching any data.
+
+**What was still worth doing.** The scan found four product files carrying emoji, en-dashes and
+smart quotes, written before the ban. `checkValues` now flags any character outside printable
+ASCII and leaves that field blank, and the four files are cleaned — a ban in a prompt asks a model
+to comply, it does not check the data that came out.
+
+**It then happened a second time in the same conversation.** With the emoji theory dead, a rate
+limit was offered instead — *"each field change fires an autosave, so a single run is ~50 writes
+in under a minute"*. Vansh, alarmed and right to be: *"but that is bad, then whole point of
+listing is lost right?"* **It was invented, and one grep disproved it.** `fill.ts` has always
+ended with *"NOTHING HAS BEEN SAVED YET — closing Chrome now discards all N filled fields"*, a
+sentence that only makes sense if the form does NOT autosave. `fillField` does `el.fill()`,
+`keyboard.type()` and `selectOption()` — local DOM, every one. The only write to Flipkart is
+`clickSave()`, on a button press. **A fill makes zero writes.** The tool cannot rate-limit anyone,
+and a scary claim about it was put in front of the person who depends on it, for no reason.
+
+**The rule:** when a symptom matches a known cause, confirm the cause is PRESENT before acting on
+it. "This looks like X" and "this is X" are separated by one cheap check almost every time — and
+when the guess is about OUR OWN code, the check is a grep, so there is no excuse at all. Both
+misses here were resolved by evidence already in the repository.
+
+---
+
+## C-055 — one sentence for three different failures, and it named no folder
+
+**Category:** Design · **Caught by:** Vansh, from the partner's screen · **Date:** 2026-08-14 ·
+**Status:** Fixed (WW-153)
+
+The partner pressed **Fill this tab** on ANP003 and got `No file in products/ matches "ANP3"`. He
+then created a `products` folder inside the workspace by hand — and got the identical sentence.
+Vansh's reading was the reasonable one: *"this fill this form button is not able to check for the
+products folder"*.
+
+**The folder was being read correctly the whole time.** The proof was already on his screen: the
+listing picker draws a row for **any** `.json` in `PRODUCTS_DIR` whatever it is named, and ANP003
+showed only the `copy` tag with *no Flipkart file* beside it. Nothing was there to find —
+`products-ANP003.json` had never been imported. The bug is not the lookup, it is that the lookup
+could not say so.
+
+**`findById` returns `null` for three different situations** — folder missing, folder empty, folder
+full of other listings — and every caller printed one sentence for all three, naming a relative
+`products/` that appears on no screen anywhere. So the one action the message provoked (create the
+folder) produced no visible change, which reads as a broken button rather than a missing file.
+`whyNoMatch` now separates the three and prints the absolute path, at all three call sites.
+
+**The deeper miss is a consistency one, and Vansh named it before the fix was written:** *"in the
+finish image page we are able to select where these JSON will be picked, same freedom we should
+have for the product JSON also."* Every other step in the app names its folder in a dialog and
+remembers it. This step alone used an implicit `<workspace>/products` that was printed nowhere —
+so when it disagreed with where the files actually were, there was no way to see the disagreement,
+let alone fix it. **A path the user cannot see is a path they cannot be wrong about, and that is
+not a feature.**
+
+**Also worth keeping:** "Open it" buttons ran `shell.openPath` on folders that may not exist yet,
+where it does nothing at all, silently — a second dead-end dressed as a working control. It now
+creates the folder first.
+
+---
+
 ## Patterns worth acting on
 
 Counting the entries above:
