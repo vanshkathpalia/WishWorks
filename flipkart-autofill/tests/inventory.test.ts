@@ -291,6 +291,19 @@ describe("keeping a costed kit", () => {
     expect(listKits(dir)).toHaveLength(1);
   });
 
+  // The name comes from the SKU, so saving a renamed kit does NOT move it — it writes a second
+  // file and leaves the first one in the list under the old number. This is why the Inventory
+  // panel remembers the file it opened and deletes it after a rename; if this ever starts
+  // returning one kit, that step is dead code.
+  it("saving under a new SKU leaves the old file behind", () => {
+    const dir = tmp();
+    const base = { image: null, lines: [], overrides: {}, marginPercent: 50, savedAt: "" };
+    const first = saveKit({ ...base, sku: "GTB-2" }, dir);
+    const second = saveKit({ ...base, sku: "GTB-3" }, dir);
+    expect(second).not.toBe(first);
+    expect(listKits(dir)).toHaveLength(2);
+  });
+
   it("survives a SKU that is not a filename, and a missing folder", () => {
     const dir = tmp();
     expect(listKits(path.join(dir, "nope"))).toEqual([]);

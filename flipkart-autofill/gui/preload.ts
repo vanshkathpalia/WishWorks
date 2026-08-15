@@ -67,6 +67,7 @@ const api: WwApi = {
   openKitsFolder: () => ipcRenderer.invoke("openKitsFolder"),
   listKits: () => ipcRenderer.invoke("listKits"),
   openKit: (file: string) => ipcRenderer.invoke("openKit", file),
+  deleteKit: (file: string) => ipcRenderer.invoke("deleteKit", file),
 
   scanPhotos: (from: string, root: string) => ipcRenderer.invoke("scanPhotos", from, root),
   importPhoto: (item: PhotoItem, position: number, opts: { move?: boolean }) =>

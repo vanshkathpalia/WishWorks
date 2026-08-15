@@ -247,6 +247,8 @@ export interface WwApi {
   /** Every kit kept on this machine, newest first. */
   listKits(): Promise<KitRow[]>;
   openKit(file: string): Promise<SavedKit>;
+  /** Remove a saved kit's file — how a rename gets rid of the kit's old name. Kits folder only. */
+  deleteKit(file: string): Promise<void>;
 
   /** Match downloaded pictures to the listing folders under an archive root. Changes nothing. */
   scanPhotos(from: string, root: string): Promise<PhotoItem[]>;

@@ -112,6 +112,14 @@ export function Inventory({ n }: { n: number }) {
   const [gst, setGst] = useState(5);
   const [over, setOver] = useState<"image" | "json" | null>(null);
   const [saved, setSaved] = useState<KitRow[]>([]);
+  /**
+   * The file this kit was opened from, when it was opened from one.
+   *
+   * Only reason it exists: the filename is made from the SKU, so changing the SKU and keeping
+   * writes a NEW file and would leave the old one sitting in the list under the old name. This is
+   * what lets a rename be a rename.
+   */
+  const [openedFile, setOpenedFile] = useState<string | null>(null);
   const [showKits, setShowKits] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [market, setMarket] = useState<Market>({});
@@ -151,6 +159,13 @@ export function Inventory({ n }: { n: number }) {
   }
 
   const refreshSaved = useCallback(() => void window.ww.listKits().then(setSaved), []);
+
+  // The list is read off the folder every time, so a kit renamed, added or deleted in Finder is
+  // picked up — on coming back to the window, which is when you have just been in there.
+  useEffect(() => {
+    window.addEventListener("focus", refreshSaved);
+    return () => window.removeEventListener("focus", refreshSaved);
+  }, [refreshSaved]);
 
   // Re-read after the editor closes, in case the prompt was changed.
   useEffect(() => {
@@ -196,18 +211,56 @@ export function Inventory({ n }: { n: number }) {
       return;
     }
     setError(null);
-    setOverrides({}); // a new reply is a new kit; the last kit's corrections do not apply
-    setMarket({}); // and the last kit's prices are certainly not this one's
-    setPrices({});
-    setCounts({});
-    setChosen({});
-    setTyped({});
+    /**
+     * The same items in the same order means this is the SAME kit re-read — the box below now
+     * shows the open kit's own JSON, so an edit in it (a corrected count, a new SKU) is a revision
+     * and must not throw away the prices and corrections that were typed against those lines. A
+     * different item list is a different kit, and then every one of them has to go: `overrides` and
+     * `counts` are keyed by line index and would silently land on the wrong line.
+     */
+    const same =
+      lines !== null &&
+      lines.length === r.result.lines.length &&
+      lines.every((l, i) => l.item === r.result.lines[i].item);
+    if (!same) {
+      setOverrides({}); // a new reply is a new kit; the last kit's corrections do not apply
+      setMarket({}); // and the last kit's prices are certainly not this one's
+      setPrices({});
+      setCounts({});
+      setChosen({});
+      setTyped({});
+      setOpenedFile(null); // not the kit that was opened, so keeping must not replace it
+    }
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
     setKit(r.result);
   }
 
-  const loadReply = async (file: string) => took(await window.ww.costInventory(file, {}));
+  /** A dropped file fills the box too, so every route in leaves the SKU editable in one place. */
+  async function loadReply(file: string) {
+    const r = await window.ww.costInventory(file, {});
+    took(r);
+    if (r.ok) setPaste(asJson(r.result.sku, r.result.lines));
+  }
+
+  /**
+   * The reading, back in the box it came from — the SKU and the item lines, nothing else.
+   *
+   * Not the whole saved file: the prices, corrections and marketplace figures are *edited on this
+   * screen*, and a JSON copy of them sitting in a textarea would be a second place to change them
+   * that could disagree with the first. What is here is the one thing the screen has no other
+   * control for, the SKU — so a kit can be renumbered before it is kept, and the file, the
+   * `products/<ID>.json` the parcel button writes and the image folders all end up on the same ID.
+   */
+  const asJson = (id: string, ls: KitLine[]) =>
+    JSON.stringify(
+      // The three fields the reading has and nothing else — a costed line also carries its match,
+      // its price and its candidates, and printing those would put the app's answers in the box
+      // you type the question into.
+      { sku: id, lines: ls.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })) },
+      null,
+      2,
+    );
 
   /**
    * Pasting reads as you paste — no button. The whole interaction is copy in the chat, click here,
@@ -260,7 +313,17 @@ export function Inventory({ n }: { n: number }) {
       savedAt: "",
     };
     const file = await window.ww.saveKit(kept);
-    setNote(`Kept as ${file.split(/[\\/]/).pop()}.`);
+    // The filename comes from the SKU, so a renamed kit has just been written beside its old self.
+    // Drop the old one: two files, same kit, different names is exactly the mess this avoids.
+    const renamed = openedFile !== null && openedFile !== file;
+    if (renamed) await window.ww.deleteKit(openedFile);
+    setOpenedFile(file);
+    const name = file.split(/[\\/]/).pop();
+    setNote(
+      renamed
+        ? `Kept as ${name} — ${openedFile.split(/[\\/]/).pop()} is gone.`
+        : `Kept as ${name}.`,
+    );
     setTimeout(() => setNote(null), 4000);
     refreshSaved();
   }
@@ -318,7 +381,8 @@ export function Inventory({ n }: { n: number }) {
     setChosen(k.parcel ?? {});
     setTyped({});
     setLines(k.lines);
-    setPaste("");
+    setPaste(asJson(k.sku, k.lines));
+    setOpenedFile(file);
     setError(null);
   }
 
@@ -400,6 +464,18 @@ export function Inventory({ n }: { n: number }) {
             spellCheck={false}
             onChange={(e) => pasted(e.target.value)}
           />
+          {/* Opening a saved kit fills this box with that kit's own reading, so the box is where a
+              SKU gets changed — there is no second field for it, because two places to type one
+              number is two places for it to be wrong. */}
+          {lines && (
+            <p className="muted">
+              This is what the kit below was read from. Edit the <code>sku</code> to renumber it —
+              the file, the <code>products/&lt;ID&gt;.json</code> the parcel button writes and the
+              image folders all follow that one word. Changing the <b>items</b> makes it a different
+              kit and clears the corrections and prices, because those are held against the lines
+              that were there.
+            </p>
+          )}
           <div
             className={`drop small ${over === "json" ? "over" : ""}`}
             onDragOver={(e) => {
@@ -838,7 +914,9 @@ export function Inventory({ n }: { n: number }) {
               Keeping stores the {kit.lines.length} lines as read, any material you corrected, both
               pricing rules, and the prices, delivery and GST above. Not the total — that is worked
               out again from today&apos;s price list every time you open it, so a price change reaches
-              every kit you have ever saved.
+              every kit you have ever saved. The name is the <code>sku</code> in the box at the top:
+              change it there and keeping <b>renames</b> this kit rather than making a second copy
+              of it.
             </span>
             {note && <span className="allgood">{note}</span>}
           </div>

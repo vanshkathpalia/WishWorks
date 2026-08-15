@@ -535,6 +535,17 @@ ipcMain.handle("listKits", async () => {
   return listKits(KITS_DIR, loadMaterials());
 });
 ipcMain.handle("openKit", async (_e, file: string) => (await inventoryEngine()).readKit(file));
+/**
+ * Delete one saved kit — the second half of a rename, which writes the new name and then drops the
+ * old one. Confined to a `.json` directly inside the kits folder: the renderer hands over a path,
+ * and a path from the renderer is the one thing that must never be able to point at anything else.
+ */
+ipcMain.handle("deleteKit", async (_e, file: string) => {
+  const { KITS_DIR } = await inventoryEngine();
+  const target = path.resolve(file);
+  if (path.dirname(target) !== path.resolve(KITS_DIR) || path.extname(target) !== ".json") return;
+  await rm(target, { force: true });
+});
 
 // ---------------------------------------------------------------- the AI's pictures
 
