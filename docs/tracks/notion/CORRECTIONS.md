@@ -1874,3 +1874,32 @@ photo showing it plainly in one colour* — which teaches the same pattern with 
 it cannot see the image (OCR was built and removed, WW-115), and the backstop already exists: an
 incomplete name ties two rows and the table flags it. Prompt for the common case, flag for the
 rest.
+
+## C-058 — a field limit nobody knew existed, in the two fields we write most carefully
+
+**Category:** Process · **Caught by:** Vansh · **Date:** 2026-08-16 ·
+**Status:** Fixed (WW-166, prompt + code)
+
+Flipkart rejects the save with *"[Color]: the total length (108) is more than the allowed limit:
+80"* and *"[Key Spec]: the provided length 25 is greater than the allowed limit 22"*. Vansh:
+*"the prompt i am giving you is not keeping count of char/work count."*
+
+**Root cause.** `PROMPT-product.md` spends a whole section on `Color` — it composes the product
+name, so it asks for three rich descriptive phrases — and never says how long they may be. Six of
+the product files in this repo were over. The `Description` field is the only one in the whole
+prompt that had a character budget, and it got one because a truncation was noticed once.
+
+**The half that is easy to get wrong.** The two fields count differently: `Key Spec` limits each
+entry on its own, `Color` limits the sum of all three, and the separators Flipkart inserts do not
+count toward it. A single "80 characters" rule written from the first error message would have
+been wrong about both.
+
+**Cheap lesson.** A limit that a form only reveals by refusing to save is invisible to everyone
+who has not hit it, and it is worth writing down the exact wording of the error — the numbers in
+it are the specification. Anywhere a prompt asks for "rich" or "descriptive" text on a form field,
+ask what the form's cap is before assuming there is none.
+
+**Fixed in both places, deliberately.** The prompt now carries both budgets with worked examples,
+and `checkValues()` carries the numbers too. The prompt is what makes the value right; the check
+is what catches the files written before the prompt said so — which is exactly the emoji story
+(WW-081) repeating, four product files deep.

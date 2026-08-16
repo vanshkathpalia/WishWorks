@@ -347,10 +347,27 @@ export function productName(values: Values): { name: string; warnings: string[] 
 }
 
 export interface Problem {
-  kind: "placeholder" | "comma" | "nonascii";
+  kind: "placeholder" | "comma" | "nonascii" | "toolong";
   label: string;
   value: string;
 }
+
+/**
+ * Flipkart's own character limits, quoted from the errors its form shows on save.
+ *
+ * Measured 2026-08-16 on a real listing:
+ *   "[Color]: For [color] attribute, the total length (108) is more than the allowed limit: 80"
+ *   "[Key Spec]: For [key_spec] attribute, the provided length 25 is greater than the allowed
+ *    limit 22"
+ *
+ * So the two fields count differently, which is why there are two tables: `Key Spec` limits
+ * EACH entry, `Color` limits the SUM of all its entries (the ", " separators are not counted —
+ * the file that reported 108 joins to 112). Nothing shows either number until the save is
+ * rejected, and six of the product files in this repo break one or both, so the prompt asking
+ * for short phrases is not a guard on its own.
+ */
+const MAX_EACH: Record<string, number> = { "Key Spec": 22 };
+const MAX_TOTAL: Record<string, number> = { Color: 80 };
 
 /**
  * The first character in a string that Flipkart's backend cannot store, or null.
@@ -403,6 +420,18 @@ export function checkValues(values: Values): Problem[] {
         break;
       }
     }
+    const parts = (Array.isArray(v) ? v : [String(v)]).map(String);
+    const each = MAX_EACH[label];
+    if (each) {
+      for (const s of parts) {
+        if (s.length > each) out.push({ kind: "toolong", label, value: `"${s}" is ${s.length} characters, limit ${each}` });
+      }
+    }
+    const total = MAX_TOTAL[label];
+    if (total) {
+      const n = parts.reduce((a, s) => a + s.length, 0);
+      if (n > total) out.push({ kind: "toolong", label, value: `${n} characters across all values, limit ${total}` });
+    }
   }
   return out;
 }
@@ -448,6 +477,14 @@ export function describeProblems(problems: Problem[]): string {
     lines.push(`    so they are LEFT BLANK too:`);
     for (const p of commas) lines.push(`   ${p.label}: "${p.value}"`);
     lines.push(`   Rewrite them without commas — "and" or a dash reads fine.`);
+  }
+  const long = problems.filter((p) => p.kind === "toolong");
+  if (long.length) {
+    lines.push(`⚠️  These are over Flipkart's character limit — it rejects the SAVE, not just the`);
+    lines.push(`    field, so they are LEFT BLANK:`);
+    for (const p of long) lines.push(`   ${p.label}: ${p.value}`);
+    lines.push(`   Shorten them and put them in by hand. Color is 80 characters for all three`);
+    lines.push(`   phrases together; each Key Spec entry is 22.`);
   }
   if (lines.length) lines.push(`   Type these into the form yourself before you press Save.`);
   return lines.join("\n");

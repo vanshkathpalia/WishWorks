@@ -367,3 +367,29 @@ describe("a real scan replaces a typed-in guess", () => {
     expect(saved.fields.find((f: { label: string }) => f.label === "Type *").kind).toBe("combobox");
   });
 });
+
+// Flipkart's length limits, which nothing shows until it refuses to save: Color counts the SUM
+// of its values (80), Key Spec counts EACH one (22). Both errors were seen on a real listing.
+describe("Flipkart's character limits", () => {
+  it("catches Color over 80 characters across all its phrases", () => {
+    const p = checkValues({ Color: ["Annaprasan Ceremony", "Gold Metallic and White Latex Balloon Decoration", "Heart Shape Red Foil with Fringe Backdrop"] });
+    expect(p).toHaveLength(1);
+    expect(p[0].kind).toBe("toolong");
+    expect(p[0].value).toContain("108");
+  });
+
+  it("counts Color values only — not the separators Flipkart adds between them", () => {
+    expect(checkValues({ Color: ["12345678901234567890", "12345678901234567890", "1234567890123456789012345678901234567890"] })).toEqual([]);
+  });
+
+  it("catches a single Key Spec entry over 22, and names that entry", () => {
+    const p = checkValues({ "Key Spec": ["50 Balloons", "15 Gold Metallic Balloons"] });
+    expect(p).toHaveLength(1);
+    expect(p[0].value).toContain("15 Gold Metallic Balloons");
+  });
+
+  it("leaves an over-length field blank — the save fails for the whole listing otherwise", () => {
+    const values = { "Key Spec": ["4 Heart Shape Red Foil Balloons"], Stock: "100" };
+    expect(Object.keys(fillableValues(values, checkValues(values)))).toEqual(["Stock"]);
+  });
+});

@@ -5,7 +5,7 @@ list of what is in the pack and how many, and IMAGE 1 is a staged scene whose ba
 (walls, curtains, furniture, cake, people) is NOT in the pack and never becomes a pack item,
 a material or a "Decoratives Attached" entry.
 
-Now fill the Flipkart listing form fields.
+Now fill the Flipkart listing form fields
 
 GIVE ME THE ANSWER AS A DOWNLOADABLE FILE named products-<ID>.json, where <ID> is THE SAME
 value you used for the first file in this chat — character for character. Do not re-derive
@@ -174,6 +174,17 @@ Lists (arrays — no commas inside any entry)
   "Key Spec"             – 3 short specs, each a COUNT or a MEASUREMENT, e.g.
                            ["50 Balloons", "12 inch", "Red and White"]. Never a slogan —
                            "Complete Decoration Kit" is not a spec.
+                           *** HARD LIMIT: 22 CHARACTERS PER ENTRY, COUNT THEM. ***
+                           Flipkart refuses to save the listing and says "the provided length
+                           25 is greater than the allowed limit 22". It counts each entry on
+                           its own, spaces included. 22 characters is a count and a noun and
+                           almost nothing else — the colour and the material do not fit and
+                           they already have their own fields:
+                             "15 Gold Metallic Balloons"   (25) → "15 Metallic Balloons"  (20)
+                             "4 Heart Shape Red Foil Balloons" (31) → "4 Heart Balloons"  (16)
+                             "2 Metallic Curtain Backdrop Pieces" (34) → "2 Curtain Backdrops" (19)
+                           Write each one, count its characters, and shorten it before you
+                           move to the next.
   "Key Features"         – 4 to 6 selling points, each one short line, NO COMMAS
   "Search Keywords"      – the "keywords" list from the first file, copied exactly.
   "Precautions"          – safety warnings, e.g. ["Keep away from fire"]
@@ -374,6 +385,28 @@ GIVE ME EXACTLY THIS, ALL OF IT FROM THE INVENTORY AND THE PHOTOS:
   "Type"  – the last words of the name. It must read correctly straight after the 3rd phrase,
            because Flipkart puts no comma between them.
 
+*** HARD LIMIT: THE THREE "Color" PHRASES TOGETHER MUST BE 80 CHARACTERS OR FEWER. ***
+Flipkart adds the three lengths up — the commas it inserts between them are not counted — and
+refuses to save the listing: "the total length (108) is more than the allowed limit: 80". So the
+budget is about 26 characters per phrase, and you have to spend it, not fill it. Every phrase
+that reads well at 26 characters is doing it by dropping words that are already elsewhere on the
+form: "Colour", "Shape", "Decoration Set", "Celebration", "Balloon Decoration".
+
+  TOO LONG (108):
+    "Annaprasan Ceremony" + "Gold Metallic and White Latex Balloon Decoration"
+    + "Heart Shape Red Foil with Fringe Backdrop"
+  FITS (71), and says the same thing:
+    "Annaprasan Rice Ceremony" (24) + "Gold and White Balloons" (23)
+    + "Red Foil Heart Backdrop" (24)
+
+Write the three phrases, count the characters of each one, add the three numbers up, and if the
+total is over 80 shorten the SECOND and THIRD phrases first — the first one is the occasion, and
+the front-load rule below says that is the part that gets read.
+
+Rule 7 (brand collision) still applies inside the shortened phrases: shortening is not a licence
+to leave a bare colour-plus-noun pair like "Gold Balloon" — keep the material or shape word
+("Gold Foil Balloon"), and buy the room from somewhere else in the phrase.
+
 Derive all four from THIS kit. Do not carry over wording from any other listing, and do not use a
 phrase because it sounds like a product name — every word has to be answerable from the INVENTORY
 or visible in the photos.
@@ -484,6 +517,11 @@ If any section appears as one long paragraph, rewrite it before answering.
 - COMPOSE THE PRODUCT NAME ON PAPER: <brand> + your three "Color" phrases + "Type". Is any word
   in it repeated? Is every word spelt correctly? Does it start with the occasion? Is there an "&"
   or a comma inside a value? That one line is what every buyer sees; check it before anything else.
+- COUNT THE CHARACTERS IN "Color" AND IN EVERY "Key Spec" ENTRY. Write the numbers down:
+  the three "Color" phrases must ADD UP to 80 or fewer, and EACH "Key Spec" entry must be 22 or
+  fewer. These two are not warnings — Flipkart refuses to save the entire listing and names the
+  number it counted, so an over-long value is not a weak field, it is a listing that cannot go
+  live. Six real product files broke one or both of these before the limits were written down.
 - ARE "Series", "Occasion" AND "Other Features" ALL THERE? They are the fields that get skipped
   most often, they are all easy to answer truthfully, and each one is a filter the listing
   otherwise never appears in. "Occasion" is the urgent one: skipping it does not leave a gap, it
