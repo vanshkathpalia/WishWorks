@@ -1658,3 +1658,19 @@ textarea.json {
   color: var(--ink);
   width: 140px;
 }
+
+/* The two pictures a SKU can have, and the way to add one. `.picks` above the image rather than
+   under it: the buttons must not move when a tall picture loads. */
+.sku-pictures {
+  margin-top: 18px;
+}
+.sku-pictures .picks {
+  margin-bottom: 12px;
+}
+.sku-pictures .picks button.chosen {
+  border-color: var(--accent);
+  background: #2a211b;
+}
+.sku-pictures .sku-image {
+  margin: 0;
+}

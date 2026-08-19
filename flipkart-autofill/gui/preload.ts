@@ -86,7 +86,9 @@ const api: WwApi = {
   addManifest: (file: string) => ipcRenderer.invoke("addManifest", file),
   orderDays: () => ipcRenderer.invoke("orderDays"),
   saveDay: (day) => ipcRenderer.invoke("saveDay", day),
-  skuImage: (sku: string) => ipcRenderer.invoke("skuImage", sku),
+  skuImage: (sku: string, position: number) => ipcRenderer.invoke("skuImage", sku, position),
+  addSkuImage: (sku: string, position: number, file: string) =>
+    ipcRenderer.invoke("addSkuImage", sku, position, file),
   workers: () => ipcRenderer.invoke("workers"),
   setWorkers: (names: string[]) => ipcRenderer.invoke("setWorkers", names),
 

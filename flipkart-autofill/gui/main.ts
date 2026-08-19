@@ -688,8 +688,11 @@ ipcMain.handle("addManifest", async (_e, file: string): Promise<Attempt<unknown>
 
 ipcMain.handle("orderDays", async () => (await ordersEngine()).listDays());
 ipcMain.handle("saveDay", async (_e, day: unknown) => (await ordersEngine()).writeDay(day as never));
-ipcMain.handle("skuImage", async (_e, sku: string) =>
-  (await ordersEngine()).imageForSku(FOLDERS.ready.dir, sku),
+ipcMain.handle("skuImage", async (_e, sku: string, position: number) =>
+  (await ordersEngine()).imageForSku(FOLDERS.ready.dir, sku, position),
+);
+ipcMain.handle("addSkuImage", async (_e, sku: string, position: number, file: string) =>
+  (await ordersEngine()).addSkuImage(FOLDERS.ready.dir, sku, position, file),
 );
 
 /** Who packs. A list of names in settings — ticking one off is a click, never a typed name. */

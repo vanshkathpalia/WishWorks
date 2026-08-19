@@ -16,9 +16,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { mergeManifest, parseManifest, workerCredit } from "../src/orders-core.js";
+import { addSkuImage, imageForSku, mergeManifest, parseManifest, workerCredit } from "../src/orders-core.js";
 
 const pdf = readFileSync(path.join(import.meta.dirname, "fixtures", "meesho-manifest.pdf"));
 
@@ -63,6 +64,47 @@ describe("mergeManifest", () => {
     const twice = mergeManifest(once, parseManifest(pdf), "manifest.pdf");
     expect(twice).toBe(once);
     expect(twice.rows.find((r) => r.sku === "SVP033")?.qty).toBe(14);
+  });
+});
+
+describe("the pictures on a SKU", () => {
+  /** A ready folder with one finished listing in it, the way `finish` leaves them. */
+  function ready() {
+    const dir = mkdtempSync(path.join(tmpdir(), "ww-ready-"));
+    mkdirSync(path.join(dir, "ANP"));
+    for (const n of [1, 2]) {
+      writeFileSync(path.join(dir, "ANP", `ANP-9-annaprashan-decoration-kit-red-gold-${n}.jpg`), "x");
+    }
+    return dir;
+  }
+
+  it("finds a finished listing by its code, and tells the two slots apart", async () => {
+    const dir = ready();
+    expect(await imageForSku(dir, "ANP-9", 2)).toMatch(/-2\.jpg$/);
+    expect(await imageForSku(dir, "ANP-9", 1)).toMatch(/-1\.jpg$/);
+    expect(await imageForSku(dir, "SVP025", 2)).toBeNull();
+  });
+
+  it("files an added picture under the SKU's own code, and that one then wins", async () => {
+    const dir = ready();
+    const src = path.join(dir, "from-whatsapp.jpg");
+    writeFileSync(src, "y");
+
+    // A code in the SKU means a subfolder, so the shared drive stays readable to a person.
+    const to = await addSkuImage(dir, "SVP025", 2, src);
+    expect(path.relative(dir, to)).toBe(path.join("SVP", "SVP025-2.jpg"));
+    expect(await imageForSku(dir, "SVP025", 2)).toBe(to);
+
+    // The exact name beats the finished listing's long one — otherwise the packer is shown
+    // whichever file the directory walk happened to reach first.
+    const exact = await addSkuImage(dir, "ANP-9", 2, src);
+    expect(await imageForSku(dir, "ANP-9", 2)).toBe(exact);
+
+    // No code in the SKU is not a group called nothing — it stays in the root, where tidyReady
+    // leaves that case too.
+    const loose = await addSkuImage(dir, "007 annaprashan ct", 2, src);
+    expect(path.relative(dir, loose)).toBe("007-annaprashan-ct-2.jpg");
+    expect(await imageForSku(dir, "007 annaprashan ct", 2)).toBe(loose);
   });
 });
 

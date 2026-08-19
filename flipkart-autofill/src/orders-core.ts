@@ -17,7 +17,7 @@
  */
 
 import zlib from "node:zlib";
-import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
+import { copyFile, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./paths.js";
 
@@ -204,19 +204,66 @@ const key = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
  * that is a state the panel draws rather than an error: a SKU can be sold before its images were
  * ever finished here.
  */
-export async function imageForSku(readyDir: string, sku: string): Promise<string | null> {
+export async function imageForSku(readyDir: string, sku: string, position = 2): Promise<string | null> {
   const want = key(sku);
   if (!want) return null;
+  const tail = new RegExp(`-${position}\\.(jpe?g|png)$`, "i");
   const stack = [readyDir];
+  /**
+   * An EXACT name wins over one that merely contains the SKU, and that is what makes
+   * `addSkuImage` authoritative: a picture added here is filed as `SVP025-2.jpg`, while a
+   * finished listing is `ANP-9-annaprashan-decoration-kit-…-2.jpg`. Without the preference the
+   * two would tie and the answer would be whichever the directory walk reached first.
+   */
+  let loose: string | null = null;
   while (stack.length > 0) {
     const dir = stack.pop()!;
     for (const e of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
       const full = path.join(dir, e.name);
-      if (e.isDirectory()) stack.push(full);
-      else if (/-2\.(jpe?g|png)$/i.test(e.name) && key(e.name).includes(want)) return full;
+      if (e.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!tail.test(e.name)) continue;
+      const found = key(e.name.replace(tail, ""));
+      if (found === want) return full;
+      if (loose === null && found.includes(want)) loose = full;
     }
   }
-  return null;
+  return loose;
+}
+
+/**
+ * Put a picture on a SKU by hand, filed where the finished ones live.
+ *
+ * Vansh, 2026-08-19: *"my image files have the SKU name and all, the partner has not"* — his own
+ * listings come out of the finish step already named and grouped, and his partner's do not, so
+ * every one of his partner's SKUs shows *no image* on the packing screen. This is the way in for
+ * a photo that was never through the pipeline.
+ *
+ * **Filed by `skuGroup`, the engine's own rule** — `SVP025` under `SVP/`, the same folder
+ * `Sort into groups` would move it to — so the shared Drive folder stays readable to a person and
+ * one rule keeps naming the subfolders. A SKU with no code in it (`007 annaprashan ct`) has no
+ * group and lands in the root, which is exactly where `tidyReady` leaves that case too.
+ *
+ * The name is `<sku>-<position>.<ext>`, which is what `imageForSku` prefers, so **adding a picture
+ * to a slot replaces what that slot showed** rather than leaving two candidates to choose between.
+ * The original is copied, never moved: the photo is usually sitting in someone's Downloads and is
+ * theirs, not ours.
+ */
+export async function addSkuImage(
+  readyDir: string,
+  sku: string,
+  position: number,
+  file: string,
+): Promise<string> {
+  const { skuGroup } = await import("./finish-core.js");
+  const name = sku.trim().replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const dir = path.join(readyDir, skuGroup(sku));
+  await mkdir(dir, { recursive: true });
+  const to = path.join(dir, `${name}-${position}${path.extname(file).toLowerCase()}`);
+  await copyFile(file, to);
+  return to;
 }
 
 /** Null for a day nobody has recorded — the normal state of every day before the manifest lands. */

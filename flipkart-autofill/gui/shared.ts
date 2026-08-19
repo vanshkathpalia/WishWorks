@@ -134,7 +134,10 @@ export function isForAccount(id: string, prefix?: string): boolean {
  * converting (which reaches for ~/Downloads) fighting finishing (the WhatsApp archive).
  */
 export type StepId =
-  | "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox" | "inventory" | "orders";
+  | "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox" | "inventory"
+  // Two on the orders screen, because they open on different things: the manifest comes out of
+  // the browser's downloads, a product picture out of wherever the photos are kept.
+  | "orders" | "orders-image";
 
 /**
  * The tag clean-up, which belongs on this step because the engine does it here: cropping and
@@ -335,10 +338,16 @@ export interface WwApi {
   /** Write a day back after ticking off some packing. The panel owns the whole object. */
   saveDay(day: OrderDay): Promise<void>;
   /**
-   * The second finished image for a SKU out of the ready folder — the one showing what goes in
-   * the packet. Null when that SKU has no finished images here, which is a normal state.
+   * A finished image for a SKU out of the ready folder — `2` is what goes in the packet and is
+   * what the packing screen opens on, `1` is the main photo. Null when that SKU has no image in
+   * that slot, which is a normal state and one the panel draws rather than treating as an error.
    */
-  skuImage(sku: string): Promise<string | null>;
+  skuImage(sku: string, position: number): Promise<string | null>;
+  /**
+   * Put a picture on a SKU by hand, filed under its code in the ready folder — for every SKU that
+   * never went through this app's finish step, which is all of the partner's.
+   */
+  addSkuImage(sku: string, position: number, file: string): Promise<string>;
   /** The people who pack, for the tick-off list. One setting, replaced whole. */
   workers(): Promise<string[]>;
   setWorkers(names: string[]): Promise<void>;

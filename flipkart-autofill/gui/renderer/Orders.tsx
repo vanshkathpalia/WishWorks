@@ -19,7 +19,7 @@
  * each, which is exactly how they already split it ("six and four, fifty fifty, no problem").
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import type { OrderDay, OrderRow } from "../shared.js";
 import { fileUrl } from "./ui.js";
 
@@ -46,28 +46,64 @@ const showDate = (date: string) =>
  * Reloaded per SKU rather than fetched for the whole list up front: the ready folder is on a
  * shared drive, and walking it seven times on a click is cheaper than walking it once at launch
  * for a screen that might not be opened.
+ *
+ * **Opens on image 2 and stays there**, because that is the one that shows what goes in the
+ * packet. Image 1 is the shop-window photo and is one click away — Vansh, 2026-08-19: *"I want an
+ * option to see the 1st image of that SKU too, by default inventory, but if I want to then there
+ * only I should have the option."*
+ *
+ * **Adding a picture is here rather than in a settings screen** because this is where the gap is
+ * discovered: his own listings come out of the finish step named and grouped, his partner's never
+ * went through it at all, so the first anyone knows about a missing picture is standing in front
+ * of a parcel. The file is copied into the ready folder under the SKU's own code.
  */
 function SkuImage({ sku }: { sku: string }) {
+  const [position, setPosition] = useState(2);
   const [file, setFile] = useState<string | null | undefined>(undefined);
-  useEffect(() => {
-    setFile(undefined);
-    void window.ww.skuImage(sku).then(setFile);
-  }, [sku]);
 
-  if (file === undefined) return <div className="sku-image empty">Looking for the picture…</div>;
-  if (file === null) {
-    return (
-      <div className="sku-image empty">
-        No finished image for <b>{sku}</b> in the ready folder. Pack it from the listing itself —
-        this only ever shows what is already there.
-      </div>
-    );
+  const load = useCallback(() => {
+    setFile(undefined);
+    void window.ww.skuImage(sku, position).then(setFile);
+  }, [sku, position]);
+  useEffect(load, [load]);
+
+  async function add() {
+    const [picked] = await window.ww.pick("orders-image", "files");
+    if (!picked) return;
+    await window.ww.addSkuImage(sku, position, picked);
+    load();
   }
+
   return (
-    <figure className="sku-image">
-      <img src={fileUrl(file)} alt={`What goes in a ${sku} packet`} />
-      <figcaption className="path">{file}</figcaption>
-    </figure>
+    <div className="sku-pictures">
+      <div className="picks">
+        <button className={position === 2 ? "chosen" : ""} onClick={() => setPosition(2)}>
+          What is in the packet
+        </button>
+        <button className={position === 1 ? "chosen" : ""} onClick={() => setPosition(1)}>
+          Main photo
+        </button>
+        <button onClick={() => void add()}>
+          {file ? "Replace this picture…" : "Add a picture…"}
+        </button>
+      </div>
+
+      {file === undefined ? (
+        <div className="sku-image empty">Looking for the picture…</div>
+      ) : file === null ? (
+        <div className="sku-image empty">
+          No picture for <b>{sku}</b> in the ready folder. Finished listings land there on their
+          own; anything else — a SKU that was never listed through this app — needs one adding
+          above. It is filed under <b>{sku.replace(/[^A-Za-z0-9]+/g, "-")}</b> in that SKU&apos;s
+          own folder, so the shared drive stays readable.
+        </div>
+      ) : (
+        <figure className="sku-image">
+          <img src={fileUrl(file)} alt={position === 2 ? `What goes in a ${sku} packet` : `${sku} main photo`} />
+          <figcaption className="path">{file}</figcaption>
+        </figure>
+      )}
+    </div>
   );
 }
 
