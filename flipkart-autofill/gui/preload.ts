@@ -83,6 +83,13 @@ const api: WwApi = {
   applyParcel: (id: string, dimensions: Record<string, string | Record<string, string>>) =>
     ipcRenderer.invoke("applyParcel", id, dimensions),
 
+  addManifest: (file: string) => ipcRenderer.invoke("addManifest", file),
+  orderDays: () => ipcRenderer.invoke("orderDays"),
+  saveDay: (day) => ipcRenderer.invoke("saveDay", day),
+  skuImage: (sku: string) => ipcRenderer.invoke("skuImage", sku),
+  workers: () => ipcRenderer.invoke("workers"),
+  setWorkers: (names: string[]) => ipcRenderer.invoke("setWorkers", names),
+
   downloadsDir: () => ipcRenderer.invoke("downloadsDir"),
   scanInbox: (from: string) => ipcRenderer.invoke("scanInbox", from),
   importInbox: (from: string, opts: { move?: boolean; only?: string[] }) =>

@@ -162,6 +162,29 @@ build; document it for the partner so it does not read as a virus.
 | Stack | **React 19 + plain CSS, electron-vite, electron-builder** | Decided 2026-07-31 with WW-067. Tauri was the real alternative and loses on one fact: a Rust shell still has to run `sharp` and Playwright, so it ships a Node sidecar plus a protocol. Full reasoning: `docs/learning/8-the-desktop-app-stack.md` |
 | Where it lives | **inside `flipkart-autofill/`** | One `package.json`, one `node_modules`, one test runner; `runImages()` is a relative import. **Flagged:** the folder is named after one marketplace and now holds the whole app. A `git mv` is cheap today and expensive after WW-068 wires CI to the path |
 
+### Three tabs across the top, one rail each — WW-172, 2026-08-19
+
+The app does three jobs, and they are not one flow:
+
+| Tab | What it is | Numbered? |
+|---|---|---|
+| **Orders** | The day's parcels: read the manifest, tick off the packing, credit the packer | no |
+| **New listing** | The seven-step listing flow this app started as | **yes** |
+| **Cost a kit** | What a kit costs to make and what to sell it for | no |
+
+**Orders is first because it is the daily job.** A new listing happens a few times a week; the
+morning's parcels happen every morning. Before this, all nine screens shared one rail, which read
+as a nine-step sequence with two odd items stuck on the end.
+
+**Only the listing flow is numbered.** Numbers are a map through a sequence — they earn their
+place on seven steps that mostly run in order, and they are noise on a tab holding one screen.
+The panels print the same numbers in their own headings, so the two must never disagree.
+
+Switching tabs lands on that section's first step. Remembering where you left a tab sounds
+friendlier and is worse: half of them are a single screen, and a button that does something
+different each time is a button nobody trusts. Panels are still **hidden, never unmounted** — that
+rule predates the tabs and is what stops a half-costed kit dying when you look at something else.
+
 ### The process boundary — the rule every later tab inherits
 
 - **Main** is the engine: it imports `images-core.ts` directly and owns fs, `sharp`, Playwright.

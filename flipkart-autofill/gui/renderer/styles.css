@@ -1466,3 +1466,195 @@ textarea.json {
   margin: 0;
   user-select: text;
 }
+
+/* ------------------------------------------------------------------ the top tabs
+
+   Three jobs, not one flow: the day's parcels, listing a new product, costing a kit. They used to
+   share one rail, which read as a nine-step sequence with two odd items on the end. */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #12100f;
+  border: 1px solid var(--line);
+}
+.tabs button {
+  flex: 1;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: #6d635b;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tabs button.current {
+  background: #2a211b;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ the day's orders
+
+   SKUs on the left at a quarter of the width, and the rest given to the picture of what goes in
+   the packet — the person packing reads a photo, not a code. */
+
+.orders-body {
+  display: grid;
+  grid-template-columns: minmax(210px, 25%) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.sku-list h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.sku-list h3 small,
+.month-pay h3 small {
+  display: block;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.sku-list ul,
+.month-pay ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sku-list li button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  background: var(--panel);
+  text-align: left;
+}
+.sku-list li button.chosen {
+  border-color: var(--accent);
+  background: #2a211b;
+}
+/* Packed rows go quiet rather than disappearing: the list is also the record of the day. */
+.sku-list li button.done .lid {
+  color: var(--muted);
+}
+.sku-list li button em {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-style: normal;
+  margin-left: auto;
+}
+.qty {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 7px;
+  background: #2e2926;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 13px;
+  flex: none;
+}
+.sku-list li button.done .qty {
+  background: #2a3a2a;
+  color: #9fd08f;
+}
+
+.month-pay {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.month-pay li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+}
+.month-pay .lid {
+  flex: 1;
+}
+
+.sku-detail h2 {
+  margin: 0 0 14px;
+  font-size: 22px;
+}
+.sku-detail h2 small {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.sku-image {
+  margin: 18px 0 0;
+}
+.sku-image img {
+  display: block;
+  width: 100%;
+  max-width: 620px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+.sku-image.empty {
+  padding: 28px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  max-width: 620px;
+}
+
+.packed-by {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  max-width: 620px;
+}
+.packed-tick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.packed-tick input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.who button.chosen {
+  border-color: var(--accent);
+  background: #2a211b;
+}
+/* The share this person gets — the number that becomes their pay, next to their name. */
+.who button em {
+  font-style: normal;
+  color: var(--accent);
+  font-weight: 700;
+}
+.who input {
+  font: inherit;
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  width: 140px;
+}

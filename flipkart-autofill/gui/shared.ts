@@ -24,11 +24,13 @@ import type { DefaultsTab, FieldRow, ScanResult } from "../src/listing.js";
 import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
+import type { OrderDay, OrderRow } from "../src/orders-core.js";
 import type { Box, Parcel } from "../src/packaging.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
   Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
   FillResult, SessionStatus, DefaultsTab, FieldRow, ScanResult, CostedLine, Kit, KitLine, KitRow, Material, SavedKit, Parcel, Box,
+  OrderDay, OrderRow,
 };
 
 /**
@@ -132,7 +134,7 @@ export function isForAccount(id: string, prefix?: string): boolean {
  * converting (which reaches for ~/Downloads) fighting finishing (the WhatsApp archive).
  */
 export type StepId =
-  | "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox" | "inventory";
+  | "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox" | "inventory" | "orders";
 
 /**
  * The tag clean-up, which belongs on this step because the engine does it here: cropping and
@@ -322,6 +324,24 @@ export interface WwApi {
     | { ok: true; result: { file: string; changed: { key: string; from: string | null; to: string }[] } }
     | { ok: false; message: string }
   >;
+
+  /**
+   * Read a manifest PDF and fold it into the day it names. Returns the whole day, packing and
+   * all. Dropping the same file twice changes nothing — see `mergeManifest`.
+   */
+  addManifest(file: string): Promise<Attempt<OrderDay>>;
+  /** Every day recorded on this machine, newest first. Small files; a month of them is pay day. */
+  orderDays(): Promise<OrderDay[]>;
+  /** Write a day back after ticking off some packing. The panel owns the whole object. */
+  saveDay(day: OrderDay): Promise<void>;
+  /**
+   * The second finished image for a SKU out of the ready folder — the one showing what goes in
+   * the packet. Null when that SKU has no finished images here, which is a normal state.
+   */
+  skuImage(sku: string): Promise<string | null>;
+  /** The people who pack, for the tick-off list. One setting, replaced whole. */
+  workers(): Promise<string[]>;
+  setWorkers(names: string[]): Promise<void>;
 
   /** Where the AI's downloads land. Remembered, defaults to ~/Downloads. */
   downloadsDir(): Promise<string>;

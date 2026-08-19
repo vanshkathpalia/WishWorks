@@ -52,6 +52,8 @@ interface Settings {
    * the source, so he asked for the switch; the Settings panel says what it costs.
    */
   editPrompts?: boolean;
+  /** The people who pack, for ticking off a day's orders. Names only; no other state. */
+  workers?: string[];
   /** Pages worth returning to, saved by the user from whatever they navigated to. */
   shortcuts?: { name: string; url: string }[];
   /**
@@ -191,6 +193,14 @@ const KITS_DIR = folderPath("kits", path.join(WORKSPACE, "inventory"));
 process.env.WW_KITS_DIR ??= KITS_DIR;
 
 /**
+ * A file per day of orders. Inside the workspace and NOT a settable folder, unlike the kits:
+ * these are this seller's own records, they are never shared, and nothing else reads them. It
+ * becomes a setting the day someone wants two machines packing off one list.
+ */
+const ORDERS_DIR = path.join(WORKSPACE, "orders");
+process.env.WW_ORDERS_DIR ??= ORDERS_DIR;
+
+/**
  * Categories are the one WW_* dir that is NOT user state — they ship with the app.
  * `balloon-decoration.defaults.json` holds the shared answers `loadProduct()` merges under every
  * product, so pointed at an empty workspace folder it does not fail, it silently fills a form
@@ -308,9 +318,11 @@ ipcMain.handle("pick", async (e, step: StepId, mode: "folder" | "files"): Promis
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     properties: mode === "folder" ? ["openDirectory"] : ["openFile", "multiSelections"],
     filters:
-      mode === "files"
-        ? [{ name: "Images", extensions: [...INPUT_EXT].map((x) => x.slice(1)) }]
-        : undefined,
+      mode !== "files"
+        ? undefined
+        : step === "orders"
+          ? [{ name: "Manifest PDF", extensions: ["pdf"] }]
+          : [{ name: "Images", extensions: [...INPUT_EXT].map((x) => x.slice(1)) }],
     defaultPath: (await remembered())[step] ?? app.getPath("downloads"),
   });
   if (canceled || filePaths.length === 0) return [];
@@ -650,6 +662,40 @@ ipcMain.handle("importInbox", async (_e, from: string, opts: { move?: boolean; o
 );
 
 /** Where the AI's downloads land. Remembered per step like every other folder. */
+// ---------------------------------------------------------------- the day's orders
+
+const ordersEngine = () => import("../src/orders-core.js");
+
+/**
+ * Read a manifest PDF into the day it names.
+ *
+ * The filename is the merge key, so the second courier's manifest adds to the day while the same
+ * file dropped twice does nothing. A PDF with no picklist in it comes back as a message rather
+ * than an empty day: "0 SKUs" and "that was the wrong PDF" look identical otherwise, and the
+ * whole point of this screen is that nobody is copying the list out by hand to check it against.
+ */
+ipcMain.handle("addManifest", async (_e, file: string): Promise<Attempt<unknown>> => {
+  const { parseManifest, mergeManifest, readDay, writeDay } = await ordersEngine();
+  const parsed = parseManifest(await readFile(file));
+  if (parsed.rows.length === 0) {
+    return { ok: false, message: `No picklist found in ${path.basename(file)} — is that the supplier manifest?` };
+  }
+  const date = parsed.date ?? new Date().toISOString().slice(0, 10);
+  const day = mergeManifest(await readDay(date), parsed, path.basename(file));
+  await writeDay(day);
+  return { ok: true, result: day };
+});
+
+ipcMain.handle("orderDays", async () => (await ordersEngine()).listDays());
+ipcMain.handle("saveDay", async (_e, day: unknown) => (await ordersEngine()).writeDay(day as never));
+ipcMain.handle("skuImage", async (_e, sku: string) =>
+  (await ordersEngine()).imageForSku(FOLDERS.ready.dir, sku),
+);
+
+/** Who packs. A list of names in settings — ticking one off is a click, never a typed name. */
+ipcMain.handle("workers", () => readSettings().workers ?? []);
+ipcMain.handle("setWorkers", async (_e, workers: string[]) => writeSettings({ workers }));
+
 ipcMain.handle("downloadsDir", async () => (await remembered()).inbox ?? app.getPath("downloads"));
 
 /** Drop a returned .json straight into image-meta/ or products/, deciding which by its content. */

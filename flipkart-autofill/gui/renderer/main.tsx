@@ -15,6 +15,7 @@ import { createRoot } from "react-dom/client";
 import { Convert } from "./Convert.js";
 import { Images } from "./Images.js";
 import { Inventory } from "./Inventory.js";
+import { Orders } from "./Orders.js";
 import { Flipkart } from "./Flipkart.js";
 import { Check, Finish, ListingCopy, Meesho } from "./steps.js";
 import { FolderSetting, useAccount } from "./ui.js";
@@ -49,6 +50,27 @@ const STEPS = [
   { name: "Check the images", does: "Reads the descriptions back out — nothing else can" },
   { name: "Fill Flipkart", does: "Types the listing into the form in Chrome" },
   { name: "Fill Meesho", does: "Copy each value into the Supplier Panel by hand" },
+  // 7 and 8 are not listing steps and never were — they are the other two tabs. They stay in one
+  // array because `step` is a single index into `Panel`, and a second numbering scheme for two
+  // entries would be a whole mechanism to save nothing.
+  { name: "Cost a kit", does: "What a kit costs to make, and what to sell it for" },
+  { name: "Today's orders", does: "Read the manifest, tick off the packing, credit the packer" },
+];
+
+/**
+ * The tabs across the top, each with its own list of steps down the side.
+ *
+ * **Orders comes first because it is the daily job.** Listing a new product happens a few times a
+ * week; the day's parcels happen every morning, and Vansh asked for it first for that reason.
+ *
+ * Only the listing flow is NUMBERED. Numbers are a map through a sequence — they earn their place
+ * on seven steps that mostly run in order, and they would be noise on a tab holding one screen.
+ * The panels print the same numbers in their own headings, so the two must not disagree.
+ */
+const SECTIONS = [
+  { tab: "Orders", steps: [8], numbered: false },
+  { tab: "New listing", steps: [0, 1, 2, 3, 4, 5, 6], numbered: true },
+  { tab: "Cost a kit", steps: [7], numbered: false },
 ];
 
 function Panel({ step }: { step: number }) {
@@ -73,6 +95,8 @@ function Panel({ step }: { step: number }) {
     // feeds. `n={0}` renders the heading without a number.
     case 7:
       return <Inventory n={0} />;
+    case 8:
+      return <Orders />;
     default:
       return null;
   }
@@ -370,7 +394,8 @@ function App() {
    */
   const account = useAccount();
   // Any step, any time. Nothing here checks whether an earlier one has run.
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(SECTIONS[0].steps[0]);
+  const section = SECTIONS.find((s) => s.steps.includes(step)) ?? SECTIONS[0];
   /**
    * Every step visited so far. Panels are **hidden, never unmounted** — switching to the prompts
    * and back used to throw away a half-costed kit (the whole table, the corrected counts, the
@@ -378,7 +403,7 @@ function App() {
    * Mounted on first visit rather than all at once: the Flipkart panel starts a 2-second
    * Playwright status poll as soon as it appears, and that should not run from launch.
    */
-  const [seen, setSeen] = useState<number[]>([0]);
+  const [seen, setSeen] = useState<number[]>([SECTIONS[0].steps[0]]);
   useEffect(() => setSeen((s) => (s.includes(step) ? s : [...s, step])), [step]);
 
   return (
@@ -388,26 +413,37 @@ function App() {
           WishWorks
           {account && <small title={account.workspace}>{account.label}</small>}
         </div>
+        <div className="tabs">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.tab}
+              className={s === section ? "current" : ""}
+              /* Switching tabs lands on that section's first step — and on the step you left it
+                 on would be worse, not better: half these tabs are one screen, and a tab that
+                 remembers is a tab whose button does something different each time. */
+              onClick={() => setStep(s.steps[0])}
+            >
+              {s.tab}
+            </button>
+          ))}
+        </div>
         <ol>
-          {STEPS.map((s, i) => (
-            <li key={s.name}>
+          {section.steps.map((i, n) => (
+            <li key={STEPS[i].name}>
               <button className={i === step ? "current" : ""} onClick={() => setStep(i)}>
-                <span className="num">{i + 1}</span>
+                {section.numbered && <span className="num">{n + 1}</span>}
                 <span className="step-text">
-                  <b>{s.name}</b>
-                  <small>{s.does}</small>
+                  <b>{STEPS[i].name}</b>
+                  <small>{STEPS[i].does}</small>
                 </span>
               </button>
             </li>
           ))}
         </ol>
         <div className="rail-foot">
-          <button className={step === 7 ? "current" : ""} onClick={() => setStep(7)}>
-            Cost a kit
-            <small>What a kit costs to make, and what to sell it for</small>
-          </button>
           {/* Logging in is not a step of its own — it is the top of the Flipkart screen, where
-              the indicator is next to the thing that needs it. This is a shortcut to that. */}
+              the indicator is next to the thing that needs it. This is a shortcut to that, and it
+              crosses tabs, which is the whole reason it is down here and not in the list. */}
           <button onClick={() => setStep(5)}>Log in to Flipkart</button>
           <button onClick={() => setSettings(true)}>Settings</button>
         </div>

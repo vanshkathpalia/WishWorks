@@ -27,3 +27,8 @@ products/*
 # Costed kits (WW-115). Business data like image-meta/ — the reading off one inventory sheet
 # plus whoever corrected it. The price list they are costed against DOES ship, in categories/.
 inventory/
+
+# A day of orders and who packed it (WW-172). Business data, and payroll data at that — same
+# reasoning as inventory/ above, and in development this folder IS the app's workspace. The one
+# manifest that IS committed is tests/fixtures/meesho-manifest.pdf, which the parser is tested on.
+orders/
