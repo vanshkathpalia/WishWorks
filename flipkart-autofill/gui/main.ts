@@ -18,15 +18,37 @@
  * shared.ts and nothing else.
  */
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rename, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import type {
   Account, Attempt, CleanUp, ConvertResult, DefaultsTab, FolderKey, Row, StepId,
 } from "./shared.js";
 
 app.setName("WishWorks");
+
+/**
+ * `ww-file://` — how the renderer shows a picture that lives on this disk.
+ *
+ * **`file://` does not work and never did in development.** The renderer is served from
+ * `http://localhost:5173` by the dev server, and a page on an http origin is not allowed to load
+ * `file:///Users/…` — Chromium blocks it with *Not allowed to load local resource*. Every
+ * thumbnail in the app was a broken-image icon and nothing said why (WW-177). Packaged it happens
+ * to work, because there the page itself is a `file://` one, so the bug was invisible on exactly
+ * the build nobody develops against.
+ *
+ * A scheme of our own is the fix Electron intends: registered as privileged and standard so an
+ * `<img>` treats it like any other URL, and answered below by handing the real path to `net.fetch`.
+ * It is no more powerful than what the renderer already has — every panel can already read and
+ * write files through the channels in shared.ts — it just makes showing one possible.
+ *
+ * Must be called before `app.whenReady()`, which is why it sits at the top of the file.
+ */
+protocol.registerSchemesAsPrivileged([
+  { scheme: "ww-file", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+]);
 
 const USER_DATA = app.getPath("userData");
 const SETTINGS_FILE = path.join(USER_DATA, "settings.json");
@@ -209,7 +231,11 @@ process.env.WW_ORDERS_DIR ??= ORDERS_DIR;
  */
 process.env.WW_CATEGORIES_DIR ??= app.isPackaged
   ? path.join(process.resourcesPath, "categories")
-  : path.join(WORKSPACE, "categories");
+  // In development: the REPO's copy, never the workspace's. They are the same folder right up
+  // until somebody signs in — an account gets a workspace of its own, which has no `categories/`
+  // in it, and the price list then reads as 0 materials with every kit silently uncosted. That is
+  // the failure this comment warned about, arriving the day logins landed (WW-177).
+  : path.join(import.meta.dirname, "..", "..", "categories");
 
 /**
  * The Chrome profile — the live Flipkart login — pinned to the SAME folder the CLI uses.
@@ -1065,13 +1091,25 @@ ipcMain.handle("signUp", async (_e, user: string, password: string): Promise<Att
   if (accounts.some((a) => (a.user ?? a.label).toLowerCase() === name.toLowerCase())) {
     return { ok: false, message: `${name} already has a login on this computer.` };
   }
+  /**
+   * **The first login on a machine adopts the folder that machine was already using.**
+   *
+   * Signing up is not "start again" — this app has been in use for weeks before logins existed,
+   * and inventing an empty workspace for the first account hides every product, listing and costed
+   * kit behind a screen that was sold as *tell us your name*. It looked exactly like data loss
+   * (WW-177). A SECOND account does get a folder of its own, because two logins sharing one
+   * workspace is the thing accounts exist to prevent.
+   */
   const next = [
     ...accounts,
     {
       label: name,
       user: name,
       password: hashPassword(password),
-      workspace: path.join(USER_DATA, "workspaces", userFolder(name)),
+      workspace:
+        accounts.length === 0 && s.workspace
+          ? s.workspace
+          : path.join(USER_DATA, "workspaces", userFolder(name)),
     },
   ];
   await writeSettings({ accounts: next, activeAccount: next.length - 1 });
@@ -1226,6 +1264,19 @@ async function ensureFolders(): Promise<void> {
 }
 
 app.whenReady().then(() => {
+  /**
+   * Serve one local file. The URL is built by `fileUrl` in the renderer, one encoded segment at a
+   * time, so this is the exact reverse: decode the path back out and let Electron read it.
+   *
+   * The Windows case is the one to keep: `C:\Users\…` arrives as `/C:/Users/…` — a standard
+   * scheme always has a leading slash on its path — and `pathToFileURL` needs it gone.
+   */
+  protocol.handle("ww-file", (request) => {
+    const decoded = decodeURIComponent(new URL(request.url).pathname);
+    const file = /^\/[A-Za-z]:\//.test(decoded) ? decoded.slice(1) : decoded;
+    return net.fetch(pathToFileURL(file).toString());
+  });
+
   void ensureFolders();
   createWindow();
   void checkForUpdates();

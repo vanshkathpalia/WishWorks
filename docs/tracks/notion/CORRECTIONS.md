@@ -2035,3 +2035,35 @@ non-hex character and returns what it has, so a blank or hand-edited hash became
 and `timingSafeEqual` finds two empty buffers equal. A hand-written test for "a settings file
 somebody edited" caught it before it ran anywhere. On a security path, the malformed-input case is
 not an edge case — it is the attack.
+
+## C-064 — Every picture in the app was broken, on the build we develop on
+
+**Class:** Code · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-19 ·
+**Status:** Fixed (WW-177)
+
+*"I think the app is unable to show the image throughout."* Every `<img>` — the convert thumbnails,
+the inventory sheet, the new packing picture — was a broken-image icon. The paths were right; the
+matcher was right; the file was there.
+
+**Root cause.** `fileUrl` built a `file:///…` URL, and the renderer in development is served from
+`http://localhost:5173`. Chromium does not let an http page load a local file. Packaged, the page
+IS a `file://` one and it works — **so the bug existed only on the build every session is spent
+in, and was invisible on the one that ships.** Fixed with a privileged `ww-file://` scheme
+registered in `main.ts` and answered with `net.fetch`, which behaves the same in both.
+
+**Why it stayed hidden so long:** the thumbnails were added in a session that ended with the tests
+green and a typecheck clean, and neither of those looks at a picture. Nothing in the app SAYS an
+image failed; a broken `<img>` renders as its alt text and reads as *there is no image for this*,
+which is a legitimate state the panel also draws deliberately. **Two different meanings, one
+appearance** — the same shape as C-036.
+
+**And a second one behind it.** Signing up invented an empty workspace for the FIRST account on a
+machine that had been in use for weeks, so the price list read *0 materials* and every listing
+vanished. Two fixes: `WW_CATEGORIES_DIR` in development now reads the repo's `categories/` — it is
+shipped data, not user state, and following an account's workspace is what emptied it — and the
+first login **adopts the folder the machine was already using**. A second account still gets its
+own, which is the case accounts exist for.
+
+**Cheap lesson.** A login is not a fresh start. Any feature that introduces a new "home" for data
+has to answer *what about everything already here* before it ships, and the answer is almost never
+*an empty folder*.
