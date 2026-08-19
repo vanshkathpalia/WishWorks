@@ -74,6 +74,13 @@ export interface Account {
   shortcuts?: { name: string; url: string }[];
   /** Optional. **Unset means no flagging at all** — an account that never wants it never sees it. */
   skuPrefix?: string;
+  /**
+   * The login. `user` is typed on the launch screen; `password` is a scrypt salt and hash, never
+   * the password itself (`src/auth.ts`). Absent on an account made before the login existed —
+   * the first sign-in sets one rather than locking anybody out.
+   */
+  user?: string;
+  password?: { salt: string; hash: string };
 }
 
 /**
@@ -209,6 +216,18 @@ export interface WwApi {
   accounts(): Promise<{ accounts: Account[]; active: number; chosen: boolean }>;
   /** Confirm the account already open, without the relaunch a real switch needs. */
   confirmAccount(index: number): Promise<void>;
+  /**
+   * Make the login for a machine that has none: a username, a password, and a workspace folder
+   * named after the user. Relaunches into it.
+   */
+  signUp(user: string, password: string): Promise<Attempt<void>>;
+  /**
+   * Sign in. Wrong name or wrong password comes back as a message, never as a thrown error —
+   * mistyping a password is the most ordinary thing that happens on this screen.
+   */
+  signIn(user: string, password: string): Promise<Attempt<void>>;
+  /** Ask for the password again on the next launch. Deletes nothing. */
+  signOut(): Promise<void>;
   /** Work a different account. Relaunches — the engine resolves its folders once, at startup. */
   switchAccount(index: number): Promise<void>;
   /** Add one: names it, then asks for its Drive folder. Relaunches; false means cancelled. */

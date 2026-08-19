@@ -2004,3 +2004,34 @@ zero-insensitive, and stops at the number.
 identity, which is correct when *both* sides are identities. Here one side is an identity and the
 other is a title with the identity on the front. Reaching for the nearest existing helper is right;
 checking what it assumes about its inputs is the part that was skipped.
+
+## C-063 — A settings panel reused as a launch screen
+
+**Class:** Design · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-19 ·
+**Status:** Fixed (WW-176)
+
+The first thing a new machine showed was the Settings account panel dropped into a modal: four
+paragraphs about Drive folders, SKU prefixes and what does not sync, then three inputs, one of
+which opened a folder dialog. Vansh: *"what the hell is this, too much to read nothing to
+understand — and also it should be login, username password kinda thing brooo."*
+
+**Root cause.** *One right way to add an account, so do not build it twice* is a good instinct and
+it was applied to the wrong boundary. The two screens share a **job**, not an **audience**:
+Settings is read by somebody who already uses the app and is changing something deliberate; the
+launch screen is read by somebody who has never seen it and wants in. Reused prose inherits the
+reader it was written for.
+
+**The other half of it:** the screen asked which folder to keep working files in. That is the one
+question a new person cannot answer, and it had a right default all along — a folder named after
+the user, under the app's own data directory, movable later in Settings.
+
+**Cheap lesson.** Shared components are fine; shared *copy* across audiences is not. And a first-run
+screen should ask for nothing that can be defaulted — every question on it is a question asked at
+the moment the person knows least.
+
+**Found while building the replacement, and worth more than the ticket:** `verifyPassword` accepted
+**every** password against a malformed stored hash. `Buffer.from(x, "hex")` stops at the first
+non-hex character and returns what it has, so a blank or hand-edited hash became an empty buffer,
+and `timingSafeEqual` finds two empty buffers equal. A hand-written test for "a settings file
+somebody edited" caught it before it ran anywhere. On a security path, the malformed-input case is
+not an edge case — it is the attack.

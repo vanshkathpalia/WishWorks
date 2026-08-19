@@ -32,6 +32,9 @@ const api: WwApi = {
 
   accounts: () => ipcRenderer.invoke("accounts"),
   confirmAccount: (index: number) => ipcRenderer.invoke("confirmAccount", index),
+  signUp: (user: string, password: string) => ipcRenderer.invoke("signUp", user, password),
+  signIn: (user: string, password: string) => ipcRenderer.invoke("signIn", user, password),
+  signOut: () => ipcRenderer.invoke("signOut"),
   switchAccount: (index: number) => ipcRenderer.invoke("switchAccount", index),
   addAccount: (label: string, skuPrefix: string) =>
     ipcRenderer.invoke("addAccount", label, skuPrefix),

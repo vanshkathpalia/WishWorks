@@ -1038,6 +1038,78 @@ ipcMain.handle("confirmAccount", async (_e, index: number) => {
   await writeSettings({ activeAccount: index });
 });
 
+/**
+ * The login — a username and a password, on a machine that has neither yet.
+ *
+ * **The workspace is derived, not asked for.** Being made to pick a folder was the first thing a
+ * new person saw and the one question they could not answer; it lands under the app's own data
+ * folder, named after the user, and Settings moves it later. What matters on day one is only that
+ * two logins never share one.
+ */
+ipcMain.handle("signUp", async (_e, user: string, password: string): Promise<Attempt<void>> => {
+  const { hashPassword, userFolder } = await import("../src/auth.js");
+  const name = user.trim();
+  if (name === "") return { ok: false, message: "Type a username." };
+  if (password.length < 4) return { ok: false, message: "Use at least 4 characters." };
+  const s = readSettings();
+  const accounts = s.accounts ?? [];
+  if (accounts.some((a) => (a.user ?? a.label).toLowerCase() === name.toLowerCase())) {
+    return { ok: false, message: `${name} already has a login on this computer.` };
+  }
+  const next = [
+    ...accounts,
+    {
+      label: name,
+      user: name,
+      password: hashPassword(password),
+      workspace: path.join(USER_DATA, "workspaces", userFolder(name)),
+    },
+  ];
+  await writeSettings({ accounts: next, activeAccount: next.length - 1 });
+  relaunch();
+  return { ok: true, result: undefined };
+});
+
+/**
+ * Sign in as one of the logins this computer holds.
+ *
+ * **An account with no password stored gets one from this attempt** rather than being refused:
+ * accounts existed before logins did, and locking somebody out of their own workspace to enforce a
+ * rule that did not exist when they made it would be the wrong way round.
+ *
+ * Signing into the account already open does not relaunch — nothing about the folders changed.
+ */
+ipcMain.handle("signIn", async (_e, user: string, password: string): Promise<Attempt<void>> => {
+  const { hashPassword, verifyPassword } = await import("../src/auth.js");
+  const s = readSettings();
+  const accounts = s.accounts ?? [];
+  const i = accounts.findIndex((a) => (a.user ?? a.label).toLowerCase() === user.trim().toLowerCase());
+  // One message for both halves on purpose: naming which half was wrong tells whoever is typing
+  // which usernames exist on the machine.
+  if (i === -1) return { ok: false, message: "That username and password do not match." };
+
+  const account = accounts[i];
+  if (account.password === undefined) {
+    if (password.length < 4) return { ok: false, message: "Use at least 4 characters." };
+    accounts[i] = { ...account, user: account.user ?? account.label, password: hashPassword(password) };
+    await writeSettings({ accounts });
+  } else if (!verifyPassword(password, account.password)) {
+    return { ok: false, message: "That username and password do not match." };
+  }
+
+  const same = s.activeAccount === i;
+  await writeSettings({ activeAccount: i });
+  if (!same) relaunch();
+  return { ok: true, result: undefined };
+});
+
+/** Ask again next launch. Only the pointer is cleared — no account and no file is touched. */
+ipcMain.handle("signOut", async () => {
+  const s = readSettings();
+  delete s.activeAccount;
+  await writeFile(SETTINGS_FILE, JSON.stringify(s, null, 2));
+});
+
 ipcMain.handle("switchAccount", async (_e, index: number) => {
   await writeSettings({ activeAccount: index });
   relaunch();

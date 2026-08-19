@@ -176,6 +176,17 @@ function Accounts() {
       )}
 
       <div className="picks">
+        <button onClick={() => void window.ww.signOut().then(() => window.location.reload())}>
+          Sign out
+        </button>
+      </div>
+      <p className="muted">
+        Signing out asks for the username and password again next time. Nothing is deleted and no
+        file moves.
+      </p>
+
+      <h3>Add another login to this computer</h3>
+      <div className="picks">
         <input
           type="text"
           className="wide"
@@ -316,92 +327,73 @@ function Settings({ close }: { close: () => void }) {
 }
 
 /**
- * "Who is working on this computer?" — asked once, ever, before anything else.
+ * The login — a username and a password, and nothing else on the screen.
  *
- * **There is still no password and nothing to authenticate**: the access control is which Drive
- * folder is shared with whom (WW-154). What this is, is the moment the machine is told whose it
- * is — Vansh, 2026-08-19: *"on starting the app we should take the login detail just like any
- * other system / app or platform… once that is taken, until switched from the settings we should
- * save that login details."*
+ * Vansh, 2026-08-19, on the version before this one: *"what the hell is this, too much to read
+ * nothing to understand — and also it should be login, username password kinda thing brooo."* He
+ * is right twice. It was four paragraphs of Settings prose reused as a launch screen, and it asked
+ * for a folder, which is the one question a new person cannot answer. **The workspace is now
+ * derived from the username** and moved later in Settings if anyone cares.
  *
- * **Asked when nothing has been chosen yet, and never again.** It used to appear every launch,
- * and only on a machine with two or more accounts — so the common setup (one PC, one account,
- * WW-155) never saw it at all and the app came up belonging to nobody, which is the state the
- * screenshot in WW-175 shows. Now: no account on the machine and it asks you to make one; an
- * account chosen and it never asks again. Switching is a deliberate act in Settings.
+ * **What the password honestly does.** It is the door on the app, not on the disk — the files are
+ * in a normal folder and Explorer opens them whatever this says. What it buys is the thing that
+ * was actually going wrong: two people sharing a computer stop landing in each other's listings,
+ * costings and pay records by accident, and the app knows whose day it is recording.
  *
- * Picking a DIFFERENT account here relaunches — the folders are read once, at startup — while
- * confirming the one already open does not, because nothing about it changed.
+ * Asked when nobody is signed in, and never again until *Sign out* in Settings. Signing in as the
+ * account already open does not relaunch; signing in as a different one does, because the folders
+ * are read once, at startup.
  */
-function AccountGate({
-  accounts,
-  active,
-  onConfirm,
-}: {
-  accounts: Account[];
-  active: number;
-  onConfirm: () => void;
-}) {
-  // Nothing set up yet: the same form Settings uses, because there is exactly one right way to
-  // add an account and it should not exist twice. Adding one relaunches and picks it, so this
-  // screen does not come back.
-  if (accounts.length === 0) {
-    return (
-      <div className="modal">
-        <div className="sheet" onClick={(e) => e.stopPropagation()}>
-          <h2>Who is working on this computer?</h2>
-          <p className="muted">
-            Set this machine up once. An account is a name, a folder for its working files and,
-            if you want one, the letters its SKUs start with — the app then says whose data is on
-            screen at all times, and keeps one seller&apos;s listings, costings and finished
-            images away from another&apos;s. You will not be asked again; change it any time under{" "}
-            <b>Settings</b>.
-          </p>
-          <Accounts />
-        </div>
-      </div>
-    );
+function Login({ hasAccounts, onDone }: { hasAccounts: boolean; onDone: () => void }) {
+  const [user, setUser] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function go() {
+    setBusy(true);
+    setError(null);
+    const r = hasAccounts
+      ? await window.ww.signIn(user, password)
+      : await window.ww.signUp(user, password);
+    setBusy(false);
+    if (r.ok) onDone();
+    else setError(r.message);
   }
 
   return (
     <div className="modal">
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <h2>Whose data are you working in?</h2>
+      <form
+        className="sheet login"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!busy) void go();
+        }}
+      >
+        <h2>{hasAccounts ? "Sign in" : "Create your login"}</h2>
+        <input
+          type="text"
+          placeholder="Username"
+          autoFocus
+          value={user}
+          onChange={(e) => setUser(e.target.value)}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        {error && <p className="error">{error}</p>}
+        <button className="primary" type="submit" disabled={busy || !user.trim() || !password}>
+          {busy ? "…" : hasAccounts ? "Sign in" : "Create"}
+        </button>
         <p className="muted">
-          This machine has more than one seller account and they do not share data — different
-          SKUs, different listings, different costings. Pick the one this computer works. You will
-          not be asked again.
+          {hasAccounts
+            ? "Your work stays yours — listings, costings and packing are kept per login."
+            : "Your own listings, costings and packing. Your partner makes their own."}
         </p>
-        <ul className="accounts">
-          {accounts.map((a, i) => (
-            <li key={a.label + i} className={i === active ? "current" : ""}>
-              <div>
-                <b>
-                  {a.label}
-                  {i === active ? " — currently open" : ""}
-                </b>
-                <span className="path">{a.workspace}</span>
-              </div>
-              <div className="picks">
-                {i === active ? (
-                  <button
-                    className="primary"
-                    onClick={() => void window.ww.confirmAccount(i).then(onConfirm)}
-                  >
-                    Work as this
-                  </button>
-                ) : (
-                  <button onClick={() => void window.ww.switchAccount(i)}>Switch to this</button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-        <p className="muted">
-          Switching restarts the app — the folders are read once, at startup. Nothing is moved and
-          nothing is deleted either way. You can change this any time under <b>Settings</b>.
-        </p>
-      </div>
+      </form>
     </div>
   );
 }
@@ -487,14 +479,10 @@ function App() {
 
       {settings && <Settings close={() => setSettings(false)} />}
 
-      {/* An empty list counts as unchosen however `activeAccount` reads: removing the last
-          account leaves the index behind, and a machine with no account is unconfigured. */}
+      {/* An empty list counts as signed out however `activeAccount` reads: removing the last
+          account leaves the index behind, and a machine with no login is not set up. */}
       {gate !== null && (!gate.chosen || gate.accounts.length === 0) && !confirmed && (
-        <AccountGate
-          accounts={gate.accounts}
-          active={gate.active}
-          onConfirm={() => setConfirmed(true)}
-        />
+        <Login hasAccounts={gate.accounts.length > 0} onDone={() => setConfirmed(true)} />
       )}
     </div>
   );
