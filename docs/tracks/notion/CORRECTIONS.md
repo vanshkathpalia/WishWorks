@@ -1903,3 +1903,51 @@ ask what the form's cap is before assuming there is none.
 and `checkValues()` carries the numbers too. The prompt is what makes the value right; the check
 is what catches the files written before the prompt said so — which is exactly the emoji story
 (WW-081) repeating, four product files deep.
+
+## C-059 — a rename that was inferred instead of asked for, and it deleted the other listing
+
+**Category:** Design · **Caught by:** Vansh · **Date:** 2026-08-17 ·
+**Status:** Fixed (WW-168)
+
+Two listings share one inventory — DORE01 and DORE02, same lines, different main images and
+different Meesho shipping fees. Saving the second one deleted the first. Vansh: *"we wanted that
+feature wherein if we made a mistake while naming a listing, then we want to rename it by changing
+the SKU… but now that feature is backfiring me."*
+
+**Root cause.** WW-161 made *the SKU changed while a kit was open* mean *rename it*, and deleted
+the old file to keep the folder tidy. But that state has two readings — a typo being corrected, and
+a second listing being forked off the same kit — and nothing on the screen distinguishes them. The
+code picked one silently, and picked the destructive one.
+
+**The lesson, and it is not "add a confirm dialog".** When one gesture has two meanings, the fix is
+to make the *non-destructive* meaning the default and the destructive one a separate act. Keeping
+now only ever adds a file; deleting the old name is a button that appears after the fact, offered
+with the question it answers. A modal on save would have demanded an answer at the moment the user
+is least sure, and would still be a wrong-answer-once-and-it-is-gone.
+
+**Same shape as C-036** (*closed is not untested*): two different situations leaving the same trace,
+and code deciding which one it was. If it cannot be told from what is on screen, do not decide.
+
+## C-060 — a rate that was typed, used, and never saved
+
+**Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-18 ·
+**Status:** Fixed (WW-169)
+
+The Inventory panel's GST box changed the margin on screen and was left out of `save()`. Reopen the
+kit and it read 5% again, with no sign that anything had been lost. Vansh found it from the
+symptom, not the box: *"its not always 5% i see and due to that margin price is calculated wrong."*
+
+**Root cause.** Every other typed figure on that screen went into `SavedKit` — the prices, the
+delivery, the flat rule, the margin. GST was a `useState` that nothing read on the way out. It
+looked exactly like the saved ones, which is the whole problem: a control that visibly changes a
+number reads as persisted, and nothing on the screen says otherwise.
+
+**Cheap lesson.** The moment a panel has BOTH saved and unsaved inputs, the unsaved ones are a trap.
+Either it is stored or it does not belong on a screen whose button says *Keep*. Worth grepping the
+other panels for the same shape.
+
+**The bigger correction underneath it.** The table was deriving what Vansh gets paid from the price
+he lists at, when the payout is printed on a settlement statement. Deriving a measured figure from
+an estimated one is backwards, and it broke outright on Meesho's promotional pricing — the shop
+price drops, the settlement does not. Same class as C-049 (WW-142): two sources for one fact, and
+the computed one was winning over the measured one.

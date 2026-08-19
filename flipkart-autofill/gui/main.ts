@@ -488,6 +488,28 @@ ipcMain.handle(
   },
 );
 
+/**
+ * Add a material the list has never had. Same read-only refusal as `setMaterialPrice`, and for the
+ * same reason: packaged, `categories/` is inside the bundle and the write would be a lie.
+ */
+ipcMain.handle(
+  "addMaterial",
+  async (_e, row: { category: string; material: string; paise: number | null }): Promise<Attempt<unknown>> => {
+    if (app.isPackaged) {
+      return {
+        ok: false,
+        message:
+          "The price list ships inside the app, so a new material cannot be added here — it has to go out as a new version, or the two machines would disagree about what a kit costs. Cost the kit without it for now and send the name and price to be added to the list.",
+      };
+    }
+    try {
+      return { ok: true, result: (await inventoryEngine()).addMaterial(row) };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
+  },
+);
+
 ipcMain.handle("parcelFor", async (_e, lines: unknown, chosen: unknown) => {
   const { loadMaterials } = await inventoryEngine();
   const { flipkartFields, loadPackaging, parcelFor } = await import("../src/packaging.js");

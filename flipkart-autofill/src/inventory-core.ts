@@ -124,6 +124,32 @@ export interface Kit {
   uncosted: number;
 }
 
+/**
+ * What one marketplace pays for one kit — three figures Vansh reads off a settlement sheet, and a
+ * fourth that is usually arithmetic.
+ *
+ * The order here is the order he fills them in, and it is the reverse of how the panel used to
+ * work. **The settlement is the fact**: it is the money that lands in the bank, printed on the
+ * statement, needing no formula and no assumption about anyone's commission. The listed price is
+ * the one figure that CAN be derived from it — settlement, plus the GST that came out of it, plus
+ * the delivery the marketplace charged — so it is derived, and typed in only when it disagrees.
+ *
+ * **It does disagree, and not rarely.** Meesho drops a listing's price on its own side while
+ * paying the seller the same, as a promotion. A price entered by hand therefore overrules the sum
+ * without changing what the kit is judged on, which is why `leftForMarket` prefers the settlement:
+ * a lower shop-window price does not take money out of the bank.
+ */
+export interface MarketEntry {
+  /** Typed ONLY when it overrules the sum. Absent means "the sum is the price" — see `marketPrice`. */
+  pricePaise?: number;
+  /** What the marketplace charged the buyer to deliver. Cannot be computed (SHIPPING-COST.md). */
+  shippingPaise?: number;
+  /** What actually reached the bank, before materials. Off the settlement sheet, not a formula. */
+  settlementPaise?: number;
+  /** Per marketplace and per kit, because it is not always 5 — which is what started WW-169. */
+  gstPercent?: number;
+}
+
 /** A costed kit as it is kept on disk, so it can be reopened and corrected later. */
 export interface SavedKit {
   sku: string;
@@ -153,15 +179,9 @@ export interface SavedKit {
   /** Flat rupees added on top of cost, in paise. The partner's rule of thumb is +₹60. */
   flatPaise?: number;
   /**
-   * What this kit is actually listed at, and what delivery actually costs, per marketplace.
-   *
-   * Both are typed in by hand and neither can be computed: Meesho sets the shipping fee from the
-   * main image by a rule fourteen tests failed to pin down (SHIPPING-COST.md), and the two
-   * marketplaces are rarely listed at the same price. Kept per kit because the question they
-   * answer — *what share of the price is delivery* — is the one that decides which SKU gets ad
-   * spend, and it is different for the same kit on each platform.
+   * What each marketplace actually pays for this kit. See `MarketEntry` for why each field exists.
    */
-  marketplaces?: Record<string, { pricePaise?: number; shippingPaise?: number }>;
+  marketplaces?: Record<string, MarketEntry>;
   /**
    * A parcel size or weight chosen by hand, overruling the rules for this kit.
    *
@@ -219,6 +239,55 @@ export function setMaterialPrice(
   const row = (parsed.materials ?? []).find((m: Material) => materialKey(m) === key);
   if (!row) throw new Error(`No material called "${key}" in the price list.`);
   row.paise = paise;
+  fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);
+  return loadMaterials(dir);
+}
+
+/**
+ * Add a material the list has never had — the other half of `setMaterialPrice`.
+ *
+ * A line reading *not on the price list* had exactly one fix before this: open `materials.json` in
+ * an editor. That is fine for the machine this file is written on and impossible on the partner's,
+ * so a real kit containing a real new product could not be costed at all — it silently dropped out
+ * of the total, which is the failure the whole panel exists to prevent.
+ *
+ * **The new row goes in beside its own category**, not at the end of the file, because the list is
+ * read by people and grouping is the only structure it has. A category nobody has used before is
+ * appended and is not an error: new products arrive before the scheme for them does.
+ *
+ * **A name already on the list is refused.** Two rows with one name is worse than no row: matching
+ * would tie between them for ever, and a tie is decided by file order, which is a coin toss
+ * (WW-162). Adding an alternative spelling of a material that already exists is an `aka` on that
+ * row, and that stays a hand edit — it is a claim about two names being the same product, which is
+ * not a thing to do in a hurry through a small form.
+ */
+export function addMaterial(
+  row: { category: string; material: string; paise: number | null },
+  dir = CATEGORIES_DIR,
+): Material[] {
+  const category = row.category.trim();
+  const material = row.material.trim();
+  if (!category || !material) throw new Error("A new material needs both a name and a category.");
+
+  const file = path.join(dir, "materials.json");
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  const rows: Material[] = parsed.materials ?? [];
+
+  const taken = rows.find(
+    (m) => normalize(m.material) === normalize(material)
+      || (m.aka ?? []).some((a) => normalize(a) === normalize(material)),
+  );
+  if (taken) {
+    throw new Error(
+      `"${taken.material}" is already on the list (${taken.category})` +
+      `${taken.paise === null ? ", with no price set" : ` at ${rupees(taken.paise)}`}. ` +
+      `Pick it in the dropdown instead of adding it twice.`,
+    );
+  }
+
+  const last = rows.map((m) => m.category).lastIndexOf(category);
+  rows.splice(last === -1 ? rows.length : last + 1, 0, { category, material, paise: row.paise });
+  parsed.materials = rows;
   fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);
   return loadMaterials(dir);
 }
@@ -615,6 +684,41 @@ export function leftAfterEverything(
   return pricePaise - materialsPaise - shippingPaise - Math.round((taxable * gstPercent) / (100 + gstPercent));
 }
 
+/**
+ * What the listing shows: typed if it was typed, otherwise settlement + its GST + delivery.
+ *
+ * The GST is ADDED BACK rather than taken off, because a settlement is already net of it — the
+ * same arithmetic as `leftAfterEverything`, run the other way, so the two can never disagree about
+ * what a price and a settlement mean to each other. 0 means nothing has been filled in, which is a
+ * real state (costed, never listed) and not a free product.
+ */
+export function marketPrice(m: MarketEntry): number {
+  if (m.pricePaise) return m.pricePaise;
+  if (!m.settlementPaise) return 0;
+  const gst = m.gstPercent ?? DEFAULT_GST_PERCENT;
+  return Math.round(m.settlementPaise * (1 + gst / 100)) + (m.shippingPaise ?? 0);
+}
+
+/**
+ * What this kit leaves on one marketplace — `null` when there is nothing to judge yet.
+ *
+ * **The settlement wins whenever it is there**, and then the answer is the whole of the maths:
+ * money in, less what the materials cost. Everything the older formula had to model — the tax
+ * extraction, the delivery deduction — has already happened by the time the marketplace pays out,
+ * so re-deriving it from the shop-window price can only add error, and adds a lot of it on a kit
+ * whose price was cut as a promotion.
+ *
+ * The price path stays for every kit saved before the settlement box existed. It is the estimate;
+ * the settlement is the measurement.
+ */
+export function leftForMarket(m: MarketEntry, materialsPaise: number): number | null {
+  if (m.settlementPaise !== undefined) return m.settlementPaise - materialsPaise;
+  if (!m.pricePaise) return null; // no price listed is not a margin of zero
+  return leftAfterEverything(
+    m.pricePaise, m.shippingPaise ?? 0, materialsPaise, m.gstPercent ?? DEFAULT_GST_PERCENT,
+  );
+}
+
 export interface KitRow {
   sku: string;
   file: string;
@@ -653,8 +757,8 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
           ).totalPaise;
           const left: Record<string, number> = {};
           for (const [id, v] of Object.entries(k.marketplaces ?? {})) {
-            if (!v?.pricePaise) continue; // no price listed is not a margin of zero
-            left[id] = leftAfterEverything(v.pricePaise, v.shippingPaise ?? 0, cost);
+            const each = v ? leftForMarket(v, cost) : null;
+            if (each !== null) left[id] = each;
           }
           if (Object.keys(left).length > 0) row.left = left;
         }

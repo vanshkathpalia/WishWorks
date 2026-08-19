@@ -1109,6 +1109,24 @@ label.inline input[type="radio"] {
 .inv-table td {
   vertical-align: middle;
 }
+/* The new-material form, inside the cell of the line that wants it — it has to sit where the
+   question was asked, or it reads as a form about the kit rather than about one line. */
+.inv-newmat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.inv-newmat input {
+  width: 130px;
+}
+.inv-newmat input[type="number"] {
+  width: 80px;
+}
+.inv-newmat .muted {
+  flex-basis: 100%;
+}
 .inv-table select,
 /* The material picker is an <input list>, not a <select> — same box, searchable. */
 .inv-table td input[list] {
@@ -1140,6 +1158,18 @@ label.inline input[type="radio"] {
 
 .inv-saved {
   gap: 6px;
+}
+/* A kit chip and its × travel together, so the × cannot end up beside the wrong kit on a wrap. */
+.inv-kit {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.inv-kit.confirming {
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
 }
 /* One block per SKU code — the same grouping the ready folder uses on disk. */
 .inv-group {
@@ -1276,6 +1306,22 @@ input[type="text"]:focus {
 .inv-save .allgood {
   margin: 0;
   padding: 8px 14px;
+}
+/* The two answers to "which did you mean" sit side by side under the question, on their own row —
+   a choice reads as a choice only when both options are visible at once. */
+.inv-save .inv-both {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.inv-save .inv-both > span {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 /* Selects were unstyled, so they rendered as white system boxes on a dark panel. */

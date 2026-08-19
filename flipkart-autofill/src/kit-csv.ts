@@ -15,7 +15,10 @@
  * ₹58.50. The conversion happens once, on the way out, and nothing reads this file back.
  */
 
-import { costKit, type Kit, type Material, type SavedKit } from "./inventory-core.js";
+import {
+  costKit, DEFAULT_GST_PERCENT, leftForMarket, marketPrice,
+  type Kit, type Material, type SavedKit,
+} from "./inventory-core.js";
 import { parcelFor, type PackagingSpec } from "./packaging.js";
 
 /** RFC-4180 enough for Excel: quote anything with a comma, quote or newline, and double quotes. */
@@ -86,20 +89,24 @@ function block(saved: SavedKit, opts: CsvOptions): string[] {
   }
   out.push(row("", "", pieces, "", "", money(kit.totalPaise), "TOTAL", "", ""));
 
-  const places = Object.entries(saved.marketplaces ?? {}).filter(([, v]) => v?.pricePaise);
+  // The same figures the panel shows, from the same functions — a sheet that says a kit leaves ₹75
+  // where the screen says ₹62 is worse than a sheet with no margin column at all.
+  const places = Object.entries(saved.marketplaces ?? {}).filter(([, v]) => marketPrice(v) > 0);
   if (places.length > 0) {
     out.push("");
-    out.push(row("Where", "Listed at", "Delivery", "Delivery share", "Left after materials + delivery"));
+    out.push(row("Where", "Listed at", "Price is", "Bank settlement", "GST", "Delivery", "Delivery share", "Left after materials"));
     for (const [id, v] of places) {
-      const price = v.pricePaise ?? 0;
+      const price = marketPrice(v);
       const ship = v.shippingPaise ?? 0;
-      const left = price - kit.totalPaise - ship;
       out.push(row(
         id,
         money(price),
+        v.pricePaise ? "typed in" : "settlement + GST + delivery",
+        v.settlementPaise === undefined ? "not filled in" : money(v.settlementPaise),
+        `${v.gstPercent ?? DEFAULT_GST_PERCENT}%`,
         v.shippingPaise === undefined ? "not filled in" : money(ship),
         `${Math.round((ship / price) * 100)}%`,
-        money(left),
+        money(leftForMarket(v, kit.totalPaise)),
       ));
     }
   }

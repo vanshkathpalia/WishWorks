@@ -60,6 +60,8 @@ const api: WwApi = {
   ) => ipcRenderer.invoke("costLines", lines, overrides, sku, prices, counts),
   setMaterialPrice: (key: string, paise: number | null) =>
     ipcRenderer.invoke("setMaterialPrice", key, paise),
+  addMaterial: (row: { category: string; material: string; paise: number | null }) =>
+    ipcRenderer.invoke("addMaterial", row),
   parcelFor: (lines: KitLine[], chosen: Record<string, number | undefined>) =>
     ipcRenderer.invoke("parcelFor", lines, chosen),
   saveKit: (kit: SavedKit) => ipcRenderer.invoke("saveKit", kit),

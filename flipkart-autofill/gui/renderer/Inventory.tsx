@@ -215,8 +215,25 @@ const MARKETPLACES = [
   { id: "flipkart", label: "Flipkart" },
 ] as const;
 
-/** Rupees in the boxes, paise on disk — the boundary is here, once, in both directions. */
-type Market = Record<string, { price?: number; ship?: number }>;
+/**
+ * Rupees in the boxes, paise on disk — the boundary is here, once, in both directions.
+ *
+ * `price` is the OVERRIDE and not the price: empty means the sum below it stands. See `MarketEntry`
+ * in the engine for why the settlement is the figure that gets typed and the price the one derived.
+ */
+type Market = Record<string, { price?: number; ship?: number; settle?: number; gst?: number }>;
+
+/** Matches `DEFAULT_GST_PERCENT` and the `GST_5` tax code on the listings. */
+const DEFAULT_GST = 5;
+
+/**
+ * Settlement + the GST that came out of it + delivery. The engine's `marketPrice`, repeated rather
+ * than imported for the reason `inches` is: importing it drags `node:fs` into the renderer bundle.
+ */
+const sumPrice = (m: { ship?: number; settle?: number; gst?: number }): number | null =>
+  m.settle === undefined
+    ? null
+    : Math.round(m.settle * (1 + (m.gst ?? DEFAULT_GST) / 100) * 100) / 100 + (m.ship ?? 0);
 
 export function Inventory({ n }: { n: number }) {
   const [prompt, setPrompt] = useState("");
@@ -235,8 +252,8 @@ export function Inventory({ n }: { n: number }) {
   const [margin, setMargin] = useState(50);
   // The partner's current advice is +60 flat. A default, not a rule — it is editable and saved.
   const [flat, setFlat] = useState(60);
-  // 5% matches the GST_5 tax code on the listings. Editable because a category can differ.
-  const [gst, setGst] = useState(5);
+  // The one GST rate for the whole kit is gone: it was never saved, and Vansh reads a different
+  // rate per marketplace off the settlements. It lives on the marketplace row now.
   const [over, setOver] = useState<"image" | "json" | null>(null);
   /** True while the JSON box has the cursor. See the effect that keeps the box and the kit in step. */
   const [boxFocused, setBoxFocused] = useState(false);
@@ -247,16 +264,30 @@ export function Inventory({ n }: { n: number }) {
    * The file this kit was opened from, when it was opened from one.
    *
    * Only reason it exists: the filename is made from the SKU, so changing the SKU and keeping
-   * writes a NEW file and would leave the old one sitting in the list under the old name. This is
-   * what lets a rename be a rename.
+   * writes a NEW file and leaves the old one sitting in the list under the old name.
    */
   const [openedFile, setOpenedFile] = useState<string | null>(null);
+  /**
+   * The file left behind when a kit was kept under a new SKU — until someone says it was a rename.
+   *
+   * Changing the SKU means one of two things and nothing on screen can tell them apart: *I typed
+   * the code wrong* (one kit, new name) or *this is a second listing of the same inventory* — two
+   * main images, two shipping fees, DORE01 and DORE02, same lines. Keeping used to delete the old
+   * file on the first reading, which silently ate the first listing on the second one. So keeping
+   * now only ever ADDS, and the delete is this one button. Nothing is destroyed without a click.
+   */
+  const [stray, setStray] = useState<string | null>(null);
   const [showKits, setShowKits] = useState(false);
+  /** The saved kit whose × has been pressed once. Deleting takes a second click, in place. */
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [market, setMarket] = useState<Market>({});
   /** Unit prices for THIS kit only, `category|material` -> rupees as typed. */
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [priceNote, setPriceNote] = useState<string | null>(null);
+  /** The line index whose *add to the price list* form is open, and what has been typed into it. */
+  const [adding, setAdding] = useState<number | null>(null);
+  const [draft, setDraft] = useState({ name: "", category: "", price: "" });
   /** Counts corrected by hand, by line index. The reading itself is never edited. */
   const [counts, setCounts] = useState<Record<number, number>>({});
   /** A box size or weight chosen by hand for this kit. Empty means "follow the rules". */
@@ -284,7 +315,7 @@ export function Inventory({ n }: { n: number }) {
   } | null>(null);
 
   /** Empty stays undefined rather than becoming 0, so "not filled in" reads as "—", not "free". */
-  function setOne(id: string, field: "price" | "ship", raw: string) {
+  function setOne(id: string, field: "price" | "ship" | "settle" | "gst", raw: string) {
     const v = raw === "" ? undefined : Number(raw);
     setMarket((m) => ({ ...m, [id]: { ...m[id], [field]: v } }));
   }
@@ -437,6 +468,7 @@ export function Inventory({ n }: { n: number }) {
       setChosen({});
       setTyped({});
       setOpenedFile(null); // not the kit that was opened, so keeping must not replace it
+      setStray(null); // and the last kit's old name is not this one's to delete
     }
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
@@ -492,27 +524,27 @@ export function Inventory({ n }: { n: number }) {
       parcel: chosen,
       marginPercent: margin,
       flatPaise: flat * 100,
+      // Rounded, not just multiplied: 249.9 × 100 is 24989.999999999996 in binary floating point,
+      // and money is integer paise everywhere below this line.
       marketplaces: Object.fromEntries(
         Object.entries(market).map(([id, v]) => [
           id,
-          { pricePaise: v.price === undefined ? undefined : v.price * 100,
-            shippingPaise: v.ship === undefined ? undefined : v.ship * 100 },
+          { pricePaise: v.price === undefined ? undefined : Math.round(v.price * 100),
+            shippingPaise: v.ship === undefined ? undefined : Math.round(v.ship * 100),
+            settlementPaise: v.settle === undefined ? undefined : Math.round(v.settle * 100),
+            gstPercent: v.gst },
         ]),
       ),
       savedAt: "",
     };
     const file = await window.ww.saveKit(kept);
-    // The filename comes from the SKU, so a renamed kit has just been written beside its old self.
-    // Drop the old one: two files, same kit, different names is exactly the mess this avoids.
-    const renamed = openedFile !== null && openedFile !== file;
-    if (renamed) await window.ww.deleteKit(openedFile);
+    // The filename comes from the SKU, so keeping under a new one has just written a second kit
+    // beside the first. Both are real until someone says the old name was a mistake.
+    const under = openedFile !== null && openedFile !== file ? openedFile : null;
+    setStray(under);
     setOpenedFile(file);
     const name = file.split(/[\\/]/).pop();
-    setNote(
-      renamed
-        ? `Kept as ${name} — ${openedFile.split(/[\\/]/).pop()} is gone.`
-        : `Kept as ${name}.`,
-    );
+    setNote(`Kept as ${name}.`);
     setTimeout(() => setNote(null), 4000);
     refreshSaved();
   }
@@ -522,6 +554,35 @@ export function Inventory({ n }: { n: number }) {
    * reaches every kit ever costed and the other machine on the next release — and it is refused
    * outright in a packaged app, where the list is read-only.
    */
+  /**
+   * Add a material the list has never had, from the line that wants it.
+   *
+   * The line is picked onto the new row straight away — without that this is a form that appears
+   * to do nothing, since the table would still say *not on the price list* until the next re-match.
+   * The name defaults to what the sheet called it, which is right far more often than not and is
+   * the one thing on screen that is definitely a real product name.
+   */
+  async function addToList(i: number) {
+    const r = await window.ww.addMaterial({
+      category: draft.category.trim(),
+      material: draft.name.trim(),
+      paise: draft.price === "" ? null : Math.round(Number(draft.price) * 100),
+    });
+    if (!r.ok) {
+      setPriceNote(r.message);
+      return;
+    }
+    setMaterials(r.result);
+    setOverrides((o) => ({ ...o, [i]: `${draft.category.trim()}|${draft.name.trim()}` }));
+    setAdding(null);
+    void window.ww.materialGaps().then(setGaps);
+    setPriceNote(
+      `${draft.name.trim()} is on the price list now, under ${draft.category.trim()}` +
+      `${draft.price === "" ? " with no price set — fill it in when you know it" : ` at ₹${draft.price}`}.`,
+    );
+    setTimeout(() => setPriceNote(null), 8000);
+  }
+
   async function fixList(materialKey: string, paise: number) {
     const r = await window.ww.setMaterialPrice(materialKey, paise);
     if (!r.ok) {
@@ -547,6 +608,24 @@ export function Inventory({ n }: { n: number }) {
     setTimeout(() => setNote(null), 6000);
   }
 
+  /**
+   * Delete a saved kit for good.
+   *
+   * The table on screen is left exactly as it is, deliberately: deleting the file it came from is
+   * not a reason to throw away what is being read against the picture, and pressing Keep afterwards
+   * simply saves it again. What must go is the memory of the FILE — `openedFile` and `stray` both
+   * name paths, and either one pointing at a deleted file turns the next Keep into a failed delete.
+   */
+  async function removeKit(file: string) {
+    await window.ww.deleteKit(file);
+    setConfirming(null);
+    if (openedFile === file) setOpenedFile(null);
+    if (stray === file) setStray(null);
+    setNote(`${file.split(/[\\/]/).pop()?.replace(/\.json$/i, "")} is deleted.`);
+    setTimeout(() => setNote(null), 4000);
+    refreshSaved();
+  }
+
   async function reopen(file: string) {
     const k = await window.ww.openKit(file);
     setSku(k.sku);
@@ -559,7 +638,9 @@ export function Inventory({ n }: { n: number }) {
         Object.entries(k.marketplaces ?? {}).map(([id, v]) => [
           id,
           { price: v.pricePaise === undefined ? undefined : v.pricePaise / 100,
-            ship: v.shippingPaise === undefined ? undefined : v.shippingPaise / 100 },
+            ship: v.shippingPaise === undefined ? undefined : v.shippingPaise / 100,
+            settle: v.settlementPaise === undefined ? undefined : v.settlementPaise / 100,
+            gst: v.gstPercent },
         ]),
       ),
     );
@@ -571,10 +652,14 @@ export function Inventory({ n }: { n: number }) {
     setTyped({});
     setLines(k.lines);
     setOpenedFile(file);
+    setStray(null);
     setError(null);
   }
 
   const total = kit?.totalPaise ?? 0;
+
+  /** The old kit's name as it is on screen everywhere else — the SKU, not the filename. */
+  const strayName = stray?.split(/[\\/]/).pop()?.replace(/\.json$/i, "") ?? "";
 
   // ₹20 out on a ₹60 target is a third of the margin — far enough to be worth a second look, and
   // loose enough that ordinary rounding does not fill the heading with warnings.
@@ -733,23 +818,48 @@ export function Inventory({ n }: { n: number }) {
                         )}
                       </div>
                       <div className="picks inv-saved">
+                        {/* Delete lives HERE rather than beside the open kit, because a wrong kit
+                            is usually one you can see in this list and do not want to open first —
+                            and every kit is in this list, including the one that is open. Two
+                            clicks, in place: no dialog, and nothing to press by accident. */}
                         {g.kits.map((k) => {
                           const d = drift(k);
+                          if (confirming === k.file) {
+                            return (
+                              <span key={k.file} className="inv-kit confirming">
+                                Delete {k.sku}?
+                                <button className="tiny" onClick={() => void removeKit(k.file)}>
+                                  yes, delete it
+                                </button>
+                                <button className="tiny" onClick={() => setConfirming(null)}>
+                                  no
+                                </button>
+                              </span>
+                            );
+                          }
                           return (
-                            <button
-                              key={k.file}
-                              style={driftStyle(d)}
-                              title={
-                                k.left
-                                  ? Object.entries(k.left)
-                                      .map(([id, v]) => `${id}: leaves ${rupees(v)}`)
-                                      .join("  ·  ")
-                                  : "No listed price yet, so there is no margin to judge."
-                              }
-                              onClick={() => void reopen(k.file)}
-                            >
-                              {k.sku}
-                            </button>
+                            <span key={k.file} className="inv-kit">
+                              <button
+                                style={driftStyle(d)}
+                                title={
+                                  k.left
+                                    ? Object.entries(k.left)
+                                        .map(([id, v]) => `${id}: leaves ${rupees(v)}`)
+                                        .join("  ·  ")
+                                    : "No listed price yet, so there is no margin to judge."
+                                }
+                                onClick={() => void reopen(k.file)}
+                              >
+                                {k.sku}
+                              </button>
+                              <button
+                                className="tiny"
+                                title={`Delete ${k.sku}`}
+                                onClick={() => setConfirming(k.file)}
+                              >
+                                ×
+                              </button>
+                            </span>
                           );
                         })}
                         {g.kits.length === 0 && (
@@ -835,6 +945,14 @@ export function Inventory({ n }: { n: number }) {
             </p>
           )}
 
+          {/* One list for every *add to the price list* form on the page — a datalist per row
+              would be the same options rendered twenty times. */}
+          <datalist id="mat-categories">
+            {byCategory.map(([category]) => (
+              <option key={category} value={category} />
+            ))}
+          </datalist>
+
           <table className="rows inv-table">
             <thead>
               <tr>
@@ -891,6 +1009,66 @@ export function Inventory({ n }: { n: number }) {
                     />
                     {l.flagged && <span className="warnpill">check</span>}
                     {l.match && l.paise === null && <span className="warnpill">no price set</span>}
+                    {/* The other half of "not on the price list". Until this button existed the
+                        only fix was opening materials.json in an editor — impossible on the
+                        partner's machine, so a kit with a genuinely new product in it could not be
+                        costed and the item quietly left the total. */}
+                    {!l.match && adding !== i && (
+                      <button
+                        className="tiny"
+                        onClick={() => {
+                          setAdding(i);
+                          setDraft({ name: l.item, category: "", price: "" });
+                        }}
+                      >
+                        add to the price list
+                      </button>
+                    )}
+                    {adding === i && (
+                      <div className="inv-newmat">
+                        <input
+                          type="text"
+                          value={draft.name}
+                          placeholder="name for the list"
+                          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                        />
+                        {/* Existing categories offered, typing a new one allowed: a new product
+                            can be the first of its kind, and forcing it into the nearest existing
+                            group is how a scheme quietly stops describing the stock. */}
+                        <input
+                          type="text"
+                          list="mat-categories"
+                          value={draft.category}
+                          placeholder="category"
+                          onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={draft.price}
+                          placeholder="₹ each"
+                          onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+                        />
+                        <button
+                          className="tiny"
+                          disabled={draft.name.trim() === "" || draft.category.trim() === ""}
+                          onClick={() => void addToList(i)}
+                        >
+                          add
+                        </button>
+                        <button className="tiny" onClick={() => setAdding(null)}>
+                          cancel
+                        </button>
+                        {/* Blank is allowed and is not the same as free: it lands as "no price
+                            set", the state the panel already draws in orange and counts as
+                            uncosted, rather than a zero that would sink into the total. */}
+                        <span className="muted">
+                          Goes into the shipped price list, for every kit and both machines. Leave
+                          the price blank if you do not know it yet.
+                        </span>
+                      </div>
+                    )}
                   </td>
                   {/* Editable, and the two scopes are kept apart on purpose. Typing here changes
                       THIS kit — a batch that cost more, or a material the list has no price for.
@@ -1020,39 +1198,50 @@ export function Inventory({ n }: { n: number }) {
             has been sent.
           </p>
 
-          {/* Delivery is typed in, not computed, and it has to be: Meesho sets its fee from the
-              main image by a rule fourteen tests failed to pin down (SHIPPING-COST.md), and the
-              two marketplaces are rarely listed at the same price. The column that earns its
-              place is the LAST one — what is actually left — because a kit can look healthy on
-              margin and be losing money once delivery is counted. */}
-          <h3>Delivery, per marketplace</h3>
+          {/* Left to right IS the order Vansh fills them in, and it runs from the figure he can
+              read off a statement to the one that has to be derived. Delivery cannot be computed
+              (Meesho sets its fee from the main image, SHIPPING-COST.md); GST is not always 5;
+              the price is arithmetic until Meesho discounts it on its own side. The column that
+              earns its place is the LAST one — what is actually left — because a kit can look
+              healthy on margin and be losing money once delivery is counted. */}
+          <h3>What each marketplace actually pays you</h3>
           <p className="muted">
-            Read the fee off each listing and type it here. The point is the last column: what a
-            sale actually leaves you, which is what decides where the ad spend goes.
+            Type what <b>reached the bank</b>, the GST rate on that sale, and what delivery cost.
+            The listed price is worked out from those three — <b>settlement + GST + delivery</b> —
+            and you can type over it when the marketplace has dropped the shop price without
+            changing what it pays you.
           </p>
           <table className="rows inv-table">
             <thead>
               <tr>
                 <th>Where</th>
-                <th>Listed at ₹</th>
+                <th>Bank settlement ₹</th>
+                <th>GST %</th>
                 <th>Delivery ₹</th>
+                <th>Listed at ₹</th>
                 <th>Delivery is</th>
-                <th>GST</th>
-                <th>Left after materials, delivery and GST</th>
+                <th>Left after materials</th>
               </tr>
             </thead>
             <tbody>
               {MARKETPLACES.map(({ id, label }) => {
                 const m = market[id] ?? {};
-                const price = (m.price ?? 0) * 100;
-                const ship = (m.ship ?? 0) * 100;
-                // Vansh's formula: the listing price less delivery is what is taxed. Indian
-                // marketplace prices are GST-INCLUSIVE, so the tax is extracted from that figure
-                // (base x rate / (100 + rate)) rather than added on top of it — adding it on
-                // would invent money the buyer never paid.
-                const taxable = Math.max(price - ship, 0);
-                const tax = Math.round((taxable * gst) / (100 + gst));
-                const left = price - total - ship - tax;
+                const sum = sumPrice(m);
+                const price = Math.round((m.price ?? sum ?? 0) * 100);
+                const ship = Math.round((m.ship ?? 0) * 100);
+                /**
+                 * Money in, less what the materials cost — and nothing else, because everything
+                 * else already came off before the payout. The old sum re-derived the tax and the
+                 * delivery from the listed price, which was an estimate of this figure; this is
+                 * the figure. Falls back to that estimate only for a kit with no settlement typed,
+                 * which is every kit saved before this box existed.
+                 */
+                const g = m.gst ?? DEFAULT_GST;
+                const left =
+                  m.settle === undefined
+                    ? price - total - ship - Math.round((Math.max(price - ship, 0) * g) / (100 + g))
+                    : Math.round(m.settle * 100) - total;
+                const known = m.settle !== undefined || price > 0;
                 const shipShare = price > 0 ? Math.round((ship / price) * 100) : null;
                 const leftShare = price > 0 ? Math.round((left / price) * 100) : null;
                 return (
@@ -1062,8 +1251,20 @@ export function Inventory({ n }: { n: number }) {
                       <input
                         type="number"
                         min={0}
-                        value={m.price ?? ""}
-                        onChange={(e) => setOne(id, "price", e.target.value)}
+                        value={m.settle ?? ""}
+                        onChange={(e) => setOne(id, "settle", e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      {/* Empty means 5, and the box says so rather than pre-filling it: a typed 5
+                          and an untouched 5 look identical, and only one of them was checked. */}
+                      <input
+                        type="number"
+                        min={0}
+                        max={50}
+                        placeholder={String(DEFAULT_GST)}
+                        value={m.gst ?? ""}
+                        onChange={(e) => setOne(id, "gst", e.target.value)}
                       />
                     </td>
                     <td>
@@ -1074,38 +1275,40 @@ export function Inventory({ n }: { n: number }) {
                         onChange={(e) => setOne(id, "ship", e.target.value)}
                       />
                     </td>
+                    <td>
+                      {/* The sum sits in the placeholder, so an empty box is not blank — it shows
+                          the price the three figures add up to. Typing replaces it; clearing the
+                          box goes back to the sum, which is the whole undo. */}
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder={sum === null ? "" : String(sum)}
+                        value={m.price ?? ""}
+                        onChange={(e) => setOne(id, "price", e.target.value)}
+                      />
+                      {m.price !== undefined && sum !== null && Math.round(m.price * 100) !== Math.round(sum * 100) && (
+                        <div className="muted">sum says {rupees(Math.round(sum * 100))}</div>
+                      )}
+                    </td>
                     <td>{shipShare === null ? "—" : `${shipShare}% of the price`}</td>
-                    <td>{price === 0 ? "—" : rupees(tax)}</td>
-                    <td className={price > 0 && left <= 0 ? "warnpill" : ""}>
-                      {price === 0 ? "—" : `${rupees(left)}  ·  ${leftShare}%`}
+                    <td className={known && left <= 0 ? "warnpill" : ""}>
+                      {!known ? "—" : `${rupees(left)}${leftShare === null ? "" : `  ·  ${leftShare}%`}`}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <div className="picks">
-            <label className="inline">
-              GST
-              <input
-                type="number"
-                min={0}
-                max={50}
-                value={gst}
-                onChange={(e) => setGst(Number(e.target.value))}
-              />
-              %
-            </label>
-            <span className="muted">
-              Taken out of <b>(listed price − delivery)</b>, treating the listed price as already
-              including it, which is how a marketplace price works. 5% matches the{" "}
-              <code>GST_5</code> tax code on the listings.
-            </span>
-          </div>
           <p className="muted">
-            <b>"Left" is still not profit.</b> Materials, delivery and GST are out of it — the
-            marketplace commission, its own 18% GST on that commission, packaging and ad spend are
-            not. Use it to rank kits against each other rather than to bank a figure.
+            <b>GST is per marketplace and per kit</b>, blank meaning 5% — the <code>GST_5</code> tax
+            code the listings carry. It is the rate that came OUT of the settlement, so the price
+            adds it back on; on a kit with no settlement typed, the old sum still applies and takes
+            it out of (listed price − delivery) instead.
+          </p>
+          <p className="muted">
+            <b>"Left" is still not profit.</b> It is the settlement less the materials, so delivery,
+            GST and the marketplace's commission are already out of it — but packaging, ad spend and
+            returns are not. Use it to rank kits against each other rather than to bank a figure.
           </p>
 
 
@@ -1123,11 +1326,36 @@ export function Inventory({ n }: { n: number }) {
               Keeping stores the {kit.lines.length} lines as read, any material you corrected, both
               pricing rules, and the prices, delivery and GST above. Not the total — that is worked
               out again from today&apos;s price list every time you open it, so a price change reaches
-              every kit you have ever saved. The name is the <code>sku</code> in the box at the top:
-              change it there and keeping <b>renames</b> this kit rather than making a second copy
-              of it.
+              every kit you have ever saved. The name is the <code>sku</code> in the box at the top.
+              Change it and keep, and you get <b>two kits</b> — the old name and the new one, both
+              saved. That is what you want for two products made from the same items. If you only
+              changed the name because it was wrong, delete the old one here after keeping.
             </span>
             {note && <span className="allgood">{note}</span>}
+            {/* Two buttons, not one. A lone Delete button leaves the other choice unspoken, so
+                the screen reads as "you must delete something" — and the safe answer is the one
+                that needs saying most clearly. Both buttons only clear this message; the kit is
+                already saved either way. */}
+            {stray && (
+              <span className="muted inv-both">
+                <b>Both kits are saved now:</b> {strayName} and {sku}. Which did you mean?
+                <span>
+                  <button onClick={() => setStray(null)}>
+                    Two products — keep both
+                  </button>
+                  <button
+                    onClick={() => {
+                      void window.ww.deleteKit(stray).then(() => {
+                        setStray(null);
+                        refreshSaved();
+                      });
+                    }}
+                  >
+                    One product — {strayName} was the wrong name, delete it
+                  </button>
+                </span>
+              </span>
+            )}
           </div>
 
           {parcel && (

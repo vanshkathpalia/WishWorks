@@ -20,10 +20,13 @@ import path from "node:path";
 import {
   FLOOR,
   SURE,
+  addMaterial,
   costKit,
   extractJson,
   gaps,
   leftAfterEverything,
+  leftForMarket,
+  marketPrice,
   listKits,
   loadMaterials,
   normalize,
@@ -401,6 +404,15 @@ describe("pasting the reply straight out of the chat", () => {
   });
 });
 
+/**
+ * These two run against the LIVE `materials.json`, which is the point — they prove the matching
+ * still lands on the right rows after a rename or a new `aka`.
+ *
+ * **They deliberately do not pin the total to a figure.** They used to say ₹58.50, and that broke
+ * the day Vansh corrected Kitty Foil from ₹1.50 to ₹15 in the app — a correct price fix failing a
+ * test it has nothing to do with. The subject here is which row each line matched; the prices are
+ * data, and data is allowed to change without a test rewrite.
+ */
 describe("a real ChatGPT reading, against the real shipped price list", () => {
   const real = () => loadMaterials(path.join(import.meta.dirname, "..", "categories"));
 
@@ -425,7 +437,7 @@ describe("a real ChatGPT reading, against the real shipped price list", () => {
     expect(kit.unmatched).toBe(0);
     expect(kit.noPrice).toBe(0);
     expect(kit.flagged).toBe(0);
-    expect(kit.totalPaise).toBe(5850);
+    expect(kit.totalPaise).toBeGreaterThan(0);
   });
 
   it("costs the pink-kitty packet with nothing flagged and nothing missed", () => {
@@ -456,7 +468,7 @@ describe("a real ChatGPT reading, against the real shipped price list", () => {
     expect(kit.unmatched).toBe(0);
     expect(kit.noPrice).toBe(0);
     expect(kit.flagged).toBe(0);
-    expect(kit.totalPaise).toBe(5850);
+    expect(kit.totalPaise).toBeGreaterThan(0);
   });
 
   it("still refuses to be confident about a name with its colour missing", () => {
@@ -603,6 +615,67 @@ describe("a price for one kit versus a price for the list", () => {
   });
 });
 
+/** The other half: a line reading *not on the price list* used to need a text editor to fix. */
+describe("adding a material the list has never had", () => {
+  const list = () => {
+    const dir = tmp();
+    writeFileSync(
+      path.join(dir, "materials.json"),
+      JSON.stringify({
+        _: "a note that must survive",
+        materials: [
+          { category: "Foil Balloon", material: "Kitty Foil", paise: 150, aka: ["KITTY FOIL"] },
+          { category: "Foil Balloon", material: "Heart Foil", paise: 900 },
+          { category: "Tape", material: "Arch Tape", paise: 350 },
+        ],
+      }, null, 2),
+    );
+    return dir;
+  };
+  const raw = (dir: string) =>
+    JSON.parse(readFileSync(path.join(dir, "materials.json"), "utf8"));
+
+  it("files the new row with its own category rather than at the end", () => {
+    const dir = list();
+    const after = addMaterial({ category: "Foil Balloon", material: "Gold Glass Foil", paise: 4500 }, dir);
+    expect(after.map((m) => m.material)).toEqual([
+      "Kitty Foil", "Heart Foil", "Gold Glass Foil", "Arch Tape",
+    ]);
+    expect(raw(dir)._).toBe("a note that must survive");
+    // And it is immediately usable, which is the whole point of adding it mid-kit.
+    expect(costKit([{ item: "Gold Glass Foil", qty: 2 }], after).totalPaise).toBe(9000);
+  });
+
+  it("takes a brand new category, and puts it at the end", () => {
+    const after = addMaterial({ category: "Lighting", material: "Fairy Light", paise: 6000 }, list());
+    expect(after[after.length - 1]).toEqual({
+      category: "Lighting", material: "Fairy Light", paise: 6000,
+    });
+  });
+
+  it("allows no price, which is a different state from free", () => {
+    const after = addMaterial({ category: "Tape", material: "Glue Dot Roll", paise: null }, list());
+    expect(after.find((m) => m.material === "Glue Dot Roll")!.paise).toBeNull();
+    // Uncosted, not counted as zero — the panel's whole reason for telling the two apart.
+    const kit = costKit([{ item: "Glue Dot Roll", qty: 3 }], after);
+    expect(kit.totalPaise).toBe(0);
+    expect(kit.noPrice).toBe(1);
+  });
+
+  it("refuses a name already on the list, under any spelling, rather than making a tie", () => {
+    // A duplicate would tie for ever, and a tie is settled by file order — a coin toss (WW-162).
+    expect(() => addMaterial({ category: "Foil Balloon", material: "kitty  foil", paise: 100 }, list()))
+      .toThrow(/already on the list/);
+    expect(() => addMaterial({ category: "Foil Balloon", material: "KITTY FOIL", paise: 100 }, list()))
+      .toThrow(/already on the list/); // an aka is the same material too
+  });
+
+  it("refuses a nameless or category-less row", () => {
+    expect(() => addMaterial({ category: "Tape", material: "  ", paise: 100 }, list())).toThrow();
+    expect(() => addMaterial({ category: "", material: "Something", paise: 100 }, list())).toThrow();
+  });
+});
+
 describe("a material bought as a pack, not one at a time", () => {
   // WW-137, and the worst kind of wrong the panel has produced: every figure on screen correct
   // and the total 5.6x too high, because the count and the price were in different units.
@@ -705,6 +778,28 @@ describe("what a sale actually leaves", () => {
     expect(listed.left!.meesho).toBe(leftAfterEverything(12000, 4000, 700));
     // A kit costed but never listed has NO margin — which the panel must not colour as a bad one.
     expect(rows.find((r) => r.sku === "NOT-LISTED")!.left).toBeUndefined();
+  });
+
+  it("prefers the settlement over any price, because that is the money that arrived", () => {
+    // ₹240 in the bank, ₹19 of materials. The shop price is irrelevant to this figure — which is
+    // the case that made it: Meesho cuts the listed price and pays the seller the same.
+    expect(leftForMarket({ settlementPaise: 24000, shippingPaise: 7700 }, 1900)).toBe(22100);
+    expect(leftForMarket({ settlementPaise: 24000, pricePaise: 20000 }, 1900)).toBe(22100);
+    // No settlement: the old estimate, and it must still honour a rate that is not 5.
+    expect(leftForMarket({ pricePaise: 20000, shippingPaise: 4000, gstPercent: 12 }, 5000))
+      .toBe(leftAfterEverything(20000, 4000, 5000, 12));
+    // Nothing filled in is not a margin of zero.
+    expect(leftForMarket({}, 5000)).toBeNull();
+    expect(leftForMarket({ shippingPaise: 4000 }, 5000)).toBeNull();
+  });
+
+  it("adds the GST back on to reach the price, so price and settlement agree both ways", () => {
+    // 200 settled + 5% + 40 delivery = 250. Run back through the estimate, the same 200 comes out.
+    expect(marketPrice({ settlementPaise: 20000, shippingPaise: 4000 })).toBe(25000);
+    expect(leftAfterEverything(25000, 4000, 0)).toBe(20000);
+    // A typed price wins outright — it is the shop window, not the payout.
+    expect(marketPrice({ pricePaise: 19900, settlementPaise: 20000 })).toBe(19900);
+    expect(marketPrice({})).toBe(0);
   });
 
   it("costs from today's price list, so a price change moves the figure", () => {

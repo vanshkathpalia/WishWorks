@@ -258,6 +258,9 @@ export interface WwApi {
    */
   setMaterialPrice(key: string, paise: number | null): Promise<Attempt<Material[]>>;
 
+  /** Add a material the list has never had. Refused in a packaged app, same as the price above. */
+  addMaterial(row: { category: string; material: string; paise: number | null }): Promise<Attempt<Material[]>>;
+
   /**
    * The posted parcel for a kit — size, weight, volumetric weight, and the two forms Flipkart
    * asks for. Computed from the inventory (src/packaging.ts), never guessed per listing.

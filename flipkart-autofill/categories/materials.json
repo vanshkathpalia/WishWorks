@@ -367,7 +367,7 @@
     {
       "category": "Foil Balloon",
       "material": "Kitty Foil",
-      "paise": 150
+      "paise": 1500
     },
     {
       "category": "Foil Balloon",
@@ -644,7 +644,7 @@
     {
       "category": "Themed Set",
       "material": "Doraemon Set, 5 pcs",
-      "paise": null,
+      "paise": 1500,
       "aka": [
         "doremon five pcs set"
       ],
