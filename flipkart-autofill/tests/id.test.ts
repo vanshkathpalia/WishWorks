@@ -223,12 +223,23 @@ describe("fileUrl and back", () => {
 
   it("puts a Windows path back together, drive letter and all", () => {
     expect(fileUrl("C:\\Users\\partner\\Downloads\\GTB-2.jpg"))
-      .toBe("ww-file:///C%3A/Users/partner/Downloads/GTB-2.jpg");
+      .toBe("ww-file://local/C%3A/Users/partner/Downloads/GTB-2.jpg");
     expect(filePathFromUrl(fileUrl("C:\\Users\\partner\\Downloads\\GTB-2.jpg")))
       .toBe("C:/Users/partner/Downloads/GTB-2.jpg");
   });
 
   it("is never a file:// URL — Chromium blocks those from the dev server", () => {
     expect(fileUrl("/tmp/x.jpg").startsWith("ww-file://")).toBe(true);
+  });
+
+  /**
+   * The host is a constant, and the path starts after it. Without it Chromium takes `Users` as the
+   * host of `ww-file:///Users/…`, lower-cases it, and hands the handler a path one folder short —
+   * which is what made every picture ERR_FILE_NOT_FOUND while this file's round trip still passed.
+   */
+  it("keeps the whole path in the path, never in the host", () => {
+    expect(fileUrl("/Users/vansh/x.jpg")).toBe("ww-file://local/Users/vansh/x.jpg");
+    expect(new URL(fileUrl("/Users/vansh/x.jpg")).host).toBe("local");
+    expect(new URL(fileUrl("/Users/vansh/x.jpg")).pathname).toBe("/Users/vansh/x.jpg");
   });
 });

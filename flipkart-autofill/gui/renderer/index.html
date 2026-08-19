@@ -3,10 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <title>WishWorks</title>
-    <!-- No remote anything: the app never loads a script, style or font it did not ship with. -->
+    <!-- No remote anything: the app never loads a script, style or font it did not ship with.
+         `ww-file:` is how a picture on this disk reaches an <img> — see gui/shared.ts. `file:` used
+         to be listed here and was NEVER usable: in development the page is served over http, and
+         Chromium blocks a local file from an http origin whatever the CSP says. Two gates, and
+         listing one of them made the other look open (C-064). -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; img-src 'self' ww-file: data:; style-src 'self' 'unsafe-inline'"
     />
   </head>
   <body>

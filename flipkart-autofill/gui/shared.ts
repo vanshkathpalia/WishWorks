@@ -441,9 +441,16 @@ declare global {
  *
  * Each segment is encoded separately, which is what makes a folder with a space in it work — the
  * default workspace sits under "Application Support".
+ *
+ * **`//local/` and not `///`, and this is the whole trick.** The scheme is registered as
+ * `standard`, so Chromium parses it with an authority: `ww-file:///Users/vansh/x.jpg` has its
+ * FIRST SEGMENT taken as the host and lower-cased, arriving at the handler as
+ * `ww-file://users/vansh/x.jpg` — one folder eaten, another case-mangled. A constant host nobody
+ * reads keeps the whole path in the path. A URL round-trip test does not catch this: the mangling
+ * happens inside Chromium, between the two functions (WW-178).
  */
 export const fileUrl = (p: string) =>
-  "ww-file:///" + p.replace(/\\/g, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+  "ww-file://local/" + p.replace(/\\/g, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
 
 /**
  * The path back out of one of those URLs.

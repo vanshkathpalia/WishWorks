@@ -2067,3 +2067,35 @@ own, which is the case accounts exist for.
 **Cheap lesson.** A login is not a fresh start. Any feature that introduces a new "home" for data
 has to answer *what about everything already here* before it ships, and the answer is almost never
 *an empty folder*.
+
+## C-065 — Handed back a fix three times without ever looking at a picture
+
+**Class:** Process · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-19 ·
+**Status:** Fixed (WW-178)
+
+*"Why the hell is nothing appearing in here, may I know why???"* — the third screenshot in a row of
+the same broken image, after two rounds of "fixed, go and look".
+
+**One symptom, THREE independent gates**, and each round fixed one and declared victory:
+
+1. `file://` from an `http://localhost` page — blocked by Chromium (C-064). Fixed.
+2. `img-src 'self' file: data:` in the CSP — the new `ww-file:` scheme was not on the list, so the
+   request never left the page. **And `file:` being on that list is what made the first gate look
+   open**: the allowlist said yes, the browser said no, and the two disagreements looked like one.
+3. `ww-file:///Users/…` — the scheme is registered `standard`, so Chromium parses an authority:
+   the first segment became the HOST, lower-cased, and the handler got
+   `ww-file://users/vansh/…` — one folder short. `//local/` as a constant host fixes it.
+
+**The process failure is the real entry.** Each round ended with tests green, a typecheck clean and
+the app relaunched — and not one of those looks at a pixel. Worse, the unit test written in round
+two *passed through the whole bug*: `filePathFromUrl(fileUrl(x)) === x` is true in Node, because
+the mangling happens inside Chromium, between the two calls. **A round-trip test with the round
+trip stubbed out is a test of nothing.**
+
+What finally worked took ten minutes: a throwaway Electron main script that registers the scheme,
+serves a page over http with the app's real CSP, points an `<img>` at his real file and reports
+`naturalWidth`. It printed the failing URL, which named gate 3 immediately.
+
+**Cheap lesson.** When the report is *nothing appears*, the check must be *something appeared* —
+measured, not inferred from a green suite. And after two failed handoffs, stop fixing and start
+instrumenting: three tries at the same symptom means the loop, not the code, is what is wrong.
