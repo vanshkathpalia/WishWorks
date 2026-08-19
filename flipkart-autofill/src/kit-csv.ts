@@ -16,7 +16,7 @@
  */
 
 import {
-  costKit, DEFAULT_GST_PERCENT, leftForMarket, marketPrice,
+  costKit, gstOn, leftForMarket, marketPrice,
   type Kit, type Material, type SavedKit,
 } from "./inventory-core.js";
 import { parcelFor, type PackagingSpec } from "./packaging.js";
@@ -103,7 +103,7 @@ function block(saved: SavedKit, opts: CsvOptions): string[] {
         money(price),
         v.pricePaise ? "typed in" : "settlement + GST + delivery",
         v.settlementPaise === undefined ? "not filled in" : money(v.settlementPaise),
-        `${v.gstPercent ?? DEFAULT_GST_PERCENT}%`,
+        money(gstOn(v)),
         v.shippingPaise === undefined ? "not filled in" : money(ship),
         `${Math.round((ship / price) * 100)}%`,
         money(leftForMarket(v, kit.totalPaise)),
