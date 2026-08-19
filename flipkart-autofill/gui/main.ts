@@ -23,6 +23,7 @@ import { readFile, writeFile, mkdir, readdir, rename, rm, copyFile, stat } from 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { filePathFromUrl } from "./shared.js";
 import type {
   Account, Attempt, CleanUp, ConvertResult, DefaultsTab, FolderKey, Row, StepId,
 } from "./shared.js";
@@ -1271,11 +1272,9 @@ app.whenReady().then(() => {
    * The Windows case is the one to keep: `C:\Users\…` arrives as `/C:/Users/…` — a standard
    * scheme always has a leading slash on its path — and `pathToFileURL` needs it gone.
    */
-  protocol.handle("ww-file", (request) => {
-    const decoded = decodeURIComponent(new URL(request.url).pathname);
-    const file = /^\/[A-Za-z]:\//.test(decoded) ? decoded.slice(1) : decoded;
-    return net.fetch(pathToFileURL(file).toString());
-  });
+  protocol.handle("ww-file", (request) =>
+    net.fetch(pathToFileURL(filePathFromUrl(request.url)).toString()),
+  );
 
   void ensureFolders();
   createWindow();

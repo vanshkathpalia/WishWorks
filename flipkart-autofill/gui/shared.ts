@@ -425,3 +425,34 @@ declare global {
     ww: WwApi;
   }
 }
+
+/**
+ * A local path as a `ww-file://` URL, and back again — the pair that puts a picture on screen.
+ *
+ * **They live together because they are one rule read in two directions**, and they run in two
+ * different processes: `fileUrl` in the renderer, `filePathFromUrl` in the protocol handler in
+ * `gui/main.ts`. Split across those two files they drifted silently; the failure is a broken
+ * image, which looks exactly like *there is no picture*, which is a state the app draws on purpose
+ * (WW-177, C-064).
+ *
+ * **Not `file://`.** The renderer in development is served from `http://localhost:5173`, and
+ * Chromium refuses to load a local file from an http page — every thumbnail in the app was broken
+ * in development and fine when packaged, which is the worst way round.
+ *
+ * Each segment is encoded separately, which is what makes a folder with a space in it work — the
+ * default workspace sits under "Application Support".
+ */
+export const fileUrl = (p: string) =>
+  "ww-file:///" + p.replace(/\\/g, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+
+/**
+ * The path back out of one of those URLs.
+ *
+ * The Windows case is the whole reason this is a function: `C:\\Users\\…` goes out as
+ * `/C:/Users/…` — a standard scheme always has a leading slash on its path — and it has to come
+ * off again, or the file is looked for at a path that starts with a slash and a drive letter.
+ */
+export function filePathFromUrl(url: string): string {
+  const decoded = decodeURIComponent(new URL(url).pathname);
+  return /^\/[A-Za-z]:\//.test(decoded) ? decoded.slice(1) : decoded;
+}

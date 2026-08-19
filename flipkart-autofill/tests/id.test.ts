@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { normalizeId, findById, whyNoMatch } from "../src/id.js";
 // The prefix check lives in gui/shared.ts because the renderer needs it and cannot have node:fs.
-import { isForAccount, skuNumbers, skuPrefix } from "../gui/shared.js";
+import { fileUrl, filePathFromUrl, isForAccount, skuNumbers, skuPrefix } from "../gui/shared.js";
 
 let tmp: string;
 const created: string[] = [];
@@ -203,5 +203,32 @@ describe("skuPrefix and skuNumbers", () => {
   it("finds no number where there is none, rather than inventing a zero", () => {
     expect(skuNumbers("kit")).toEqual([]);
     expect(skuNumbers("hello")).toEqual([]);
+  });
+});
+
+/**
+ * The picture URL, both ways. Untested, these two drifted apart in different processes and the
+ * only symptom was a broken image — which reads as "there is no picture for this", a state the
+ * app draws deliberately. See C-064.
+ */
+describe("fileUrl and back", () => {
+  const there = (file: string) => expect(filePathFromUrl(fileUrl(file))).toBe(file);
+
+  it("survives the round trip, spaces and all", () => {
+    there("/Users/vansh/Downloads/wishworks-ready/ANP/ANP-1-annaprasan-decoration-kit-2.jpg");
+    // The default workspace lives under "Application Support" — the space is not a rare case.
+    there("/Users/vansh/Library/Application Support/WishWorks/workspaces/vansh/images/1.jpg");
+    there("/Users/vansh/Coding/Side projects (new ideas)/WishWorks/a+b&c#d.jpg");
+  });
+
+  it("puts a Windows path back together, drive letter and all", () => {
+    expect(fileUrl("C:\\Users\\partner\\Downloads\\GTB-2.jpg"))
+      .toBe("ww-file:///C%3A/Users/partner/Downloads/GTB-2.jpg");
+    expect(filePathFromUrl(fileUrl("C:\\Users\\partner\\Downloads\\GTB-2.jpg")))
+      .toBe("C:/Users/partner/Downloads/GTB-2.jpg");
+  });
+
+  it("is never a file:// URL — Chromium blocks those from the dev server", () => {
+    expect(fileUrl("/tmp/x.jpg").startsWith("ww-file://")).toBe(true);
   });
 });

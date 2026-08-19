@@ -54,20 +54,10 @@ export const joinPath = (dir: string, name: string) =>
   dir.includes("\\") && !dir.includes("/") ? `${dir}\\${name}` : `${dir}/${name}`;
 
 /**
- * A local path as a `ww-file://` URL for an `<img>`.
- *
- * **Not `file://`**, which Chromium refuses to load from the dev server's http origin — see the
- * protocol registration in `gui/main.ts`. The shape is otherwise identical. Handles `C:\Users\…` as well as `/Users/…`,
- * because the renderer is the one place that has to build these by hand and Windows is where a
- * `/`-only version would silently show broken thumbnails. `encodeURIComponent` per segment is what
- * makes a folder with a space in it work — and the workspace default is under "Application
- * Support".
- *
- * It lived in Convert.tsx and PhotoInbox.tsx as two identical copies; the third panel that needed
- * it is what made that worth fixing.
+ * Re-exported so every panel goes on importing it from here, while the rule itself lives in
+ * `shared.ts` next to its inverse — see `fileUrl` there for why the two must not be separated.
  */
-export const fileUrl = (p: string) =>
-  "ww-file:///" + p.replace(/\\/g, "/").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+export { fileUrl } from "../shared.js";
 
 /** Copy text to the clipboard and say so for a moment. The whole interaction is one click. */
 export function CopyButton({ text, label = "Copy", disabled }: { text: string; label?: string; disabled?: boolean }) {
