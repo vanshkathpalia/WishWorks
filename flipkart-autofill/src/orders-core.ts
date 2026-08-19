@@ -19,6 +19,7 @@
 import zlib from "node:zlib";
 import { copyFile, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { leadCode } from "./id.js";
 import { ROOT } from "./paths.js";
 
 /** One text cell as the PDF draws it: where it sits, and which stream (≈ page) drew it. */
@@ -207,6 +208,14 @@ const key = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 export async function imageForSku(readyDir: string, sku: string, position = 2): Promise<string | null> {
   const want = key(sku);
   if (!want) return null;
+  /**
+   * `ANP001` and `ANP-1-annaprasan-decoration-kit-…` are the same listing — see `leadCode`. When
+   * the SKU carries a code, that code IS the comparison and a name merely CONTAINING it is not
+   * good enough: `ANP001` sits inside `ANP-10-…` as happily as inside `ANP-1-…`, and showing a
+   * packer the wrong kit is the one failure this screen must not have. A SKU with no code in it
+   * (`007 annaprashan ct`) has nothing to compare, so those fall back to the plain contains.
+   */
+  const wantCode = leadCode(sku);
   const tail = new RegExp(`-${position}\\.(jpe?g|png)$`, "i");
   const stack = [readyDir];
   /**
@@ -225,9 +234,10 @@ export async function imageForSku(readyDir: string, sku: string, position = 2): 
         continue;
       }
       if (!tail.test(e.name)) continue;
-      const found = key(e.name.replace(tail, ""));
-      if (found === want) return full;
-      if (loose === null && found.includes(want)) loose = full;
+      const base = e.name.replace(tail, "");
+      if (key(base) === want) return full;
+      if (loose !== null) continue;
+      if (wantCode ? leadCode(base) === wantCode : key(base).includes(want)) loose = full;
     }
   }
   return loose;

@@ -201,7 +201,14 @@ export interface WwApi {
    * The seller accounts on this machine and which one is live. Empty list = nobody has set one up,
    * and the app behaves exactly as it did before WW-154.
    */
-  accounts(): Promise<{ accounts: Account[]; active: number }>;
+  /**
+   * `chosen` is false until somebody has actually picked an account on this machine — which is
+   * what the launch screen asks, and why it is not the same question as "is there one in the
+   * list". It stays true from then on, so the app asks once and remembers.
+   */
+  accounts(): Promise<{ accounts: Account[]; active: number; chosen: boolean }>;
+  /** Confirm the account already open, without the relaunch a real switch needs. */
+  confirmAccount(index: number): Promise<void>;
   /** Work a different account. Relaunches — the engine resolves its folders once, at startup. */
   switchAccount(index: number): Promise<void>;
   /** Add one: names it, then asks for its Drive folder. Relaunches; false means cancelled. */

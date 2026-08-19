@@ -85,6 +85,27 @@ describe("the pictures on a SKU", () => {
     expect(await imageForSku(dir, "SVP025", 2)).toBeNull();
   });
 
+  /**
+   * The one that was live-wrong: the manifest says `ANP001`, the file on the shared drive is
+   * `ANP-1-annaprasan-decoration-kit-red-gold-balloons-banner-heart-2.jpg`, and the packing screen
+   * said *no picture* for a listing that has had four images for weeks.
+   */
+  it("matches a padded SKU to the readable filename it belongs to, and not to its neighbour", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "ww-ready-"));
+    mkdirSync(path.join(dir, "ANP"));
+    const one = path.join(dir, "ANP", "ANP-1-annaprasan-decoration-kit-red-gold-balloons-banner-heart-2.jpg");
+    const ten = path.join(dir, "ANP", "ANP-10-annaprashan-decoration-kit-blue-silver-2.jpg");
+    writeFileSync(one, "x");
+    writeFileSync(ten, "x");
+
+    expect(await imageForSku(dir, "ANP001", 2)).toBe(one);
+    expect(await imageForSku(dir, "ANP010", 2)).toBe(ten);
+    // Containment would have handed ANP001 whichever of the two came first off the disk.
+    expect(await imageForSku(dir, "ANP002", 2)).toBeNull();
+    // And a code the folder has never heard of is not quietly matched to a neighbour.
+    expect(await imageForSku(dir, "SVP001", 2)).toBeNull();
+  });
+
   it("files an added picture under the SKU's own code, and that one then wins", async () => {
     const dir = ready();
     const src = path.join(dir, "from-whatsapp.jpg");

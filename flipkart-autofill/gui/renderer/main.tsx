@@ -68,9 +68,11 @@ const STEPS = [
  * The panels print the same numbers in their own headings, so the two must not disagree.
  */
 const SECTIONS = [
+  // One word each, because three tabs share a 250px rail and "New listing" / "Cost a kit" wrapped
+  // onto three lines apiece. The step under each tab carries the longer name and the `does` line.
   { tab: "Orders", steps: [8], numbered: false },
-  { tab: "New listing", steps: [0, 1, 2, 3, 4, 5, 6], numbered: true },
-  { tab: "Cost a kit", steps: [7], numbered: false },
+  { tab: "Listing", steps: [0, 1, 2, 3, 4, 5, 6], numbered: true },
+  { tab: "Costing", steps: [7], numbered: false },
 ];
 
 function Panel({ step }: { step: number }) {
@@ -314,20 +316,22 @@ function Settings({ close }: { close: () => void }) {
 }
 
 /**
- * "Whose data are you working in?" — asked once, at launch, before anything else.
+ * "Who is working on this computer?" — asked once, ever, before anything else.
  *
- * **This is a confirmation, not a login.** There is no password and nothing to authenticate; the
- * access control is which Drive folder is shared with whom (WW-154). What this fixes is a
- * different failure: the permanent label in the rail answers the question *if you look at it*,
- * and the whole point is that nobody looks before making the mistake. Making the first click of
- * the day be "yes, I am working GTB" means the answer was seen at least once, deliberately.
+ * **There is still no password and nothing to authenticate**: the access control is which Drive
+ * folder is shared with whom (WW-154). What this is, is the moment the machine is told whose it
+ * is — Vansh, 2026-08-19: *"on starting the app we should take the login detail just like any
+ * other system / app or platform… once that is taken, until switched from the settings we should
+ * save that login details."*
  *
- * **Only shown when this machine holds more than one account**, which today is nobody — one PC,
- * one account (WW-155). A screen you dismiss every launch to tell you the only thing it could
- * possibly say is worse than no screen, so a single account skips it entirely.
+ * **Asked when nothing has been chosen yet, and never again.** It used to appear every launch,
+ * and only on a machine with two or more accounts — so the common setup (one PC, one account,
+ * WW-155) never saw it at all and the app came up belonging to nobody, which is the state the
+ * screenshot in WW-175 shows. Now: no account on the machine and it asks you to make one; an
+ * account chosen and it never asks again. Switching is a deliberate act in Settings.
  *
- * Picking a DIFFERENT account relaunches, and this screen comes back with that one marked live.
- * The second click is not a bug: switching accounts is rare and worth confirming twice.
+ * Picking a DIFFERENT account here relaunches — the folders are read once, at startup — while
+ * confirming the one already open does not, because nothing about it changed.
  */
 function AccountGate({
   accounts,
@@ -338,14 +342,35 @@ function AccountGate({
   active: number;
   onConfirm: () => void;
 }) {
+  // Nothing set up yet: the same form Settings uses, because there is exactly one right way to
+  // add an account and it should not exist twice. Adding one relaunches and picks it, so this
+  // screen does not come back.
+  if (accounts.length === 0) {
+    return (
+      <div className="modal">
+        <div className="sheet" onClick={(e) => e.stopPropagation()}>
+          <h2>Who is working on this computer?</h2>
+          <p className="muted">
+            Set this machine up once. An account is a name, a folder for its working files and,
+            if you want one, the letters its SKUs start with — the app then says whose data is on
+            screen at all times, and keeps one seller&apos;s listings, costings and finished
+            images away from another&apos;s. You will not be asked again; change it any time under{" "}
+            <b>Settings</b>.
+          </p>
+          <Accounts />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="modal">
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h2>Whose data are you working in?</h2>
         <p className="muted">
-          This machine is set up for more than one seller account, and they do not share data —
-          different SKUs, different listings, different costings. Pick the one you are working
-          today.
+          This machine has more than one seller account and they do not share data — different
+          SKUs, different listings, different costings. Pick the one this computer works. You will
+          not be asked again.
         </p>
         <ul className="accounts">
           {accounts.map((a, i) => (
@@ -359,7 +384,10 @@ function AccountGate({
               </div>
               <div className="picks">
                 {i === active ? (
-                  <button className="primary" onClick={onConfirm}>
+                  <button
+                    className="primary"
+                    onClick={() => void window.ww.confirmAccount(i).then(onConfirm)}
+                  >
                     Work as this
                   </button>
                 ) : (
@@ -384,7 +412,7 @@ function App() {
    * Null until the accounts have been read. The gate must not flash up and vanish on a machine
    * with one account, so nothing is decided until the answer is actually in.
    */
-  const [gate, setGate] = useState<{ accounts: Account[]; active: number } | null>(null);
+  const [gate, setGate] = useState<{ accounts: Account[]; active: number; chosen: boolean } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   useEffect(() => void window.ww.accounts().then(setGate), []);
   /**
@@ -459,7 +487,9 @@ function App() {
 
       {settings && <Settings close={() => setSettings(false)} />}
 
-      {gate !== null && gate.accounts.length > 1 && !confirmed && (
+      {/* An empty list counts as unchosen however `activeAccount` reads: removing the last
+          account leaves the index behind, and a machine with no account is unconfigured. */}
+      {gate !== null && (!gate.chosen || gate.accounts.length === 0) && !confirmed && (
         <AccountGate
           accounts={gate.accounts}
           active={gate.active}

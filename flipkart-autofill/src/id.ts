@@ -42,6 +42,26 @@ export function normalizeId(name: string): string {
 }
 
 /**
+ * The `<letters><number>` a name STARTS with, zero-insensitive. `""` when it starts with neither.
+ *
+ * `ANP-1-annaprasan-decoration-kit-red-gold-2.jpg` → `ANP1`, and so does `ANP001`. **That pair is
+ * the whole reason this exists**: a SKU is written `ANP001` and the file it belongs to is written
+ * `ANP-1-<the whole title>`, because a filename has to stay readable to a person browsing the
+ * shared drive. Vansh, 2026-08-19: *"our SKU is named like this and the file can't, for
+ * readability — through coding, checking that is easy, so do that."*
+ *
+ * Sibling of `normalizeId` above, and NOT the same job: that one reduces a whole name to an
+ * identity, which is right when both sides are identities. Here one side is an identity and the
+ * other is a title with the identity on the front, so the comparison has to stop at the number.
+ * Reducing both to strings and asking whether one contains the other is what it replaced, and it
+ * is wrong in a way that never announces itself — `ANP001` is inside `ANP-10-…` too.
+ */
+export function leadCode(name: string): string {
+  const m = /^([A-Za-z]+)[\s_-]*0*(\d+)/.exec(path.basename(name));
+  return m === null ? "" : `${m[1].toUpperCase()}${m[2]}`;
+}
+
+/**
  * Why `findById` came back null, in words, naming the folder it actually looked in.
  *
  * A missing folder, an empty folder and a folder full of OTHER listings are three different

@@ -31,6 +31,7 @@ const api: WwApi = {
   chooseWorkspace: () => ipcRenderer.invoke("chooseWorkspace"),
 
   accounts: () => ipcRenderer.invoke("accounts"),
+  confirmAccount: (index: number) => ipcRenderer.invoke("confirmAccount", index),
   switchAccount: (index: number) => ipcRenderer.invoke("switchAccount", index),
   addAccount: (label: string, skuPrefix: string) =>
     ipcRenderer.invoke("addAccount", label, skuPrefix),

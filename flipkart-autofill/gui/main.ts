@@ -1022,7 +1022,20 @@ ipcMain.handle("chooseWorkspace", async (e): Promise<boolean> => {
  */
 ipcMain.handle("accounts", () => {
   const s = readSettings();
-  return { accounts: s.accounts ?? [], active: s.activeAccount ?? 0 };
+  // `activeAccount` being UNSET is the record of "nobody has chosen yet" — no second flag, and
+  // nothing to keep in step with it. Every path that picks an account writes it.
+  return { accounts: s.accounts ?? [], active: s.activeAccount ?? 0, chosen: s.activeAccount !== undefined };
+});
+
+/**
+ * Answer the launch screen without relaunching.
+ *
+ * `switchAccount` restarts the app because the folders are read once, at startup — but confirming
+ * the account that is ALREADY open changes no folder, and a restart there would look like a crash
+ * to somebody who has just told the app who they are.
+ */
+ipcMain.handle("confirmAccount", async (_e, index: number) => {
+  await writeSettings({ activeAccount: index });
 });
 
 ipcMain.handle("switchAccount", async (_e, index: number) => {

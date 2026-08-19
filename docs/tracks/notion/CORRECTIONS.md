@@ -1976,3 +1976,31 @@ because a kit saved at 12% must not quietly become 5%.
 **Cheap lesson.** When a figure exists on a document the user is holding, the box asks for that
 figure. A rate, a multiplier or a formula input is only right when nobody can read the answer off
 anything.
+
+## C-062 — Two names for one listing, matched by containment
+
+**Class:** Code · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-19 ·
+**Status:** Fixed (WW-175)
+
+The packing screen said *no picture* for `ANP001`, a listing with four finished images on the
+shared drive since July. Vansh: *"this ANP001 was my listing bruh… the image file name is a little
+complicated at the wishwork ready folder — `ANP-1-annaprasan-decoration-kit-red-gold-balloons-
+banner-heart-2`. The `2` at the last tells us this is the 2nd inventory image and `ANP-1` tells us
+the SKU, this meant `ANP001`. You have to tackle that naming convention."*
+
+**Root cause.** `imageForSku` stripped punctuation off both sides and asked whether one string
+contained the other. `ANP001` → `ANP001`; the file → `ANP1ANNAPRASANDECORATION…`. No containment,
+no picture — and the padding is not an accident, it is **the whole convention**: a SKU is padded
+for sorting, a filename carries the readable title after the code.
+
+**Worse than the miss, and the reason this is a correction and not a ticket line:** the same rule
+had a silent false POSITIVE waiting in it. Had the SKU been `ANP1`, it would have matched
+`ANP-10-…` just as happily, and a packer would have been shown the wrong kit with nothing on
+screen suggesting anything was wrong. **A matcher that is too loose fails in the direction nobody
+checks.** `leadCode` in `src/id.ts` now compares the `<letters><number>` a name starts with,
+zero-insensitive, and stops at the number.
+
+**Cheap lesson.** `normalizeId` was right there and does not fit: it reduces a whole name to an
+identity, which is correct when *both* sides are identities. Here one side is an identity and the
+other is a title with the identity on the front. Reaching for the nearest existing helper is right;
+checking what it assumes about its inputs is the part that was skipped.

@@ -1482,6 +1482,7 @@ textarea.json {
 }
 .tabs button {
   flex: 1;
+  white-space: nowrap;
   padding: 7px 4px;
   border: 0;
   border-radius: 7px;
