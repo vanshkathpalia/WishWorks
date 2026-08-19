@@ -353,12 +353,19 @@ function Login({ hasAccounts, onDone }: { hasAccounts: boolean; onDone: () => vo
   async function go() {
     setBusy(true);
     setError(null);
-    const r = hasAccounts
-      ? await window.ww.signIn(user, password)
-      : await window.ww.signUp(user, password);
+    try {
+      const r = hasAccounts
+        ? await window.ww.signIn(user, password)
+        : await window.ww.signUp(user, password);
+      if (r.ok) onDone();
+      else setError(r.message);
+    } catch (e) {
+      // An IPC call can reject outright — an older app half-updated, a handler that is not there.
+      // Whatever it is, the one thing this screen must never do is keep spinning: a button stuck
+      // on "…" reads as a frozen app, and there is nothing else on screen to try instead.
+      setError(e instanceof Error ? e.message : "That did not work. Close the app and open it again.");
+    }
     setBusy(false);
-    if (r.ok) onDone();
-    else setError(r.message);
   }
 
   return (

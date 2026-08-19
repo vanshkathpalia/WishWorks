@@ -858,7 +858,16 @@ ipcMain.handle("workspaceDir", () => WORKSPACE);
  */
 function relaunch(): void {
   app.relaunch();
-  app.quit();
+  /**
+   * A tick later, never in the same turn.
+   *
+   * Every caller of this is inside an `ipcMain.handle`, and quitting synchronously there throws
+   * the reply away — the renderer's `await` never settles, so a button that set `busy` before the
+   * call stays on "…" for ever. That is indistinguishable from a hang, and it is what signing up
+   * looked like the first time it ran. 150ms is nothing next to a process restart and is enough
+   * for the answer to be on its way.
+   */
+  setTimeout(() => app.quit(), 150);
 }
 
 /**
