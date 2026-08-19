@@ -68,18 +68,19 @@ describe("a kit as a spreadsheet", () => {
     expect(withPrices).toContain("Left after materials");
     // No settlement typed, so the old estimate applies: 299.00 listed, less 77.00 delivery, less
     // the 5% GST inside the remaining 222.00 (10.57), less 19.50 materials.
-    expect(withPrices).toContain("meesho,299.00,typed in,not filled in,5%,77.00,26%,191.93");
+    expect(withPrices).toContain("meesho,299.00,typed in,not filled in,10.57,77.00,26%,191.93");
   });
 
   it("prints the settlement and its rate, and never the estimate, once the settlement is typed", () => {
     // The sheet the partner reads must agree with the panel: 240.00 in the bank less 19.50 of
     // materials is 220.50 left, whatever the shop-window price says — and 240 + 12% + 77 = 345.80
-    // is the price those three figures make.
+    // is the price those three figures make. The GST column prints the AMOUNT that rate works out
+    // to (28.80), not the rate: a rate is what we assumed, an amount is what was charged.
     const csv = kitToCsv(
       kit({ marketplaces: { meesho: { settlementPaise: 24000, shippingPaise: 7700, gstPercent: 12 } } }),
       opts,
     );
-    expect(csv).toContain("meesho,345.80,settlement + GST + delivery,240.00,12%,77.00,22%,220.50");
+    expect(csv).toContain("meesho,345.80,settlement + GST + delivery,240.00,28.80,77.00,22%,220.50");
   });
 
   it("leads with a BOM, so Excel on Windows does not mangle the names", () => {

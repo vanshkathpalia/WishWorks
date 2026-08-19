@@ -24,6 +24,7 @@ import {
   costKit,
   extractJson,
   gaps,
+  gstOn,
   leftAfterEverything,
   leftForMarket,
   marketPrice,
@@ -800,6 +801,20 @@ describe("what a sale actually leaves", () => {
     // A typed price wins outright — it is the shop window, not the payout.
     expect(marketPrice({ pricePaise: 19900, settlementPaise: 20000 })).toBe(19900);
     expect(marketPrice({})).toBe(0);
+  });
+
+  it("takes the GST AMOUNT when one is typed, and only falls back to the rate", () => {
+    // The statement is the fact. ₹27 of GST on a ₹200 settlement is not 5% of anything tidy —
+    // part of it is tax on the delivery — and the typed figure must survive that.
+    expect(gstOn({ settlementPaise: 20000, gstPaise: 2700 })).toBe(2700);
+    expect(marketPrice({ settlementPaise: 20000, shippingPaise: 4000, gstPaise: 2700 })).toBe(26700);
+    // Untyped, it is the rate on the settlement — the same number the panel had before.
+    expect(gstOn({ settlementPaise: 20000 })).toBe(1000);
+    expect(gstOn({ settlementPaise: 20000, gstPercent: 12 })).toBe(2400);
+    // And from the other end, a GST-inclusive price gives that same figure back.
+    expect(gstOn({ pricePaise: 25000, shippingPaise: 4000 })).toBe(1000);
+    // A typed amount reaches what is left, for a kit priced but never settled.
+    expect(leftForMarket({ pricePaise: 25000, shippingPaise: 4000, gstPaise: 2700 }, 5000)).toBe(13300);
   });
 
   it("costs from today's price list, so a price change moves the figure", () => {

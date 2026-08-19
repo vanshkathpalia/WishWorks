@@ -148,6 +148,19 @@ export interface MarketEntry {
   settlementPaise?: number;
   /** Per marketplace and per kit, because it is not always 5 — which is what started WW-169. */
   gstPercent?: number;
+  /**
+   * The GST on this sale as an AMOUNT, typed off the statement — and it wins over the rate.
+   *
+   * Vansh, 2026-08-19: *"this is some % of delivery charge so calculatively it won't be true if we
+   * are taking it as some % of meesho selling price… most of the time it is correct 5%, so after I
+   * enter the meesho price show me the number, but I should be able to edit that number, not the
+   * %."* Right, and the reason is that the figure on a settlement sheet is not one clean
+   * percentage of one clean base — part of it is tax on the delivery the marketplace charged. A
+   * rate can only ever approximate that; the amount is printed. So the rate became the DEFAULT and
+   * the amount became the entry. `gstPercent` stays for every kit saved before this, and for the
+   * default when nothing is typed — a kit stored at 12% must not quietly become 5%.
+   */
+  gstPaise?: number;
 }
 
 /** A costed kit as it is kept on disk, so it can be reopened and corrected later. */
@@ -685,6 +698,22 @@ export function leftAfterEverything(
 }
 
 /**
+ * The GST on one sale in paise — typed if it was typed, otherwise the rate on the taxable base.
+ *
+ * The two ways of deriving it agree, and that is why they can both live here: a settlement is net
+ * of tax, so the tax on it is `settlement × rate/100`; a listed price is GST-INCLUSIVE, so the tax
+ * inside it is `(price − delivery) × rate/(100 + rate)`. Feed the first result into `marketPrice`
+ * and the second one back out and you land on the same number.
+ */
+export function gstOn(m: MarketEntry): number {
+  if (m.gstPaise !== undefined) return m.gstPaise;
+  const rate = m.gstPercent ?? DEFAULT_GST_PERCENT;
+  if (m.settlementPaise !== undefined) return Math.round((m.settlementPaise * rate) / 100);
+  const taxable = Math.max((m.pricePaise ?? 0) - (m.shippingPaise ?? 0), 0);
+  return Math.round((taxable * rate) / (100 + rate));
+}
+
+/**
  * What the listing shows: typed if it was typed, otherwise settlement + its GST + delivery.
  *
  * The GST is ADDED BACK rather than taken off, because a settlement is already net of it — the
@@ -695,8 +724,7 @@ export function leftAfterEverything(
 export function marketPrice(m: MarketEntry): number {
   if (m.pricePaise) return m.pricePaise;
   if (!m.settlementPaise) return 0;
-  const gst = m.gstPercent ?? DEFAULT_GST_PERCENT;
-  return Math.round(m.settlementPaise * (1 + gst / 100)) + (m.shippingPaise ?? 0);
+  return m.settlementPaise + gstOn(m) + (m.shippingPaise ?? 0);
 }
 
 /**
@@ -714,9 +742,9 @@ export function marketPrice(m: MarketEntry): number {
 export function leftForMarket(m: MarketEntry, materialsPaise: number): number | null {
   if (m.settlementPaise !== undefined) return m.settlementPaise - materialsPaise;
   if (!m.pricePaise) return null; // no price listed is not a margin of zero
-  return leftAfterEverything(
-    m.pricePaise, m.shippingPaise ?? 0, materialsPaise, m.gstPercent ?? DEFAULT_GST_PERCENT,
-  );
+  // Same subtraction `leftAfterEverything` makes, with the GST taken from the entry so a typed
+  // amount is honoured. With nothing typed, `gstOn` IS that function's extraction, to the paise.
+  return m.pricePaise - materialsPaise - (m.shippingPaise ?? 0) - gstOn(m);
 }
 
 export interface KitRow {

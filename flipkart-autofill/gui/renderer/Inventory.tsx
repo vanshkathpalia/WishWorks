@@ -221,19 +221,45 @@ const MARKETPLACES = [
  * `price` is the OVERRIDE and not the price: empty means the sum below it stands. See `MarketEntry`
  * in the engine for why the settlement is the figure that gets typed and the price the one derived.
  */
-type Market = Record<string, { price?: number; ship?: number; settle?: number; gst?: number }>;
+type Market = Record<
+  string,
+  {
+    price?: number;
+    ship?: number;
+    settle?: number;
+    /** The GST RATE, kept only for kits saved before the amount existed. Never typed any more. */
+    gst?: number;
+    /** The GST AMOUNT in rupees — what is typed now. Empty means the derived figure stands. */
+    gstAmt?: number;
+  }
+>;
 
 /** Matches `DEFAULT_GST_PERCENT` and the `GST_5` tax code on the listings. */
 const DEFAULT_GST = 5;
 
+/** Rupees, to the paise — every figure in this table is money and none of it may drift. */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 /**
- * Settlement + the GST that came out of it + delivery. The engine's `marketPrice`, repeated rather
- * than imported for the reason `inches` is: importing it drags `node:fs` into the renderer bundle.
+ * The GST on this sale: the amount typed, or the rate applied to the base there is.
+ *
+ * The engine's `gstOn`, repeated rather than imported for the reason `inches` is: importing it
+ * drags `node:fs` into the renderer bundle. Keep the two in step — the panel computes this while
+ * the boxes are being typed in, and the engine computes it for everything already on disk.
  */
-const sumPrice = (m: { ship?: number; settle?: number; gst?: number }): number | null =>
-  m.settle === undefined
-    ? null
-    : Math.round(m.settle * (1 + (m.gst ?? DEFAULT_GST) / 100) * 100) / 100 + (m.ship ?? 0);
+const sumGst = (m: { price?: number; ship?: number; settle?: number; gst?: number; gstAmt?: number }): number => {
+  if (m.gstAmt !== undefined) return m.gstAmt;
+  const rate = m.gst ?? DEFAULT_GST;
+  if (m.settle !== undefined) return round2((m.settle * rate) / 100);
+  return round2((Math.max((m.price ?? 0) - (m.ship ?? 0), 0) * rate) / (100 + rate));
+};
+
+/**
+ * Settlement + the GST that came out of it + delivery. The engine's `marketPrice`, repeated for
+ * the same reason as `sumGst` above.
+ */
+const sumPrice = (m: { ship?: number; settle?: number; gst?: number; gstAmt?: number }): number | null =>
+  m.settle === undefined ? null : round2(m.settle + sumGst(m) + (m.ship ?? 0));
 
 export function Inventory({ n }: { n: number }) {
   const [prompt, setPrompt] = useState("");
@@ -315,7 +341,7 @@ export function Inventory({ n }: { n: number }) {
   } | null>(null);
 
   /** Empty stays undefined rather than becoming 0, so "not filled in" reads as "—", not "free". */
-  function setOne(id: string, field: "price" | "ship" | "settle" | "gst", raw: string) {
+  function setOne(id: string, field: "price" | "ship" | "settle" | "gstAmt", raw: string) {
     const v = raw === "" ? undefined : Number(raw);
     setMarket((m) => ({ ...m, [id]: { ...m[id], [field]: v } }));
   }
@@ -532,7 +558,8 @@ export function Inventory({ n }: { n: number }) {
           { pricePaise: v.price === undefined ? undefined : Math.round(v.price * 100),
             shippingPaise: v.ship === undefined ? undefined : Math.round(v.ship * 100),
             settlementPaise: v.settle === undefined ? undefined : Math.round(v.settle * 100),
-            gstPercent: v.gst },
+            gstPercent: v.gst,
+            gstPaise: v.gstAmt === undefined ? undefined : Math.round(v.gstAmt * 100) },
         ]),
       ),
       savedAt: "",
@@ -640,7 +667,8 @@ export function Inventory({ n }: { n: number }) {
           { price: v.pricePaise === undefined ? undefined : v.pricePaise / 100,
             ship: v.shippingPaise === undefined ? undefined : v.shippingPaise / 100,
             settle: v.settlementPaise === undefined ? undefined : v.settlementPaise / 100,
-            gst: v.gstPercent },
+            gst: v.gstPercent,
+            gstAmt: v.gstPaise === undefined ? undefined : v.gstPaise / 100 },
         ]),
       ),
     );
@@ -1206,17 +1234,20 @@ export function Inventory({ n }: { n: number }) {
               healthy on margin and be losing money once delivery is counted. */}
           <h3>What each marketplace actually pays you</h3>
           <p className="muted">
-            Type what <b>reached the bank</b>, the GST rate on that sale, and what delivery cost.
-            The listed price is worked out from those three — <b>settlement + GST + delivery</b> —
-            and you can type over it when the marketplace has dropped the shop price without
-            changing what it pays you.
+            Type what <b>reached the bank</b>, the GST on that sale, and what delivery cost. The
+            listed price is worked out from those three — <b>settlement + GST + delivery</b> — and
+            you can type over it when the marketplace has dropped the shop price without changing
+            what it pays you. <b>GST is an amount, not a rate</b>: 5% of the settlement is already
+            in the box as a suggestion, and the figure on the statement is what should end up
+            there, because part of it is tax on the delivery and no single percentage gets that
+            right.
           </p>
           <table className="rows inv-table">
             <thead>
               <tr>
                 <th>Where</th>
                 <th>Bank settlement ₹</th>
-                <th>GST %</th>
+                <th>GST ₹</th>
                 <th>Delivery ₹</th>
                 <th>Listed at ₹</th>
                 <th>Delivery is</th>
@@ -1236,10 +1267,9 @@ export function Inventory({ n }: { n: number }) {
                  * the figure. Falls back to that estimate only for a kit with no settlement typed,
                  * which is every kit saved before this box existed.
                  */
-                const g = m.gst ?? DEFAULT_GST;
                 const left =
                   m.settle === undefined
-                    ? price - total - ship - Math.round((Math.max(price - ship, 0) * g) / (100 + g))
+                    ? price - total - ship - Math.round(sumGst({ ...m, price: price / 100, ship: ship / 100 }) * 100)
                     : Math.round(m.settle * 100) - total;
                 const known = m.settle !== undefined || price > 0;
                 const shipShare = price > 0 ? Math.round((ship / price) * 100) : null;
@@ -1256,16 +1286,21 @@ export function Inventory({ n }: { n: number }) {
                       />
                     </td>
                     <td>
-                      {/* Empty means 5, and the box says so rather than pre-filling it: a typed 5
-                          and an untouched 5 look identical, and only one of them was checked. */}
+                      {/* The 5% figure sits in the PLACEHOLDER, exactly like the derived price two
+                          columns along: an empty box is not blank, it shows what the rate works
+                          out to, typing replaces it, and clearing goes back to the rate. A typed
+                          number and a suggested one stay tellable apart, which is the whole reason
+                          the old rate box was never pre-filled either. */}
                       <input
                         type="number"
                         min={0}
-                        max={50}
-                        placeholder={String(DEFAULT_GST)}
-                        value={m.gst ?? ""}
-                        onChange={(e) => setOne(id, "gst", e.target.value)}
+                        placeholder={m.settle === undefined && !m.price ? "" : String(sumGst({ ...m, gstAmt: undefined }))}
+                        value={m.gstAmt ?? ""}
+                        onChange={(e) => setOne(id, "gstAmt", e.target.value)}
                       />
+                      {m.gst !== undefined && m.gst !== DEFAULT_GST && m.gstAmt === undefined && (
+                        <div className="muted">at {m.gst}%</div>
+                      )}
                     </td>
                     <td>
                       <input

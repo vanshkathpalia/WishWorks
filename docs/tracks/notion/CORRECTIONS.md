@@ -1951,3 +1951,28 @@ he lists at, when the payout is printed on a settlement statement. Deriving a me
 an estimated one is backwards, and it broke outright on Meesho's promotional pricing — the shop
 price drops, the settlement does not. Same class as C-049 (WW-142): two sources for one fact, and
 the computed one was winning over the measured one.
+
+## C-061 — A rate was asked for where an amount was known
+
+**Class:** Design · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-19 ·
+**Status:** Fixed (WW-173)
+
+WW-169 fixed the GST box by *saving* it. It kept the wrong control. Vansh, a day later:
+*"this is some % of delivery charge so calculatively it won't be true if we are taking it as some
+% of meesho selling price… most of the time it is correct 5%, so after I enter the meesho price
+show me the number, but I should be able to edit that number, not the %."*
+
+**Root cause.** The GST on a settlement statement is not one percentage of one base — part of it
+is tax on the delivery the marketplace charged. Any single rate is therefore an approximation of a
+figure that is *printed on the statement*, and asking for the rate meant the app could only ever
+reach the true number by accident. **Same class as C-049 and the correction underneath C-060:
+a computed value standing in for a measured one.** Twice in two days, on the same table.
+
+**The fix that was already on the screen.** The derived price sits in a placeholder, and typing
+over it is the override — so the GST box became the same thing: 5% of the settlement shows as a
+suggestion, and what gets typed is the amount. `gstPercent` stays on disk and stays the default,
+because a kit saved at 12% must not quietly become 5%.
+
+**Cheap lesson.** When a figure exists on a document the user is holding, the box asks for that
+figure. A rate, a multiplier or a formula input is only right when nobody can read the answer off
+anything.
