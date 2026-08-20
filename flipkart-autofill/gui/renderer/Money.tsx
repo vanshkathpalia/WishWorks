@@ -265,6 +265,8 @@ export function Returns({ n }: { n: number }) {
   const [sent, setSent] = useState<SubOrder[] | null>(null);
   const [find, setFind] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const today = iso(new Date());
 
   const load = useCallback(() => {
@@ -272,18 +274,68 @@ export function Returns({ n }: { n: number }) {
   }, []);
   useEffect(load, [load]);
 
-  const shown = (sent ?? []).filter(
-    (p) =>
-      find.trim() === "" ||
-      p.sku.toLowerCase().includes(find.toLowerCase()) ||
-      p.subOrder.includes(find.trim()) ||
-      p.awb.includes(find.trim()),
+  /**
+   * By default this shows only what is ALREADY marked — usually a handful — not every parcel ever
+   * packed. Forty-two rows of buttons was the first version and it read as a wall to hunt through;
+   * the report drop above is how a parcel normally gets marked, and searching is how a one-off
+   * does. Vansh: *"RTO and return happens days after packing, where will I find it in this big
+   * mess?"*
+   */
+  const shown = (sent ?? []).filter((p) =>
+    find.trim() === ""
+      ? p.status !== undefined
+      : p.sku.toLowerCase().includes(find.toLowerCase()) ||
+        p.subOrder.includes(find.trim()) ||
+        p.awb.includes(find.trim()),
   );
 
   async function mark(p: SubOrder, status: "rto" | "returned" | null) {
     await window.ww.returned(p.subOrder, status, today);
     load();
   }
+
+  /** Drop the marketplace's own report in — the parcels in it mark themselves. */
+  async function report(files: string[], status: "rto" | "returned") {
+    if (files.length === 0) return;
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    for (const file of files) {
+      try {
+        const r = await window.ww.readReport(file, status);
+        if (!r.ok) setError(r.message);
+        else {
+          setNote(
+            `Marked ${r.result.marked} ${status === "rto" ? "RTO" : "returned"} — ${r.result.skus.join(", ")}.`,
+          );
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    }
+    load();
+    setBusy(false);
+  }
+
+  const dropReport = (status: "rto" | "returned", title: string, hint: string) => (
+    <div
+      className="drop small"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        const paths = [...e.dataTransfer.files].map((f) => window.ww.pathForFile(f)).filter(Boolean);
+        void report(paths, status);
+      }}
+    >
+      <strong>{busy ? "Reading…" : title}</strong>
+      <small>{hint}</small>
+      <div className="picks">
+        <button onClick={() => void window.ww.pick("orders", "files").then((f) => report(f, status))}>
+          Choose the file…
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <section className="panel orders">
@@ -297,6 +349,20 @@ export function Returns({ n }: { n: number }) {
         </p>
       </header>
 
+      <div className="report-drops">
+        {dropReport("rto", "Drop the RTO report", "Meesho: Returns → RTO. Flipkart: Returns → RTO report.")}
+        {dropReport("returned", "Drop the returns report", "Meesho: Returns → Customer returns. Flipkart: Returns report.")}
+      </div>
+      <p className="muted">
+        Any format they give you — CSV, Excel or PDF. Nothing here reads their columns: it looks
+        for <b>our</b> order numbers and AWBs inside the file, so a report whose layout changes
+        still works, and one about somebody else&apos;s parcels matches nothing. Marking is dated
+        today, which is when the parcel actually came back.
+      </p>
+      {note && <p className="allgood">{note}</p>}
+      {error && <p className="error">{error}</p>}
+
+      <h3>Or mark one by hand</h3>
       <input
         type="text"
         className="wide"
@@ -304,13 +370,16 @@ export function Returns({ n }: { n: number }) {
         value={find}
         onChange={(e) => setFind(e.target.value)}
       />
-      {error && <p className="error">{error}</p>}
 
       {sent === null ? (
         <p className="muted">Looking…</p>
       ) : shown.length === 0 ? (
         <p className="muted">
-          {sent.length === 0 ? "Nothing has been packed yet." : "Nothing matches that."}
+          {sent.length === 0
+            ? "Nothing has been packed yet."
+            : find.trim() === ""
+              ? "Nothing has come back yet. Drop a report above, or search for one parcel."
+              : "Nothing matches that."}
         </p>
       ) : (
         <table className="rows inv-table">

@@ -2153,3 +2153,28 @@ all-or-a-number, because half a SKU gets done before lunch and the rest after; a
 with nobody named are offered back in the left column, because **naming is allowed to lag the tick,
 and that only works if there is a way back to what was ticked.** Otherwise "later" means never —
 which is exactly the 34 above.
+
+## C-068 — Two patches reported as applied that never ran
+
+**Class:** Process · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-20 ·
+**Status:** Fixed (WW-185)
+
+*"Why no calculation is happening here, and also why no space here properly?"* The Money screen
+showed ₹0.00 across the board and unstyled bullet lists.
+
+**Two causes, and the second is the one worth recording.**
+
+**(a)** Every parcel came out `uncosted` because parcels written before `market` existed have no
+market, and `kit.pays[undefined]` is undefined — so a kit that was right there read as *no kit*.
+Defaulted on the way in, in `listLedgers`, so nothing downstream has to remember it.
+
+**(b) The stylesheet block for those screens had never been written.** Its shell command was the
+one that came back *"claude-sonnet-5 is temporarily unavailable (timed out)"* — the command never
+ran — and the next thing I did was run a typecheck, which passed, because CSS is not typechecked.
+I reported the feature as built. **A tool call that fails to execute is not a tool call that did
+nothing; it is one whose result I never checked.** The same session had a second one: the
+returns-report reader, also never applied, also reported.
+
+**Cheap lesson.** After any interrupted or errored command, verify the artefact, not the exit code
+— `grep -c` for the thing that was supposed to land. And a green typecheck says nothing about the
+half of a UI change that lives in CSS: if a change has a visual half, the check has to be visual.

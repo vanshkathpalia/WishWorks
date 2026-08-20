@@ -446,6 +446,17 @@ export interface WwApi {
   setRate(name: string, paise: number): Promise<Record<string, number>>;
   /** Every parcel already packed — what the returns screen picks from. */
   sent(): Promise<SubOrder[]>;
+  /**
+   * Read a marketplace's RTO or returns report and mark every parcel of ours it mentions.
+   *
+   * The report's format is never parsed — the text is searched for sub-order numbers and AWBs we
+   * already hold, so a file whose columns nobody documented still works, and a file about somebody
+   * else's parcels matches nothing.
+   */
+  readReport(
+    file: string,
+    status: "rto" | "returned",
+  ): Promise<Attempt<{ marked: number; skus: string[]; view: OrdersView }>>;
   /** Mark one parcel RTO or returned on a given day, or `null` to take the mark off. */
   returned(subOrder: string, status: "rto" | "returned" | null, on: string): Promise<OrdersView>;
   /**

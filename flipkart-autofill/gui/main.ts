@@ -819,6 +819,49 @@ ipcMain.handle(
   },
 );
 
+/**
+ * Read a marketplace's RTO or returns report and mark every parcel of ours it mentions.
+ *
+ * **It does not parse the report's format, and that is the point.** These files change shape —
+ * CSV one month, XLSX the next, columns nobody documented — and matching on columns means guessing
+ * about which parcel came back, which is guessing about money. Instead the text is pulled out of
+ * whatever kind of file it is and searched for **ids we already have**: our sub-order numbers and
+ * our AWBs. A file that names our parcel is about our parcel, wherever in it the number sits.
+ *
+ * The status comes from which button was used rather than from the file, because an RTO report
+ * and a returns report are two different downloads and the person doing it knows which is which.
+ */
+ipcMain.handle(
+  "readReport",
+  async (_e, file: string, status: "rto" | "returned"): Promise<Attempt<unknown>> => {
+    const engine = await ordersEngine();
+    const ledgers = await engine.listLedgers();
+    const packed = ledgers.flatMap((l) => l.subOrders).filter((p) => p.packedOn);
+    const found = engine.idsInFile(await readFile(file), packed);
+    if (found.length === 0) {
+      return {
+        ok: false,
+        message: `Nothing in ${path.basename(file)} matches a parcel this app has packed. If it is the right report, the parcels in it were packed before this screen existed.`,
+      };
+    }
+    const on = today();
+    const ids = new Set(found.map((p) => p.subOrder));
+    for (const ledger of ledgers) {
+      let next = ledger;
+      for (const id of ids) next = engine.markBack(next, id, status, on);
+      if (JSON.stringify(next.subOrders) !== JSON.stringify(ledger.subOrders)) await engine.writeLedger(next);
+    }
+    return {
+      ok: true,
+      result: {
+        marked: found.length,
+        skus: [...new Set(found.map((p) => p.sku))],
+        view: await ordersView(),
+      },
+    };
+  },
+);
+
 /** Every parcel packed but not yet marked as come back — what the returns screen picks from. */
 ipcMain.handle("sent", async () => {
   const ledgers = await (await ordersEngine()).listLedgers();

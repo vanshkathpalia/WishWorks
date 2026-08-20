@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   addSkuImage, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
-  clearBack, type KitMoney, kitForSku, leftToPack, markBack, money, packSku, packerPay, parcelCredit,
+  clearBack, idsInFile, type KitMoney, kitForSku, leftToPack, markBack, money, packSku, packerPay, parcelCredit,
   parseManifest, unpackSku, workerCredit,
 } from "../src/orders-core.js";
 
@@ -278,6 +278,45 @@ describe("what a day was worth", () => {
     ]);
     // A week that saw no packing is not an error, it is zero rows.
     expect(packerPay([packed()], "2026-09-01", "2026-09-07")).toEqual([]);
+  });
+});
+
+/**
+ * Reading a marketplace's own RTO or returns report. Nothing parses their columns — the text comes
+ * out of whatever kind of file it is and is searched for ids WE already hold, so a layout change
+ * cannot break it and somebody else's parcels cannot match.
+ */
+describe("reading a returns report", () => {
+  const packed = [
+    { subOrder: "321165013526408960_1", awb: "1490839976524846", sku: "ANP001", qty: 1, courier: "Delhivery", market: "meesho", firstSeen: "2026-08-20", packedOn: "2026-08-20" },
+    { subOrder: "321215756111343040_1", awb: "SF3836652979FPL", sku: "SVP033", qty: 1, courier: "Shadowfax", market: "meesho", firstSeen: "2026-08-20", packedOn: "2026-08-20" },
+    { subOrder: "999999999999999999_1", awb: "XX1", sku: "GTB001", qty: 1, courier: "Valmo", market: "meesho", firstSeen: "2026-08-20", packedOn: "2026-08-20" },
+  ];
+
+  it("finds our parcels in a CSV whatever its columns are called", () => {
+    const csv = Buffer.from(
+      "some heading,another,whatever\n" +
+      "2026-09-03,321165013526408960_1,RTO delivered to seller\n" +
+      "2026-09-03,SF3836652979FPL,customer return\n",  // this row names the AWB, not the order
+    );
+    expect(idsInFile(csv, packed).map((p) => p.sku)).toEqual(["ANP001", "SVP033"]);
+  });
+
+  it("matches exactly, so one order's other line items are not dragged in", () => {
+    // The same order number without its line suffix must NOT match — that is a different parcel.
+    const csv = Buffer.from("id\n32116501352\n");
+    expect(idsInFile(csv, packed)).toEqual([]);
+  });
+
+  it("finds nothing in a file about somebody else's parcels", () => {
+    expect(idsInFile(Buffer.from("id\n123456789_9\nAWB999\n"), packed)).toEqual([]);
+  });
+
+  it("reads the ids out of a real PDF too", () => {
+    // The manifest itself is the handiest PDF to prove it on: it names all 41 of its parcels.
+    const m = parseManifest(pdf);
+    const asPacked = m.shipments.map((sh) => ({ ...sh, market: "meesho", firstSeen: "2026-08-19" }));
+    expect(idsInFile(pdf, asPacked)).toHaveLength(41);
   });
 });
 

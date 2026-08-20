@@ -1934,3 +1934,108 @@ textarea.json {
   background: #3a3020;
   color: var(--warn);
 }
+
+/* ------------------------------------------------------------------ the money screens */
+
+.money-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+.money-tiles > div {
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.money-tiles b {
+  display: block;
+  font-size: 30px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.money-tiles span {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.money-tiles .good b {
+  color: #9fd08f;
+}
+.money-tiles .bad b {
+  color: var(--bad);
+}
+
+/* A pill carrying a sentence rather than two words — the reversals note. */
+.warnpill.block {
+  display: block;
+  padding: 14px 16px;
+  border-radius: 12px;
+  line-height: 1.5;
+}
+.warnpill.block small {
+  display: block;
+  margin-top: 6px;
+  opacity: 0.85;
+}
+
+/* Packed, but no costed kit — in the packet count and in neither money column. */
+.uncosted {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.uncosted h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.uncosted h3 small {
+  display: block;
+  font-weight: 500;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.uncosted ul {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.uncosted li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #241f1d;
+}
+.uncosted .qty {
+  min-width: 22px;
+  height: 20px;
+  font-size: 12px;
+}
+
+/* The returns file drop — same shape as the manifest one, two reports instead of one. */
+.report-drops {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+.report-drops .drop {
+  height: 130px;
+  gap: 10px;
+}
+.report-drops strong {
+  font-size: 15px;
+}
+.report-drops small {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 16px;
+  text-align: center;
+}

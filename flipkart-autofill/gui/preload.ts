@@ -93,6 +93,8 @@ const api: WwApi = {
   rates: () => ipcRenderer.invoke("rates"),
   setRate: (name: string, paise: number) => ipcRenderer.invoke("setRate", name, paise),
   sent: () => ipcRenderer.invoke("sent"),
+  readReport: (file: string, status: "rto" | "returned") =>
+    ipcRenderer.invoke("readReport", file, status),
   returned: (subOrder: string, status: "rto" | "returned" | null, on: string) =>
     ipcRenderer.invoke("returned", subOrder, status, on),
   packing: (

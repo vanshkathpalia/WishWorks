@@ -304,7 +304,13 @@ export async function listLedgers(): Promise<Ledger[]> {
       readFile(path.join(ORDERS_DIR, n), "utf8").then((t) => JSON.parse(t) as Ledger).catch(() => null),
     ),
   );
-  return all.filter((l): l is Ledger => l !== null).sort((a, b) => b.month.localeCompare(a.month));
+  return all
+    .filter((l): l is Ledger => l !== null)
+    // Parcels written before `market` existed are Meesho's — it was the only manifest the app
+    // could read. Defaulting on the way IN means nothing downstream has to remember this: without
+    // it every one of them costed as `pays[undefined]`, which read as "no kit" and reported ₹0.
+    .map((l) => ({ ...l, subOrders: l.subOrders.map((p) => ({ ...p, market: p.market || "meesho" })) }))
+    .sort((a, b) => b.month.localeCompare(a.month));
 }
 
 /**
@@ -831,4 +837,67 @@ export function packerPay(
       paise: Math.round(packets * (rates[name] ?? 0)),
     }))
     .sort((a, b) => b.packets - a.packets);
+}
+
+/**
+ * Every scrap of text in a file, whatever kind of file it is.
+ *
+ * **The trick that makes reading a marketplace's report possible without knowing its format.** A
+ * returns report arrives as CSV one month and XLSX the next, with columns nobody documented and
+ * headings that change — and matching on columns means guessing, and guessing about which parcel
+ * came back is guessing about money. So nothing here parses a format: it gets the text out and
+ * `idsInFile` looks for ids WE ALREADY KNOW. A file that mentions our order number is about our
+ * parcel, wherever in it the number sits.
+ *
+ * Three shapes, because that is what the two marketplaces hand out: plain text (CSV), a zip
+ * (XLSX is a zip of XML), and PDF (already handled by the manifest reader). Anything else falls
+ * through as raw text, which still finds a number if the number is stored as text.
+ */
+function textIn(bytes: Buffer): string {
+  if (bytes.subarray(0, 4).toString("latin1") === "%PDF") {
+    return cells(bytes).map((c) => c.text).join("\n");
+  }
+  if (bytes.subarray(0, 2).toString("latin1") === "PK") {
+    // A zip. Walk the local file headers and inflate each entry — for an XLSX the numbers live in
+    // `sharedStrings.xml` and the sheet XML, and both come out as text.
+    const out: string[] = [];
+    let i = 0;
+    while ((i = bytes.indexOf("PK\x03\x04", i, "latin1")) !== -1) {
+      const method = bytes.readUInt16LE(i + 8);
+      const nameLen = bytes.readUInt16LE(i + 26);
+      const extraLen = bytes.readUInt16LE(i + 28);
+      const start = i + 30 + nameLen + extraLen;
+      let size = bytes.readUInt32LE(i + 18);
+      // A streamed entry writes its size afterwards, so read to the next header instead.
+      if (size === 0) {
+        const next = bytes.indexOf("PK\x03\x04", start, "latin1");
+        size = (next === -1 ? bytes.length : next) - start;
+      }
+      const chunk = bytes.subarray(start, start + size);
+      try {
+        out.push((method === 0 ? chunk : zlib.inflateRawSync(chunk)).toString("utf8"));
+      } catch {
+        // A compression this build cannot read, or a truncated entry — skip it, keep the rest.
+      }
+      i = start + size;
+    }
+    if (out.length > 0) return out.join("\n");
+  }
+  return bytes.toString("utf8");
+}
+
+/**
+ * Which of our parcels does this file mention?
+ *
+ * Matches on the sub-order number and on the AWB, both exactly, because both are ours and both
+ * appear in these reports. **Exact only, and deliberately:** a partial match on an order number
+ * would tie every line item of one order together, and marking the wrong parcel returned moves
+ * real money. A file that matches nothing is reported as matching nothing — never as a guess.
+ */
+export function idsInFile(bytes: Buffer, parcels: SubOrder[]): SubOrder[] {
+  const text = textIn(bytes);
+  // One pass over the text rather than one search per parcel: a month of packing against a long
+  // report is otherwise thousands of scans of the same string.
+  const seen = new Set(text.match(/[A-Za-z0-9_-]{8,}/g) ?? []);
+  return parcels.filter((p) => seen.has(p.subOrder) || (p.awb !== "" && seen.has(p.awb)));
 }
