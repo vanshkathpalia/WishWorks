@@ -55,6 +55,8 @@ export interface DaySummary {
   packets: number;
   /** Ticked but with nobody named yet — the number to chase before pay day. */
   unnamed: number;
+  /** Which SKUs those are, so the screen can offer them back to be named. */
+  unnamedBySku: { name: string; qty: number }[];
   /** Still outstanding across every month, right now. */
   left: number;
   bySku: { name: string; qty: number }[];
@@ -418,7 +420,16 @@ export interface WwApi {
    * come back as a new, smaller number. `credit` is separate because the names are allowed to
    * arrive hours later — the tick must never wait for them.
    */
-  packing(action: "pack" | "unpack" | "credit", sku: string, on: string, by: string[]): Promise<OrdersView>;
+  packing(
+    action: "pack" | "unpack" | "credit",
+    sku: string,
+    on: string,
+    /**
+     * `by` the packers, `limit` how many packets this tick covers (absent = all of them), and
+     * `replacing` which batch a credit is overwriting — `[]` meaning the ones nobody is named on.
+     */
+    opts: { by?: string[]; limit?: number; replacing?: string[] },
+  ): Promise<OrdersView>;
   /**
    * A finished image for a SKU out of the ready folder — `2` is what goes in the packet and is
    * what the packing screen opens on, `1` is the main photo. Null when that SKU has no image in

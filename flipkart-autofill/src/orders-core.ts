@@ -195,14 +195,37 @@ export function outstanding(subOrders: SubOrder[]): { sku: string; qty: number; 
  * ponytail: no partial packing. Four of six done needs a count box, and it has not come up; the
  * six would have to be ticked when the last one is closed. Add it if it does.
  */
-export function packSku(ledger: Ledger, sku: string, on: string, by: string[] = []): Ledger {
+export function packSku(
+  ledger: Ledger,
+  sku: string,
+  on: string,
+  by: string[] = [],
+  /**
+   * How many packets this tick covers. `Infinity` — the usual — is *all of them*.
+   *
+   * Vansh, 2026-08-20: *"if not all 2 or all x, we should be able to enter a number for now, that
+   * we packed y, so x−y is left."* Which is the honest shape of a working morning: half a SKU
+   * gets done, the rest after lunch. The remainder stays in the queue as itself.
+   *
+   * ponytail: it stops at the first parcel that takes it past the number, so a parcel holding
+   * more than one item can overshoot by that parcel. Every parcel seen so far is a single item.
+   */
+  limit = Infinity,
+): Ledger {
+  let left = limit;
   return {
     ...ledger,
-    subOrders: ledger.subOrders.map((p) =>
-      p.sku === sku && !p.packedOn ? { ...p, packedOn: on, packedBy: by } : p,
-    ),
+    subOrders: ledger.subOrders.map((p) => {
+      if (p.sku !== sku || p.packedOn || left <= 0) return p;
+      left -= p.qty;
+      return { ...p, packedOn: on, packedBy: by };
+    }),
   };
 }
+
+/** How many packets of one SKU are still to do — what the queue shows, and what a limit counts. */
+export const leftToPack = (ledger: Ledger, sku: string): number =>
+  ledger.subOrders.filter((p) => p.sku === sku && !p.packedOn).reduce((n, p) => n + p.qty, 0);
 
 /** Undo the tick for one SKU on one day — everything it marked, and nothing anyone else did. */
 export function unpackSku(ledger: Ledger, sku: string, on: string): Ledger {
@@ -217,11 +240,26 @@ export function unpackSku(ledger: Ledger, sku: string, on: string): Ledger {
 }
 
 /** Name the packers on subOrders already ticked — the answer that is allowed to arrive later. */
-export function creditSku(ledger: Ledger, sku: string, on: string, by: string[]): Ledger {
+export function creditSku(
+  ledger: Ledger,
+  sku: string,
+  on: string,
+  by: string[],
+  /**
+   * Whose names this is replacing — `[]` means *the ones nobody has been named on*.
+   *
+   * **It matters when a SKU is packed twice in a day.** Two go out in the morning credited to
+   * Asha, two more after lunch credited to Ravi; a blanket "everything of this SKU today" would
+   * quietly move the morning's work onto Ravi. Naming the batch being changed keeps each one to
+   * itself, and still lets a name be toggled off and on while the chooser is open.
+   */
+  replacing: string[] = [],
+): Ledger {
+  const same = (a: string[]) => a.length === replacing.length && a.every((n) => replacing.includes(n));
   return {
     ...ledger,
     subOrders: ledger.subOrders.map((p) =>
-      p.sku === sku && p.packedOn === on ? { ...p, packedBy: by } : p,
+      p.sku === sku && p.packedOn === on && same(p.packedBy ?? []) ? { ...p, packedBy: by } : p,
     ),
   };
 }
@@ -270,6 +308,8 @@ export function parcelCredit(ledgers: Ledger[], month: string): Record<string, n
 
 /** What happened on one day: what was packed, by whom, and where it is going. */
 export function daySummary(ledgers: Ledger[], on: string) {
+  const rank = (m: Map<string, number>) =>
+    [...m].map(([name, qty]) => ({ name, qty: Number(qty.toFixed(2)) })).sort((a, b) => b.qty - a.qty);
   const packed = ledgers.flatMap((l) => l.subOrders.filter((p) => p.packedOn === on));
   const bySku = new Map<string, number>();
   const byPacker = new Map<string, number>();
@@ -281,13 +321,21 @@ export function daySummary(ledgers: Ledger[], on: string) {
       byPacker.set(who, (byPacker.get(who) ?? 0) + p.qty / (p.packedBy?.length ?? 1));
     }
   }
-  const rank = (m: Map<string, number>) =>
-    [...m].map(([name, qty]) => ({ name, qty: Number(qty.toFixed(2)) })).sort((a, b) => b.qty - a.qty);
   return {
     date: on,
     packets: packed.reduce((n, p) => n + p.qty, 0),
     /** Ticked but with nobody named yet — the one number worth chasing before pay day. */
     unnamed: packed.filter((p) => !p.packedBy?.length).reduce((n, p) => n + p.qty, 0),
+    /**
+     * …and WHICH SKUs those are, so the screen can offer them back.
+     *
+     * Naming is deliberately allowed to lag the tick — the box gets closed in a hurry and the
+     * names come later. That only works if there is a way back to what was ticked, otherwise
+     * "later" means never and the month ends with packets nobody is paid for.
+     */
+    unnamedBySku: rank(
+      packed.filter((p) => !p.packedBy?.length).reduce((m, p) => m.set(p.sku, (m.get(p.sku) ?? 0) + p.qty), new Map<string, number>()),
+    ),
     left: ledgers.flatMap((l) => l.subOrders).filter((p) => !p.packedOn).reduce((n, p) => n + p.qty, 0),
     bySku: rank(bySku),
     byPacker: rank(byPacker),

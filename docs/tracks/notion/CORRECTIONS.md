@@ -2127,3 +2127,29 @@ same reason. **A `.then` without a rejection path is a loading state with no exi
 *reads* that folder — a reader written when only one kind of file lived there is now wrong, and it
 will not say so. And a loading state must be reachable from every outcome, including the ones
 nobody wrote code for.
+
+## C-067 — A menu hung off the row that ticking removes
+
+**Class:** Code · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-20 ·
+**Status:** Fixed (WW-183)
+
+*"When I click on packed it is not asking me for who packed it."* The tally proved how much it had
+already cost: **34 packed today · 34 with nobody named.** A morning's work recorded, none of it
+attributable to anybody.
+
+**Root cause.** The packer menu lived inside the tick, the tick lived in the SKU pane, and ticking
+removes that SKU from the queue — so the pane unmounted in the same render that opened the menu.
+`setOpen(true)` and the component's destruction were the same frame. Nothing threw, nothing logged;
+the control simply did what it was told in a component that no longer existed.
+
+**What I should have caught before shipping it.** The action's whole purpose is *make this row go
+away*, and I put the follow-up question inside the row. The state that has to outlive an element
+cannot live in it — and that follow-up was the entire reason the tick exists, since the packing
+count is what people are paid on. Naming is now a step in the pane, driven from the panel, which
+survives because it does not hang off the row that just disappeared.
+
+**Two things came out of the same session that should have been in the first design:** ticking is
+all-or-a-number, because half a SKU gets done before lunch and the rest after; and the SKUs packed
+with nobody named are offered back in the left column, because **naming is allowed to lag the tick,
+and that only works if there is a way back to what was ticked.** Otherwise "later" means never —
+which is exactly the 34 above.

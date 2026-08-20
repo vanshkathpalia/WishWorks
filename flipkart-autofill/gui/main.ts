@@ -769,14 +769,26 @@ ipcMain.handle("orders", () => ordersView());
  */
 ipcMain.handle(
   "packing",
-  async (_e, action: "pack" | "unpack" | "credit", sku: string, on: string, by: string[]) => {
+  async (
+    _e,
+    action: "pack" | "unpack" | "credit",
+    sku: string,
+    on: string,
+    opts: { by?: string[]; limit?: number; replacing?: string[] } = {},
+  ) => {
     const engine = await ordersEngine();
+    // A part-packed SKU can span two months' files at the turn of a month, so the count is spent
+    // across ledgers rather than applied to each — otherwise "packed 2" would pack 2 per file.
+    let left = opts.limit ?? Infinity;
     for (const ledger of await engine.listLedgers()) {
+      const before = engine.leftToPack(ledger, sku);
       const next =
-        action === "pack" ? engine.packSku(ledger, sku, on, by)
+        action === "pack" ? engine.packSku(ledger, sku, on, opts.by ?? [], left)
         : action === "unpack" ? engine.unpackSku(ledger, sku, on)
-        : engine.creditSku(ledger, sku, on, by);
-      if (JSON.stringify(next.subOrders) !== JSON.stringify(ledger.subOrders)) await engine.writeLedger(next);
+        : engine.creditSku(ledger, sku, on, opts.by ?? [], opts.replacing ?? []);
+      if (JSON.stringify(next.subOrders) === JSON.stringify(ledger.subOrders)) continue;
+      if (action === "pack") left -= before - engine.leftToPack(next, sku);
+      await engine.writeLedger(next);
     }
     return ordersView(on);
   },

@@ -25,6 +25,14 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { DaySummary, OrdersView } from "../shared.js";
 import { fileUrl } from "./ui.js";
 
+/**
+ * Which SKU has which picture, remembered for as long as the app is open.
+ *
+ * Module-level rather than component state on purpose: the point is that it survives the picture
+ * pane being re-rendered for a different SKU, which is the whole of hovering down a list.
+ */
+const seenImages = new Map<string, string | null>();
+
 /** `2026-08-19` → `19 Aug 2026`. The panel shows dates the way the manifest prints them. */
 const showDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -48,17 +56,28 @@ function SkuImage({ sku, qty, tick }: { sku: string; qty: number; tick: React.Re
   // `.catch(() => null)` is not tidiness: an IPC call that rejects never settles, so without it a
   // failure leaves this on "Looking…" for ever — which is indistinguishable from a frozen app and
   // is exactly what WW-182 looked like. No picture is the honest answer to any failure here.
-  const load = useCallback(() => {
+  //
+  // Cached because the list is now HOVERABLE: running a cursor down ten SKUs would otherwise walk
+  // the ready folder ten times, and that folder is on a shared drive.
+  const load = useCallback((fresh = false) => {
+    const key = `${sku}|${position}`;
+    if (!fresh && seenImages.has(key)) {
+      setFile(seenImages.get(key)!);
+      return;
+    }
     setFile(undefined);
-    void window.ww.skuImage(sku, position).catch(() => null).then(setFile);
+    void window.ww.skuImage(sku, position).catch(() => null).then((found) => {
+      seenImages.set(key, found);
+      setFile(found);
+    });
   }, [sku, position]);
-  useEffect(load, [load]);
+  useEffect(() => load(), [load]);
 
   async function add() {
     const [picked] = await window.ww.pick("orders-image", "files");
     if (!picked) return;
     await window.ww.addSkuImage(sku, position, picked);
-    load();
+    load(true); // a picture was just added, so the remembered "there isn't one" is now wrong
   }
 
   return (
@@ -107,119 +126,138 @@ function SkuImage({ sku, qty, tick }: { sku: string; qty: number; tick: React.Re
 }
 
 /**
- * Done, and — only if you want to say — who did it.
+ * Done — all of them, or a number.
  *
- * **Two answers, and the second is optional.** Ticking used to demand a name before it would
- * register at all. Vansh, 2026-08-20: *"as soon as that is checked we give a dropdown only when
- * that is checked to select the packer… and we can even skip filling the packer for now by
- * clicking somewhere else on the screen."*
+ * **It no longer holds the packer menu**, and that is the fix for WW-183: ticking takes the SKU out
+ * of the queue, so the pane this control lives in unmounts a moment later and took the menu with
+ * it — the menu opened and vanished in the same frame, and thirty-four packets were recorded with
+ * nobody named. Naming is now a step of its own in the pane, which survives because it is not
+ * hanging off the row that just disappeared.
  *
- * So: ticking marks every outstanding parcel of this SKU packed straight away and opens the packer
- * menu; clicking anywhere else closes the menu and leaves it packed with nobody named, which is a
- * real state — the names can be filled in later, and the tally says how many are waiting for one.
- * More than one name splits the credit evenly, which is what they already do between themselves.
+ * The number box is for the ordinary morning where half a SKU gets done — Vansh: *"if not all 2 or
+ * all x, we should be able to enter a number for now, that we packed y, so x−y is left."*
  */
-function PackedTick({
+function PackedTick({ qty, onPack }: { qty: number; onPack: (limit?: number) => void }) {
+  const [part, setPart] = useState("");
+  const some = Number(part);
+  const valid = Number.isFinite(some) && some > 0 && some < qty;
+
+  return (
+    <div className="packed-tick-wrap">
+      <label className="packed-tick">
+        <input type="checkbox" checked={false} onChange={() => onPack()} />
+        <span>Packed{qty > 1 ? ` — all ${qty}` : ""}</span>
+      </label>
+      {qty > 1 && (
+        <span className="part-packed">
+          or
+          <input
+            type="number"
+            min={1}
+            max={qty - 1}
+            placeholder="0"
+            value={part}
+            onChange={(e) => setPart(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || !valid) return;
+              onPack(some);
+              setPart("");
+            }}
+          />
+          of {qty}
+          <button disabled={!valid} onClick={() => { onPack(some); setPart(""); }}>
+            Packed
+          </button>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Who packed the batch just ticked — a step in the pane, not a menu on a vanishing row.
+ *
+ * **Skipping is a first-class answer.** *Not now* leaves the packets recorded and unnamed, and the
+ * tally counts them so they can be named before pay day; the left-hand list offers them back. What
+ * must never happen is the tick waiting for a name, which is how a morning gets packed and nothing
+ * gets recorded at all.
+ *
+ * `replacing` is what keeps two batches of one SKU apart: the morning's two credited to Asha stay
+ * hers when the afternoon's two are credited to Ravi.
+ */
+function WhoPacked({
+  sku,
   qty,
-  onPack,
-  onCredit,
   workers,
+  chosen,
+  onPick,
   onAddWorker,
+  onDone,
 }: {
+  sku: string;
   qty: number;
-  onPack: () => void;
-  onCredit: (by: string[]) => void;
   workers: string[];
+  chosen: string[];
+  onPick: (names: string[]) => void;
   onAddWorker: (name: string) => void;
+  onDone: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [chosen, setChosen] = useState<string[]>([]);
   const [adding, setAdding] = useState<string | null>(null);
-  const box = useRef<HTMLDivElement>(null);
-
-  // Clicking anywhere else IS the skip, so it closes from a click on the whole document — not
-  // from a blur, which never fires for a click on plain text.
-  useEffect(() => {
-    if (!open) return;
-    const shut = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", shut);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", shut);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-
-  function pick(names: string[]) {
-    setChosen(names);
-    onCredit(names);
-  }
-
   const share = chosen.length > 0 ? qty / chosen.length : 0;
 
   return (
-    <div className="packed-tick-wrap" ref={box}>
-      <label className="packed-tick">
-        {/* Never checked: ticking takes the SKU off the list entirely, so the box it was ticked in
-            is gone a moment later. Leaving it visually unchecked is honest about that. */}
-        <input
-          type="checkbox"
-          checked={false}
-          onChange={() => {
-            onPack();
-            setChosen([]);
-            setOpen(true);
-          }}
-        />
-        <span>Packed{qty > 1 ? ` — all ${qty}` : ""}</span>
-      </label>
+    <div className="who-packed">
+      <h2>
+        {qty} packet{qty === 1 ? "" : "s"} of {sku} packed
+        <small>Who did it?</small>
+      </h2>
 
-      {open && (
-        <div className="packer-menu">
-          <p className="muted">Who packed {qty === 1 ? "it" : `these ${qty}`}?</p>
-          {workers.map((name) => {
-            const on = chosen.includes(name);
-            return (
-              <button
-                key={name}
-                className={on ? "chosen" : ""}
-                onClick={() => pick(on ? chosen.filter((n) => n !== name) : [...chosen, name])}
-              >
-                <span>{name}</span>
-                {on && <em>{Number(share.toFixed(2))}</em>}
-              </button>
-            );
-          })}
+      <div className="who">
+        {workers.map((name) => {
+          const on = chosen.includes(name);
+          return (
+            <button
+              key={name}
+              className={on ? "chosen" : ""}
+              onClick={() => onPick(on ? chosen.filter((n) => n !== name) : [...chosen, name])}
+            >
+              {name}
+              {on && <em> {Number(share.toFixed(2))}</em>}
+            </button>
+          );
+        })}
 
-          {adding === null ? (
-            <button className="add" onClick={() => setAdding("")}>+ someone new</button>
-          ) : (
-            <input
-              type="text"
-              autoFocus
-              placeholder="their name"
-              value={adding}
-              onChange={(e) => setAdding(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setAdding(null);
-                if (e.key !== "Enter" || !adding.trim()) return;
-                onAddWorker(adding.trim());
-                pick([...chosen, adding.trim()]);
-                setAdding(null);
-              }}
-            />
-          )}
+        {adding === null ? (
+          <button className="add" onClick={() => setAdding("")}>+ someone new</button>
+        ) : (
+          <input
+            type="text"
+            autoFocus
+            placeholder="their name"
+            value={adding}
+            onChange={(e) => setAdding(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setAdding(null);
+              if (e.key !== "Enter" || !adding.trim()) return;
+              onAddWorker(adding.trim());
+              onPick([...chosen, adding.trim()]);
+              setAdding(null);
+            }}
+          />
+        )}
+      </div>
 
-          <p className="muted">
-            {chosen.length > 1
-              ? `Split ${chosen.length} ways — ${Number(share.toFixed(2))} packets each.`
-              : "Or click away — it stays packed and you can name them later."}
-          </p>
-        </div>
-      )}
+      <p className="muted">
+        {chosen.length > 1
+          ? `Split ${chosen.length} ways — ${Number(share.toFixed(2))} packets each toward this month's pay.`
+          : "Pick as many as shared it. You can also leave it and name them later."}
+      </p>
+
+      <div className="picks">
+        <button className="primary" onClick={onDone}>
+          {chosen.length > 0 ? "Done" : "Not now"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -275,6 +313,19 @@ export function Orders() {
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tally, setTally] = useState(false);
+  /**
+   * The SKU under the cursor. Hovering the queue shows that SKU's picture without moving the
+   * selection — Vansh: *"if I hover over any listing then its inventory image opens"* — which is
+   * how you check what a code IS while looking for the one you are about to pack.
+   */
+  const [hover, setHover] = useState<string | null>(null);
+  /**
+   * The batch waiting to be named: what was just ticked, or a SKU picked back out of *nobody
+   * named*. It lives HERE and not in the tick, because ticking removes the SKU from the queue and
+   * anything hanging off that row is unmounted with it (WW-183).
+   */
+  const [naming, setNaming] = useState<{ sku: string; qty: number } | null>(null);
+  const [chosen, setChosen] = useState<string[]>([]);
 
   useEffect(() => {
     // Same rule as the picture below: an IPC rejection never settles, so it must be caught here or
@@ -285,6 +336,28 @@ export function Orders() {
 
   const row = view?.outstanding.find((r) => r.sku === sku) ?? null;
   const packets = view?.outstanding.reduce((n, r) => n + r.qty, 0) ?? 0;
+  /** The picture follows the cursor when there is one, and the selection otherwise. */
+  const showing = hover ?? sku;
+  const showingQty = view?.outstanding.find((r) => r.sku === showing)?.qty ?? 0;
+
+  /** Tick a batch off and go straight to naming it — the two halves of one action. */
+  function pack(target: string, qty: number, limit?: number) {
+    setNaming({ sku: target, qty: limit ?? qty });
+    setChosen([]);
+    void window.ww
+      .packing("pack", target, view!.today, limit === undefined ? {} : { limit })
+      .then(setView, (e: Error) => setError(e.message));
+  }
+
+  /** Name (or rename) the batch on screen. `replacing` keeps a second batch off the first one's. */
+  function credit(names: string[]) {
+    if (!naming || !view) return;
+    const replacing = chosen;
+    setChosen(names);
+    void window.ww
+      .packing("credit", naming.sku, view.today, { by: names, replacing })
+      .then(setView, (e: Error) => setError(e.message));
+  }
 
   function addWorker(name: string) {
     if (workers.includes(name)) return;
@@ -365,16 +438,51 @@ export function Orders() {
                 today
               </small>
             </h3>
-            <ul>
+            <ul onMouseLeave={() => setHover(null)}>
               {view.outstanding.map((r) => (
                 <li key={r.sku}>
-                  <button className={r.sku === sku ? "chosen" : ""} onClick={() => setSku(r.sku)}>
+                  <button
+                    className={r.sku === sku ? "chosen" : ""}
+                    onMouseEnter={() => setHover(r.sku)}
+                    onClick={() => {
+                      setSku(r.sku);
+                      setNaming(null);
+                    }}
+                  >
                     <span className="qty">{r.qty}</span>
                     <span className="lid">{r.sku}</span>
                   </button>
                 </li>
               ))}
             </ul>
+
+            {view.summary.unnamedBySku.length > 0 && (
+              /* Packed today with nobody named. Naming is allowed to lag the tick, which only
+                 works if there is a way back to what was ticked — otherwise "later" means never
+                 and the month ends with packets nobody is paid for. */
+              <div className="month-pay">
+                <h3>
+                  Nobody named yet
+                  <small>packed today · click one to say who</small>
+                </h3>
+                <ul>
+                  {view.summary.unnamedBySku.map((r) => (
+                    <li key={r.name}>
+                      <button
+                        className={`unnamed ${naming?.sku === r.name ? "chosen" : ""}`}
+                        onClick={() => {
+                          setNaming({ sku: r.name, qty: r.qty });
+                          setChosen([]);
+                        }}
+                      >
+                        <span className="lid">{r.name}</span>
+                        <span className="qty">{r.qty}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {view.monthPay.length > 0 && (
               <div className="month-pay">
@@ -395,33 +503,35 @@ export function Orders() {
           </aside>
 
           <div className="sku-detail">
-            {row === null ? (
-              <p className="muted">Pick a SKU on the left.</p>
+            {naming !== null ? (
+              <WhoPacked
+                sku={naming.sku}
+                qty={naming.qty}
+                workers={workers}
+                chosen={chosen}
+                onPick={credit}
+                onAddWorker={addWorker}
+                onDone={() => setNaming(null)}
+              />
+            ) : showing === null ? (
+              <p className="muted">Pick a SKU on the left, or hover one to see its picture.</p>
             ) : (
               <>
                 <h2>
-                  {row.sku}
+                  {showing}
                   <small>
-                    {row.qty} packet{row.qty === 1 ? "" : "s"} to make
+                    {showingQty} packet{showingQty === 1 ? "" : "s"} to make
                   </small>
                 </h2>
                 <SkuImage
-                  sku={row.sku}
-                  qty={row.qty}
+                  sku={showing}
+                  qty={showingQty}
                   tick={
-                    <PackedTick
-                      qty={row.qty}
-                      workers={workers}
-                      onAddWorker={addWorker}
-                      /* Ticking takes the SKU straight off the list. Anything that arrives for it
-                         afterwards is a new parcel and comes back as a new, smaller number. */
-                      onPack={() =>
-                        void window.ww.packing("pack", row.sku, view.today, []).then(setView)
-                      }
-                      onCredit={(by) =>
-                        void window.ww.packing("credit", row.sku, view.today, by).then(setView)
-                      }
-                    />
+                    /* Only the SELECTED SKU can be ticked. Hovering shows a picture; it must never
+                       arm a control, or running the cursor down the list packs the wrong thing. */
+                    row !== null && (hover === null || hover === row.sku) ? (
+                      <PackedTick qty={row.qty} onPack={(limit) => pack(row.sku, row.qty, limit)} />
+                    ) : null
                   }
                 />
               </>

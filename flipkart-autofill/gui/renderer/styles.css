@@ -1744,61 +1744,6 @@ textarea.json {
   margin: 0;
 }
 
-.packer-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 20;
-  min-width: 230px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
-}
-.packer-menu p.muted {
-  margin: 0 0 4px;
-  font-size: 12px;
-}
-.packer-menu button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  background: none;
-  text-align: left;
-}
-.packer-menu button:hover {
-  background: #241f1d;
-}
-.packer-menu button.chosen {
-  border-color: var(--accent);
-  background: #2a211b;
-}
-/* The share this person gets — the number their pay is worked out from. */
-.packer-menu button em {
-  font-style: normal;
-  font-weight: 700;
-  color: var(--accent);
-}
-.packer-menu button.add {
-  color: var(--muted);
-}
-.packer-menu input {
-  font: inherit;
-  padding: 8px 10px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: #12100f;
-  color: var(--ink);
-}
-
 /* ------------------------------------------------------------------ the orders panel is wide
 
    Every other panel is prose and stays at a readable 860px. This one is a list beside a
@@ -1900,4 +1845,92 @@ textarea.json {
 .sku-nopic small {
   font-size: 12.5px;
   color: var(--muted);
+}
+
+/* Half a SKU done — the ordinary morning. Sits beside the all-of-them tick, never instead of it. */
+.part-packed {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.part-packed input {
+  font: inherit;
+  width: 56px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #12100f;
+  color: var(--ink);
+  text-align: center;
+}
+.part-packed input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.part-packed button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.part-packed button:disabled {
+  opacity: 0.4;
+  cursor: default;
+  border-color: var(--line);
+}
+
+/* Naming the batch just ticked. A step in the pane, not a menu hanging off a row that has already
+   gone — see WW-183, which recorded thirty-four packets with nobody named. */
+.who-packed h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+.who-packed h2 small {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 12px;
+}
+.who button.chosen {
+  border-color: var(--accent);
+  background: #2a211b;
+}
+.who button em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--accent);
+}
+.who button.add {
+  color: var(--muted);
+  border-style: dashed;
+}
+.who input {
+  font: inherit;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: #12100f;
+  color: var(--ink);
+  width: 150px;
+}
+.who-packed .picks {
+  margin-top: 18px;
+}
+
+/* Packed, but nobody named yet — the list that gives those packets back. */
+.sku-list li button.unnamed {
+  justify-content: space-between;
+}
+.sku-list li button.unnamed .qty {
+  background: #3a3020;
+  color: var(--warn);
 }

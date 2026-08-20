@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   addSkuImage, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
-  packSku, parcelCredit, parseManifest, unpackSku, workerCredit,
+  leftToPack, packSku, parcelCredit, parseManifest, unpackSku, workerCredit,
 } from "../src/orders-core.js";
 
 const pdf = readFileSync(path.join(import.meta.dirname, "fixtures", "meesho-manifest.pdf"));
@@ -157,6 +157,39 @@ describe("the parcel ledger", () => {
     l = creditSku(l, "ANP003", "2026-08-20", ["Asha"]);
     expect(daySummary([l], "2026-08-20").unnamed).toBe(0);
     expect(parcelCredit([l], "2026-08")).toEqual({ Asha: 1 });
+  });
+
+  it("packs part of a SKU and leaves the rest in the queue", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "ANP003"), parcel("3", "ANP003")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-20", ["Asha"], 2);
+    expect(leftToPack(l, "ANP003")).toBe(1);
+    expect(outstanding(l.subOrders)[0].qty).toBe(1);
+    expect(parcelCredit([l], "2026-08")).toEqual({ Asha: 2 });
+
+    // The rest, after lunch, by somebody else — and the morning stays Asha's.
+    l = packSku(l, "ANP003", "2026-08-20", ["Ravi"]);
+    expect(outstanding(l.subOrders)).toEqual([]);
+    expect(parcelCredit([l], "2026-08")).toEqual({ Asha: 2, Ravi: 1 });
+  });
+
+  it("naming one batch does not move another batch's work onto it", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "ANP003")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-20", [], 1);   // ticked, nobody named
+    l = creditSku(l, "ANP003", "2026-08-20", ["Asha"], []);
+    l = packSku(l, "ANP003", "2026-08-20", [], 1);   // the afternoon's, also unnamed
+    l = creditSku(l, "ANP003", "2026-08-20", ["Ravi"], []);
+    expect(parcelCredit([l], "2026-08")).toEqual({ Asha: 1, Ravi: 1 });
+
+    // And a name can still be changed within its own batch.
+    l = creditSku(l, "ANP003", "2026-08-20", ["Asha", "Ravi"], ["Ravi"]);
+    expect(parcelCredit([l], "2026-08")).toEqual({ Asha: 1.5, Ravi: 0.5 });
+  });
+
+  it("offers back the SKUs packed today that nobody is named on", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "GTB001")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-20");
+    l = packSku(l, "GTB001", "2026-08-20", ["Asha"]);
+    expect(daySummary([l], "2026-08-20").unnamedBySku).toEqual([{ name: "ANP003", qty: 1 }]);
   });
 
   it("un-ticking gives back only what that tick took", () => {
