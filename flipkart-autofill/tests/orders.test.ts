@@ -42,6 +42,35 @@ describe("parseManifest", () => {
     });
   });
 
+  /**
+   * The per-parcel pages, which are what makes re-downloading a manifest safe: the same parcel
+   * carries the same sub-order number every time, so counting ids can never double a day.
+   *
+   * **The two halves of the file check each other.** The picklist is Meesho's own total per SKU
+   * and the shipment pages are the parcels behind it; if either parser drifts they stop agreeing,
+   * and that is a far better alarm than any number this repo could hard-code.
+   */
+  it("reads every parcel, with an id of its own, and agrees with the picklist", () => {
+    expect(parsed.shipments).toHaveLength(41);
+    expect(new Set(parsed.shipments.map((s) => s.subOrder)).size).toBe(41);
+
+    const bySku: Record<string, number> = {};
+    for (const s of parsed.shipments) bySku[s.sku] = (bySku[s.sku] ?? 0) + s.qty;
+    expect(bySku).toEqual(Object.fromEntries(parsed.rows.map((r) => [r.sku, r.qty])));
+
+    // The id spans two baselines in the PDF — both halves, or two items of one order collide.
+    expect(parsed.shipments[0]).toEqual({
+      subOrder: "321165013526408960_1",
+      awb: "1490839976524846",
+      sku: "007 annaprashan ct",
+      qty: 1,
+      courier: "Delhivery",
+    });
+    // Handover is per courier, so which one is carrying it is worth keeping.
+    expect(new Set(parsed.shipments.map((s) => s.courier)))
+      .toEqual(new Set(["Delhivery", "Shadowfax", "Valmo", "Xpress Bees"]));
+  });
+
   it("keeps the shipment rows out — they are four cells with a number on the end too", () => {
     // A leaked shipment row would arrive as a serial number or a sub-order number.
     expect(parsed.rows.every((r) => !/^\d+$/.test(r.sku))).toBe(true);

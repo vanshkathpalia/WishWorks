@@ -48,6 +48,32 @@ export interface OrderRow {
   packedBy: string[];
 }
 
+/**
+ * One parcel on the manifest — one line of one order, with the number that identifies it for ever.
+ *
+ * **This is the unit that makes the arithmetic honest.** Meesho's manifest is a snapshot of
+ * *everything ready to ship*, so the 12pm download says ANP006 × 6 and the 2pm one says × 10 —
+ * the same six plus four more. Two couriers' manifests on one day, on the other hand, say 6 and 4
+ * for genuinely different parcels. At SKU level those two cases are identical and no rule can tell
+ * them apart. At sub-order level there is nothing to decide: the same id is the same parcel, a new
+ * id is a new parcel, and both cases come out right by counting the ids.
+ *
+ * `subOrder` is Meesho's own, and it is drawn across TWO baselines in the PDF — `32116501352`
+ * then `6408960_1` — because the column is narrow. Both halves are needed: the tail is the line
+ * number within an order, so two items of one order share the first half.
+ */
+export interface Shipment {
+  /** `321165013526408960_1` — the identity. Stable across every re-download. */
+  subOrder: string;
+  /** The courier's tracking number. Changes if a parcel is re-booked, so it is not the identity. */
+  awb: string;
+  sku: string;
+  /** Almost always 1 — one parcel, one item — but the column exists, so it is read, not assumed. */
+  qty: number;
+  /** Which courier is taking it, off the section header. Handover is per courier. */
+  courier: string;
+}
+
 /** One working day. The file the whole panel reads and writes. */
 export interface OrderDay {
   /** `YYYY-MM-DD`, taken from the manifest itself so nobody types a date. */
@@ -144,7 +170,11 @@ function manifestDate(all: Cell[]): string | null {
  * so far has letters in it (`SVP025`, `007 annaprashan ct`). If a numeric-only SKU ever appears,
  * scope the search to pages carrying the `Total Quantity` header instead.
  */
-export function parseManifest(bytes: Buffer): { date: string | null; rows: { sku: string; qty: number }[] } {
+export function parseManifest(bytes: Buffer): {
+  date: string | null;
+  rows: { sku: string; qty: number }[];
+  shipments: Shipment[];
+} {
   const all = cells(bytes);
   const header = rows(all).find((r) => r.length === 4 && r[0].text === "SKU" && r[3].text === "Total Quantity");
   const totals = new Map<string, number>();
@@ -160,7 +190,51 @@ export function parseManifest(bytes: Buffer): { date: string | null; rows: { sku
   return {
     date: manifestDate(all),
     rows: [...totals].map(([sku, qty]) => ({ sku, qty })).sort((a, b) => b.qty - a.qty),
+    shipments: shipments(all),
   };
+}
+
+/**
+ * The per-parcel pages: `S. No. | Sub Order No. | AWB | SKU | Qty. | Size`, one parcel per block.
+ *
+ * The block is three baselines and the spacing is regular — the row itself, the AWB about 8pt
+ * below it, and the tail of the sub-order number about 15pt below. So: find the rows that look
+ * like a parcel, then read the two lines under each. 20pt is comfortably inside the ~48pt gap to
+ * the next parcel, so a block can never borrow its neighbour's number.
+ *
+ * A row is a parcel when it has five cells, starts with a serial number, carries a long digit run
+ * next to it, and has a whole number where the quantity goes. The header row fails all three.
+ */
+function shipments(all: Cell[]): Shipment[] {
+  // Which courier is carrying which page — the section header sits above its own parcels, and
+  // handover happens per courier, so it is worth keeping.
+  const courierOf = new Map<number, string>();
+  let courier = "";
+  for (const c of all) {
+    const m = /^Courier\s*:\s*(.+)$/.exec(c.text);
+    if (m) courier = m[1].trim();
+    if (!courierOf.has(c.page)) courierOf.set(c.page, courier);
+  }
+
+  const out: Shipment[] = [];
+  for (const r of rows(all)) {
+    if (r.length !== 5) continue;
+    const [serial, head, sku, qty] = r.map((c) => c.text);
+    if (!/^\d+$/.test(serial) || !/^\d{6,}$/.test(head) || !/^\d+$/.test(qty)) continue;
+
+    const under = all.filter((c) => c.page === r[0].page && c.y < r[0].y && c.y > r[0].y - 20);
+    // The AWB is the one indented past the sub-order column; the tail is the one that is not.
+    const awb = under.find((c) => c.x > r[1].x + 40)?.text ?? "";
+    const tail = under.find((c) => c.x <= r[1].x + 40)?.text ?? "";
+    out.push({
+      subOrder: head + tail,
+      awb,
+      sku,
+      qty: Number(qty),
+      courier: courierOf.get(r[0].page) ?? "",
+    });
+  }
+  return out;
 }
 
 /**
