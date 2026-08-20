@@ -451,6 +451,11 @@ export function Orders() {
                   >
                     <span className="qty">{r.qty}</span>
                     <span className="lid">{r.sku}</span>
+                    {/* The split, when a SKU sold on both. They are not interchangeable: the money
+                        differs per marketplace, and at handover they go to different couriers. */}
+                    {r.byMarket.length > 1 && (
+                      <em>{r.byMarket.map((m) => `${m.qty}${m.name[0].toUpperCase()}`).join(" ")}</em>
+                    )}
                   </button>
                 </li>
               ))}

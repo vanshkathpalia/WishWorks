@@ -37,8 +37,11 @@ import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js
 export interface OrdersView {
   /** The local working day, decided by the engine so every screen agrees on it. */
   today: string;
-  /** Still to pack, by SKU, most first. Ticking one takes it off this list. */
-  outstanding: { sku: string; qty: number }[];
+  /**
+   * Still to pack, by SKU, most first — with the marketplace split, because one code sells on both
+   * and the two are not interchangeable: different money, and different couriers at handover.
+   */
+  outstanding: { sku: string; qty: number; byMarket: { name: string; qty: number }[] }[];
   summary: DaySummary;
   /** Packets per person this month — parcels, plus the older per-day records. */
   monthPay: { name: string; qty: number }[];
@@ -54,6 +57,8 @@ export interface Money {
   revenuePaise: number;
   materialsPaise: number;
   profitPaise: number;
+  /** Every costed SKU and what it put in — the working behind the totals, and which kit priced it. */
+  costed: { name: string; kit: string; qty: number; revenuePaise: number; materialsPaise: number }[];
   /** Packed in the window but with no costed kit — shown, never counted as free. */
   uncosted: { name: string; qty: number }[];
   /** Came back in the window, whenever it was packed. */
@@ -440,7 +445,7 @@ export interface WwApi {
    * panel shows. **A SKU with no costed kit is reported as `uncosted`, never as free** — that is
    * the difference between a number you can act on and one that flatters itself.
    */
-  money(from: string, to: string): Promise<{ money: Money; pay: PackerPay[] }>;
+  money(from: string, to: string, market?: string): Promise<{ money: Money; pay: PackerPay[] }>;
   /** Each packer's rate in paise per packet. */
   rates(): Promise<Record<string, number>>;
   setRate(name: string, paise: number): Promise<Record<string, number>>;

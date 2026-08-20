@@ -194,7 +194,9 @@ export function mergeShipments(
 }
 
 /** Still to pack, grouped by SKU, most first — the list the packing screen works down. */
-export function outstanding(subOrders: SubOrder[]): { sku: string; qty: number; subOrders: SubOrder[] }[] {
+export function outstanding(
+  subOrders: SubOrder[],
+): { sku: string; qty: number; byMarket: { name: string; qty: number }[]; subOrders: SubOrder[] }[] {
   const by = new Map<string, SubOrder[]>();
   for (const p of subOrders) {
     if (p.packedOn) continue;
@@ -202,7 +204,18 @@ export function outstanding(subOrders: SubOrder[]): { sku: string; qty: number; 
     by.get(p.sku)!.push(p);
   }
   return [...by]
-    .map(([sku, ps]) => ({ sku, qty: ps.reduce((n, p) => n + p.qty, 0), subOrders: ps }))
+    .map(([sku, ps]) => {
+      // The split, because one SKU sells on both marketplaces and they are not interchangeable:
+      // the money differs, and at handover the parcels go to different couriers.
+      const m = new Map<string, number>();
+      for (const p of ps) m.set(p.market, (m.get(p.market) ?? 0) + p.qty);
+      return {
+        sku,
+        qty: ps.reduce((n, p) => n + p.qty, 0),
+        byMarket: [...m].map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty),
+        subOrders: ps,
+      };
+    })
     .sort((a, b) => b.qty - a.qty);
 }
 
@@ -755,11 +768,29 @@ export function money(
   kits: KitMoney[],
   from: string,
   to: string,
+  /**
+   * One marketplace, or all of them.
+   *
+   * **There is no settlement to reconcile between the two**, which is the answer to the question
+   * it looks like it raises: a kit stores what each marketplace pays *separately*, so a parcel is
+   * always priced by the one that sold it. Filtering here is about reading — *how did Meesho do
+   * against Flipkart* — not about resolving a conflict, because there is not one.
+   */
+  market?: string,
 ): {
   packets: number;
   revenuePaise: number;
   materialsPaise: number;
   profitPaise: number;
+  /**
+   * Every costed SKU and what it put in — the working, not just the answer.
+   *
+   * On screen because "where is this number coming from?" is the first thing anybody asks of a
+   * total, and a total that cannot be taken apart is one nobody trusts. It also names the kit that
+   * priced each line, which is the bit that surprises: `SVP033` is priced by the kit
+   * `SVP033 - ANP002`, and it is easy to forget that kit exists.
+   */
+  costed: { name: string; kit: string; qty: number; revenuePaise: number; materialsPaise: number }[];
   /** Packed in the window but with no costed kit — shown, never folded into the total. */
   uncosted: { name: string; qty: number }[];
   /** Came back in the window: what it takes off the revenue, and the materials at risk with it. */
@@ -770,12 +801,13 @@ export function money(
   const all = ledgers.flatMap((l) => l.subOrders);
   const uncosted = new Map<string, number>();
   const byMarket = new Map<string, number>();
+  const costed = new Map<string, { kit: string; qty: number; revenuePaise: number; materialsPaise: number }>();
   let packets = 0;
   let revenuePaise = 0;
   let materialsPaise = 0;
 
   for (const p of all) {
-    if (!inWindow(p.packedOn)) continue;
+    if (!inWindow(p.packedOn) || (market !== undefined && p.market !== market)) continue;
     packets += p.qty;
     byMarket.set(p.market, (byMarket.get(p.market) ?? 0) + p.qty);
     const kit = kitForSku(p.sku, kits);
@@ -786,9 +818,14 @@ export function money(
     }
     revenuePaise += pays * p.qty;
     materialsPaise += kit.costPaise * p.qty;
+    const row = costed.get(p.sku) ?? { kit: kit.sku, qty: 0, revenuePaise: 0, materialsPaise: 0 };
+    row.qty += p.qty;
+    row.revenuePaise += pays * p.qty;
+    row.materialsPaise += kit.costPaise * p.qty;
+    costed.set(p.sku, row);
   }
 
-  const back = all.filter((p) => inWindow(p.statusOn));
+  const back = all.filter((p) => inWindow(p.statusOn) && (market === undefined || p.market === market));
   const reversals = { packets: 0, revenuePaise: 0, materialsPaise: 0, rto: 0, returned: 0 };
   for (const p of back) {
     reversals.packets += p.qty;
@@ -807,6 +844,9 @@ export function money(
     revenuePaise,
     materialsPaise,
     profitPaise: revenuePaise - materialsPaise - reversals.revenuePaise,
+    costed: [...costed]
+      .map(([name, r]) => ({ name, ...r }))
+      .sort((a, b) => b.revenuePaise - a.revenuePaise),
     uncosted: rank(uncosted),
     reversals,
     byMarket: rank(byMarket),
@@ -824,10 +864,12 @@ export function packerPay(
   from: string,
   to: string,
   rates: Record<string, number> = {},
+  market?: string,
 ): { name: string; packets: number; paise: number }[] {
   const out = new Map<string, number>();
   for (const p of ledgers.flatMap((l) => l.subOrders)) {
     if (!p.packedOn || p.packedOn < from || p.packedOn > to || !p.packedBy?.length) continue;
+    if (market !== undefined && p.market !== market) continue;
     for (const who of p.packedBy) out.set(who, (out.get(who) ?? 0) + p.qty / p.packedBy.length);
   }
   return [...out]

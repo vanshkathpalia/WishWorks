@@ -41,6 +41,38 @@ export function useRange() {
   return { which, setWhich, from: iso(from), to: iso(now) };
 }
 
+/**
+ * All · Meesho · Flipkart.
+ *
+ * **There is no settlement to reconcile between the two**, which is the question this looks like
+ * it raises: a costed kit stores what each marketplace pays *separately*, so a parcel is always
+ * priced by the one that sold it, and every parcel records which that was. This switch is for
+ * reading — *how did Meesho do against Flipkart* — not for resolving a conflict, because there is
+ * not one to resolve.
+ */
+export function MarketPick({
+  market,
+  setMarket,
+}: {
+  market: string | undefined;
+  setMarket: (m: string | undefined) => void;
+}) {
+  const options: [string | undefined, string][] = [
+    [undefined, "Both"],
+    ["meesho", "Meesho"],
+    ["flipkart", "Flipkart"],
+  ];
+  return (
+    <div className="picks">
+      {options.map(([id, label]) => (
+        <button key={label} className={id === market ? "chosen" : ""} onClick={() => setMarket(id)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** The three-way switch, shared by the money screen and the pay screen. */
 function RangePick({ which, setWhich }: ReturnType<typeof useRange>) {
   return (
@@ -56,15 +88,16 @@ function RangePick({ which, setWhich }: ReturnType<typeof useRange>) {
 
 export function Money({ n }: { n: number }) {
   const range = useRange();
+  const [market, setMarket] = useState<string | undefined>(undefined);
   const [totals, setTotals] = useState<MoneyTotals | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setTotals(null);
     void window.ww
-      .money(range.from, range.to)
+      .money(range.from, range.to, market)
       .then((r) => setTotals(r.money), (e: Error) => setError(e.message));
-  }, [range.from, range.to]);
+  }, [range.from, range.to, market]);
 
   return (
     <section className="panel orders">
@@ -78,7 +111,10 @@ export function Money({ n }: { n: number }) {
         </p>
       </header>
 
-      <RangePick {...range} />
+      <div className="two-picks">
+        <RangePick {...range} />
+        <MarketPick market={market} setMarket={setMarket} />
+      </div>
       {error && <p className="error">{error}</p>}
 
       {totals === null ? (
@@ -122,6 +158,36 @@ export function Money({ n }: { n: number }) {
             </p>
           )}
 
+          {totals.costed.length > 0 && (
+            <table className="rows inv-table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Priced by the kit</th>
+                  <th>Packets</th>
+                  <th>Came in</th>
+                  <th>Materials</th>
+                  <th>Left</th>
+                </tr>
+              </thead>
+              <tbody>
+                {totals.costed.map((c) => (
+                  <tr key={c.name}>
+                    <td>{c.name}</td>
+                    {/* Which kit priced it — the line that answers "where is this number from?".
+                        `SVP033` is priced by the kit `SVP033 - ANP002`, and that is easy to
+                        forget you ever costed. */}
+                    <td className="muted">{c.kit}</td>
+                    <td>{c.qty}</td>
+                    <td>{rupees(c.revenuePaise)}</td>
+                    <td>{rupees(c.materialsPaise)}</td>
+                    <td>{rupees(c.revenuePaise - c.materialsPaise)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
           {totals.uncosted.length > 0 && (
             <div className="uncosted">
               <h3>
@@ -160,15 +226,16 @@ export function Money({ n }: { n: number }) {
  */
 export function Packers({ n }: { n: number }) {
   const range = useRange();
+  const [market, setMarket] = useState<string | undefined>(undefined);
   const [pay, setPay] = useState<PackerPay[] | null>(null);
   const [rates, setRates] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     void window.ww
-      .money(range.from, range.to)
+      .money(range.from, range.to, market)
       .then((r) => setPay(r.pay), (e: Error) => setError(e.message));
-  }, [range.from, range.to]);
+  }, [range.from, range.to, market]);
 
   useEffect(load, [load]);
   useEffect(() => void window.ww.rates().then(setRates, () => setRates({})), []);
@@ -186,7 +253,10 @@ export function Packers({ n }: { n: number }) {
         </p>
       </header>
 
-      <RangePick {...range} />
+      <div className="two-picks">
+        <RangePick {...range} />
+        <MarketPick market={market} setMarket={setMarket} />
+      </div>
       {error && <p className="error">{error}</p>}
 
       {pay === null ? (

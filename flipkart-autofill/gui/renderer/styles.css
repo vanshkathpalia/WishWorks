@@ -2039,3 +2039,11 @@ textarea.json {
   padding: 0 16px;
   text-align: center;
 }
+
+/* Two switches on one line — the period, and which marketplace. */
+.two-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  align-items: center;
+}

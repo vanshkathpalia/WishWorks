@@ -721,7 +721,7 @@ async function ordersView(on = today()) {
 
   return {
     today: on,
-    outstanding: outstanding(ledgers.flatMap((l) => l.subOrders)).map(({ sku, qty }) => ({ sku, qty })),
+    outstanding: outstanding(ledgers.flatMap((l) => l.subOrders)).map(({ sku, qty, byMarket }) => ({ sku, qty, byMarket })),
     summary: daySummary(ledgers, on),
     monthPay: Object.entries(credit)
       .map(([name, qty]) => ({ name, qty: Number(qty.toFixed(2)) }))
@@ -779,13 +779,13 @@ async function readRates(): Promise<Record<string, number>> {
  * inventory engine, so the money here is the same arithmetic the costing panel shows — there is
  * no second definition of what a kit earns.
  */
-ipcMain.handle("money", async (_e, from: string, to: string) => {
+ipcMain.handle("money", async (_e, from: string, to: string, market?: string) => {
   const orders = await ordersEngine();
   const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
   const ledgers = await orders.listLedgers();
   return {
-    money: orders.money(ledgers, listKits(KITS_DIR, loadMaterials()), from, to),
-    pay: orders.packerPay(ledgers, from, to, await readRates()),
+    money: orders.money(ledgers, listKits(KITS_DIR, loadMaterials()), from, to, market),
+    pay: orders.packerPay(ledgers, from, to, await readRates(), market),
   };
 });
 

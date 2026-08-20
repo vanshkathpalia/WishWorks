@@ -122,6 +122,38 @@ describe("the parcel ledger", () => {
     expect(outstanding(two.subOrders)[0]).toMatchObject({ sku: "ANP006", qty: 3 });
   });
 
+  it("splits a SKU by marketplace, because the two are not interchangeable", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP006"), parcel("2", "ANP006")], "2026-08-20", "m.pdf");
+    l = mergeShipments(l, [parcel("7", "ANP006")], "2026-08-20", "f.csv", "flipkart");
+    expect(outstanding(l.subOrders)[0]).toMatchObject({
+      sku: "ANP006",
+      qty: 3,
+      byMarket: [{ name: "meesho", qty: 2 }, { name: "flipkart", qty: 1 }],
+    });
+  });
+
+  /**
+   * The question it looks like this raises — *how do you reconcile a Meesho settlement against a
+   * Flipkart one?* — has no answer because it has no conflict: a kit stores what EACH marketplace
+   * pays, and every parcel records which one sold it.
+   */
+  it("prices each parcel by the marketplace that sold it", () => {
+    const kits: KitMoney[] = [
+      { sku: "ANP006", costPaise: 8000, pays: { meesho: 15000, flipkart: 17000 } },
+    ];
+    let l = mergeShipments(null, [parcel("1", "ANP006")], "2026-08-20", "m.pdf");
+    l = mergeShipments(l, [parcel("7", "ANP006")], "2026-08-20", "f.csv", "flipkart");
+    l = packSku(l, "ANP006", "2026-08-20", ["Asha"]);
+
+    expect(money([l], kits, "2026-08-20", "2026-08-20").revenuePaise).toBe(32000);
+    expect(money([l], kits, "2026-08-20", "2026-08-20", "meesho").revenuePaise).toBe(15000);
+    expect(money([l], kits, "2026-08-20", "2026-08-20", "flipkart").revenuePaise).toBe(17000);
+    // The working names the kit that priced each line, so a total can always be taken apart.
+    expect(money([l], kits, "2026-08-20", "2026-08-20").costed[0]).toMatchObject({ name: "ANP006", kit: "ANP006", qty: 2 });
+    // Pay follows the same filter, so one marketplace's packing can be paid on its own.
+    expect(packerPay([l], "2026-08-20", "2026-08-20", {}, "flipkart")[0].packets).toBe(1);
+  });
+
   it("a second courier's manifest adds, because those are different subOrders", () => {
     const first = mergeShipments(null, [parcel("1", "ANP006")], "2026-08-20", "delhivery.pdf");
     const both = mergeShipments(first, [parcel("9", "ANP006", "Valmo")], "2026-08-20", "valmo.pdf");
@@ -135,7 +167,14 @@ describe("the parcel ledger", () => {
 
     // Six more arrive the next day. The two already packed stay packed and are not re-counted.
     l = mergeShipments(l, [parcel("1", "ANP003"), parcel("2", "ANP003"), parcel("3", "ANP003")], "2026-08-21", "b.pdf");
-    expect(outstanding(l.subOrders)).toEqual([{ sku: "ANP003", qty: 1, subOrders: [expect.objectContaining({ subOrder: "3" })] }]);
+    expect(outstanding(l.subOrders)).toEqual([
+      {
+        sku: "ANP003",
+        qty: 1,
+        byMarket: [{ name: "meesho", qty: 1 }],
+        subOrders: [expect.objectContaining({ subOrder: "3" })],
+      },
+    ]);
   });
 
   it("pays by the day it was PACKED, not the day it was ordered", () => {
