@@ -1871,3 +1871,33 @@ textarea.json {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* No picture for this SKU — then the count is the screen. Plenty of SKUs will never have one
+   (the partner's listings never went through this app), and a big empty frame for each of those
+   reads as something being broken rather than as a fact. */
+.sku-nopic {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 26px 28px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  max-width: 620px;
+}
+.sku-nopic b {
+  font-size: 46px;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.sku-nopic span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 17px;
+}
+.sku-nopic small {
+  font-size: 12.5px;
+  color: var(--muted);
+}

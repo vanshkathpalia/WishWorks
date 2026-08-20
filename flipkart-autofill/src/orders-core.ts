@@ -580,9 +580,15 @@ export async function writeDay(day: OrderDay): Promise<void> {
 
 /** Every day on file, newest first. Small files, and a month of them is what pay day reads. */
 export async function listDays(): Promise<OrderDay[]> {
-  const names = (await readdir(ORDERS_DIR).catch(() => [])).filter((n) => n.endsWith(".json"));
+  // `YYYY-MM-DD.json` and nothing else. This folder holds the month ledgers and `packers.json`
+  // too, and both parse perfectly well as JSON — so a loose `.endsWith(".json")` handed back
+  // objects with no `date`, and the first thing that read `.date` threw. The whole packing screen
+  // then sat on "Looking…" for ever, because a rejected IPC call never settles (WW-182).
+  const names = (await readdir(ORDERS_DIR).catch(() => [])).filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n));
   const days = await Promise.all(
     names.map((n) => readFile(path.join(ORDERS_DIR, n), "utf8").then((t) => JSON.parse(t) as OrderDay).catch(() => null)),
   );
-  return days.filter((d): d is OrderDay => d !== null).sort((a, b) => b.date.localeCompare(a.date));
+  return days
+    .filter((d): d is OrderDay => typeof d?.date === "string" && Array.isArray(d.rows))
+    .sort((a, b) => b.date.localeCompare(a.date));
 }

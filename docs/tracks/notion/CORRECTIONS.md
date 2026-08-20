@@ -2099,3 +2099,31 @@ serves a page over http with the app's real CSP, points an `<img>` at his real f
 **Cheap lesson.** When the report is *nothing appears*, the check must be *something appeared* —
 measured, not inferred from a green suite. And after two failed handoffs, stop fixing and start
 instrumenting: three tries at the same symptom means the loop, not the code, is what is wrong.
+
+## C-066 — A folder that fed itself junk, and a screen with no way to say so
+
+**Class:** Code · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-20 ·
+**Status:** Fixed (WW-182)
+
+*"Now it is just looking and looking."* The packing screen sat on **Looking…** for ever. His guess
+was the picture search; it was not — the parcels had loaded fine, 42 of them from two manifests.
+`window.ww.orders()` had thrown before drawing anything.
+
+**Root cause.** `listDays()` read every `*.json` in the orders folder. That folder had just gained
+two new residents — the month ledgers (`2026-08.json`) and `packers.json` — both perfectly valid
+JSON, neither a day. They came back as objects with no `date`, and the next line, `d.date
+.startsWith(month)`, threw. **The same commit that put new files in the folder left the old reader
+matching on `.json`.** Fixed by matching the shape of the name it actually wants,
+`YYYY-MM-DD.json`, and checking the object has a date before trusting it.
+
+**The second fault is the one worth keeping.** A thrown handler rejects the IPC promise, and
+`.then(setView)` on a rejected promise **never runs** — so the screen keeps its loading state for
+ever. That is indistinguishable from a hang, and it is the *third* time this pattern has bitten in
+two days: the sign-up button stuck on "…" (C-063), and the picture stuck on "Looking…" here for the
+same reason. **A `.then` without a rejection path is a loading state with no exit.** Every await of
+`window.ww.*` on this screen now has one, and a failure shows the message instead.
+
+**Cheap lesson.** Two of them. When a feature adds files to a folder, grep for everything that
+*reads* that folder — a reader written when only one kind of file lived there is now wrong, and it
+will not say so. And a loading state must be reachable from every outcome, including the ones
+nobody wrote code for.

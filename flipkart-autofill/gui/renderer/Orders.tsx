@@ -41,13 +41,16 @@ const showDate = (date: string) =>
  * because this is where the gap is discovered: listings finished in this app arrive named and
  * grouped, and the partner's never went through it at all.
  */
-function SkuImage({ sku, tick }: { sku: string; tick: React.ReactNode }) {
+function SkuImage({ sku, qty, tick }: { sku: string; qty: number; tick: React.ReactNode }) {
   const [position, setPosition] = useState(2);
   const [file, setFile] = useState<string | null | undefined>(undefined);
 
+  // `.catch(() => null)` is not tidiness: an IPC call that rejects never settles, so without it a
+  // failure leaves this on "Looking…" for ever — which is indistinguishable from a frozen app and
+  // is exactly what WW-182 looked like. No picture is the honest answer to any failure here.
   const load = useCallback(() => {
     setFile(undefined);
-    void window.ww.skuImage(sku, position).then(setFile);
+    void window.ww.skuImage(sku, position).catch(() => null).then(setFile);
   }, [sku, position]);
   useEffect(load, [load]);
 
@@ -78,10 +81,20 @@ function SkuImage({ sku, tick }: { sku: string; tick: React.ReactNode }) {
       {file === undefined ? (
         <div className="sku-image empty">Looking for the picture…</div>
       ) : file === null ? (
-        <div className="sku-image empty">
-          No picture for <b>{sku}</b> in the ready folder. Finished listings land there on their
-          own; anything else needs one adding above. It is filed under that SKU&apos;s own code, so
-          the shared drive stays readable.
+        /**
+         * No picture, so the packet count IS the screen — Vansh: *"in this case just show the
+         * number of packing and not image"*. Plenty of SKUs will never have one: the partner's
+         * listings never went through this app, and some are named differently in the ready
+         * folder. A big empty box for every one of those reads as something being broken.
+         */
+        <div className="sku-nopic">
+          <b>{qty}</b>
+          <span>
+            packet{qty === 1 ? "" : "s"} to pack
+            <small>
+              no picture for {sku} — add one above and it shows here from then on
+            </small>
+          </span>
         </div>
       ) : (
         <figure className="sku-image">
@@ -264,8 +277,10 @@ export function Orders() {
   const [tally, setTally] = useState(false);
 
   useEffect(() => {
-    void window.ww.orders().then(setView);
-    void window.ww.workers().then(setWorkers);
+    // Same rule as the picture below: an IPC rejection never settles, so it must be caught here or
+    // the screen waits for ever on a call that has already failed.
+    void window.ww.orders().then(setView, (e: Error) => setError(e.message));
+    void window.ww.workers().then(setWorkers, () => setWorkers([]));
   }, []);
 
   const row = view?.outstanding.find((r) => r.sku === sku) ?? null;
@@ -283,9 +298,13 @@ export function Orders() {
     setBusy(true);
     setError(null);
     for (const file of files) {
-      const r = await window.ww.addManifest(file);
-      if (!r.ok) setError(r.message);
-      else setView(r.result);
+      try {
+        const r = await window.ww.addManifest(file);
+        if (!r.ok) setError(r.message);
+        else setView(r.result);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     }
     setSku(null);
     setBusy(false);
@@ -329,7 +348,7 @@ export function Orders() {
       {error && <p className="error">{error}</p>}
 
       {view === null ? (
-        <p className="muted">Looking…</p>
+        <p className={error ? "error" : "muted"}>{error ?? "Looking…"}</p>
       ) : view.outstanding.length === 0 ? (
         <p className="muted">
           {view.summary.packets > 0
@@ -388,6 +407,7 @@ export function Orders() {
                 </h2>
                 <SkuImage
                   sku={row.sku}
+                  qty={row.qty}
                   tick={
                     <PackedTick
                       qty={row.qty}
