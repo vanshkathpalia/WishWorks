@@ -760,6 +760,74 @@ ipcMain.handle("addManifest", async (_e, file: string): Promise<Attempt<unknown>
 
 ipcMain.handle("orders", () => ordersView());
 
+/** Where each packer's rate per packet is kept — beside the days it is paid on, not in settings. */
+const RATES_FILE = () => path.join(ORDERS_DIR, "rates.json");
+
+async function readRates(): Promise<Record<string, number>> {
+  try {
+    return JSON.parse(await readFile(RATES_FILE(), "utf8")) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * What a stretch of days was worth, and what it owes the people who packed it.
+ *
+ * One handler for both because they answer the same question from two sides and read the same two
+ * files; splitting them would mean two round trips for one screen. Costed kits come from the
+ * inventory engine, so the money here is the same arithmetic the costing panel shows — there is
+ * no second definition of what a kit earns.
+ */
+ipcMain.handle("money", async (_e, from: string, to: string) => {
+  const orders = await ordersEngine();
+  const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
+  const ledgers = await orders.listLedgers();
+  return {
+    money: orders.money(ledgers, listKits(KITS_DIR, loadMaterials()), from, to),
+    pay: orders.packerPay(ledgers, from, to, await readRates()),
+  };
+});
+
+/** A packer's rate, in paise per packet. Zero or absent means their pay is not worked out here. */
+ipcMain.handle("setRate", async (_e, name: string, paise: number) => {
+  const rates = { ...(await readRates()), [name]: paise };
+  await mkdir(ORDERS_DIR, { recursive: true });
+  await writeFile(RATES_FILE(), `${JSON.stringify(rates, null, 2)}\n`);
+  return rates;
+});
+
+ipcMain.handle("rates", () => readRates());
+
+/**
+ * Mark a parcel as come back, or take that mark off.
+ *
+ * The parcel is found by its sub-order number, which is what the marketplace's own RTO and returns
+ * reports carry — so when those files get parsed, they will drive exactly this.
+ */
+ipcMain.handle(
+  "returned",
+  async (_e, subOrder: string, status: "rto" | "returned" | null, on: string) => {
+    const engine = await ordersEngine();
+    for (const ledger of await engine.listLedgers()) {
+      const next = status === null
+        ? engine.clearBack(ledger, subOrder)
+        : engine.markBack(ledger, subOrder, status, on);
+      if (JSON.stringify(next.subOrders) !== JSON.stringify(ledger.subOrders)) await engine.writeLedger(next);
+    }
+    return ordersView();
+  },
+);
+
+/** Every parcel packed but not yet marked as come back — what the returns screen picks from. */
+ipcMain.handle("sent", async () => {
+  const ledgers = await (await ordersEngine()).listLedgers();
+  return ledgers
+    .flatMap((l) => l.subOrders)
+    .filter((p) => p.packedOn)
+    .sort((a, b) => (b.packedOn ?? "").localeCompare(a.packedOn ?? ""));
+});
+
 /**
  * Change what is packed. One handler, because the three actions differ by one word and all three
  * have to find the right ledgers, write them, and hand back the same recomputed view.

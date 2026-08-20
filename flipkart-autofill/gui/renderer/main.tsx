@@ -16,6 +16,7 @@ import { Convert } from "./Convert.js";
 import { Images } from "./Images.js";
 import { Inventory } from "./Inventory.js";
 import { Orders } from "./Orders.js";
+import { Money, Packers, Returns } from "./Money.js";
 import { Flipkart } from "./Flipkart.js";
 import { Check, Finish, ListingCopy, Meesho } from "./steps.js";
 import { FolderSetting, useAccount } from "./ui.js";
@@ -54,7 +55,10 @@ const STEPS = [
   // array because `step` is a single index into `Panel`, and a second numbering scheme for two
   // entries would be a whole mechanism to save nothing.
   { name: "Cost a kit", does: "What a kit costs to make, and what to sell it for" },
-  { name: "Today's orders", does: "Read the manifest, tick off the packing, credit the packer" },
+  { name: "Pack today", does: "Read the manifest, tick off the packing, credit the packer" },
+  { name: "Money", does: "What was packed, what it cost, what is left" },
+  { name: "Packer pay", does: "Packets each by day, week and month, and what that comes to" },
+  { name: "Came back", does: "Mark an RTO or a return on the day it arrives" },
 ];
 
 /**
@@ -70,7 +74,7 @@ const STEPS = [
 const SECTIONS = [
   // One word each, because three tabs share a 250px rail and "New listing" / "Cost a kit" wrapped
   // onto three lines apiece. The step under each tab carries the longer name and the `does` line.
-  { tab: "Orders", steps: [8], numbered: false },
+  { tab: "Orders", steps: [8, 9, 10, 11], numbered: false },
   { tab: "Listing", steps: [0, 1, 2, 3, 4, 5, 6], numbered: true },
   { tab: "Costing", steps: [7], numbered: false },
 ];
@@ -99,6 +103,12 @@ function Panel({ step }: { step: number }) {
       return <Inventory n={0} />;
     case 8:
       return <Orders />;
+    case 9:
+      return <Money n={0} />;
+    case 10:
+      return <Packers n={0} />;
+    case 11:
+      return <Returns n={0} />;
     default:
       return null;
   }

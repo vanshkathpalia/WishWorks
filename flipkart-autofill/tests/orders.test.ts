@@ -21,7 +21,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   addSkuImage, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
-  leftToPack, packSku, parcelCredit, parseManifest, unpackSku, workerCredit,
+  clearBack, type KitMoney, kitForSku, leftToPack, markBack, money, packSku, packerPay, parcelCredit,
+  parseManifest, unpackSku, workerCredit,
 } from "../src/orders-core.js";
 
 const pdf = readFileSync(path.join(import.meta.dirname, "fixtures", "meesho-manifest.pdf"));
@@ -212,6 +213,71 @@ describe("the parcel ledger", () => {
       .toEqual(Object.fromEntries(m.rows.map((r) => [r.sku, r.qty])));
     // And dropping it again changes nothing at all.
     expect(mergeShipments(l, m.shipments, m.date!, "again.pdf").subOrders).toHaveLength(41);
+  });
+});
+
+/**
+ * The money. Three separate facts and never one number: what was packed, what it cost, and what
+ * came back. A SKU nobody has costed contributes an UNKNOWN, not a zero — folding those into the
+ * profit would be confidently wrong on exactly the days the partner's SKUs sell well.
+ */
+describe("what a day was worth", () => {
+  const kits: KitMoney[] = [
+    // A combo kit: the code that matters is the last one, so this is the ANP001 listing.
+    { sku: "WKU001-ANP001", costPaise: 9000, pays: { meesho: 18000, flipkart: 19000 } },
+    { sku: "SVP033 - ANP002", costPaise: 7000, pays: { meesho: 15000 } },
+  ];
+  const parcel = (id: string, sku: string, market = "meesho") =>
+    ({ subOrder: id, awb: `A${id}`, sku, qty: 1, courier: "Valmo", market });
+
+  function packed() {
+    let l = mergeShipments(null, [parcel("1", "ANP001"), parcel("2", "SVP033"), parcel("3", "007 annaprashan ct")], "2026-08-20", "a.pdf");
+    return packSku(packSku(packSku(l, "ANP001", "2026-08-20", ["Asha"]), "SVP033", "2026-08-20", ["Asha", "Ravi"]), "007 annaprashan ct", "2026-08-20", ["Ravi"]);
+  }
+
+  it("matches a manifest SKU to its kit, including a combo's second code", () => {
+    expect(kitForSku("ANP001", kits)?.sku).toBe("WKU001-ANP001");
+    expect(kitForSku("SVP033", kits)?.sku).toBe("SVP033 - ANP002");
+    // No code in the name at all, so nothing to match on — and no kit is not a free product.
+    expect(kitForSku("007 annaprashan ct", kits)).toBeNull();
+  });
+
+  it("counts what is costed and NAMES what is not, rather than treating it as free", () => {
+    const m = money([packed()], kits, "2026-08-20", "2026-08-20");
+    expect(m.packets).toBe(3);
+    expect(m.revenuePaise).toBe(18000 + 15000);
+    expect(m.materialsPaise).toBe(9000 + 7000);
+    expect(m.profitPaise).toBe(33000 - 16000);
+    expect(m.uncosted).toEqual([{ name: "007 annaprashan ct", qty: 1 }]);
+  });
+
+  it("dates a return to the day it came back, and never rewrites the packing day", () => {
+    let l = packed();
+    l = markBack(l, "1", "rto", "2026-09-03");
+
+    // The day it was packed still reads exactly as it did before anything came back.
+    const day = money([l], kits, "2026-08-20", "2026-08-20");
+    expect(day.revenuePaise).toBe(33000);
+    expect(day.reversals.packets).toBe(0);
+
+    // September carries the reversal, on the day it happened.
+    const later = money([l], kits, "2026-09-01", "2026-09-30");
+    expect(later.packets).toBe(0);
+    expect(later.reversals).toMatchObject({ packets: 1, revenuePaise: 18000, rto: 1, returned: 0 });
+    expect(later.profitPaise).toBe(-18000);
+
+    // And a wrongly marked one can be taken back off.
+    expect(money([clearBack(l, "1")], kits, "2026-09-01", "2026-09-30").reversals.packets).toBe(0);
+  });
+
+  it("splits a shared packet for pay, and prices it at each person's rate", () => {
+    const pay = packerPay([packed()], "2026-08-20", "2026-08-20", { Asha: 500, Ravi: 400 });
+    expect(pay).toEqual([
+      { name: "Asha", packets: 1.5, paise: 750 },
+      { name: "Ravi", packets: 1.5, paise: 600 },
+    ]);
+    // A week that saw no packing is not an error, it is zero rows.
+    expect(packerPay([packed()], "2026-09-01", "2026-09-07")).toEqual([]);
   });
 });
 

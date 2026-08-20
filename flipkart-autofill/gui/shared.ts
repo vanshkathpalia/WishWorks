@@ -48,6 +48,26 @@ export interface OrdersView {
   packedDays: string[];
 }
 
+/** What a stretch of days was worth. Three separate facts, never folded into one. */
+export interface Money {
+  packets: number;
+  revenuePaise: number;
+  materialsPaise: number;
+  profitPaise: number;
+  /** Packed in the window but with no costed kit — shown, never counted as free. */
+  uncosted: { name: string; qty: number }[];
+  /** Came back in the window, whenever it was packed. */
+  reversals: { packets: number; revenuePaise: number; materialsPaise: number; rto: number; returned: number };
+  byMarket: { name: string; qty: number }[];
+}
+
+/** One packer over a stretch of days. */
+export interface PackerPay {
+  name: string;
+  packets: number;
+  paise: number;
+}
+
 /** What happened on one day — the tally. */
 export interface DaySummary {
   date: string;
@@ -413,6 +433,21 @@ export interface WwApi {
   addManifest(file: string): Promise<Attempt<OrdersView>>;
   /** The whole packing screen: what is left, today's tally, this month's packets. */
   orders(): Promise<OrdersView>;
+  /**
+   * What a stretch of days was worth, and what it owes the packers.
+   *
+   * Revenue and materials come from the costed kits, so this is the same arithmetic the costing
+   * panel shows. **A SKU with no costed kit is reported as `uncosted`, never as free** — that is
+   * the difference between a number you can act on and one that flatters itself.
+   */
+  money(from: string, to: string): Promise<{ money: Money; pay: PackerPay[] }>;
+  /** Each packer's rate in paise per packet. */
+  rates(): Promise<Record<string, number>>;
+  setRate(name: string, paise: number): Promise<Record<string, number>>;
+  /** Every parcel already packed — what the returns screen picks from. */
+  sent(): Promise<SubOrder[]>;
+  /** Mark one parcel RTO or returned on a given day, or `null` to take the mark off. */
+  returned(subOrder: string, status: "rto" | "returned" | null, on: string): Promise<OrdersView>;
   /**
    * Tick a SKU off, undo that tick, or name the packers on one already ticked.
    *

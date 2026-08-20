@@ -888,6 +888,15 @@ export interface KitRow {
    * zero: a kit costed but never listed has no margin to be right or wrong about.
    */
   left?: Record<string, number>;
+  /**
+   * What the materials cost, in paise — the same figure the panel totals, at today's prices.
+   *
+   * Here so a day's packing can be priced without re-costing every kit: the orders screen needs
+   * *materials used today*, and the arithmetic for one kit already happened on this line.
+   */
+  costPaise?: number;
+  /** Per marketplace, what a sale actually brings in — the settlement, or the price it implies. */
+  pays?: Record<string, number>;
 }
 
 /**
@@ -915,11 +924,18 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
             k.lines ?? [], materials, k.overrides ?? {}, k.sku, k.prices ?? {}, k.counts ?? {},
           ).totalPaise;
           const left: Record<string, number> = {};
+          const pays: Record<string, number> = {};
           for (const [id, v] of Object.entries(k.marketplaces ?? {})) {
             const each = v ? leftForMarket(v, cost) : null;
             if (each !== null) left[id] = each;
+            // What actually arrives: the settlement when it is known, and otherwise what the
+            // listed price implies once GST and delivery come out of it. Same rules as the panel.
+            const paid = v?.settlementPaise ?? (v ? marketPrice(v) - (v.shippingPaise ?? 0) - gstOn(v) : 0);
+            if (paid > 0) pays[id] = paid;
           }
+          row.costPaise = cost;
           if (Object.keys(left).length > 0) row.left = left;
+          if (Object.keys(pays).length > 0) row.pays = pays;
         }
         return [row];
       } catch {

@@ -89,6 +89,12 @@ const api: WwApi = {
 
   addManifest: (file: string) => ipcRenderer.invoke("addManifest", file),
   orders: () => ipcRenderer.invoke("orders"),
+  money: (from: string, to: string) => ipcRenderer.invoke("money", from, to),
+  rates: () => ipcRenderer.invoke("rates"),
+  setRate: (name: string, paise: number) => ipcRenderer.invoke("setRate", name, paise),
+  sent: () => ipcRenderer.invoke("sent"),
+  returned: (subOrder: string, status: "rto" | "returned" | null, on: string) =>
+    ipcRenderer.invoke("returned", subOrder, status, on),
   packing: (
     action: "pack" | "unpack" | "credit",
     sku: string,

@@ -98,12 +98,33 @@ export const ORDERS_DIR = process.env.WW_ORDERS_DIR ?? path.join(ROOT, "orders")
  * worked out from `packedOn`, because that is the day the work was done.
  */
 export interface SubOrder extends Shipment {
+  /**
+   * Which marketplace it came from.
+   *
+   * Stored per parcel rather than per file because the money differs by marketplace — a kit is
+   * listed at one price on Meesho and another on Flipkart, and settles differently again — so
+   * every figure downstream has to know which one paid. Set at import; the two manifests are
+   * different documents and will be read by different parsers.
+   */
+  market: string;
   /** `YYYY-MM-DD` — the date on the manifest this parcel first appeared on. */
   firstSeen: string;
   /** `YYYY-MM-DD` — the day it was packed. Absent means it is still outstanding. */
   packedOn?: string;
   /** Who packed it. Empty or absent even when packed: the names can be filled in later. */
   packedBy?: string[];
+  /**
+   * What became of it. Absent means it went and stayed gone, which is the normal ending.
+   *
+   * **`rto`** — never delivered, refused or undeliverable, and it comes back. **`returned`** — it
+   * was delivered and the buyer sent it back. They are different money: an RTO parcel usually
+   * comes back sellable, a returned one often does not, and the fees differ. Kept as one field
+   * with a date rather than as a rewrite of the packing record, because **a day's numbers must
+   * not change after the day** — see `reversals` in `money()`.
+   */
+  status?: "rto" | "returned";
+  /** `YYYY-MM-DD` — the day it came back, which is the day the money moves. */
+  statusOn?: string;
 }
 
 /**
@@ -146,6 +167,7 @@ export function mergeShipments(
   shipments: Shipment[],
   seen: string,
   source: string,
+  market = "meesho",
 ): Ledger {
   const month = ledger?.month ?? seen.slice(0, 7);
   const subOrders = (ledger?.subOrders ?? []).map((p) => ({ ...p }));
@@ -158,7 +180,7 @@ export function mergeShipments(
       known.awb = s.awb;
       continue;
     }
-    const parcel: SubOrder = { ...s, firstSeen: seen };
+    const parcel: SubOrder = { ...s, market, firstSeen: seen };
     subOrders.push(parcel);
     byId.set(s.subOrder, parcel);
   }
@@ -639,4 +661,174 @@ export async function listDays(): Promise<OrderDay[]> {
   return days
     .filter((d): d is OrderDay => typeof d?.date === "string" && Array.isArray(d.rows))
     .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * Mark a parcel as come back — RTO or a return — on the day it came back.
+ *
+ * **The packing day is never rewritten.** Vansh asked whether the day's cost and profit should be
+ * updated when something comes back; they should not, and this is the one design decision in here
+ * worth defending. A figure that was reported on Tuesday has to still be that figure on Friday, or
+ * nothing can ever be reconciled against a settlement statement — and things come back weeks
+ * later. So the return is an event on ITS own day: the revenue is reversed there, the packing that
+ * happened on Tuesday still happened, and a month adds up correctly either way round.
+ */
+export function markBack(
+  ledger: Ledger,
+  subOrder: string,
+  status: "rto" | "returned",
+  on: string,
+): Ledger {
+  return {
+    ...ledger,
+    subOrders: ledger.subOrders.map((p) => (p.subOrder === subOrder ? { ...p, status, statusOn: on } : p)),
+  };
+}
+
+/** Undo a wrongly-marked return. The parcel goes back to simply having been packed. */
+export function clearBack(ledger: Ledger, subOrder: string): Ledger {
+  return {
+    ...ledger,
+    subOrders: ledger.subOrders.map((p) => {
+      if (p.subOrder !== subOrder) return p;
+      const { status: _s, statusOn: _o, ...rest } = p;
+      return rest;
+    }),
+  };
+}
+
+/** What one kit is worth, as the money view needs it. Filled from `listKits`. */
+export interface KitMoney {
+  sku: string;
+  /** Materials, in paise, at today's prices. */
+  costPaise?: number;
+  /** Per marketplace, what a sale brings in. */
+  pays?: Record<string, number>;
+}
+
+/**
+ * Which costed kit is this manifest SKU?
+ *
+ * The manifest carries the seller's own code and a kit is filed under its listing name, and those
+ * agree only sometimes: `SVP033` is the kit `SVP033 - ANP002`, and `ANP001` is the kit
+ * `WKU001-ANP001` — a combo, where the code that matters is not the leading one. So **every
+ * `<letters><number>` pair in the kit's name is a name it answers to**, which is the same rule the
+ * kit list already groups by.
+ *
+ * Null when nothing matches, and that is a state to SHOW, not to treat as zero: a SKU with no kit
+ * is not a free product, it is one nobody has costed. The whole panel exists to stop a missing
+ * number quietly becoming a profit.
+ */
+export function kitForSku<T extends { sku: string }>(sku: string, kits: T[]): T | null {
+  const want = leadCode(sku);
+  if (!want) return null;
+  return (
+    kits.find((k) => codesIn(k.sku).includes(want)) ??
+    kits.find((k) => leadCode(k.sku) === want) ??
+    null
+  );
+}
+
+/** Every `<letters><number>` in a name, normalised — `WKU001-ANP001` → `["WKU1", "ANP1"]`. */
+const codesIn = (name: string): string[] =>
+  [...name.matchAll(/([A-Za-z]+)[\s_-]*0*(\d+)/g)].map((m) => `${m[1].toUpperCase()}${m[2]}`);
+
+/**
+ * What a stretch of days was worth: what was packed, what it cost in materials, what came back.
+ *
+ * **Three separate facts, never one number.** Revenue and materials come from the costed kit;
+ * anything with no kit is counted as `uncosted` and left OUT of both, because a SKU nobody has
+ * costed contributes an unknown, not a zero. A screen that folded those into the profit would be
+ * confidently wrong on exactly the days the partner's SKUs sold well.
+ *
+ * `reversals` are parcels that came back **in this window**, whenever they were packed — that is
+ * the point of dating a return to its own day rather than editing the packing record.
+ */
+export function money(
+  ledgers: Ledger[],
+  kits: KitMoney[],
+  from: string,
+  to: string,
+): {
+  packets: number;
+  revenuePaise: number;
+  materialsPaise: number;
+  profitPaise: number;
+  /** Packed in the window but with no costed kit — shown, never folded into the total. */
+  uncosted: { name: string; qty: number }[];
+  /** Came back in the window: what it takes off the revenue, and the materials at risk with it. */
+  reversals: { packets: number; revenuePaise: number; materialsPaise: number; rto: number; returned: number };
+  byMarket: { name: string; qty: number }[];
+} {
+  const inWindow = (d?: string) => d !== undefined && d >= from && d <= to;
+  const all = ledgers.flatMap((l) => l.subOrders);
+  const uncosted = new Map<string, number>();
+  const byMarket = new Map<string, number>();
+  let packets = 0;
+  let revenuePaise = 0;
+  let materialsPaise = 0;
+
+  for (const p of all) {
+    if (!inWindow(p.packedOn)) continue;
+    packets += p.qty;
+    byMarket.set(p.market, (byMarket.get(p.market) ?? 0) + p.qty);
+    const kit = kitForSku(p.sku, kits);
+    const pays = kit?.pays?.[p.market];
+    if (!kit || pays === undefined || kit.costPaise === undefined) {
+      uncosted.set(p.sku, (uncosted.get(p.sku) ?? 0) + p.qty);
+      continue;
+    }
+    revenuePaise += pays * p.qty;
+    materialsPaise += kit.costPaise * p.qty;
+  }
+
+  const back = all.filter((p) => inWindow(p.statusOn));
+  const reversals = { packets: 0, revenuePaise: 0, materialsPaise: 0, rto: 0, returned: 0 };
+  for (const p of back) {
+    reversals.packets += p.qty;
+    if (p.status === "rto") reversals.rto += p.qty;
+    if (p.status === "returned") reversals.returned += p.qty;
+    const kit = kitForSku(p.sku, kits);
+    reversals.revenuePaise += (kit?.pays?.[p.market] ?? 0) * p.qty;
+    reversals.materialsPaise += (kit?.costPaise ?? 0) * p.qty;
+  }
+
+  const rank = (m: Map<string, number>) =>
+    [...m].map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty);
+
+  return {
+    packets,
+    revenuePaise,
+    materialsPaise,
+    profitPaise: revenuePaise - materialsPaise - reversals.revenuePaise,
+    uncosted: rank(uncosted),
+    reversals,
+    byMarket: rank(byMarket),
+  };
+}
+
+/**
+ * Packets per person over a stretch of days, and what that comes to at their rate.
+ *
+ * A packet packed by two people is half each, and the halves are kept rather than rounded — three
+ * people on ten packets is 3.33 each, and rounding every row loses packets over a month.
+ */
+export function packerPay(
+  ledgers: Ledger[],
+  from: string,
+  to: string,
+  rates: Record<string, number> = {},
+): { name: string; packets: number; paise: number }[] {
+  const out = new Map<string, number>();
+  for (const p of ledgers.flatMap((l) => l.subOrders)) {
+    if (!p.packedOn || p.packedOn < from || p.packedOn > to || !p.packedBy?.length) continue;
+    for (const who of p.packedBy) out.set(who, (out.get(who) ?? 0) + p.qty / p.packedBy.length);
+  }
+  return [...out]
+    .map(([name, packets]) => ({
+      name,
+      packets: Number(packets.toFixed(2)),
+      paise: Math.round(packets * (rates[name] ?? 0)),
+    }))
+    .sort((a, b) => b.packets - a.packets);
 }
