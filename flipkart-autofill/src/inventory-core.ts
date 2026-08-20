@@ -25,7 +25,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { CATEGORIES_DIR, ROOT } from "./paths.js";
+import { CATEGORIES_DIR, ROOT, userDataDir } from "./paths.js";
 
 export interface Material {
   category: string;
@@ -216,16 +216,97 @@ export interface SavedKit {
  * change; `loadProduct()` only ever reads `<category>.*.defaults.json` from there, so this file
  * cannot reach the Flipkart form.
  */
-export function loadMaterials(dir = CATEGORIES_DIR): Material[] {
+/**
+ * Corrections to the price list, kept where they can always be written.
+ *
+ * **The shipped `categories/materials.json` is read-only in a packaged app** — it lives inside the
+ * bundle — so every price and size fix was refused on the one machine that most needs to make
+ * them: the partner's. Vansh, 2026-08-19: *"light in our listing says 10 meter, we don't have any
+ * option to edit it, it's actually 7 meter… all this should be an alternative to gsheet or excel
+ * files."* Right, and a spreadsheet you cannot type in is not one.
+ *
+ * So a correction is written to `materials.json` when that file is writable — which is the case in
+ * development, where the repo copy is the one to fix and to commit — and to this file when it is
+ * not. `loadMaterials` applies it either way, so the two machines behave identically and a later
+ * release still brings new materials with it: only the rows actually corrected are stored here,
+ * never a copy of the list.
+ *
+ * ponytail: per machine, not synced. A correction made on the partner's PC does not reach Vansh's
+ * — same as before this existed, where it could not be made at all. Put the file in the shared
+ * kits folder if that ever matters, and mind that `listKits` reads every `.json` in there.
+ */
+export const PRICE_EDITS_FILE =
+  process.env.WW_PRICE_EDITS ?? path.join(userDataDir(), "price-edits.json");
+
+/** What one row had corrected. Only the fields somebody actually changed are stored. */
+interface PriceEdits {
+  edits?: Record<string, { paise?: number | null; size?: string; material?: string; aka?: string[] }>;
+  added?: Material[];
+}
+
+function readEdits(file = PRICE_EDITS_FILE): PriceEdits {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8")) as PriceEdits;
+  } catch {
+    return {}; // never edited on this machine, or unreadable — either way, no corrections
+  }
+}
+
+/** True when a correction can go into the list itself rather than into the overlay. */
+function canWrite(file: string): boolean {
+  try {
+    fs.accessSync(file, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadMaterials(dir = CATEGORIES_DIR, editsFile = PRICE_EDITS_FILE): Material[] {
   const file = path.join(dir, "materials.json");
   if (!fs.existsSync(file)) return [];
   const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
   // A row is kept if it names a material. A missing or non-numeric price becomes `null`, which
   // the panel reports as a gap — dropping those rows instead would make a known material read as
   // "not on the price list", sending someone off to add a row that is already there.
-  return (parsed.materials ?? [])
+  const { edits = {}, added = [] } = readEdits(editsFile);
+  const rows = [...(parsed.materials ?? []), ...added];
+  return rows
     .filter((m: Material) => typeof m?.material === "string" && m.material.trim() !== "")
-    .map((m: Material) => ({ ...m, paise: typeof m.paise === "number" ? m.paise : null }));
+    .map((m: Material) => {
+      // A correction wins over the shipped row, field by field — so a release that changes a
+      // material's other columns still arrives, carrying the local fix on top.
+      const fixed = { ...m, ...(edits[materialKey(m)] ?? {}) };
+      return { ...fixed, paise: typeof fixed.paise === "number" ? fixed.paise : null };
+    });
+}
+
+/**
+ * Store a correction where it can actually be written, and say which file took it.
+ *
+ * Prefers the list itself: in development that is the repo's copy, the one worth committing and
+ * shipping to everyone. Falls back to the overlay when the list is inside a read-only bundle.
+ */
+function applyEdit(
+  key: string,
+  patch: { paise?: number | null; size?: string; material?: string; aka?: string[] },
+  dir: string,
+  editsFile: string,
+): void {
+  const file = path.join(dir, "materials.json");
+  if (canWrite(file)) {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    const row = (parsed.materials ?? []).find((m: Material) => materialKey(m) === key);
+    if (!row) throw new Error(`No material called "${key}" in the price list.`);
+    Object.assign(row, patch);
+    // Rewritten in place, so every `_` comment, the `aka` lists and the row order survive.
+    fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);
+    return;
+  }
+  const stored = readEdits(editsFile);
+  const edits = { ...(stored.edits ?? {}), [key]: { ...(stored.edits?.[key] ?? {}), ...patch } };
+  fs.mkdirSync(path.dirname(editsFile), { recursive: true });
+  fs.writeFileSync(editsFile, `${JSON.stringify({ ...stored, edits }, null, 2)}\n`);
 }
 
 /**
@@ -242,18 +323,48 @@ export function loadMaterials(dir = CATEGORIES_DIR): Material[] {
  * **Fails loudly where the folder is read-only.** Packaged, `categories/` lives inside the app
  * bundle, and a silent no-op would look exactly like a saved change until the next kit disagreed.
  */
-export function setMaterialPrice(
+export function editMaterial(
   key: string,
-  paise: number | null,
+  patch: { paise?: number | null; size?: string; material?: string },
   dir = CATEGORIES_DIR,
+  editsFile = PRICE_EDITS_FILE,
 ): Material[] {
-  const file = path.join(dir, "materials.json");
-  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-  const row = (parsed.materials ?? []).find((m: Material) => materialKey(m) === key);
+  // The row has to exist in the list as loaded — which includes anything added here before, and
+  // anything already corrected. Editing something that is not there is a bug, not a new material.
+  const rows = loadMaterials(dir, editsFile);
+  const row = rows.find((m) => materialKey(m) === key);
   if (!row) throw new Error(`No material called "${key}" in the price list.`);
-  row.paise = paise;
-  fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);
-  return loadMaterials(dir);
+
+  const rename = patch.material?.trim();
+  if (rename !== undefined && rename !== row.material) {
+    if (rename === "") throw new Error("A material needs a name.");
+    /**
+     * **Renaming carries the old name into `aka`, always.** The partner's sheets are written by
+     * hand and say what they have always said — `LED String Light, 10 m`, `CONFETI SILVER
+     * BALLOONS` — and matching is by name. A rename that drops the old one silently un-matches
+     * every sheet that used it, and an un-matched line does not fail loudly: it leaves the
+     * material out of the total. The rule is in CLAUDE.md; this is the code that keeps it, so
+     * nobody has to remember.
+     */
+    const taken = rows.find(
+      (m) => m !== row
+        && (normalize(m.material) === normalize(rename)
+          || (m.aka ?? []).some((a) => normalize(a) === normalize(rename))),
+    );
+    if (taken) {
+      throw new Error(
+        `"${taken.material}" already uses that name (${taken.category}). Two rows with one name ` +
+        `tie for ever, and a tie is settled by file order.`,
+      );
+    }
+    const aka = [...(row.aka ?? [])];
+    if (!aka.some((a) => normalize(a) === normalize(row.material))) aka.push(row.material);
+    applyEdit(key, { ...patch, material: rename, aka }, dir, editsFile);
+    return loadMaterials(dir, editsFile);
+  }
+
+  applyEdit(key, patch, dir, editsFile);
+  return loadMaterials(dir, editsFile);
 }
 
 /**
@@ -275,8 +386,9 @@ export function setMaterialPrice(
  * not a thing to do in a hurry through a small form.
  */
 export function addMaterial(
-  row: { category: string; material: string; paise: number | null },
+  row: { category: string; material: string; paise: number | null; size?: string },
   dir = CATEGORIES_DIR,
+  editsFile = PRICE_EDITS_FILE,
 ): Material[] {
   const category = row.category.trim();
   const material = row.material.trim();
@@ -284,7 +396,9 @@ export function addMaterial(
 
   const file = path.join(dir, "materials.json");
   const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-  const rows: Material[] = parsed.materials ?? [];
+  // Everything already on the list, INCLUDING rows added here before — otherwise the duplicate
+  // check only sees the shipped file and the same name can be added twice on a packaged machine.
+  const rows: Material[] = loadMaterials(dir, editsFile);
 
   const taken = rows.find(
     (m) => normalize(m.material) === normalize(material)
@@ -298,11 +412,28 @@ export function addMaterial(
     );
   }
 
-  const last = rows.map((m) => m.category).lastIndexOf(category);
-  rows.splice(last === -1 ? rows.length : last + 1, 0, { category, material, paise: row.paise });
-  parsed.materials = rows;
-  fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);
-  return loadMaterials(dir);
+  const added: Material = { category, material, paise: row.paise, ...(row.size ? { size: row.size } : {}) };
+
+  if (canWrite(file)) {
+    // The new row goes in beside its own category — the list is read by people and that grouping
+    // is the only structure it has. Written into the shipped file, so it can be committed.
+    const shipped: Material[] = parsed.materials ?? [];
+    const last = shipped.map((m) => m.category).lastIndexOf(category);
+    shipped.splice(last === -1 ? shipped.length : last + 1, 0, added);
+    parsed.materials = shipped;
+    fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);
+  } else {
+    // Packaged: the list is inside the bundle. The row goes in the overlay instead, where
+    // `loadMaterials` picks it up — grouped only by category name, since file order is not ours
+    // to control there.
+    const stored = readEdits(editsFile);
+    fs.mkdirSync(path.dirname(editsFile), { recursive: true });
+    fs.writeFileSync(
+      editsFile,
+      `${JSON.stringify({ ...stored, added: [...(stored.added ?? []), added] }, null, 2)}\n`,
+    );
+  }
+  return loadMaterials(dir, editsFile);
 }
 
 /**

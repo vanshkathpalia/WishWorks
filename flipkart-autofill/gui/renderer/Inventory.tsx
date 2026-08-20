@@ -610,8 +610,55 @@ export function Inventory({ n }: { n: number }) {
     setTimeout(() => setPriceNote(null), 8000);
   }
 
+  /**
+   * Correct what we stock of a material — `10 meter` when the reel is 7.
+   *
+   * It writes to the price list, not to this kit, because a size is a fact about the material and
+   * not about one purchase: it is what the sizes infographic prints and what the parcel rules read.
+   * Vansh, 2026-08-19: *"light in our listing says 10 meter, we don't have any option to edit it,
+   * it's actually 7 meter… all this should be an alternative to gsheet or excel files."*
+   */
+  async function fixSize(materialKey: string, size: string) {
+    const r = await window.ww.editMaterial(materialKey, { size: size.trim() });
+    if (!r.ok) {
+      setPriceNote(r.message);
+      return;
+    }
+    setMaterials(r.result);
+    setPriceNote(
+      size.trim() === ""
+        ? `${materialKey.split("|")[1]} has no size on the list now.`
+        : `${materialKey.split("|")[1]} is ${size.trim()} on the price list, for every kit.`,
+    );
+    setTimeout(() => setPriceNote(null), 8000);
+  }
+
+  /**
+   * Rename a material on the list — because the size is sometimes IN the name.
+   *
+   * `LED String Light, 10 m` is the row Vansh hit: no `size` field to correct, the wrong number
+   * baked into what the material is called. **The old name is kept as an `aka` automatically**
+   * (the engine does it, not this screen): the partner's sheets say what they have always said,
+   * matching is by name, and a rename that dropped the old one would silently un-match every sheet
+   * that used it — which does not fail loudly, it just leaves the material out of the total.
+   */
+  async function fixName(materialKey: string, name: string) {
+    const r = await window.ww.editMaterial(materialKey, { material: name.trim() });
+    if (!r.ok) {
+      setPriceNote(r.message);
+      return;
+    }
+    setMaterials(r.result);
+    void window.ww.materialGaps().then(setGaps);
+    setPriceNote(
+      `${materialKey.split("|")[1]} is called ${name.trim()} now — the old name still matches, ` +
+      `so sheets that use it keep working.`,
+    );
+    setTimeout(() => setPriceNote(null), 8000);
+  }
+
   async function fixList(materialKey: string, paise: number) {
-    const r = await window.ww.setMaterialPrice(materialKey, paise);
+    const r = await window.ww.editMaterial(materialKey, { paise });
     if (!r.ok) {
       setPriceNote(r.message);
       return;
@@ -996,7 +1043,44 @@ export function Inventory({ n }: { n: number }) {
                 <tr key={i} className={l.paise === null ? "warn" : ""}>
                   <td>
                     {l.item}
-                    {l.size && <span className="muted"> · {l.size}</span>}
+                    {/* What the LIST calls it and what we stock of it — both editable, both
+                        written to the price list. They were labels, and a label is a promise that
+                        a number is right: this one said `LED String Light, 10 m` for a 7 metre
+                        reel, with nowhere to say so. The sheet's own wording stays above,
+                        untouched, because that is evidence of what was read. */}
+                    {l.match ? (
+                      <div className="row-edit">
+                        <input
+                          type="text"
+                          className="size-box wide"
+                          defaultValue={l.match.material}
+                          title="What the price list calls this. Renaming keeps the old name working."
+                          key={`${key(l.match)}:name:${l.match.material}`}
+                          onBlur={(e) => {
+                            if (e.target.value.trim() !== l.match!.material) {
+                              void fixName(key(l.match!), e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                        />
+                        <input
+                          type="text"
+                          className="size-box"
+                          defaultValue={l.match.size ?? ""}
+                          placeholder="size"
+                          title="What we stock of this — written to the price list, for every kit"
+                          key={`${key(l.match)}:size:${l.match.size ?? ""}`}
+                          onBlur={(e) => {
+                            if (e.target.value.trim() !== (l.match!.size ?? "")) {
+                              void fixSize(key(l.match!), e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                        />
+                      </div>
+                    ) : (
+                      l.size && <span className="muted"> · {l.size}</span>
+                    )}
                   </td>
                   {/* Editable. The AI counts what the SHEET shows, which is not always what gets
                       bought — and where it simply miscounted, this is the fix that needs no data

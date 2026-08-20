@@ -1717,3 +1717,37 @@ textarea.json {
 .sheet.login .error {
   margin: 0;
 }
+
+/* The size on a costed line — a box, not a label. It sits inline after the material name and is
+   deliberately small: it holds "7 meter", never a sentence. */
+.size-box {
+  font: inherit;
+  font-size: 12px;
+  width: 88px;
+  margin-left: 8px;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #211c1a;
+  color: var(--muted);
+}
+.size-box:hover {
+  border-color: var(--line);
+}
+.size-box:focus {
+  outline: none;
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+/* Name and size on one costed line. The sheet's own wording sits above them, untouched. */
+.row-edit {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.size-box.wide {
+  width: 100%;
+  max-width: 230px;
+  margin-left: 0;
+}

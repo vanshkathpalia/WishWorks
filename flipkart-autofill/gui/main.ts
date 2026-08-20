@@ -504,43 +504,29 @@ ipcMain.handle(
 );
 
 /**
- * Change a price in the list itself — for every kit, and for the other machine on the next release.
+ * Correct a row in the price list — price, size, or both — for every kit costed from here on.
  *
- * Refused where `categories/` is inside the app bundle, because a silent no-op there would look
- * exactly like a saved change right up until the next kit disagreed with this one.
+ * **No longer refused on a packaged app.** It used to be, because `categories/` lives inside the
+ * bundle and a silent no-op would look exactly like a saved change; the answer was to make the
+ * write real rather than to keep saying no. The engine puts the correction in the list itself
+ * where that is writable and beside the app's own data where it is not, and applies it either way
+ * — so the partner can fix a size without it going out as a release (WW-179).
  */
 ipcMain.handle(
-  "setMaterialPrice",
-  async (_e, key: string, paise: number | null): Promise<Attempt<unknown>> => {
-    if (app.isPackaged) {
-      return {
-        ok: false,
-        message:
-          "The price list ships inside the app, so it cannot be changed here — a change has to go out as a new version, or the two machines would disagree about what a kit costs. Use the price for this kit only, and ask for the list to be corrected.",
-      };
-    }
+  "editMaterial",
+  async (_e, key: string, patch: { paise?: number | null; size?: string; material?: string }): Promise<Attempt<unknown>> => {
     try {
-      return { ok: true, result: (await inventoryEngine()).setMaterialPrice(key, paise) };
+      return { ok: true, result: (await inventoryEngine()).editMaterial(key, patch) };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
   },
 );
 
-/**
- * Add a material the list has never had. Same read-only refusal as `setMaterialPrice`, and for the
- * same reason: packaged, `categories/` is inside the bundle and the write would be a lie.
- */
+/** Add a material the list has never had. Writable everywhere now, same as `editMaterial`. */
 ipcMain.handle(
   "addMaterial",
   async (_e, row: { category: string; material: string; paise: number | null }): Promise<Attempt<unknown>> => {
-    if (app.isPackaged) {
-      return {
-        ok: false,
-        message:
-          "The price list ships inside the app, so a new material cannot be added here — it has to go out as a new version, or the two machines would disagree about what a kit costs. Cost the kit without it for now and send the name and price to be added to the list.",
-      };
-    }
     try {
       return { ok: true, result: (await inventoryEngine()).addMaterial(row) };
     } catch (e) {

@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -38,7 +38,7 @@ import {
   rupees,
   saveKit,
   score,
-  setMaterialPrice,
+  editMaterial,
   tokens,
   type Material,
 } from "../src/inventory-core.js";
@@ -591,7 +591,7 @@ describe("a price for one kit versus a price for the list", () => {
       }, null, 2),
     );
 
-    const after = setMaterialPrice("Foil Balloon|Kitty Foil", 3500, dir);
+    const after = editMaterial("Foil Balloon|Kitty Foil", { paise: 3500 }, dir, path.join(dir, "edits.json"));
     expect(after.find((m) => m.material === "Kitty Foil")?.paise).toBe(3500);
 
     const raw = JSON.parse(readFileSync(path.join(dir, "materials.json"), "utf8"));
@@ -600,19 +600,73 @@ describe("a price for one kit versus a price for the list", () => {
     expect(raw.materials[1].paise).toBe(350); // nothing else touched
   });
 
+  /**
+   * The size is data like any other and was the one column with no way to change it — Vansh:
+   * *"light in our listing says 10 meter… it's actually 7 meter"*. The second half matters more:
+   * **on the partner's machine the price list is inside the app bundle and cannot be written at
+   * all**, which made every correction a message to Vansh instead of a keystroke.
+   */
+  it("corrects a size, and falls back to the overlay when the list itself is read-only", () => {
+    const dir = tmp();
+    const file = path.join(dir, "materials.json");
+    const edits = path.join(dir, "edits.json");
+    writeFileSync(
+      file,
+      JSON.stringify({
+        materials: [
+          { category: "Light", material: "Fairy Light", paise: 9000, size: "10 meter" },
+          { category: "Tape", material: "Arch Tape", paise: 350 },
+        ],
+      }, null, 2),
+    );
+
+    // Writable: the correction goes into the list itself, which is the copy worth committing.
+    const fixed = editMaterial("Light|Fairy Light", { size: "7 meter" }, dir, edits);
+    expect(fixed.find((m) => m.material === "Fairy Light")?.size).toBe("7 meter");
+    expect(existsSync(edits)).toBe(false);
+    expect(JSON.parse(readFileSync(file, "utf8")).materials[0].size).toBe("7 meter");
+    // And nothing else about the row moved.
+    expect(fixed.find((m) => m.material === "Fairy Light")?.paise).toBe(9000);
+
+    // Read-only, which is what a packaged app looks like: the correction lands in the overlay and
+    // is applied on top of the shipped row.
+    chmodSync(file, 0o444);
+    const again = editMaterial("Light|Fairy Light", { paise: 8000, size: "5 meter" }, dir, edits);
+    expect(again.find((m) => m.material === "Fairy Light")).toMatchObject({ paise: 8000, size: "5 meter" });
+    expect(JSON.parse(readFileSync(file, "utf8")).materials[0].size).toBe("7 meter"); // untouched
+    expect(loadMaterials(dir, edits).find((m) => m.material === "Fairy Light")?.size).toBe("5 meter");
+
+    // Renaming keeps the old name as an `aka`, or every sheet that used it stops matching — and
+    // an un-matched line does not fail loudly, it drops out of the total.
+    const renamed = editMaterial("Light|Fairy Light", { material: "Fairy Light, 7 m" }, dir, edits);
+    const row = renamed.find((m) => m.material === "Fairy Light, 7 m");
+    expect(row?.aka).toContain("Fairy Light");
+    expect(row?.paise).toBe(8000); // the rest of the row came with it
+    // Taking a name another row already answers to is refused: a tie is settled by file order.
+    expect(() => editMaterial("Tape|Arch Tape", { material: "fairy light" }, dir, edits))
+      .toThrow(/already uses that name/);
+
+    // A material added while the list is read-only is on the list, and cannot be added twice.
+    addMaterial({ category: "Light", material: "Rice Light", paise: 4000 }, dir, edits);
+    expect(loadMaterials(dir, edits).some((m) => m.material === "Rice Light")).toBe(true);
+    expect(() => addMaterial({ category: "Light", material: "rice light", paise: 1 }, dir, edits))
+      .toThrow(/already on the list/);
+    chmodSync(file, 0o644);
+  });
+
   it("can blank a price back out, rather than only ever setting one", () => {
     const dir = tmp();
     writeFileSync(
       path.join(dir, "materials.json"),
       JSON.stringify({ materials: [{ category: "Tape", material: "Arch Tape", paise: 350 }] }),
     );
-    expect(setMaterialPrice("Tape|Arch Tape", null, dir)[0].paise).toBeNull();
+    expect(editMaterial("Tape|Arch Tape", { paise: null }, dir)[0].paise).toBeNull();
   });
 
   it("refuses a material that is not on the list instead of adding one", () => {
     const dir = tmp();
     writeFileSync(path.join(dir, "materials.json"), JSON.stringify({ materials: [] }));
-    expect(() => setMaterialPrice("Nope|Nothing", 100, dir)).toThrow(/No material/);
+    expect(() => editMaterial("Nope|Nothing", { paise: 100 }, dir)).toThrow(/No material/);
   });
 });
 

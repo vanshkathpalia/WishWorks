@@ -287,7 +287,18 @@ export interface WwApi {
    * Change a price in the shipped list — every kit, both machines. Refused in a packaged app,
    * where the list is read-only and a change has to go out as a release.
    */
-  setMaterialPrice(key: string, paise: number | null): Promise<Attempt<Material[]>>;
+  /**
+   * Correct a row in the price list — the price, the size, or both. Reaches every kit.
+   *
+   * Works on a packaged app too: where `categories/` is inside the bundle the correction is kept
+   * beside the app's own data and applied on top of the shipped list, so the partner can fix a
+   * wrong size without it having to go out as a release.
+   */
+  editMaterial(
+    key: string,
+    /** `material` renames the row; the old name is kept as an `aka` so old sheets still match. */
+    patch: { paise?: number | null; size?: string; material?: string },
+  ): Promise<Attempt<Material[]>>;
 
   /** Add a material the list has never had. Refused in a packaged app, same as the price above. */
   addMaterial(row: { category: string; material: string; paise: number | null }): Promise<Attempt<Material[]>>;
