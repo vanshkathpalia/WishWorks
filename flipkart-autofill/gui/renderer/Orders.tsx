@@ -19,8 +19,9 @@
  * each, which is exactly how they already split it ("six and four, fifty fifty, no problem").
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { OrderDay, OrderRow } from "../shared.js";
+import { isPacked } from "../shared.js";
 import { fileUrl } from "./ui.js";
 
 /** Packets per worker over the days given — the only number pay day needs. */
@@ -57,7 +58,7 @@ const showDate = (date: string) =>
  * went through it at all, so the first anyone knows about a missing picture is standing in front
  * of a parcel. The file is copied into the ready folder under the SKU's own code.
  */
-function SkuImage({ sku }: { sku: string }) {
+function SkuImage({ sku, tick }: { sku: string; tick: React.ReactNode }) {
   const [position, setPosition] = useState(2);
   const [file, setFile] = useState<string | null | undefined>(undefined);
 
@@ -86,6 +87,9 @@ function SkuImage({ sku }: { sku: string }) {
         <button onClick={() => void add()}>
           {file ? "Replace this picture…" : "Add a picture…"}
         </button>
+        {/* The tick sits at the end of this row on Vansh's call — it used to be a panel of its own
+            above the picture, pushing the one thing the packer needs to see off the screen. */}
+        {tick}
       </div>
 
       {file === undefined ? (
@@ -108,68 +112,115 @@ function SkuImage({ sku }: { sku: string }) {
 }
 
 /**
- * Who packed this SKU. Names are clicked, never typed — the same rule the whole app follows for
- * IDs and paths, and here it is also what keeps one worker from becoming two spellings in the
- * monthly total.
+ * Done, and — only if you want to say — who did it.
+ *
+ * **Two answers, and the second is optional.** Ticking used to demand a name before it would
+ * register at all, and the panel asking for it sat above the picture, pushing the one thing the
+ * person packing actually needs off the screen. Vansh, 2026-08-20: *"this session is irritating me,
+ * not cool — remove it, instead up the image part and have a checkbox at the end of this… and as
+ * soon as that is checked we give a dropdown only when that is checked to select the packer… and
+ * we can even skip filling the packer for now by clicking somewhere else on the screen."*
+ *
+ * So: a checkbox at the end of the picture row. Ticking it marks the SKU packed straight away and
+ * opens the packer menu; clicking anywhere else closes the menu and leaves it packed with nobody
+ * named, which is a real state — the names can be filled in at the end of the day. Unticking
+ * clears both, because "not packed" and "packed by nobody" must not be one thing that quietly
+ * keeps paying somebody.
+ *
+ * More than one name splits the credit evenly, which is what they already do between themselves
+ * ("six and four, fifty fifty, no problem").
  */
-function PackedBy({
+function PackedTick({
   row,
   workers,
+  onPacked,
   onChange,
   onAddWorker,
 }: {
   row: OrderRow;
   workers: string[];
+  onPacked: (packed: boolean) => void;
   onChange: (packedBy: string[]) => void;
   onAddWorker: (name: string) => void;
 }) {
-  const [adding, setAdding] = useState("");
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const packed = isPacked(row);
   const share = row.packedBy.length > 0 ? row.qty / row.packedBy.length : 0;
 
+  // Clicking anywhere else IS the skip, so it must close from a click on the whole document —
+  // not from a blur, which never fires for a click on plain text.
+  useEffect(() => {
+    if (!open) return;
+    const shut = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", shut);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", shut);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
   return (
-    <div className="packed-by">
-      <label className="packed-tick">
+    <div className="packed-tick-wrap" ref={box}>
+      <label className={`packed-tick ${packed ? "on" : ""}`}>
         <input
           type="checkbox"
-          checked={row.packedBy.length > 0}
-          /* Unticking clears the names: "not packed" and "packed by nobody" must not be one state
-             that quietly keeps paying somebody. */
-          onChange={(e) => onChange(e.target.checked ? workers.slice(0, 1) : [])}
-        />
-        <span>Packed{row.packedBy.length > 0 ? ` — ${row.qty} done` : ""}</span>
-      </label>
-
-      <div className="who">
-        {workers.map((name) => {
-          const on = row.packedBy.includes(name);
-          return (
-            <button
-              key={name}
-              className={on ? "chosen" : ""}
-              onClick={() => onChange(on ? row.packedBy.filter((n) => n !== name) : [...row.packedBy, name])}
-            >
-              {name}
-              {on && <em> {Number(share.toFixed(2))}</em>}
-            </button>
-          );
-        })}
-        <input
-          type="text"
-          placeholder="add a packer…"
-          value={adding}
-          onChange={(e) => setAdding(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter" || !adding.trim()) return;
-            onAddWorker(adding.trim());
-            setAdding("");
+          checked={packed}
+          onChange={(e) => {
+            onPacked(e.target.checked);
+            setOpen(e.target.checked);
           }}
         />
-      </div>
-      {row.packedBy.length > 1 && (
-        <p className="muted">
-          Split {row.packedBy.length} ways — {Number(share.toFixed(2))} packets each toward this
-          month&apos;s pay.
-        </p>
+        <span>{packed ? `Packed${row.packedBy.length > 0 ? ` — ${row.packedBy.join(", ")}` : ""}` : "Packed"}</span>
+      </label>
+
+      {open && (
+        <div className="packer-menu">
+          <p className="muted">Who packed these {row.qty}?</p>
+          {workers.map((name) => {
+            const on = row.packedBy.includes(name);
+            return (
+              <button
+                key={name}
+                className={on ? "chosen" : ""}
+                onClick={() => onChange(on ? row.packedBy.filter((n) => n !== name) : [...row.packedBy, name])}
+              >
+                <span>{name}</span>
+                {on && <em>{Number(share.toFixed(2))}</em>}
+              </button>
+            );
+          })}
+
+          {adding === null ? (
+            <button className="add" onClick={() => setAdding("")}>+ someone new</button>
+          ) : (
+            <input
+              type="text"
+              autoFocus
+              placeholder="their name"
+              value={adding}
+              onChange={(e) => setAdding(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setAdding(null);
+                if (e.key !== "Enter" || !adding.trim()) return;
+                onAddWorker(adding.trim());
+                onChange([...row.packedBy, adding.trim()]);
+                setAdding(null);
+              }}
+            />
+          )}
+
+          {row.packedBy.length > 1 && (
+            <p className="muted">
+              Split {row.packedBy.length} ways — {Number(share.toFixed(2))} packets each.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -195,7 +246,7 @@ export function Orders() {
   const day = days?.find((d) => d.date === date) ?? null;
   const row = day?.rows.find((r) => r.sku === sku) ?? null;
   const packets = day?.rows.reduce((n, r) => n + r.qty, 0) ?? 0;
-  const done = day?.rows.filter((r) => r.packedBy.length > 0).reduce((n, r) => n + r.qty, 0) ?? 0;
+  const done = day?.rows.filter(isPacked).reduce((n, r) => n + r.qty, 0) ?? 0;
 
   /** Write the day back and keep the screen on the same object — no reload, no lost click. */
   function patch(next: OrderDay) {
@@ -203,9 +254,10 @@ export function Orders() {
     void window.ww.saveDay(next);
   }
 
-  function setPackedBy(target: OrderRow, packedBy: string[]) {
+  /** One row, changed in place. Everything the tick does goes through here. */
+  function setRow(target: OrderRow, change: Partial<OrderRow>) {
     if (!day) return;
-    patch({ ...day, rows: day.rows.map((r) => (r === target ? { ...r, packedBy } : r)) });
+    patch({ ...day, rows: day.rows.map((r) => (r === target ? { ...r, ...change } : r)) });
   }
 
   function addWorker(name: string) {
@@ -296,12 +348,14 @@ export function Orders() {
               {day.rows.map((r) => (
                 <li key={r.sku}>
                   <button
-                    className={`${r.sku === sku ? "chosen" : ""} ${r.packedBy.length > 0 ? "done" : ""}`}
+                    className={`${r.sku === sku ? "chosen" : ""} ${isPacked(r) ? "done" : ""}`}
                     onClick={() => setSku(r.sku)}
                   >
                     <span className="qty">{r.qty}</span>
                     <span className="lid">{r.sku}</span>
-                    {r.packedBy.length > 0 && <em>{r.packedBy.join(", ")}</em>}
+                    {/* A tick for done, the names when they are known — they are two facts and
+                        one can arrive hours after the other. */}
+                    {isPacked(r) && <em>{r.packedBy.length > 0 ? r.packedBy.join(", ") : "✓"}</em>}
                   </button>
                 </li>
               ))}
@@ -340,13 +394,20 @@ export function Orders() {
                     {row.qty} packet{row.qty === 1 ? "" : "s"} to make
                   </small>
                 </h2>
-                <PackedBy
-                  row={row}
-                  workers={workers}
-                  onChange={(packedBy) => setPackedBy(row, packedBy)}
-                  onAddWorker={addWorker}
+                <SkuImage
+                  sku={row.sku}
+                  tick={
+                    <PackedTick
+                      row={row}
+                      workers={workers}
+                      /* Unticking clears the names with it: "not packed" and "packed by nobody"
+                         must not be one state that quietly keeps paying somebody. */
+                      onPacked={(packed) => setRow(row, packed ? { packed } : { packed, packedBy: [] })}
+                      onChange={(packedBy) => setRow(row, { packedBy })}
+                      onAddWorker={addWorker}
+                    />
+                  }
                 />
-                <SkuImage sku={row.sku} />
               </>
             )}
           </div>

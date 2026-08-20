@@ -31,6 +31,16 @@ export interface OrderRow {
   /** Total packets to make — summed if the same SKU appears on more than one manifest page. */
   qty: number;
   /**
+   * Done. **Its own fact, separate from who did it**, because those are two answers and the second
+   * one is optional: the packing is finished the moment the box is closed, and whether anybody has
+   * said yet who closed it is a different question. It used to be inferred from `packedBy` being
+   * non-empty, which forced a name out of you before you could tick anything off.
+   *
+   * Absent on a day recorded before this existed — a row with names on it was packed, and reading
+   * it that way is what keeps those days right.
+   */
+  packed?: boolean;
+  /**
    * Who packed it. Empty means not packed yet; more than one name splits the credit evenly,
    * which is what the workers already do between themselves ("fifty fifty, six and four, same
    * thing"). Deliberately not per-packet: nobody is going to record that one at a time.

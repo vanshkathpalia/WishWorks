@@ -1615,51 +1615,6 @@ textarea.json {
   max-width: 620px;
 }
 
-.packed-by {
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  max-width: 620px;
-}
-.packed-tick {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 16px;
-  font-weight: 600;
-}
-.packed-tick input {
-  width: 20px;
-  height: 20px;
-  accent-color: var(--accent);
-}
-.who {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
-}
-.who button.chosen {
-  border-color: var(--accent);
-  background: #2a211b;
-}
-/* The share this person gets — the number that becomes their pay, next to their name. */
-.who button em {
-  font-style: normal;
-  color: var(--accent);
-  font-weight: 700;
-}
-.who input {
-  font: inherit;
-  padding: 8px 12px;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  background: none;
-  color: var(--ink);
-  width: 140px;
-}
-
 /* The two pictures a SKU can have, and the way to add one. `.picks` above the image rather than
    under it: the buttons must not move when a tall picture loads. */
 .sku-pictures {
@@ -1750,4 +1705,131 @@ textarea.json {
   width: 100%;
   max-width: 230px;
   margin-left: 0;
+}
+
+/* ------------------------------------------------------------------ done, and who did it
+
+   A checkbox at the end of the picture row, and a menu that only exists while it is open.
+   Clicking anywhere else closes it and leaves the SKU packed with nobody named — that is the
+   skip, and it has to be as easy as the tick. */
+
+.packed-tick-wrap {
+  position: relative;
+  margin-left: auto;
+}
+.packed-tick {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #262120;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.packed-tick:hover {
+  border-color: var(--accent);
+}
+.packed-tick.on {
+  border-color: #4f7a45;
+  background: #22301f;
+  color: #b6dfa8;
+}
+.packed-tick input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.packer-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+.packer-menu p.muted {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+.packer-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  background: none;
+  text-align: left;
+}
+.packer-menu button:hover {
+  background: #241f1d;
+}
+.packer-menu button.chosen {
+  border-color: var(--accent);
+  background: #2a211b;
+}
+/* The share this person gets — the number their pay is worked out from. */
+.packer-menu button em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--accent);
+}
+.packer-menu button.add {
+  color: var(--muted);
+}
+.packer-menu input {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: #12100f;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ the orders panel is wide
+
+   Every other panel is prose and stays at a readable 860px. This one is a list beside a
+   photograph, and both want the room — Vansh: "you are not using the full screen". The paragraphs
+   inside it keep their own 62ch limit, so widening the panel does not widen the reading. */
+
+.panel.orders {
+  max-width: 1600px;
+}
+.panel.orders .sku-image img,
+.panel.orders .sku-image.empty,
+.panel.orders .sku-pictures {
+  max-width: 100%;
+}
+
+/* Small window, or one side-by-side with a browser: the SKUs go above the picture rather than
+   squeezing it into a column too narrow to pack from. */
+@media (max-width: 1000px) {
+  .orders-body {
+    grid-template-columns: 1fr;
+  }
+  .month-pay {
+    margin-top: 14px;
+  }
+}
+@media (max-width: 700px) {
+  .packer-menu {
+    right: auto;
+    left: 0;
+  }
+  .packed-tick-wrap {
+    margin-left: 0;
+  }
 }

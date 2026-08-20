@@ -107,6 +107,8 @@ interface Settings {
   images?: string;
   /** Where the AI's Meesho copy (`<ID>.json`) is kept, when not inside the workspace. */
   meta?: string;
+  /** Where the day's orders and the packer list are kept. Worth pointing at a synced folder. */
+  orders?: string;
   /** Where finished images are written. The one folder meant to live in a shared Drive folder. */
   ready?: string;
   /**
@@ -216,11 +218,19 @@ const KITS_DIR = folderPath("kits", path.join(WORKSPACE, "inventory"));
 process.env.WW_KITS_DIR ??= KITS_DIR;
 
 /**
- * A file per day of orders. Inside the workspace and NOT a settable folder, unlike the kits:
- * these are this seller's own records, they are never shared, and nothing else reads them. It
- * becomes a setting the day someone wants two machines packing off one list.
+ * A file per day of orders, plus the list of people who pack.
+ *
+ * **Settable, and it should usually be pointed at a synced folder.** Vansh, 2026-08-20: *"we will
+ * maintain the data for that in our backend, that excel or whatever should be saved having backup
+ * at Drive maybe — data should not be lost on app uninstall or delete."* Right, and it is the one
+ * folder here that holds something no one can reconstruct: how many packets each person did, which
+ * is what they are PAID on. A costed kit can be costed again and a listing can be written again;
+ * a month of packing cannot be remembered.
+ *
+ * The packer list lives here too rather than in `settings.json`, for the same reason — settings
+ * are machine state and go with the machine.
  */
-const ORDERS_DIR = path.join(WORKSPACE, "orders");
+const ORDERS_DIR = folderPath("orders", path.join(WORKSPACE, "orders"));
 process.env.WW_ORDERS_DIR ??= ORDERS_DIR;
 
 /**
@@ -708,9 +718,28 @@ ipcMain.handle("addSkuImage", async (_e, sku: string, position: number, file: st
   (await ordersEngine()).addSkuImage(FOLDERS.ready.dir, sku, position, file),
 );
 
-/** Who packs. A list of names in settings — ticking one off is a click, never a typed name. */
-ipcMain.handle("workers", () => readSettings().workers ?? []);
-ipcMain.handle("setWorkers", async (_e, workers: string[]) => writeSettings({ workers }));
+/**
+ * Who packs — a list of names in the ORDERS folder, not in settings.
+ *
+ * It belongs beside the days it is used in: both are pay records, both should survive the app
+ * being reinstalled, and both should follow the folder if that is moved to a synced drive. In
+ * `settings.json` it was machine state, which is exactly what it must not be.
+ */
+const PACKERS_FILE = () => path.join(ORDERS_DIR, "packers.json");
+
+ipcMain.handle("workers", async () => {
+  try {
+    return JSON.parse(await readFile(PACKERS_FILE(), "utf8")) as string[];
+  } catch {
+    // No file yet — or the old list, still in settings from before this moved. Either is fine.
+    return readSettings().workers ?? [];
+  }
+});
+
+ipcMain.handle("setWorkers", async (_e, workers: string[]) => {
+  await mkdir(ORDERS_DIR, { recursive: true });
+  await writeFile(PACKERS_FILE(), `${JSON.stringify(workers, null, 2)}\n`);
+});
 
 ipcMain.handle("downloadsDir", async () => (await remembered()).inbox ?? app.getPath("downloads"));
 
@@ -918,6 +947,11 @@ const FOLDERS = {
    * can actually find things — the workspace can sit under Application Support, which is hidden
    * in Finder, and these are the files that get picked up by hand and uploaded.
    */
+  orders: {
+    dir: ORDERS_DIR,
+    label: "Packing records",
+    what: "what was ordered each day and who packed it — the pay record, worth putting on a synced drive",
+  },
   ready: {
     dir: folderPath("ready", path.join(app.getPath("downloads"), "wishworks-ready")),
     label: "Finished images (the ready folder)",

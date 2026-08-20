@@ -25,6 +25,15 @@ import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { OrderDay, OrderRow } from "../src/orders-core.js";
+
+/**
+ * Is this row done? The stored fact, or the old way of saying it.
+ *
+ * `packed` did not exist at first and was inferred from `packedBy` being non-empty, which meant a
+ * name had to be typed before anything could be ticked off. Days recorded then have no flag, and
+ * reading their names as "packed" is what keeps those months' pay right.
+ */
+export const isPacked = (row: OrderRow): boolean => row.packed ?? row.packedBy.length > 0;
 import type { Box, Parcel } from "../src/packaging.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
@@ -40,7 +49,7 @@ export type {
  * the entire point of accounts — so they must not share the folders that data lives in either.
  * An account's own value wins; without one, the machine-wide value; without that, the default.
  */
-export type FolderKey = "images" | "meta" | "products" | "kits" | "ready";
+export type FolderKey = "images" | "meta" | "products" | "kits" | "orders" | "ready";
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
 export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string };

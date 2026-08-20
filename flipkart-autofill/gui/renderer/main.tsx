@@ -276,6 +276,7 @@ function Settings({ close }: { close: () => void }) {
         <FolderSetting which="meta" />
         <FolderSetting which="products" />
         <FolderSetting which="kits" />
+        <FolderSetting which="orders" />
         <FolderSetting which="ready" />
         <div className="picks">
           <button onClick={() => void window.ww.openKitsFolder()}>Open the kits folder</button>
