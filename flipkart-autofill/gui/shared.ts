@@ -24,22 +24,49 @@ import type { DefaultsTab, FieldRow, ScanResult } from "../src/listing.js";
 import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
-import type { OrderDay, OrderRow } from "../src/orders-core.js";
+import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js";
 
 /**
- * Is this row done? The stored fact, or the old way of saying it.
+ * Everything the packing screen draws, as one answer from the engine.
  *
- * `packed` did not exist at first and was inferred from `packedBy` being non-empty, which meant a
- * name had to be typed before anything could be ticked off. Days recorded then have no flag, and
- * reading their names as "packed" is what keeps those months' pay right.
+ * The renderer gets ANSWERS, not records. What "outstanding" means, what a month's packets add up
+ * to, which day counts as today — all of that is arithmetic about somebody's wages and it lives in
+ * one place (`ordersView` in main.ts). A screen that recomputed any of it would be a second
+ * definition of what a person is owed.
  */
-export const isPacked = (row: OrderRow): boolean => row.packed ?? row.packedBy.length > 0;
+export interface OrdersView {
+  /** The local working day, decided by the engine so every screen agrees on it. */
+  today: string;
+  /** Still to pack, by SKU, most first. Ticking one takes it off this list. */
+  outstanding: { sku: string; qty: number }[];
+  summary: DaySummary;
+  /** Packets per person this month — parcels, plus the older per-day records. */
+  monthPay: { name: string; qty: number }[];
+  /** Manifest files read in. For the record, not for deduping: parcels do that themselves. */
+  sources: string[];
+  /** Days with something packed on them, newest first. */
+  packedDays: string[];
+}
+
+/** What happened on one day — the tally. */
+export interface DaySummary {
+  date: string;
+  /** Packed on this day. */
+  packets: number;
+  /** Ticked but with nobody named yet — the number to chase before pay day. */
+  unnamed: number;
+  /** Still outstanding across every month, right now. */
+  left: number;
+  bySku: { name: string; qty: number }[];
+  byPacker: { name: string; qty: number }[];
+  byCourier: { name: string; qty: number }[];
+}
 import type { Box, Parcel } from "../src/packaging.js";
 export type { PromptFile, ListingFolder, PhotoImport, PhotoItem };
 export type {
   Row, FinishResult, InboxItem, ImportResult, Listing, PasteResult, CheckResult,
   FillResult, SessionStatus, DefaultsTab, FieldRow, ScanResult, CostedLine, Kit, KitLine, KitRow, Material, SavedKit, Parcel, Box,
-  OrderDay, OrderRow,
+  Ledger, OrderDay, OrderRow, SubOrder,
 };
 
 /**
@@ -375,14 +402,23 @@ export interface WwApi {
   >;
 
   /**
-   * Read a manifest PDF and fold it into the day it names. Returns the whole day, packing and
-   * all. Dropping the same file twice changes nothing — see `mergeManifest`.
+   * Read a manifest PDF into the month it belongs to, and hand back the whole screen.
+   *
+   * **Safe to drop the same manifest, or a bigger one an hour later.** Each parcel carries its own
+   * sub-order number, so re-reading adds only what is genuinely new — the case no SKU total can
+   * decide, since "6 then 10" and "6 plus 4" look identical and need opposite answers.
    */
-  addManifest(file: string): Promise<Attempt<OrderDay>>;
-  /** Every day recorded on this machine, newest first. Small files; a month of them is pay day. */
-  orderDays(): Promise<OrderDay[]>;
-  /** Write a day back after ticking off some packing. The panel owns the whole object. */
-  saveDay(day: OrderDay): Promise<void>;
+  addManifest(file: string): Promise<Attempt<OrdersView>>;
+  /** The whole packing screen: what is left, today's tally, this month's packets. */
+  orders(): Promise<OrdersView>;
+  /**
+   * Tick a SKU off, undo that tick, or name the packers on one already ticked.
+   *
+   * `pack` takes every outstanding parcel of that SKU; parcels that arrive afterwards are new and
+   * come back as a new, smaller number. `credit` is separate because the names are allowed to
+   * arrive hours later — the tick must never wait for them.
+   */
+  packing(action: "pack" | "unpack" | "credit", sku: string, on: string, by: string[]): Promise<OrdersView>;
   /**
    * A finished image for a SKU out of the ready folder — `2` is what goes in the packet and is
    * what the packing screen opens on, `1` is the main photo. Null when that SKU has no image in

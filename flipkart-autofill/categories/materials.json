@@ -127,7 +127,8 @@
       "paise": 80,
       "aka": [
         "GOLDEN BALLOONS"
-      ]
+      ],
+      "size": "10\""
     },
     {
       "category": "Balloon",
@@ -211,7 +212,8 @@
     {
       "category": "Balloon",
       "material": "Red Balloon",
-      "paise": 80
+      "paise": 80,
+      "size": "10\""
     },
     {
       "category": "Balloon",
@@ -354,7 +356,8 @@
     {
       "category": "Foil Balloon",
       "material": "Heart Foil",
-      "paise": 150
+      "paise": 150,
+      "size": "12\""
     },
     {
       "category": "Foil Balloon",
@@ -485,7 +488,8 @@
       "paise": 1200,
       "aka": [
         "Annaprasan banner"
-      ]
+      ],
+      "size": "6*4\""
     },
     {
       "category": "Banner",
@@ -746,7 +750,8 @@
       "paise": 1900,
       "aka": [
         "led 10 mtr"
-      ]
+      ],
+      "size": "10m"
     },
     {
       "category": "Decoration",
@@ -772,7 +777,8 @@
     {
       "category": "Decoration",
       "material": "White Net",
-      "paise": 1400
+      "paise": 1400,
+      "size": "3*6"
     },
     {
       "category": "Decoration",

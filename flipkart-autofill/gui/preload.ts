@@ -88,8 +88,9 @@ const api: WwApi = {
     ipcRenderer.invoke("applyParcel", id, dimensions),
 
   addManifest: (file: string) => ipcRenderer.invoke("addManifest", file),
-  orderDays: () => ipcRenderer.invoke("orderDays"),
-  saveDay: (day) => ipcRenderer.invoke("saveDay", day),
+  orders: () => ipcRenderer.invoke("orders"),
+  packing: (action: "pack" | "unpack" | "credit", sku: string, on: string, by: string[]) =>
+    ipcRenderer.invoke("packing", action, sku, on, by),
   skuImage: (sku: string, position: number) => ipcRenderer.invoke("skuImage", sku, position),
   addSkuImage: (sku: string, position: number, file: string) =>
     ipcRenderer.invoke("addSkuImage", sku, position, file),

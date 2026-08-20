@@ -690,27 +690,98 @@ ipcMain.handle("importInbox", async (_e, from: string, opts: { move?: boolean; o
 const ordersEngine = () => import("../src/orders-core.js");
 
 /**
- * Read a manifest PDF into the day it names.
+ * Today, as this business counts it — the local calendar day, not UTC.
  *
- * The filename is the merge key, so the second courier's manifest adds to the day while the same
- * file dropped twice does nothing. A PDF with no picklist in it comes back as a message rather
- * than an empty day: "0 SKUs" and "that was the wrong PDF" look identical otherwise, and the
- * whole point of this screen is that nobody is copying the list out by hand to check it against.
+ * Everything else here is UTC on purpose, but a packing day is a working day: before 5:30am in
+ * India the UTC date is still yesterday, and crediting a morning's work to the day before is the
+ * kind of error nobody spots until pay day.
+ */
+function today(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Everything the packing screen draws, computed here in one place.
+ *
+ * The renderer gets answers, not records: it has no business re-implementing what "outstanding"
+ * or "this month's packets" mean, and one shape means one place for those definitions to live.
+ * Every action below returns this same view, so the screen never has to ask twice.
+ */
+async function ordersView(on = today()) {
+  const { listLedgers, listDays, outstanding, parcelCredit, daySummary, workerCredit } = await ordersEngine();
+  const ledgers = await listLedgers();
+  const month = on.slice(0, 7);
+
+  // Pay counts the old per-day files too. They are the fortnight before the ledger existed, they
+  // are somebody's actual work, and dropping them from a month's total would be a silent pay cut.
+  const days = (await listDays()).filter((d) => d.date.startsWith(month));
+  const credit = { ...parcelCredit(ledgers, month) };
+  for (const [who, n] of Object.entries(workerCredit(days))) credit[who] = (credit[who] ?? 0) + n;
+
+  return {
+    today: on,
+    outstanding: outstanding(ledgers.flatMap((l) => l.subOrders)).map(({ sku, qty }) => ({ sku, qty })),
+    summary: daySummary(ledgers, on),
+    monthPay: Object.entries(credit)
+      .map(([name, qty]) => ({ name, qty: Number(qty.toFixed(2)) }))
+      .sort((a, b) => b.qty - a.qty),
+    sources: ledgers.flatMap((l) => l.sources),
+    /** Days with something packed, newest first — for looking back at a summary. */
+    packedDays: [...new Set(ledgers.flatMap((l) => l.subOrders.map((p) => p.packedOn).filter(Boolean)))]
+      .sort()
+      .reverse() as string[],
+  };
+}
+
+/**
+ * Read a manifest PDF into the month it belongs to.
+ *
+ * **Parcels, not totals.** Every parcel carries Meesho's own sub-order number, so a manifest
+ * re-downloaded an hour later — which lists everything still to ship, including what was already
+ * there — adds only what is genuinely new. See `mergeShipments`.
  */
 ipcMain.handle("addManifest", async (_e, file: string): Promise<Attempt<unknown>> => {
-  const { parseManifest, mergeManifest, readDay, writeDay } = await ordersEngine();
+  const { parseManifest, mergeShipments, readLedger, writeLedger } = await ordersEngine();
   const parsed = parseManifest(await readFile(file));
-  if (parsed.rows.length === 0) {
-    return { ok: false, message: `No picklist found in ${path.basename(file)} — is that the supplier manifest?` };
+  if (parsed.shipments.length === 0) {
+    return {
+      ok: false,
+      message: parsed.rows.length > 0
+        ? `${path.basename(file)} has the SKU totals but not the parcel pages, so there is no way to tell its orders from ones already read. Download the full manifest.`
+        : `No orders found in ${path.basename(file)} — is that the supplier manifest?`,
+    };
   }
-  const date = parsed.date ?? new Date().toISOString().slice(0, 10);
-  const day = mergeManifest(await readDay(date), parsed, path.basename(file));
-  await writeDay(day);
-  return { ok: true, result: day };
+  const seen = parsed.date ?? today();
+  const month = seen.slice(0, 7);
+  await writeLedger(mergeShipments(await readLedger(month), parsed.shipments, seen, path.basename(file)));
+  return { ok: true, result: await ordersView() };
 });
 
-ipcMain.handle("orderDays", async () => (await ordersEngine()).listDays());
-ipcMain.handle("saveDay", async (_e, day: unknown) => (await ordersEngine()).writeDay(day as never));
+ipcMain.handle("orders", () => ordersView());
+
+/**
+ * Change what is packed. One handler, because the three actions differ by one word and all three
+ * have to find the right ledgers, write them, and hand back the same recomputed view.
+ *
+ * A SKU's outstanding subOrders can sit in TWO months' files at the turn of a month, so every
+ * ledger is offered the change and only the ones that actually moved are written.
+ */
+ipcMain.handle(
+  "packing",
+  async (_e, action: "pack" | "unpack" | "credit", sku: string, on: string, by: string[]) => {
+    const engine = await ordersEngine();
+    for (const ledger of await engine.listLedgers()) {
+      const next =
+        action === "pack" ? engine.packSku(ledger, sku, on, by)
+        : action === "unpack" ? engine.unpackSku(ledger, sku, on)
+        : engine.creditSku(ledger, sku, on, by);
+      if (JSON.stringify(next.subOrders) !== JSON.stringify(ledger.subOrders)) await engine.writeLedger(next);
+    }
+    return ordersView(on);
+  },
+);
+
 ipcMain.handle("skuImage", async (_e, sku: string, position: number) =>
   (await ordersEngine()).imageForSku(FOLDERS.ready.dir, sku, position),
 );

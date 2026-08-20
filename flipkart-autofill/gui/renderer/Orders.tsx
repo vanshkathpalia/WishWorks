@@ -1,41 +1,29 @@
 /**
- * Orders.tsx — the day's packing list, off the marketplace's own manifest.
+ * Orders.tsx — what is left to pack, off the marketplace's own manifest.
  *
  * What it replaces: reading the acceptance page and writing every order and SKU onto paper.
  * Vansh, 2026-08-19: *"we are checking which order had come and we are manually writing it on a
- * page — that is a very time consuming thing, it can cause errors."* The manifest is the same
- * list, already correct, already printed for the courier. **The marketplace's number wins**: it
- * is the one both sides are held to, and a label mismatch shows up at handover, before the parcel
- * leaves.
+ * page — that is a very time consuming thing, it can cause errors."*
  *
- * The shape is the one he asked for: the SKUs down the left, and the rest of the screen given to
- * **the picture of what goes in the packet** — the second finished image out of the ready folder,
- * because a person packing needs to see the contents, not read a code. Under it, how many packets
- * to make, and the tick that says it is done and who did it.
+ * **It is a queue, not a day.** Orders arrive across an afternoon and get packed the next morning,
+ * and tomorrow's dispatch often gets packed today. So the left-hand list is *everything still to
+ * pack*, and the date only decides who gets paid for it — see `SubOrder` in the engine for why
+ * `firstSeen` and `packedOn` are two different dates.
  *
- * **Who packed it is not decoration.** The workers are paid monthly on how many packets they did,
- * and that count lives on the same sheet of paper this screen replaces — so it has to be captured
- * at the moment the box is closed, or it is not captured at all. Two people on one SKU is half
- * each, which is exactly how they already split it ("six and four, fifty fifty, no problem").
+ * **Counting is by parcel, never by SKU total** (WW-181). Meesho's manifest is a snapshot of
+ * everything ready to ship, so the 2pm download repeats the 12pm one with more added; two
+ * couriers' manifests on one day, by contrast, are genuinely different parcels. Those two cases
+ * are identical at SKU level and need opposite answers. Every parcel carries a sub-order number,
+ * so the engine counts ids and neither case needs a rule.
+ *
+ * The screen holds no arithmetic of its own: `window.ww.orders()` returns what to draw and every
+ * action returns it again. What "outstanding" or "this month's packets" mean is a fact about
+ * somebody's wages, and it belongs in one place.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import type { OrderDay, OrderRow } from "../shared.js";
-import { isPacked } from "../shared.js";
+import type { DaySummary, OrdersView } from "../shared.js";
 import { fileUrl } from "./ui.js";
-
-/** Packets per worker over the days given — the only number pay day needs. */
-function credit(days: OrderDay[]): [string, number][] {
-  const out = new Map<string, number>();
-  for (const day of days) {
-    for (const row of day.rows) {
-      for (const who of row.packedBy) out.set(who, (out.get(who) ?? 0) + row.qty / row.packedBy.length);
-    }
-  }
-  return [...out].sort((a, b) => b[1] - a[1]);
-}
-
-const monthOf = (date: string) => date.slice(0, 7);
 
 /** `2026-08-19` → `19 Aug 2026`. The panel shows dates the way the manifest prints them. */
 const showDate = (date: string) =>
@@ -45,18 +33,13 @@ const showDate = (date: string) =>
  * The picture for the SKU on screen, or a plain reason there isn't one.
  *
  * Reloaded per SKU rather than fetched for the whole list up front: the ready folder is on a
- * shared drive, and walking it seven times on a click is cheaper than walking it once at launch
- * for a screen that might not be opened.
+ * shared drive, and walking it on a click is cheaper than walking it at launch for a screen that
+ * might not be opened.
  *
- * **Opens on image 2 and stays there**, because that is the one that shows what goes in the
- * packet. Image 1 is the shop-window photo and is one click away — Vansh, 2026-08-19: *"I want an
- * option to see the 1st image of that SKU too, by default inventory, but if I want to then there
- * only I should have the option."*
- *
- * **Adding a picture is here rather than in a settings screen** because this is where the gap is
- * discovered: his own listings come out of the finish step named and grouped, his partner's never
- * went through it at all, so the first anyone knows about a missing picture is standing in front
- * of a parcel. The file is copied into the ready folder under the SKU's own code.
+ * **Opens on image 2**, the one that shows what goes in the packet. Image 1 is the shop-window
+ * photo and is one click away. **Adding a picture is here** rather than in a settings screen
+ * because this is where the gap is discovered: listings finished in this app arrive named and
+ * grouped, and the partner's never went through it at all.
  */
 function SkuImage({ sku, tick }: { sku: string; tick: React.ReactNode }) {
   const [position, setPosition] = useState(2);
@@ -97,9 +80,8 @@ function SkuImage({ sku, tick }: { sku: string; tick: React.ReactNode }) {
       ) : file === null ? (
         <div className="sku-image empty">
           No picture for <b>{sku}</b> in the ready folder. Finished listings land there on their
-          own; anything else — a SKU that was never listed through this app — needs one adding
-          above. It is filed under <b>{sku.replace(/[^A-Za-z0-9]+/g, "-")}</b> in that SKU&apos;s
-          own folder, so the shared drive stays readable.
+          own; anything else needs one adding above. It is filed under that SKU&apos;s own code, so
+          the shared drive stays readable.
         </div>
       ) : (
         <figure className="sku-image">
@@ -115,42 +97,35 @@ function SkuImage({ sku, tick }: { sku: string; tick: React.ReactNode }) {
  * Done, and — only if you want to say — who did it.
  *
  * **Two answers, and the second is optional.** Ticking used to demand a name before it would
- * register at all, and the panel asking for it sat above the picture, pushing the one thing the
- * person packing actually needs off the screen. Vansh, 2026-08-20: *"this session is irritating me,
- * not cool — remove it, instead up the image part and have a checkbox at the end of this… and as
- * soon as that is checked we give a dropdown only when that is checked to select the packer… and
- * we can even skip filling the packer for now by clicking somewhere else on the screen."*
+ * register at all. Vansh, 2026-08-20: *"as soon as that is checked we give a dropdown only when
+ * that is checked to select the packer… and we can even skip filling the packer for now by
+ * clicking somewhere else on the screen."*
  *
- * So: a checkbox at the end of the picture row. Ticking it marks the SKU packed straight away and
- * opens the packer menu; clicking anywhere else closes the menu and leaves it packed with nobody
- * named, which is a real state — the names can be filled in at the end of the day. Unticking
- * clears both, because "not packed" and "packed by nobody" must not be one thing that quietly
- * keeps paying somebody.
- *
- * More than one name splits the credit evenly, which is what they already do between themselves
- * ("six and four, fifty fifty, no problem").
+ * So: ticking marks every outstanding parcel of this SKU packed straight away and opens the packer
+ * menu; clicking anywhere else closes the menu and leaves it packed with nobody named, which is a
+ * real state — the names can be filled in later, and the tally says how many are waiting for one.
+ * More than one name splits the credit evenly, which is what they already do between themselves.
  */
 function PackedTick({
-  row,
+  qty,
+  onPack,
+  onCredit,
   workers,
-  onPacked,
-  onChange,
   onAddWorker,
 }: {
-  row: OrderRow;
+  qty: number;
+  onPack: () => void;
+  onCredit: (by: string[]) => void;
   workers: string[];
-  onPacked: (packed: boolean) => void;
-  onChange: (packedBy: string[]) => void;
   onAddWorker: (name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
   const [adding, setAdding] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
-  const packed = isPacked(row);
-  const share = row.packedBy.length > 0 ? row.qty / row.packedBy.length : 0;
 
-  // Clicking anywhere else IS the skip, so it must close from a click on the whole document —
-  // not from a blur, which never fires for a click on plain text.
+  // Clicking anywhere else IS the skip, so it closes from a click on the whole document — not
+  // from a blur, which never fires for a click on plain text.
   useEffect(() => {
     if (!open) return;
     const shut = (e: MouseEvent) => {
@@ -165,30 +140,40 @@ function PackedTick({
     };
   }, [open]);
 
+  function pick(names: string[]) {
+    setChosen(names);
+    onCredit(names);
+  }
+
+  const share = chosen.length > 0 ? qty / chosen.length : 0;
+
   return (
     <div className="packed-tick-wrap" ref={box}>
-      <label className={`packed-tick ${packed ? "on" : ""}`}>
+      <label className="packed-tick">
+        {/* Never checked: ticking takes the SKU off the list entirely, so the box it was ticked in
+            is gone a moment later. Leaving it visually unchecked is honest about that. */}
         <input
           type="checkbox"
-          checked={packed}
-          onChange={(e) => {
-            onPacked(e.target.checked);
-            setOpen(e.target.checked);
+          checked={false}
+          onChange={() => {
+            onPack();
+            setChosen([]);
+            setOpen(true);
           }}
         />
-        <span>{packed ? `Packed${row.packedBy.length > 0 ? ` — ${row.packedBy.join(", ")}` : ""}` : "Packed"}</span>
+        <span>Packed{qty > 1 ? ` — all ${qty}` : ""}</span>
       </label>
 
       {open && (
         <div className="packer-menu">
-          <p className="muted">Who packed these {row.qty}?</p>
+          <p className="muted">Who packed {qty === 1 ? "it" : `these ${qty}`}?</p>
           {workers.map((name) => {
-            const on = row.packedBy.includes(name);
+            const on = chosen.includes(name);
             return (
               <button
                 key={name}
                 className={on ? "chosen" : ""}
-                onClick={() => onChange(on ? row.packedBy.filter((n) => n !== name) : [...row.packedBy, name])}
+                onClick={() => pick(on ? chosen.filter((n) => n !== name) : [...chosen, name])}
               >
                 <span>{name}</span>
                 {on && <em>{Number(share.toFixed(2))}</em>}
@@ -209,56 +194,82 @@ function PackedTick({
                 if (e.key === "Escape") setAdding(null);
                 if (e.key !== "Enter" || !adding.trim()) return;
                 onAddWorker(adding.trim());
-                onChange([...row.packedBy, adding.trim()]);
+                pick([...chosen, adding.trim()]);
                 setAdding(null);
               }}
             />
           )}
 
-          {row.packedBy.length > 1 && (
-            <p className="muted">
-              Split {row.packedBy.length} ways — {Number(share.toFixed(2))} packets each.
-            </p>
-          )}
+          <p className="muted">
+            {chosen.length > 1
+              ? `Split ${chosen.length} ways — ${Number(share.toFixed(2))} packets each.`
+              : "Or click away — it stays packed and you can name them later."}
+          </p>
         </div>
       )}
     </div>
   );
 }
 
+/** The tally: what went out today, who packed it, where it is going, and what is still waiting. */
+function Summary({ summary, onClose }: { summary: DaySummary; onClose: () => void }) {
+  const rows = (title: string, list: { name: string; qty: number }[]) =>
+    list.length === 0 ? null : (
+      <div>
+        <h3>{title}</h3>
+        <ul>
+          {list.map((r) => (
+            <li key={r.name}>
+              <span className="lid">{r.name}</span>
+              <span className="qty">{r.qty}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+
+  return (
+    <div className="modal" onClick={onClose}>
+      <div className="sheet summary" onClick={(e) => e.stopPropagation()}>
+        <h2>{showDate(summary.date)}</h2>
+        <p className="muted">
+          <b>{summary.packets}</b> packed today · <b>{summary.left}</b> still to pack
+          {summary.unnamed > 0 && (
+            <>
+              {" · "}
+              <span className="warnpill">{summary.unnamed} with nobody named</span>
+            </>
+          )}
+        </p>
+        <div className="summary-cols">
+          {rows("By SKU", summary.bySku)}
+          {rows("By packer", summary.byPacker)}
+          {rows("By courier", summary.byCourier)}
+        </div>
+        <button className="close" onClick={onClose}>
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Orders() {
-  const [days, setDays] = useState<OrderDay[] | null>(null);
-  const [date, setDate] = useState<string | null>(null);
+  const [view, setView] = useState<OrdersView | null>(null);
   const [sku, setSku] = useState<string | null>(null);
   const [workers, setWorkers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tally, setTally] = useState(false);
 
   useEffect(() => {
-    void window.ww.orderDays().then((d) => {
-      setDays(d);
-      setDate((now) => now ?? d[0]?.date ?? null);
-    });
+    void window.ww.orders().then(setView);
     void window.ww.workers().then(setWorkers);
   }, []);
 
-  const day = days?.find((d) => d.date === date) ?? null;
-  const row = day?.rows.find((r) => r.sku === sku) ?? null;
-  const packets = day?.rows.reduce((n, r) => n + r.qty, 0) ?? 0;
-  const done = day?.rows.filter(isPacked).reduce((n, r) => n + r.qty, 0) ?? 0;
-
-  /** Write the day back and keep the screen on the same object — no reload, no lost click. */
-  function patch(next: OrderDay) {
-    setDays((all) => (all ?? []).map((d) => (d.date === next.date ? next : d)));
-    void window.ww.saveDay(next);
-  }
-
-  /** One row, changed in place. Everything the tick does goes through here. */
-  function setRow(target: OrderRow, change: Partial<OrderRow>) {
-    if (!day) return;
-    patch({ ...day, rows: day.rows.map((r) => (r === target ? { ...r, ...change } : r)) });
-  }
+  const row = view?.outstanding.find((r) => r.sku === sku) ?? null;
+  const packets = view?.outstanding.reduce((n, r) => n + r.qty, 0) ?? 0;
 
   function addWorker(name: string) {
     if (workers.includes(name)) return;
@@ -273,27 +284,22 @@ export function Orders() {
     setError(null);
     for (const file of files) {
       const r = await window.ww.addManifest(file);
-      if (!r.ok) {
-        setError(r.message);
-        continue;
-      }
-      setDate(r.result.date);
-      setSku(null);
+      if (!r.ok) setError(r.message);
+      else setView(r.result);
     }
-    setDays(await window.ww.orderDays());
+    setSku(null);
     setBusy(false);
   }
-
-  const month = date ? credit((days ?? []).filter((d) => monthOf(d.date) === monthOf(date))) : [];
 
   return (
     <section className="panel orders">
       <header>
-        <h1>Today&apos;s orders</h1>
+        <h1>Still to pack</h1>
         <p>
-          Drop the supplier manifest in. It lists every SKU and how many of each, so nothing gets
-          copied out by hand. Pick a SKU to see what goes in the packet, then tick it off and say
-          who packed it — that tick is what the month&apos;s pay is worked out from.
+          Drop the supplier manifest in — as often as you like, including the same one twice. Every
+          parcel carries its own order number, so re-reading a manifest adds only what is new. Pick
+          a SKU to see what goes in the packet, tick it off, and say who packed it: that tick is
+          what the month&apos;s pay is worked out from.
         </p>
       </header>
 
@@ -317,65 +323,51 @@ export function Orders() {
           <button onClick={() => void window.ww.pick("orders", "files").then(load)}>
             Choose a manifest…
           </button>
+          {view && <button onClick={() => setTally(true)}>Today&apos;s tally</button>}
         </div>
       </div>
       {error && <p className="error">{error}</p>}
 
-      {days !== null && days.length > 1 && (
-        <div className="picks days">
-          {days.slice(0, 14).map((d) => (
-            <button key={d.date} className={d.date === date ? "chosen" : ""} onClick={() => setDate(d.date)}>
-              {showDate(d.date)}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {day === null ? (
+      {view === null ? (
+        <p className="muted">Looking…</p>
+      ) : view.outstanding.length === 0 ? (
         <p className="muted">
-          {days === null ? "Looking…" : "No manifest read yet. Download it from the seller panel and drop it in."}
+          {view.summary.packets > 0
+            ? `Nothing left to pack — ${view.summary.packets} done today.`
+            : "Nothing to pack. Download the manifest from the seller panel and drop it in."}
         </p>
       ) : (
         <div className="orders-body">
           <aside className="sku-list">
             <h3>
-              {showDate(day.date)}
+              To pack
               <small>
-                {day.rows.length} SKUs · {packets} packets · {done} packed
+                {view.outstanding.length} SKUs · {packets} packets · {view.summary.packets} packed
+                today
               </small>
             </h3>
             <ul>
-              {day.rows.map((r) => (
+              {view.outstanding.map((r) => (
                 <li key={r.sku}>
-                  <button
-                    className={`${r.sku === sku ? "chosen" : ""} ${isPacked(r) ? "done" : ""}`}
-                    onClick={() => setSku(r.sku)}
-                  >
+                  <button className={r.sku === sku ? "chosen" : ""} onClick={() => setSku(r.sku)}>
                     <span className="qty">{r.qty}</span>
                     <span className="lid">{r.sku}</span>
-                    {/* A tick for done, the names when they are known — they are two facts and
-                        one can arrive hours after the other. */}
-                    {isPacked(r) && <em>{r.packedBy.length > 0 ? r.packedBy.join(", ") : "✓"}</em>}
                   </button>
                 </li>
               ))}
             </ul>
-            <p className="muted from-where">
-              From {day.sources.join(", ")}. Drop the other courier&apos;s manifest in too — it
-              adds to this day, and the same file twice changes nothing.
-            </p>
 
-            {month.length > 0 && (
+            {view.monthPay.length > 0 && (
               <div className="month-pay">
                 <h3>
                   This month
                   <small>packets each, for pay</small>
                 </h3>
                 <ul>
-                  {month.map(([who, n]) => (
-                    <li key={who}>
-                      <span className="lid">{who}</span>
-                      <span className="qty">{Number(n.toFixed(2))}</span>
+                  {view.monthPay.map((p) => (
+                    <li key={p.name}>
+                      <span className="lid">{p.name}</span>
+                      <span className="qty">{p.qty}</span>
                     </li>
                   ))}
                 </ul>
@@ -398,13 +390,17 @@ export function Orders() {
                   sku={row.sku}
                   tick={
                     <PackedTick
-                      row={row}
+                      qty={row.qty}
                       workers={workers}
-                      /* Unticking clears the names with it: "not packed" and "packed by nobody"
-                         must not be one state that quietly keeps paying somebody. */
-                      onPacked={(packed) => setRow(row, packed ? { packed } : { packed, packedBy: [] })}
-                      onChange={(packedBy) => setRow(row, { packedBy })}
                       onAddWorker={addWorker}
+                      /* Ticking takes the SKU straight off the list. Anything that arrives for it
+                         afterwards is a new parcel and comes back as a new, smaller number. */
+                      onPack={() =>
+                        void window.ww.packing("pack", row.sku, view.today, []).then(setView)
+                      }
+                      onCredit={(by) =>
+                        void window.ww.packing("credit", row.sku, view.today, by).then(setView)
+                      }
                     />
                   }
                 />
@@ -413,6 +409,8 @@ export function Orders() {
           </div>
         </div>
       )}
+
+      {tally && view && <Summary summary={view.summary} onClose={() => setTally(false)} />}
     </section>
   );
 }

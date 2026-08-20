@@ -1833,3 +1833,41 @@ textarea.json {
     margin-left: 0;
   }
 }
+
+/* The tally — three short columns, so a day reads at a glance rather than as a report. */
+.sheet.summary {
+  max-width: 720px;
+  text-align: left;
+}
+.summary-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 22px;
+  margin: 18px 0;
+}
+.summary-cols h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.summary-cols ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.summary-cols li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.summary-cols .lid {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

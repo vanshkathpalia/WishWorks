@@ -54,7 +54,7 @@ export interface OrderRow {
  * **This is the unit that makes the arithmetic honest.** Meesho's manifest is a snapshot of
  * *everything ready to ship*, so the 12pm download says ANP006 × 6 and the 2pm one says × 10 —
  * the same six plus four more. Two couriers' manifests on one day, on the other hand, say 6 and 4
- * for genuinely different parcels. At SKU level those two cases are identical and no rule can tell
+ * for genuinely different subOrders. At SKU level those two cases are identical and no rule can tell
  * them apart. At sub-order level there is nothing to decide: the same id is the same parcel, a new
  * id is a new parcel, and both cases come out right by counting the ids.
  *
@@ -87,6 +87,213 @@ export interface OrderDay {
 }
 
 export const ORDERS_DIR = process.env.WW_ORDERS_DIR ?? path.join(ROOT, "orders");
+
+/**
+ * One parcel, as it is kept — the manifest's facts plus what has happened to it here.
+ *
+ * **Two dates, and they are not the same date.** `firstSeen` is the manifest's own, which is when
+ * the marketplace expects it dispatched; `packedOn` is the day somebody actually closed the box.
+ * They differ whenever tomorrow's dispatch gets packed today, which is normal here — Vansh:
+ * *"sometimes if any order's dispatch is tomorrow, maybe we will pack it today only."* Pay is
+ * worked out from `packedOn`, because that is the day the work was done.
+ */
+export interface SubOrder extends Shipment {
+  /** `YYYY-MM-DD` — the date on the manifest this parcel first appeared on. */
+  firstSeen: string;
+  /** `YYYY-MM-DD` — the day it was packed. Absent means it is still outstanding. */
+  packedOn?: string;
+  /** Who packed it. Empty or absent even when packed: the names can be filled in later. */
+  packedBy?: string[];
+}
+
+/**
+ * A month of subOrders — the file on disk, and the only record of what anybody is owed.
+ *
+ * **Per month rather than per day**, because a day is not a unit of anything here: subOrders arrive
+ * across a day and get packed across the next one, and pay is monthly. Per month also keeps the
+ * file small enough to read whole and to back up, and lines the files up with the thing they are
+ * used for.
+ *
+ * Filed by `firstSeen`, so a parcel never moves between files once written. Anything that counts
+ * by `packedOn` — which is pay — reads every ledger and filters, since a parcel seen on the 31st
+ * and packed on the 1st belongs to one month's file and the other month's wages.
+ */
+export interface Ledger {
+  /** `YYYY-MM`. */
+  month: string;
+  /** Manifest filenames merged in. Kept for the record only — subOrders dedupe on their own ids. */
+  sources: string[];
+  subOrders: SubOrder[];
+}
+
+const ledgerFile = (month: string) => path.join(ORDERS_DIR, `${month}.json`);
+
+/**
+ * Fold a manifest's subOrders into a month, keeping everything already known about each one.
+ *
+ * **This is the whole answer to "did we already count this?"** and it needs no rule, because the
+ * sub-order number is the parcel's identity. A manifest re-downloaded at 2pm lists the 12pm
+ * subOrders again with the same ids and they are recognised; a second courier's manifest lists
+ * different subOrders with different ids and they are added. Those two cases are indistinguishable
+ * at SKU level — 6 then 10 versus 6 plus 4 — and no amount of arithmetic separates them.
+ *
+ * A parcel already here keeps its `firstSeen` and everything about its packing: seeing it again is
+ * not new information about it. Only the courier is refreshed, because a parcel really can be
+ * re-booked with a different one before it goes.
+ */
+export function mergeShipments(
+  ledger: Ledger | null,
+  shipments: Shipment[],
+  seen: string,
+  source: string,
+): Ledger {
+  const month = ledger?.month ?? seen.slice(0, 7);
+  const subOrders = (ledger?.subOrders ?? []).map((p) => ({ ...p }));
+  const byId = new Map(subOrders.map((p) => [p.subOrder, p]));
+
+  for (const s of shipments) {
+    const known = byId.get(s.subOrder);
+    if (known) {
+      known.courier = s.courier;
+      known.awb = s.awb;
+      continue;
+    }
+    const parcel: SubOrder = { ...s, firstSeen: seen };
+    subOrders.push(parcel);
+    byId.set(s.subOrder, parcel);
+  }
+
+  const sources = ledger?.sources ?? [];
+  return {
+    month,
+    sources: sources.includes(source) ? sources : [...sources, source],
+    subOrders,
+  };
+}
+
+/** Still to pack, grouped by SKU, most first — the list the packing screen works down. */
+export function outstanding(subOrders: SubOrder[]): { sku: string; qty: number; subOrders: SubOrder[] }[] {
+  const by = new Map<string, SubOrder[]>();
+  for (const p of subOrders) {
+    if (p.packedOn) continue;
+    if (!by.has(p.sku)) by.set(p.sku, []);
+    by.get(p.sku)!.push(p);
+  }
+  return [...by]
+    .map(([sku, ps]) => ({ sku, qty: ps.reduce((n, p) => n + p.qty, 0), subOrders: ps }))
+    .sort((a, b) => b.qty - a.qty);
+}
+
+/**
+ * Mark every outstanding parcel of one SKU packed, on a given day, by whoever did it.
+ *
+ * **Everything outstanding, because that is what the tick means** — this SKU is done. Parcels that
+ * arrive afterwards are new ids and come back as a new, smaller number, which is exactly the
+ * behaviour asked for: *"the checkbox means that SKU to 0… and then if any other manifest adds 4
+ * more, re-render with 4."*
+ *
+ * ponytail: no partial packing. Four of six done needs a count box, and it has not come up; the
+ * six would have to be ticked when the last one is closed. Add it if it does.
+ */
+export function packSku(ledger: Ledger, sku: string, on: string, by: string[] = []): Ledger {
+  return {
+    ...ledger,
+    subOrders: ledger.subOrders.map((p) =>
+      p.sku === sku && !p.packedOn ? { ...p, packedOn: on, packedBy: by } : p,
+    ),
+  };
+}
+
+/** Undo the tick for one SKU on one day — everything it marked, and nothing anyone else did. */
+export function unpackSku(ledger: Ledger, sku: string, on: string): Ledger {
+  return {
+    ...ledger,
+    subOrders: ledger.subOrders.map((p) => {
+      if (p.sku !== sku || p.packedOn !== on) return p;
+      const { packedOn: _gone, packedBy: _also, ...rest } = p;
+      return rest;
+    }),
+  };
+}
+
+/** Name the packers on subOrders already ticked — the answer that is allowed to arrive later. */
+export function creditSku(ledger: Ledger, sku: string, on: string, by: string[]): Ledger {
+  return {
+    ...ledger,
+    subOrders: ledger.subOrders.map((p) =>
+      p.sku === sku && p.packedOn === on ? { ...p, packedBy: by } : p,
+    ),
+  };
+}
+
+export async function readLedger(month: string): Promise<Ledger | null> {
+  const text = await readFile(ledgerFile(month), "utf8").catch(() => null);
+  return text === null ? null : (JSON.parse(text) as Ledger);
+}
+
+export async function writeLedger(ledger: Ledger): Promise<void> {
+  await mkdir(ORDERS_DIR, { recursive: true });
+  await writeFile(ledgerFile(ledger.month), JSON.stringify(ledger, null, 2));
+}
+
+/** Every month on file, newest first. Small files, and pay day reads more than one of them. */
+export async function listLedgers(): Promise<Ledger[]> {
+  const names = (await readdir(ORDERS_DIR).catch(() => [])).filter((n) => /^\d{4}-\d{2}\.json$/.test(n));
+  const all = await Promise.all(
+    names.map((n) =>
+      readFile(path.join(ORDERS_DIR, n), "utf8").then((t) => JSON.parse(t) as Ledger).catch(() => null),
+    ),
+  );
+  return all.filter((l): l is Ledger => l !== null).sort((a, b) => b.month.localeCompare(a.month));
+}
+
+/**
+ * Packets per person for one month, **counted by the day they were packed**.
+ *
+ * Reads every ledger rather than one, because the month a parcel is FILED under is the month it
+ * arrived in, and the month it is PAID in is the month it was packed. Those differ around the
+ * turn of a month, which is precisely when getting it wrong costs somebody money.
+ *
+ * A parcel packed with nobody named counts for nobody — it is not lost, it is simply not yet
+ * anyone's; the names can be added to it any time.
+ */
+export function parcelCredit(ledgers: Ledger[], month: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const ledger of ledgers) {
+    for (const p of ledger.subOrders) {
+      if (!p.packedOn?.startsWith(month) || !p.packedBy?.length) continue;
+      for (const who of p.packedBy) out[who] = (out[who] ?? 0) + p.qty / p.packedBy.length;
+    }
+  }
+  return out;
+}
+
+/** What happened on one day: what was packed, by whom, and where it is going. */
+export function daySummary(ledgers: Ledger[], on: string) {
+  const packed = ledgers.flatMap((l) => l.subOrders.filter((p) => p.packedOn === on));
+  const bySku = new Map<string, number>();
+  const byPacker = new Map<string, number>();
+  const byCourier = new Map<string, number>();
+  for (const p of packed) {
+    bySku.set(p.sku, (bySku.get(p.sku) ?? 0) + p.qty);
+    byCourier.set(p.courier || "—", (byCourier.get(p.courier || "—") ?? 0) + p.qty);
+    for (const who of p.packedBy ?? []) {
+      byPacker.set(who, (byPacker.get(who) ?? 0) + p.qty / (p.packedBy?.length ?? 1));
+    }
+  }
+  const rank = (m: Map<string, number>) =>
+    [...m].map(([name, qty]) => ({ name, qty: Number(qty.toFixed(2)) })).sort((a, b) => b.qty - a.qty);
+  return {
+    date: on,
+    packets: packed.reduce((n, p) => n + p.qty, 0),
+    /** Ticked but with nobody named yet — the one number worth chasing before pay day. */
+    unnamed: packed.filter((p) => !p.packedBy?.length).reduce((n, p) => n + p.qty, 0),
+    left: ledgers.flatMap((l) => l.subOrders).filter((p) => !p.packedOn).reduce((n, p) => n + p.qty, 0),
+    bySku: rank(bySku),
+    byPacker: rank(byPacker),
+    byCourier: rank(byCourier),
+  };
+}
 
 /**
  * Every `(text)Tj` in the file, with the position it was drawn at.
@@ -206,7 +413,7 @@ export function parseManifest(bytes: Buffer): {
  * next to it, and has a whole number where the quantity goes. The header row fails all three.
  */
 function shipments(all: Cell[]): Shipment[] {
-  // Which courier is carrying which page — the section header sits above its own parcels, and
+  // Which courier is carrying which page — the section header sits above its own subOrders, and
   // handover happens per courier, so it is worth keeping.
   const courierOf = new Map<number, string>();
   let courier = "";

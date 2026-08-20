@@ -19,7 +19,10 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { addSkuImage, imageForSku, mergeManifest, parseManifest, workerCredit } from "../src/orders-core.js";
+import {
+  addSkuImage, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
+  packSku, parcelCredit, parseManifest, unpackSku, workerCredit,
+} from "../src/orders-core.js";
 
 const pdf = readFileSync(path.join(import.meta.dirname, "fixtures", "meesho-manifest.pdf"));
 
@@ -47,7 +50,7 @@ describe("parseManifest", () => {
    * carries the same sub-order number every time, so counting ids can never double a day.
    *
    * **The two halves of the file check each other.** The picklist is Meesho's own total per SKU
-   * and the shipment pages are the parcels behind it; if either parser drifts they stop agreeing,
+   * and the shipment pages are the subOrders behind it; if either parser drifts they stop agreeing,
    * and that is a far better alarm than any number this repo could hard-code.
    */
   it("reads every parcel, with an id of its own, and agrees with the picklist", () => {
@@ -93,6 +96,89 @@ describe("mergeManifest", () => {
     const twice = mergeManifest(once, parseManifest(pdf), "manifest.pdf");
     expect(twice).toBe(once);
     expect(twice.rows.find((r) => r.sku === "SVP033")?.qty).toBe(14);
+  });
+});
+
+/**
+ * The arithmetic the whole rewrite exists for. Two situations that are IDENTICAL at SKU level and
+ * need opposite answers:
+ *
+ *   the 12pm manifest says 6, the 2pm one says 10  → ten subOrders, not sixteen
+ *   two couriers, one says 6 and one says 4        → ten subOrders, not six
+ *
+ * Counting sub-order ids answers both without a rule, which is the point.
+ */
+describe("the parcel ledger", () => {
+  const parcel = (id: string, sku: string, courier = "Delhivery") =>
+    ({ subOrder: id, awb: `A${id}`, sku, qty: 1, courier });
+
+  it("re-reading a bigger manifest does not double the day", () => {
+    const noon = mergeShipments(null, [parcel("1", "ANP006"), parcel("2", "ANP006")], "2026-08-20", "12pm.pdf");
+    expect(outstanding(noon.subOrders)[0]).toMatchObject({ sku: "ANP006", qty: 2 });
+
+    // The afternoon download is a snapshot of everything still to ship: the same two, plus one.
+    const two = mergeShipments(noon, [parcel("1", "ANP006"), parcel("2", "ANP006"), parcel("3", "ANP006")], "2026-08-20", "2pm.pdf");
+    expect(outstanding(two.subOrders)[0]).toMatchObject({ sku: "ANP006", qty: 3 });
+  });
+
+  it("a second courier's manifest adds, because those are different subOrders", () => {
+    const first = mergeShipments(null, [parcel("1", "ANP006")], "2026-08-20", "delhivery.pdf");
+    const both = mergeShipments(first, [parcel("9", "ANP006", "Valmo")], "2026-08-20", "valmo.pdf");
+    expect(outstanding(both.subOrders)[0]).toMatchObject({ sku: "ANP006", qty: 2 });
+  });
+
+  it("packing takes a SKU to zero, and later orders come back as a new, smaller number", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "ANP003")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-20", ["Asha"]);
+    expect(outstanding(l.subOrders)).toEqual([]);
+
+    // Six more arrive the next day. The two already packed stay packed and are not re-counted.
+    l = mergeShipments(l, [parcel("1", "ANP003"), parcel("2", "ANP003"), parcel("3", "ANP003")], "2026-08-21", "b.pdf");
+    expect(outstanding(l.subOrders)).toEqual([{ sku: "ANP003", qty: 1, subOrders: [expect.objectContaining({ subOrder: "3" })] }]);
+  });
+
+  it("pays by the day it was PACKED, not the day it was ordered", () => {
+    // Seen 31 Aug, packed 1 Sep — filed under August, paid in September.
+    let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "ANP003")], "2026-08-31", "a.pdf");
+    l = packSku(l, "ANP003", "2026-09-01", ["Asha", "Ravi"]);
+    expect(l.month).toBe("2026-08");
+    expect(parcelCredit([l], "2026-08")).toEqual({});
+    expect(parcelCredit([l], "2026-09")).toEqual({ Asha: 1, Ravi: 1 });
+  });
+
+  it("counts a ticked parcel with nobody named, and pays nobody for it yet", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "GTB001")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-20");
+    const day = daySummary([l], "2026-08-20");
+    expect(day).toMatchObject({ packets: 1, unnamed: 1, left: 1 });
+    expect(parcelCredit([l], "2026-08")).toEqual({});
+
+    // The names arrive later and the day is right without anything being packed again.
+    l = creditSku(l, "ANP003", "2026-08-20", ["Asha"]);
+    expect(daySummary([l], "2026-08-20").unnamed).toBe(0);
+    expect(parcelCredit([l], "2026-08")).toEqual({ Asha: 1 });
+  });
+
+  it("un-ticking gives back only what that tick took", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "ANP003")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-19", ["Ravi"]);   // yesterday's tick, on one of them
+    l = { ...l, subOrders: [l.subOrders[0], { ...l.subOrders[1], packedOn: undefined, packedBy: undefined }] };
+    l = packSku(l, "ANP003", "2026-08-20", ["Asha"]);
+    l = unpackSku(l, "ANP003", "2026-08-20");
+    expect(outstanding(l.subOrders)[0].qty).toBe(1);
+    expect(l.subOrders[0].packedOn).toBe("2026-08-19"); // yesterday's is untouched
+  });
+
+  it("reads a real manifest straight into a ledger", () => {
+    const m = parseManifest(pdf);
+    const l = mergeShipments(null, m.shipments, m.date!, "manifest.pdf");
+    expect(l.month).toBe("2026-08");
+    expect(l.subOrders).toHaveLength(41);
+    // Same totals the picklist gives, arrived at by counting subOrders.
+    expect(Object.fromEntries(outstanding(l.subOrders).map((o) => [o.sku, o.qty])))
+      .toEqual(Object.fromEntries(m.rows.map((r) => [r.sku, r.qty])));
+    // And dropping it again changes nothing at all.
+    expect(mergeShipments(l, m.shipments, m.date!, "again.pdf").subOrders).toHaveLength(41);
   });
 });
 
