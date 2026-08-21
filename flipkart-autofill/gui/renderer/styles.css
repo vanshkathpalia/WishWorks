@@ -2106,3 +2106,25 @@ button.chosen:hover {
   outline: none;
   border-color: var(--accent);
 }
+
+/* Look up a SKU without touching the packing. Sits under the manifest drop, always there —
+   the queue is empty for most of the day and this is what the screen is for the rest of it. */
+.sku-lookup {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.sku-lookup input {
+  font: inherit;
+  flex: 1;
+  max-width: 620px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #12100f;
+  color: var(--ink);
+}
+.sku-lookup input:focus {
+  outline: none;
+  border-color: var(--accent);
+}

@@ -106,15 +106,23 @@ function SkuImage({ sku, qty, tick }: { sku: string; qty: number; tick: React.Re
          * listings never went through this app, and some are named differently in the ready
          * folder. A big empty box for every one of those reads as something being broken.
          */
-        <div className="sku-nopic">
-          <b>{qty}</b>
-          <span>
-            packet{qty === 1 ? "" : "s"} to pack
-            <small>
-              no picture for {sku} — add one above and it shows here from then on
-            </small>
-          </span>
-        </div>
+        qty === 0 ? (
+          /* Looked up rather than being packed — there is no count to show, only the answer. */
+          <div className="sku-image empty">
+            No picture for <b>{sku}</b> in the ready folder. Check the code, or add one above and it
+            shows here from then on.
+          </div>
+        ) : (
+          <div className="sku-nopic">
+            <b>{qty}</b>
+            <span>
+              packet{qty === 1 ? "" : "s"} to pack
+              <small>
+                no picture for {sku} — add one above and it shows here from then on
+              </small>
+            </span>
+          </div>
+        )
       ) : (
         <figure className="sku-image">
           <img src={fileUrl(file)} alt={position === 2 ? `What goes in a ${sku} packet` : `${sku} main photo`} />
@@ -314,6 +322,16 @@ export function Orders() {
   const [busy, setBusy] = useState(false);
   const [tally, setTally] = useState(false);
   /**
+   * A SKU typed in to be LOOKED AT, with no packing involved.
+   *
+   * Vansh: *"a search where I enter the SKU no. and it gives me the image for it, for a random
+   * search without the manifest — nothing packed and all of that, just the image, for when I want
+   * to check my main and inventory image for some listing."* It is a different job from working
+   * the queue and it has to work when the queue is empty, which is most of the day: everything is
+   * packed by mid-morning and this screen is otherwise blank until tomorrow's manifest.
+   */
+  const [lookup, setLookup] = useState("");
+  /**
    * The SKU under the cursor. Hovering the queue shows that SKU's picture without moving the
    * selection — Vansh: *"if I hover over any listing then its inventory image opens"* — which is
    * how you check what a code IS while looking for the one you are about to pack.
@@ -420,7 +438,28 @@ export function Orders() {
       </div>
       {error && <p className="error">{error}</p>}
 
-      {view === null ? (
+      <div className="sku-lookup">
+        <input
+          type="text"
+          placeholder="Look up a SKU — see its pictures without touching the packing…"
+          value={lookup}
+          onChange={(e) => setLookup(e.target.value)}
+          onKeyDown={(e) => e.key === "Escape" && setLookup("")}
+        />
+        {lookup.trim() !== "" && <button onClick={() => setLookup("")}>Clear</button>}
+      </div>
+
+      {lookup.trim() !== "" ? (
+        <div className="sku-detail">
+          <h2>
+            {lookup.trim().toUpperCase()}
+            <small>just looking — nothing here is packed or counted</small>
+          </h2>
+          {/* No tick: this is a look, not a job. Handing it one would put a control that changes
+              the pay record next to a box somebody is typing a guess into. */}
+          <SkuImage sku={lookup.trim()} qty={0} tick={null} />
+        </div>
+      ) : view === null ? (
         <p className={error ? "error" : "muted"}>{error ?? "Looking…"}</p>
       ) : view.outstanding.length === 0 ? (
         <p className="muted">
