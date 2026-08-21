@@ -267,6 +267,8 @@ export function Inventory({ n }: { n: number }) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [gaps, setGaps] = useState<{ noPrice: Material[]; noSize: Material[]; total: number } | null>(null);
   const [showGaps, setShowGaps] = useState(false);
+  /** What is typed in the kit search. Empty shows every kit, which is how it opens. */
+  const [find, setFind] = useState("");
 
   const [image, setImage] = useState<string | null>(null);
   const [paste, setPaste] = useState("");
@@ -418,7 +420,14 @@ export function Inventory({ n }: { n: number }) {
    */
   const groups = useMemo(() => {
     const kits = new Map<string, KitRow[]>();
-    for (const k of saved) {
+    // Filtered before grouping, so a search narrows the headings too rather than leaving a page of
+    // empty ones. `ANP 3`, `anp-3` and `ANP003` all find the same kit — the same normalising the
+    // rest of the app matches IDs with, because a person searching does not pad their zeros.
+    const wanted = find.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const shown = wanted === ""
+      ? saved
+      : saved.filter((k) => k.sku.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(wanted));
+    for (const k of shown) {
       const p = skuPrefix(k.sku);
       kits.set(p, [...(kits.get(p) ?? []), k]);
     }
@@ -460,7 +469,7 @@ export function Inventory({ n }: { n: number }) {
           newest: listings.find((l) => skuPrefix(l.label) === prefix)?.label ?? null,
         };
       });
-  }, [saved, listings]);
+  }, [find, saved, listings]);
 
   const byCategory = useMemo(() => {
     const groups = new Map<string, Material[]>();
@@ -862,6 +871,19 @@ export function Inventory({ n }: { n: number }) {
                 <button onClick={() => setShowKits((s) => !s)}>
                   {showKits ? "hide" : `show ${saved.length}`}
                 </button>
+                {/* Twenty-six kits and growing, and the one you want is a code you already know.
+                    Typing opens the list as well — searching a folded list would find nothing. */}
+                <input
+                  type="text"
+                  className="kit-find"
+                  placeholder="find a SKU…"
+                  value={find}
+                  onChange={(e) => {
+                    setFind(e.target.value);
+                    if (e.target.value.trim() !== "") setShowKits(true);
+                  }}
+                  onKeyDown={(e) => e.key === "Escape" && setFind("")}
+                />
               </h3>
               {offTarget > 0 && (
                 <p className="muted">

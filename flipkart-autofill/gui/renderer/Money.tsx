@@ -400,7 +400,7 @@ export function Returns({ n }: { n: number }) {
       <strong>{busy ? "Reading…" : title}</strong>
       <small>{hint}</small>
       <div className="picks">
-        <button onClick={() => void window.ww.pick("orders", "files").then((f) => report(f, status))}>
+        <button onClick={() => void window.ww.pick("orders-report", "files").then((f) => report(f, status))}>
           Choose the file…
         </button>
       </div>
@@ -436,7 +436,7 @@ export function Returns({ n }: { n: number }) {
       <input
         type="text"
         className="wide"
-        placeholder="Find by SKU, order number or AWB…"
+        placeholder="Find by sub-order number, AWB or SKU — the sub-order number is the one that means exactly one parcel"
         value={find}
         onChange={(e) => setFind(e.target.value)}
       />

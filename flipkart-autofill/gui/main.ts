@@ -359,6 +359,10 @@ ipcMain.handle("pick", async (e, step: StepId, mode: "folder" | "files"): Promis
         ? undefined
         : step === "orders"
           ? [{ name: "Manifest PDF", extensions: ["pdf"] }]
+          : step === "orders-report"
+            // Whatever the marketplace exports. Nothing here reads their columns — the ids are
+            // found in the text — so the list is about what they hand out, not what we parse.
+            ? [{ name: "Returns or RTO report", extensions: ["csv", "xlsx", "xls", "pdf", "txt"] }]
           : [{ name: "Images", extensions: [...INPUT_EXT].map((x) => x.slice(1)) }],
     defaultPath: (await remembered())[step] ?? app.getPath("downloads"),
   });
@@ -888,13 +892,30 @@ ipcMain.handle(
     opts: { by?: string[]; limit?: number; replacing?: string[] } = {},
   ) => {
     const engine = await ordersEngine();
+    /**
+     * What a parcel is worth, read once, now — and written onto it.
+     *
+     * The kit is where the money lives, and a kit's price changes: a ticket raised with the
+     * marketplace, a promotion, a corrected material. Freezing it here means a correction moves
+     * today rather than last month, and an RTO reverses what was actually booked.
+     */
+    const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
+    const kits = listKits(KITS_DIR, loadMaterials());
+    const priceAt = (p: { sku: string; market: string }) => {
+      const kit = engine.kitForSku(p.sku, kits);
+      const paidPaise = kit?.pays?.[p.market];
+      return kit?.costPaise === undefined || paidPaise === undefined
+        ? null
+        : { paidPaise, materialsPaise: kit.costPaise };
+    };
+
     // A part-packed SKU can span two months' files at the turn of a month, so the count is spent
     // across ledgers rather than applied to each — otherwise "packed 2" would pack 2 per file.
     let left = opts.limit ?? Infinity;
     for (const ledger of await engine.listLedgers()) {
       const before = engine.leftToPack(ledger, sku);
       const next =
-        action === "pack" ? engine.packSku(ledger, sku, on, opts.by ?? [], left)
+        action === "pack" ? engine.packSku(ledger, sku, on, opts.by ?? [], left, priceAt)
         : action === "unpack" ? engine.unpackSku(ledger, sku, on)
         : engine.creditSku(ledger, sku, on, opts.by ?? [], opts.replacing ?? []);
       if (JSON.stringify(next.subOrders) === JSON.stringify(ledger.subOrders)) continue;

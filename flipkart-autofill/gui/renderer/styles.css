@@ -23,6 +23,22 @@ body {
   color: var(--ink);
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
+  /**
+   * Text is selectable. It was `none` app-wide — the reflex for something that should feel like a
+   * native window — and it is wrong here: half of what is on screen is a sub-order number, an AWB,
+   * a SKU or a file path, and every one of those exists to be pasted into a seller panel or a
+   * WhatsApp message. Only the chrome you drag and click stays unselectable, below.
+   */
+  user-select: text;
+}
+
+/* The parts you operate rather than read. Selecting these only ever happens by accident. */
+.rail,
+.tabs,
+button,
+label,
+.qty,
+.num {
   user-select: none;
 }
 
@@ -2046,4 +2062,47 @@ textarea.json {
   flex-wrap: wrap;
   gap: 10px 28px;
   align-items: center;
+}
+
+/* The returns search: one line, wide enough for a sub-order number, which is the field that
+   means exactly one parcel. `input.wide` is 22em, sized for a name, and cuts this off mid-word. */
+.panel.orders input.wide {
+  width: 100%;
+  max-width: 560px;
+}
+
+/* ------------------------------------------------------------------ what is selected
+
+   `chosen` had a rule in five places and no rule anywhere general, so every switch built out of
+   plain `.picks` buttons — the period and marketplace switches — showed nothing at all. One rule
+   here, and every one of them lights up. Vansh: "what we have selected should shine here…
+   do things like these, simple but important user relief things." */
+
+button.chosen {
+  border-color: var(--accent);
+  background: #2a211b;
+  color: var(--ink);
+  font-weight: 600;
+}
+button.chosen:hover {
+  border-color: var(--accent);
+}
+
+/* Find a kit by its code. Sits on the heading, next to the show/hide, because that is where you
+   already are when you are looking for one. */
+.kit-find {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  margin-left: 10px;
+  padding: 6px 12px;
+  width: 150px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #12100f;
+  color: var(--ink);
+}
+.kit-find:focus {
+  outline: none;
+  border-color: var(--accent);
 }

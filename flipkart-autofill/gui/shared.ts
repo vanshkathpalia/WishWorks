@@ -207,7 +207,10 @@ export type StepId =
   | "convert" | "hero" | "info" | "copy" | "finish" | "check" | "inbox" | "inventory"
   // Two on the orders screen, because they open on different things: the manifest comes out of
   // the browser's downloads, a product picture out of wherever the photos are kept.
-  | "orders" | "orders-image";
+  // Three on the orders screen, because they open on different things and accept different files:
+  // the manifest is a PDF out of the browser's downloads, a product picture is an image, and a
+  // returns report is whatever the marketplace exports — CSV, Excel or PDF.
+  | "orders" | "orders-image" | "orders-report";
 
 /**
  * The tag clean-up, which belongs on this step because the engine does it here: cropping and

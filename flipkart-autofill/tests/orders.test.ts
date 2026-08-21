@@ -290,6 +290,39 @@ describe("what a day was worth", () => {
     expect(m.uncosted).toEqual([{ name: "007 annaprashan ct", qty: 1 }]);
   });
 
+  /**
+   * The hole Vansh found: *"deduction will happen on the latest cost in the JSON only."* A kit's
+   * price changes — a ticket raised with the marketplace, a promotion, a corrected material — and
+   * without freezing it, correcting one today silently rewrites what last month earned.
+   */
+  it("freezes what a parcel was worth at the tick, so a later price change cannot rewrite it", () => {
+    const kits: KitMoney[] = [{ sku: "ANP003", costPaise: 8000, pays: { meesho: 15000 } }];
+    let l = mergeShipments(null, [parcel("1", "ANP003")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-20", ["Asha"], Infinity, (p) => {
+      const k = kitForSku(p.sku, kits);
+      return k?.costPaise === undefined ? null : { paidPaise: k.pays!.meesho, materialsPaise: k.costPaise };
+    });
+    expect(l.subOrders[0]).toMatchObject({ paidPaise: 15000, materialsPaise: 8000 });
+
+    // The kit is re-priced a fortnight later. August must not move.
+    const dearer: KitMoney[] = [{ sku: "ANP003", costPaise: 9500, pays: { meesho: 19000 } }];
+    const day = money([l], dearer, "2026-08-20", "2026-08-20");
+    expect(day.revenuePaise).toBe(15000);
+    expect(day.materialsPaise).toBe(8000);
+
+    // And a return takes off exactly what was booked, not what the kit says now.
+    const back = money([markBack(l, "1", "rto", "2026-09-05")], dearer, "2026-09-01", "2026-09-30");
+    expect(back.reversals.revenuePaise).toBe(15000);
+  });
+
+  it("falls back to today's kit for a parcel packed before the money was known", () => {
+    const kits: KitMoney[] = [{ sku: "ANP003", costPaise: 8000, pays: { meesho: 15000 } }];
+    let l = mergeShipments(null, [parcel("1", "ANP003")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-20", ["Asha"]); // no resolver — nothing costed it then
+    expect(l.subOrders[0].paidPaise).toBeUndefined();
+    expect(money([l], kits, "2026-08-20", "2026-08-20").revenuePaise).toBe(15000);
+  });
+
   it("dates a return to the day it came back, and never rewrites the packing day", () => {
     let l = packed();
     l = markBack(l, "1", "rto", "2026-09-03");

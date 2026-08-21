@@ -125,6 +125,28 @@ export interface SubOrder extends Shipment {
   status?: "rto" | "returned";
   /** `YYYY-MM-DD` — the day it came back, which is the day the money moves. */
   statusOn?: string;
+  /**
+   * What this parcel was worth **when it was packed**, in paise — the money, frozen at the tick.
+   *
+   * Vansh spotted the hole: *"all that name SKU cost the same, but that may not be true — maybe we
+   * raise a ticket before and after so rates differ, but deduction will happen on the latest cost
+   * in the JSON only… one solution is to timestamp the cost and bank settlement, but that is too
+   * much overwork."* Right about the problem, and right that dated prices are the wrong fix.
+   *
+   * **The cheap and standard answer is to copy the numbers onto the record**, the way an invoice
+   * stores a price rather than joining to a product table. Two integers, written once, at a moment
+   * we are already writing. Correcting a kit's price then moves *today* and not last month, which
+   * has already been reported; and an RTO reverses exactly what was booked rather than whatever
+   * the kit says weeks later. Versioned prices would need a date lookup on every read and a screen
+   * to manage them, to answer the same question worse.
+   *
+   * **Absent means "nothing had costed it yet"**, and the money falls back to what the kit says
+   * today — right for every parcel packed before this existed, and for a SKU costed only after it
+   * shipped. That fallback is what lets this arrive without a migration.
+   */
+  paidPaise?: number;
+  /** What the materials cost when it was packed, in paise. Frozen with `paidPaise`, same reason. */
+  materialsPaise?: number;
 }
 
 /**
@@ -246,6 +268,14 @@ export function packSku(
    * more than one item can overshoot by that parcel. Every parcel seen so far is a single item.
    */
   limit = Infinity,
+  /**
+   * What each parcel is worth, resolved at the moment of the tick and frozen onto it.
+   *
+   * A function rather than two numbers, because parcels of one SKU can be on different
+   * marketplaces and those pay differently. `null` means nothing has costed it yet, and the parcel
+   * is left without a snapshot — a real state, not a zero.
+   */
+  priceAt: (p: SubOrder) => { paidPaise: number; materialsPaise: number } | null = () => null,
 ): Ledger {
   let left = limit;
   return {
@@ -253,7 +283,7 @@ export function packSku(
     subOrders: ledger.subOrders.map((p) => {
       if (p.sku !== sku || p.packedOn || left <= 0) return p;
       left -= p.qty;
-      return { ...p, packedOn: on, packedBy: by };
+      return { ...p, packedOn: on, packedBy: by, ...(priceAt(p) ?? {}) };
     }),
   };
 }
@@ -810,18 +840,23 @@ export function money(
     if (!inWindow(p.packedOn) || (market !== undefined && p.market !== market)) continue;
     packets += p.qty;
     byMarket.set(p.market, (byMarket.get(p.market) ?? 0) + p.qty);
+    // **Frozen first, today's kit second.** What a parcel earned is a fact about the day it went
+    // out, so correcting a price now must not rewrite a month already reported — the same rule
+    // that dates a return to the day it came back rather than to its packing day.
     const kit = kitForSku(p.sku, kits);
-    const pays = kit?.pays?.[p.market];
-    if (!kit || pays === undefined || kit.costPaise === undefined) {
+    const paid = p.paidPaise ?? kit?.pays?.[p.market];
+    const cost = p.materialsPaise ?? kit?.costPaise;
+    if (paid === undefined || cost === undefined) {
       uncosted.set(p.sku, (uncosted.get(p.sku) ?? 0) + p.qty);
       continue;
     }
-    revenuePaise += pays * p.qty;
-    materialsPaise += kit.costPaise * p.qty;
-    const row = costed.get(p.sku) ?? { kit: kit.sku, qty: 0, revenuePaise: 0, materialsPaise: 0 };
+    revenuePaise += paid * p.qty;
+    materialsPaise += cost * p.qty;
+    const row = costed.get(p.sku)
+      ?? { kit: kit?.sku ?? "priced when packed", qty: 0, revenuePaise: 0, materialsPaise: 0 };
     row.qty += p.qty;
-    row.revenuePaise += pays * p.qty;
-    row.materialsPaise += kit.costPaise * p.qty;
+    row.revenuePaise += paid * p.qty;
+    row.materialsPaise += cost * p.qty;
     costed.set(p.sku, row);
   }
 
@@ -831,9 +866,10 @@ export function money(
     reversals.packets += p.qty;
     if (p.status === "rto") reversals.rto += p.qty;
     if (p.status === "returned") reversals.returned += p.qty;
+    // A reversal takes off exactly what was booked, not what the kit happens to say today.
     const kit = kitForSku(p.sku, kits);
-    reversals.revenuePaise += (kit?.pays?.[p.market] ?? 0) * p.qty;
-    reversals.materialsPaise += (kit?.costPaise ?? 0) * p.qty;
+    reversals.revenuePaise += (p.paidPaise ?? kit?.pays?.[p.market] ?? 0) * p.qty;
+    reversals.materialsPaise += (p.materialsPaise ?? kit?.costPaise ?? 0) * p.qty;
   }
 
   const rank = (m: Map<string, number>) =>
