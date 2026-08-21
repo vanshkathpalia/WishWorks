@@ -431,6 +431,34 @@ describe("the pictures on a SKU", () => {
     expect(await imageForSku(dir, "SVP001", 2)).toBeNull();
   });
 
+  /**
+   * The ready folder is written two ways and both are ours — the finish step's long name, and the
+   * older short one where the slot follows a DOT. Only the first ever matched, so half the folder
+   * read as *no picture* (WW-189).
+   */
+  it("reads both spellings of a finished image's name", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "ww-ready-"));
+    const files = [
+      "ANP-4-annaprashan-decoration-kit-red-gold-balloons-cutouts-1.jpg",
+      "ANP-4-annaprashan-decoration-kit-red-gold-balloons-cutouts-2.jpg",
+      "HBD-01.1.jpg",
+      "HBD-01.2.jpg",
+      // A title carrying a number of its own — the slot is the LAST number, never the second.
+      "WB-4-welcome-baby-16-photo-booth-props-2.jpg",
+      // Not a picture. It parses as "listing SVP033, slot 2" and must never be offered as one.
+      "SVP033-ANP002.csv",
+    ];
+    for (const f of files) writeFileSync(path.join(dir, f), "x");
+
+    expect(await imageForSku(dir, "ANP004", 2)).toMatch(/ANP-4-annaprashan.*-2\.jpg$/);
+    expect(await imageForSku(dir, "ANP004", 1)).toMatch(/ANP-4-annaprashan.*-1\.jpg$/);
+    // `HBD-01`, `HBD001` and `HBD1` are one listing, and its slot follows a dot.
+    expect(await imageForSku(dir, "HBD-01", 2)).toMatch(/HBD-01\.2\.jpg$/);
+    expect(await imageForSku(dir, "HBD001", 2)).toMatch(/HBD-01\.2\.jpg$/);
+    expect(await imageForSku(dir, "WB004", 2)).toMatch(/WB-4-welcome-baby.*-2\.jpg$/);
+    expect(await imageForSku(dir, "SVP033", 2)).toBeNull();
+  });
+
   it("files an added picture under the SKU's own code, and that one then wins", async () => {
     const dir = ready();
     const src = path.join(dir, "from-whatsapp.jpg");
