@@ -42,6 +42,17 @@
   "Height": "1.5",
   "Depth": "8",
 
+  "_handle": [
+    "HANDLE IS A REAL ANSWER, NOT FILLER. It sat in PROMPT-product.md's leave-out list with the",
+    "hand-fan attributes, but 'does this product have a handle' has a true answer for a balloon",
+    "kit and the answer is No — same family as Foldable and Carry Bag Included, which have been",
+    "here from the start. Handle Shape and Handle Material stay out: they are hand-fan fields and",
+    "only mean anything once Handle is Yes.",
+    "It is a dropdown, and the scan did not record its options. If Flipkart does not offer 'No'",
+    "the fill reports what it DOES offer and types nothing — visible, never silently wrong."
+  ],
+  "Handle": "No",
+
   "Foldable": "No",
   "Carry Bag Included": "No",
   "Birthday Ribbon": "No",

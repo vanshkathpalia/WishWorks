@@ -1,5 +1,5 @@
 // fill.ts — the flag-driven version, for debugging and scripting.
-//   npm run fill -- products/my-combo.json [--save] [--probe-html] [--save-button="Save"]
+//   npm run fill -- products/my-combo.json [--save] [--no-pad] [--probe-html] [--save-button="Save"]
 //
 // Everyday use is `npm start`, which asks the same questions through a menu. Both share
 // src/listing.ts, so a fix here lands in both.
@@ -14,7 +14,7 @@ import {
   fillAll, printReport, needsEyes, explainMismatches,
 } from "./listing.js";
 
-const FLAGS = ["--probe-html", "--save"];
+const FLAGS = ["--probe-html", "--save", "--no-pad"];
 const args = process.argv.slice(2).filter((a) => !FLAGS.includes(a) && !a.startsWith("--save-button="));
 const probeHtml = process.argv.includes("--probe-html");
 const wantSave = process.argv.includes("--save");
@@ -43,7 +43,7 @@ if (!existsSync(arg)) {
   console.log(`↳ product: ${showPath(productFile)}`);
 }
 
-const { values, usedDefaults } = loadProduct(productFile);
+const { values, usedDefaults, category } = loadProduct(productFile);
 for (const f of usedDefaults) console.log(`↳ defaults: ${f}`);
 
 // Everything that can be caught without a browser, is — a placeholder or a comma-split
@@ -53,7 +53,12 @@ for (const f of usedDefaults) console.log(`↳ defaults: ${f}`);
 // live listing carrying a fake price.
 const problems = checkValues(values);
 if (problems.length) console.warn(`\n${describeProblems(problems)}\n`);
-const fillable = fillableValues(values, problems);
+const pad = !process.argv.includes("--no-pad");
+const fillable = fillableValues(values, problems, pad ? category : null);
+if (pad) {
+  const n = Object.keys(fillable).length - Object.keys(fillableValues(values, problems)).length;
+  if (n) console.log(`↳ ${n} inapplicable attribute(s) filled as "Not Applicable" (--no-pad to skip)`);
+}
 
 // No `close` handle on purpose — fill must never close the browser (see the end of this
 // file). Ctrl+C is handled inside openBrowser and closes Chrome gracefully.

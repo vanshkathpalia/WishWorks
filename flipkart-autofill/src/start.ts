@@ -6,6 +6,7 @@
 //
 //   npm start              fill, then save if the read-back is clean
 //   npm start -- --no-save fill only, never click Save (for testing on a live listing)
+//   npm start -- --no-pad  leave the inapplicable attributes blank (the old behaviour)
 //
 // Nothing auto-saves while any field reads ⚠️. That guard is the safety model and is older
 // than the auto-save; it is not negotiable.
@@ -48,13 +49,17 @@ const { values, usedDefaults, category } = loadProduct(chosen);
 // Warn and carry on: a placeholder skips its own field, never the other sixty (2026-08-12).
 const problems = checkValues(values);
 if (problems.length) console.warn(`\n${describeProblems(problems)}\n`);
-const fillable = fillableValues(values, problems);
+// Padding is ON unless you ask for it off — same as the app's Fill button, because a behaviour
+// that only happens when you remember a flag is a behaviour half your listings do not get.
+const pad = !process.argv.includes("--no-pad");
+const fillable = fillableValues(values, problems, pad ? category : null);
+const padded = Object.keys(fillable).length - Object.keys(fillableValues(values, problems)).length;
 console.log(`\nProduct : ${path.basename(chosen, ".json")}
 Category: ${category}
 Using   : ${usedDefaults.join(" + ") || "(no defaults file)"}
 Values  : ${Object.keys(fillable).length} fields ready${
   problems.length ? ` (${problems.length} skipped — see above)` : ""
-}`);
+}${padded ? `\n          including ${padded} that do not apply to a balloon kit, filled as "Not Applicable" (--no-pad turns this off)` : ""}`);
 
 // ---- 3. fill ----------------------------------------------------------------
 const { context } = await openBrowser();

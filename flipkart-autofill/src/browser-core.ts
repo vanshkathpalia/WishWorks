@@ -186,7 +186,10 @@ export async function fillListing(
   // freedom to let it continue even if any issue comes, just flag it later on". What is skipped is
   // never typed anyway: an empty box is visible, a fake price looks filled.
   const problems = checkValues(values as Values);
-  const fillable = fillableValues(values as Values, problems);
+  // `category` turns padding ON: every attribute this category carries for hand fans, crackers
+  // and battery toys is filled with "Not Applicable" rather than left blank, which took the
+  // Additional Description tab from 35/66 to 58/66 (WW-195). Drop the third argument to go back.
+  const fillable = fillableValues(values as Values, problems, category);
 
   const page = await activePage(session.context);
   const rows: FieldRow[] = [];

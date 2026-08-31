@@ -65,16 +65,39 @@ export interface LoadedProduct {
   asks: string[];
 }
 
-/** Labels captured by `npm run scan`, normalised the way fields.ts matches them. */
-function scannedLabels(catDir: string, category: string): Set<string> | null {
+/** One row of `categories/<category>.json` — what `npm run scan` recorded off the live form. */
+type ScannedField = { label: string; kind: string; companion?: boolean; furniture?: boolean };
+
+/** Every field `npm run scan` has ever seen on this category, across all tabs. */
+function scannedFields(catDir: string, category: string): ScannedField[] | null {
   const file = path.join(catDir, `${category}.json`);
   if (!fs.existsSync(file)) return null;
   try {
-    const { fields } = JSON.parse(fs.readFileSync(file, "utf8")) as { fields: { label: string }[] };
-    return new Set(fields.map((f) => normLabel(f.label)));
+    return (JSON.parse(fs.readFileSync(file, "utf8")) as { fields: ScannedField[] }).fields ?? [];
   } catch {
     return null; // a damaged scan file must not stop a fill
   }
+}
+
+/** Every label answered by any of `categories/<category>.*.defaults.json`, across all tabs. */
+function defaultsKeys(catDir: string, category: string): string[] {
+  if (!fs.existsSync(catDir)) return [];
+  const out: string[] = [];
+  for (const f of fs.readdirSync(catDir)) {
+    if (!f.startsWith(`${category}.`) || !f.endsWith(".defaults.json")) continue;
+    try {
+      out.push(...Object.keys(JSON.parse(fs.readFileSync(path.join(catDir, f), "utf8"))));
+    } catch {
+      /* a damaged defaults file must not stop a fill */
+    }
+  }
+  return out;
+}
+
+/** Labels captured by `npm run scan`, normalised the way fields.ts matches them. */
+function scannedLabels(catDir: string, category: string): Set<string> | null {
+  const fields = scannedFields(catDir, category);
+  return fields && new Set(fields.map((f) => normLabel(f.label)));
 }
 
 /** Same normalisation as `fields.ts` — trim, collapse spaces, lowercase, drop a trailing "*". */
@@ -450,9 +473,94 @@ export function checkValues(values: Values): Problem[] {
  * wrong value looks filled. The bot never submits, so what it leaves blank is what the human fills
  * before pressing Save.
  */
-export function fillableValues(values: Values, problems: Problem[]): Values {
+export function fillableValues(
+  values: Values,
+  problems: Problem[],
+  category?: string | null,
+  catDir = CATEGORIES_DIR,
+): Values {
   const skip = new Set(problems.map((p) => p.label));
-  return Object.fromEntries(Object.entries(values).filter(([label]) => !skip.has(label)));
+  const stated = Object.fromEntries(Object.entries(values).filter(([label]) => !skip.has(label)));
+  // The pads go UNDERNEATH: `values`, not `stated`, decides what counts as blank, so a field
+  // `checkValues` rejected stays rejected instead of being papered over. See padBlanks.
+  return category ? { ...padBlanks(values, category, catDir), ...stated } : stated;
+}
+
+/**
+ * What a padded field says. Vansh's word, used throughout the request that asked for this:
+ * *"fill that N/A anyways"*. It is also what most Flipkart listings already show in a
+ * specification row that does not apply, so it reads as normal rather than as a bug.
+ *
+ * The warranty defaults say "Not Applicable" and deliberately still do — those are real answers
+ * to real warranty questions written as prose, not pads. Changing this one constant changes all
+ * ~24 padded rows at once.
+ */
+export const PAD_VALUE = "N/A";
+
+/**
+ * Labels that must NEVER be padded, even though they are blank.
+ *
+ * Three families, all of which turn "Not Applicable" from useless into harmful:
+ *  - **money, stock and measurements** — numeric boxes. Flipkart rejects the whole SAVE on a
+ *    non-numeric value, so one pad here costs every other field on the tab (same failure shape
+ *    as the emoji in `badChar`). This is also the guard that keeps a pad away from MRP.
+ *  - **identifiers** (EAN/UPC, External Identifier, Video URL) — a barcode box holding
+ *    "Not Applicable" is a *wrong* GTIN, not a blank one, and a URL box has its own validator.
+ *  - anything already required (`*`), handled separately below: a mandatory field wants a real
+ *    answer or an empty box someone notices, never filler that reads as done.
+ */
+const NEVER_PAD =
+  /fee|cess|price|mrp|stock|sla|hsn|tax|ean|upc|identifier|video|url|weight|quantity|warranty|length|breadth|height|width|depth|diameter|burn time|number of|power requirement/i;
+
+/**
+ * Fill every remaining blank attribute with "Not Applicable".
+ *
+ * WHY THIS EXISTS. The Additional Description tab has 66 attributes and we answer 35 of them;
+ * Flipkart scores the listing 3.8/5. The other 31 are the hand-fan, blowout, cracker and
+ * battery-toy attributes this category is shared with — `Mouthpiece Material`, `Burn Time`,
+ * `Type of Batteries` — which are blank because they are genuinely meaningless for a balloon
+ * kit, and the defaults file says so in as many words.
+ *
+ * **Whether Flipkart's score counts a filled-but-meaningless field is unknown**, and nothing
+ * published says either way. Vansh's call, 2026-08-26, having been told that: make it the
+ * default everywhere rather than a flag to remember. So every front door pads — `npm start`, the
+ * app's Fill button, and `npm run fill` — and `--no-pad` on the two CLIs is the way back for a
+ * before/after comparison. The honest cost is that "Mouthpiece Material: Not Applicable" appears
+ * on the buyer-facing specification table; if the score does not move, take the argument back out
+ * of the three `fillableValues` calls and this function is dead code again.
+ *
+ * Comboboxes are skipped because their option list is fixed and never contains this string;
+ * required fields are skipped because filler in a mandatory box reads as done and is not.
+ *
+ * PASS THE PRODUCT'S FULL `values`, NEVER `fillableValues(...)`. A field is blank on the form for
+ * two very different reasons, and only one of them wants a pad. `Key Spec` over its 22-character
+ * limit and a `Character` holding Devanagari are both DROPPED by checkValues — they are stated,
+ * they are wrong, and the operator is meant to see the warning and fix the words. Padding those
+ * writes "Key Spec: Not Applicable" onto a live listing and makes the warning look answered.
+ * Returns ONLY the additions, so the caller merges them under the real values and this
+ * distinction cannot be lost at the call site either.
+ */
+export function padBlanks(stated: Values, category: string, catDir = CATEGORIES_DIR): Values {
+  // Every label ANY defaults file answers, not just this tab's, plus what the product states.
+  //
+  // THIS IS A SAFETY GUARD, not tidiness. `loadProduct(file, _, tab)` loads ONE defaults file, so
+  // a tab-scoped load leaves the other tabs' answers out of `stated` — `Precautions` is simply
+  // absent when the app fills the Price/Stock tab. Padding on that basis writes "N/A" into
+  // Precautions the moment somebody presses a Fill button for a tab they are not looking at, and
+  // Flipkart.tsx promises out loud that pressing the wrong button cannot fill the wrong tab.
+  // Padding is the thing that would have made that promise false. A field some defaults file
+  // answers is not blank — it is just not on this tab.
+  const have = new Set([...Object.keys(stated), ...defaultsKeys(catDir, category)].map(normLabel));
+  const pads: Values = {};
+  for (const f of scannedFields(catDir, category) ?? []) {
+    if (f.companion || f.furniture) continue;
+    if (/\*\s*$/.test(f.label)) continue;                     // required — real answer or nothing
+    if (f.kind !== "text" && f.kind !== "pills") continue;    // fixed option lists never offer it
+    const label = f.label.trim();
+    if (NEVER_PAD.test(label) || have.has(normLabel(label))) continue;
+    pads[label] = PAD_VALUE;
+  }
+  return pads;
 }
 
 export function describeProblems(problems: Problem[]): string {

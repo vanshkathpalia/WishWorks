@@ -113,6 +113,25 @@ same product. Each run fills only the tab you're looking at. Two runs = one list
 
 If anything is ⚠️ or ❌, it **will not save automatically**. That's deliberate.
 
+### The listing score, and the one switch that touches it
+
+Flipkart scores each listing out of 5 and shows a counter on the tab — "Additional Description
+(35/66)". We answer 35 of those 66 honestly; most of the other 31 are hand-fan, cracker and
+battery-toy attributes, because Flipkart puts all of those in one category with balloons.
+
+**`npm start` now fills those leftovers for you**, with **N/A**, taking the
+tab from 35/66 to about 58/66. The app's **Fill** button does exactly the same thing. You do not
+have to type anything extra — it just happens.
+
+It never touches a price, a weight, a barcode or any other number. Filler in one of those makes
+Flipkart reject the whole save, so those stay blank on purpose.
+
+> **Worth watching for a week.** Nobody outside Flipkart knows for certain whether a
+> filled-but-meaningless field counts towards the score. Note today's score, list a few products,
+> and look again. If it hasn't moved, tell your developer — "Mouthpiece Material: N/A"
+> does show up on the page buyers read, and it is one line to switch back off.
+> `npm start -- --no-pad` is the old behaviour if you want to compare.
+
 ### Two rules that matter
 
 - **Never close Chrome before saving.** Nothing is saved until you click Save. Closing

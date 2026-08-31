@@ -429,14 +429,35 @@ RULES, ALL OF WHICH COST REAL SEARCHES WHEN BROKEN:
   8. Front-load. Assume the name is cut short in the search grid and only the beginning is read.
      That is why the occasion comes first, and it is not negotiable.
 
+=== THREE MORE FIELDS, AND THEY ARE NOT OPTIONAL WHEN THEY ARE TRUE ===
+These three used to be in the "leave out" list below, wrongly — they read like hand-fan
+attributes and they are not. Include each one whenever this kit can answer it, and leave it out
+when it cannot. Never invent one to have something to write.
+
+  "Printed Text"   – the words actually PRINTED on the banner, the sash or the cutouts, exactly
+                     as they appear on them, one value per printed piece. "Happy Birthday",
+                     "Bride To Be", "Welcome Baby". This is a real thing a buyer searches for and
+                     it is on the product in the photographs.
+                     WRITE IT IN ENGLISH LETTERS. A banner printed in Devanagari or any other
+                     script goes in as the English wording of the same phrase — Flipkart's server
+                     cannot store non-ASCII characters and the tool will drop the whole value.
+                     No banner, no sash, no printed cutout in the kit → leave the field out.
+  "Visual Effects" – how the pieces catch the light, from the MATERIALS in the inventory, not
+                     from the photograph's lighting: "Metallic Shine", "Chrome Finish",
+                     "Glitter", "Matte Finish", "Holographic". Plain latex only → leave it out.
+  "Other Dimensions" – a measured size of a NAMED piece, one value each, and only sizes you were
+                     actually given: "Banner 5 Feet Wide", "Foil Curtain 3 Feet". Do NOT convert
+                     a balloon's inflated size into a packed one, and do not guess a banner size
+                     off a photograph. Nothing measured → leave it out.
+
 === LEAVE THESE OUT ALWAYS ===
 This Flipkart category is shared with hand fans, party blowouts, crackers and
 battery-powered toys. These fields exist on the form but do NOT apply to balloons and
 decoration. Never include them:
 Handle, Handle Shape, Handle Material, Hand Fan Type, Animal Type, Guardstick Material,
-Rib Material, Leaf Material, Leaf Shape, Printed Text, Other Hand Fan Features,
+Rib Material, Leaf Material, Leaf Shape, Other Hand Fan Features,
 Mouthpiece Material, Tube Shape, Tube Material, Other Blowout Features, Burn Time,
-Visual Effects, Sound Features, Cracker Type, Other Cracker Features, Powered by,
+Sound Features, Cracker Type, Other Cracker Features, Powered by,
 Power Requirement, Type of Batteries, Number of Batteries, Other Power Features.
 
 === ALREADY WRITTEN BY THE APP — NEVER INCLUDE THESE ===
@@ -466,6 +487,12 @@ exist in the parcel. Leave the field out.
 === BEFORE YOU ANSWER, CHECK ===
 - Is "Model Name" character-for-character the "title" from the first file, and
   "Search Keywords" character-for-character its "keywords" list?
+- Are "Seller SKU ID", "Color" and "Type" all present? Those three are dropped more often than
+  any other field, and "Color" and "Type" are the two that write the product name.
+- Has every field that THIS kit can honestly answer been answered? Flipkart scores the listing on
+  how much of the form is filled, and a blank it could have filled costs the score. Walk the list
+  once more: "Series", "Shape", "Pack of", "Printed Text", "Visual Effects", "Other Dimensions",
+  "Other Features", "Key Spec".
 - Do all counts and items match the INVENTORY exactly?
 - Does any list value contain a comma? Remove it.
 - Did you invent a size or material you cannot see? Remove that field.

@@ -263,8 +263,8 @@
     {
       "category": "Balloon",
       "material": "Silver Chrome Balloon",
-      "paise": null,
-      "_note": "Colour variant. The generic `Chrome Balloon` (Rs1.50) is left exactly as it was — it may turn out to be one of these four, but merging is Vansh's call, not mine.",
+      "paise": 150,
+      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. Colour variant. The generic `Chrome Balloon` (Rs1.50) is left exactly as it was — it may turn out to be one of these four, but merging is Vansh's call, not mine.",
       "aka": [
         "silver chrome"
       ]
@@ -272,26 +272,29 @@
     {
       "category": "Balloon",
       "material": "Golden Chrome Balloon",
-      "paise": null,
+      "paise": 150,
       "aka": [
         "golden chrome"
-      ]
+      ],
+      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
     },
     {
       "category": "Balloon",
       "material": "Rose Gold Chrome Balloon",
-      "paise": null,
+      "paise": 150,
       "aka": [
         "Rosegold chrome"
-      ]
+      ],
+      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
     },
     {
       "category": "Balloon",
       "material": "Pink Chrome Balloon",
-      "paise": null,
+      "paise": 150,
       "aka": [
         "pink chrome"
-      ]
+      ],
+      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
     },
     {
       "category": "Foil Balloon",
@@ -524,8 +527,8 @@
     {
       "category": "Foil Balloon",
       "material": "Blue Number Foil, 0-9",
-      "paise": null,
-      "_note": "`no` is NUMBER, not the English word no. The generic `Number Foil` (Rs3.00) stays; this is the blue 0-9 set the supplier sends 450 of.",
+      "paise": 300,
+      "_note": "Price inherited from `Number Foil` (Rs3.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. `no` is NUMBER, not the English word no. The generic `Number Foil` (Rs3.00) stays; this is the blue 0-9 set the supplier sends 450 of.",
       "aka": [
         "Blue no foil. 0 to9",
         "blue number foil"
@@ -534,8 +537,8 @@
     {
       "category": "Foil Balloon",
       "material": "Silver Number Foil, 0-9",
-      "paise": null,
-      "_note": "FLAG: `Silver no aal 250 pcs no foil`. Read as silver number foils, 0-9. `aal` is a guess at `all`. Confirm.",
+      "paise": 300,
+      "_note": "Price inherited from `Number Foil` (Rs3.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. FLAG: `Silver no aal 250 pcs no foil`. Read as silver number foils, 0-9. `aal` is a guess at `all`. Confirm.",
       "aka": [
         "Silver no aal no foil",
         "silver number foil"
@@ -549,16 +552,17 @@
     {
       "category": "Foil Balloon",
       "material": "Silver Love Foil",
-      "paise": null,
+      "paise": 600,
       "aka": [
         "silver love foil pack"
-      ]
+      ],
+      "_note": "Price inherited from `Love Foil` (Rs6.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
     },
     {
       "category": "Foil Balloon",
       "material": "Red Happy Anniversary Foil",
-      "paise": null,
-      "_note": "`ha` is Happy Anniversary throughout this supplier's notes. The uncoloured `Happy Anniversary Foil` (Rs40) stays.",
+      "paise": 4000,
+      "_note": "Price inherited from `Happy Anniversary Foil` (Rs40.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. `ha` is Happy Anniversary throughout this supplier's notes. The uncoloured `Happy Anniversary Foil` (Rs40) stays.",
       "aka": [
         "red ha foil"
       ]
@@ -566,26 +570,28 @@
     {
       "category": "Foil Balloon",
       "material": "Golden Happy Anniversary Foil",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "golden ha foil"
-      ]
+      ],
+      "_note": "Price inherited from `Happy Anniversary Foil` (Rs40.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
     },
     {
       "category": "Foil Balloon",
       "material": "Rose Gold Happy Anniversary Foil",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "Rosegold ha foil",
         "rose gold ha foil",
         "rosegold happy anniversary foil"
-      ]
+      ],
+      "_note": "Price inherited from `Happy Anniversary Foil` (Rs40.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
     },
     {
       "category": "Foil Balloon",
       "material": "Rose Gold Crown Foil",
-      "paise": null,
-      "_note": "`chroun` read as crown. The uncoloured `Crown Foil` (Rs4) stays.",
+      "paise": 400,
+      "_note": "Price inherited from `Crown Foil` (Rs4.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. `chroun` read as crown. The uncoloured `Crown Foil` (Rs4) stays.",
       "aka": [
         "Rosegold chroun pack",
         "rosegold crown"
@@ -650,8 +656,8 @@
     {
       "category": "Foil Balloon",
       "material": "Red Heart Foil",
-      "paise": null,
-      "_note": "`hart` read as heart. The uncoloured `Heart Foil` 12\" (Rs1.50) stays.",
+      "paise": 150,
+      "_note": "Price inherited from `Heart Foil` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. `hart` read as heart. The uncoloured `Heart Foil` 12\" (Rs1.50) stays.",
       "aka": [
         "red hart foil"
       ]
@@ -659,8 +665,14 @@
     {
       "category": "Foil Balloon",
       "material": "Green Star Foil",
-      "paise": null,
-      "_note": "Was matching `Blue Star Foil` at 80% — same product, wrong colour, and colours are the whole point of a star foil."
+      "paise": 150,
+      "_note": "Price inherited from `Silver Star Foil` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. Was matching `Blue Star Foil` at 80% — same product, wrong colour, and colours are the whole point of a star foil."
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Crown Foil",
+      "paise": 400,
+      "_note": "Added because `Gold Crown Foil` on GTB007 was matching `Rose Gold Crown Foil` once that row existed — rose gold shares more words with it than plain `Crown Foil` does. Price inherited from `Crown Foil`. C-073."
     },
     {
       "category": "Banner",
@@ -759,8 +771,8 @@
     {
       "category": "Banner",
       "material": "Black Happy Anniversary Banner",
-      "paise": null,
-      "_note": "`Anniversary Banner` (Rs12) has no colour on it and is left alone.",
+      "paise": 1200,
+      "_note": "Price inherited from `Anniversary Banner` (Rs12.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. `Anniversary Banner` (Rs12) has no colour on it and is left alone.",
       "aka": [
         "ha banner black",
         "black ha banner",
@@ -770,12 +782,13 @@
     {
       "category": "Banner",
       "material": "Red Happy Anniversary Banner",
-      "paise": null,
+      "paise": 1200,
       "aka": [
         "ha banner red",
         "red ha banner",
         "happy anniversary banner red"
-      ]
+      ],
+      "_note": "Price inherited from `Anniversary Banner` (Rs12.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
     },
     {
       "category": "Banner",

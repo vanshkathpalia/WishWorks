@@ -6,10 +6,10 @@
 // scan exists — an unscanned category must never have its fields accused.
 
 import { describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { checkValues, fillableValues, loadProduct, mergeScan, productName, ScanTooSmall } from "../src/listing.js";
+import { checkValues, fillableValues, loadProduct, mergeScan, padBlanks, PAD_VALUE, productName, ScanTooSmall } from "../src/listing.js";
 
 async function fixture(): Promise<{ file: string; cat: string }> {
   const dir = await mkdtemp(path.join(tmpdir(), "ww-unmapped-"));
@@ -391,5 +391,88 @@ describe("Flipkart's character limits", () => {
   it("leaves an over-length field blank — the save fails for the whole listing otherwise", () => {
     const values = { "Key Spec": ["4 Heart Shape Red Foil Balloons"], Stock: "100" };
     expect(Object.keys(fillableValues(values, checkValues(values)))).toEqual(["Stock"]);
+  });
+});
+
+// padBlanks fills the 31 attributes a balloon kit shares with hand fans and
+// crackers. What it must NOT touch is the whole point — a pad in a numeric box makes Flipkart
+// reject the entire save, and a pad in MRP is a live listing carrying a fake price.
+describe("padBlanks", () => {
+  const cat = path.join(tmpdir(), "ww-pad-cats");
+  const fields = [
+    { label: "Mouthpiece Material", kind: "pills" },
+    { label: "Tube Shape", kind: "text" },
+    { label: "Theme", kind: "pills" },
+    { label: "MRP *", kind: "text" },
+    { label: "Local handling fee", kind: "text" },
+    { label: "EAN/UPC", kind: "pills" },
+    { label: "Video URL", kind: "text" },
+    { label: "Diameter", kind: "text" },
+    { label: "Handle", kind: "combobox" },
+    { label: "Weight (unit)", kind: "combobox", companion: true },
+    { label: "FSN", kind: "text", furniture: true },
+  ];
+
+  it("pads only the blank, optional, free-text attributes", async () => {
+    await mkdir(cat, { recursive: true });
+    await writeFile(path.join(cat, "c.json"), JSON.stringify({ category: "c", fields }));
+    const pads = padBlanks({ Theme: ["Birthday"] }, "c", cat);
+    expect(Object.keys(pads)).toEqual(["Mouthpiece Material", "Tube Shape"]);
+    expect(pads["Mouthpiece Material"]).toBe(PAD_VALUE);
+    expect(pads.Theme).toBeUndefined(); // a stated value is never overwritten
+    // Never: required, money, identifiers, numbers, fixed option lists, page furniture.
+    for (const k of ["MRP *", "MRP", "Local handling fee", "EAN/UPC", "Video URL", "Diameter", "Handle", "Weight (unit)", "FSN"]) {
+      expect(pads[k]).toBeUndefined();
+    }
+  });
+
+  // The bug this catches: a value dropped by checkValues (Key Spec over 22 chars, a Devanagari
+  // Character) is STATED and WRONG. Padding it writes "Not Applicable" onto a live listing and
+  // makes the warning the operator is meant to act on look answered.
+  it("leaves a stated-but-rejected field alone rather than padding over the warning", async () => {
+    await mkdir(cat, { recursive: true });
+    await writeFile(
+      path.join(cat, "c.json"),
+      JSON.stringify({ category: "c", fields: [...fields, { label: "Key Spec", kind: "pills" }] }),
+    );
+    const stated = { "Key Spec": ["a value far longer than twenty-two characters"] };
+    const problems = checkValues(stated);
+    expect(problems).toHaveLength(1);
+    expect(padBlanks(stated, "c", cat)["Key Spec"]).toBeUndefined();
+    // …and fillableValues, which is the only path all three front doors take, keeps it out.
+    expect(Object.keys(fillableValues(stated, problems, "c", cat))).not.toContain("Key Spec");
+  });
+
+  // Padding is the DEFAULT now, so the guard that matters is that it happens in the one place
+  // every front door shares (npm start, the app's Fill button, npm run fill) rather than three.
+  it("pads through fillableValues when given a category, and not when it is not", async () => {
+    await mkdir(cat, { recursive: true });
+    await writeFile(path.join(cat, "c.json"), JSON.stringify({ category: "c", fields }));
+    const stated = { Theme: ["Birthday"] };
+    expect(Object.keys(fillableValues(stated, [], null, cat))).toEqual(["Theme"]);
+    const padded = fillableValues(stated, [], "c", cat);
+    expect(padded.Theme).toEqual(["Birthday"]);
+    expect(padded["Mouthpiece Material"]).toBe(PAD_VALUE);
+  });
+
+  it("pads nothing when the category has never been scanned", () => {
+    expect(padBlanks({}, "never-scanned", cat)).toEqual({});
+  });
+
+  // The regression padding introduced, and the reason padBlanks reads the defaults files itself.
+  // `loadProduct(file, _, tab)` loads ONE defaults file, so filling the Price/Stock tab leaves
+  // Precautions out of `values` entirely — it is answered, just not on that tab. Padding on that
+  // basis types "N/A" over it the moment somebody presses the wrong tab's Fill button, which
+  // Flipkart.tsx promises cannot happen.
+  it("never pads a label answered by another tab's defaults file", async () => {
+    await mkdir(cat, { recursive: true });
+    await writeFile(
+      path.join(cat, "c.json"),
+      JSON.stringify({ category: "c", fields: [...fields, { label: "Precautions", kind: "pills" }] }),
+    );
+    await writeFile(path.join(cat, "c.defaults.json"), JSON.stringify({ Precautions: ["Keep away from fire"] }));
+    // The Price/Stock load: Precautions is nowhere in `stated`, and must still not be padded.
+    expect(padBlanks({ Stock: "100" }, "c", cat)["Precautions"]).toBeUndefined();
+    await rm(path.join(cat, "c.defaults.json"));
   });
 });
