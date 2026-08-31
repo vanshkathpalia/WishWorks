@@ -261,6 +261,39 @@
       ]
     },
     {
+      "category": "Balloon",
+      "material": "Silver Chrome Balloon",
+      "paise": null,
+      "_note": "Colour variant. The generic `Chrome Balloon` (Rs1.50) is left exactly as it was — it may turn out to be one of these four, but merging is Vansh's call, not mine.",
+      "aka": [
+        "silver chrome"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Golden Chrome Balloon",
+      "paise": null,
+      "aka": [
+        "golden chrome"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Rose Gold Chrome Balloon",
+      "paise": null,
+      "aka": [
+        "Rosegold chrome"
+      ]
+    },
+    {
+      "category": "Balloon",
+      "material": "Pink Chrome Balloon",
+      "paise": null,
+      "aka": [
+        "pink chrome"
+      ]
+    },
+    {
       "category": "Foil Balloon",
       "material": "First Birthday Boy Foil",
       "paise": 200,
@@ -337,21 +370,28 @@
       "category": "Foil Balloon",
       "material": "GTB Foil",
       "paise": 3500,
-      "sellsAs": "Groom To Be Foil Banner"
+      "sellsAs": "Groom To Be Foil Banner",
+      "aka": [
+        "Groom to be foil"
+      ]
     },
     {
       "category": "Foil Balloon",
       "material": "Happy Anniversary Foil",
       "paise": 4000,
       "aka": [
-        "happy anniversey"
+        "happy anniversey",
+        "ha foil"
       ]
     },
     {
       "category": "Foil Balloon",
       "material": "HBD Foil",
       "paise": 3800,
-      "sellsAs": "Happy Birthday Foil Banner"
+      "sellsAs": "Happy Birthday Foil Banner",
+      "aka": [
+        "happy birthday foil"
+      ]
     },
     {
       "category": "Foil Balloon",
@@ -424,7 +464,8 @@
       "material": "Blue Star Foil",
       "paise": 150,
       "aka": [
-        "Star Foil Blue"
+        "Star Foil Blue",
+        "blue star"
       ]
     },
     {
@@ -470,12 +511,156 @@
     {
       "category": "Foil Balloon",
       "material": "Welcome Baby Foil",
-      "paise": 3500
+      "paise": 3500,
+      "aka": [
+        "wb foil"
+      ]
     },
     {
       "category": "Foil Balloon",
       "material": "Welcome Home Foil",
       "paise": 3800
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Blue Number Foil, 0-9",
+      "paise": null,
+      "_note": "`no` is NUMBER, not the English word no. The generic `Number Foil` (Rs3.00) stays; this is the blue 0-9 set the supplier sends 450 of.",
+      "aka": [
+        "Blue no foil. 0 to9",
+        "blue number foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Silver Number Foil, 0-9",
+      "paise": null,
+      "_note": "FLAG: `Silver no aal 250 pcs no foil`. Read as silver number foils, 0-9. `aal` is a guess at `all`. Confirm.",
+      "aka": [
+        "Silver no aal no foil",
+        "silver number foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Love Foil Big",
+      "paise": null
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Silver Love Foil",
+      "paise": null,
+      "aka": [
+        "silver love foil pack"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Red Happy Anniversary Foil",
+      "paise": null,
+      "_note": "`ha` is Happy Anniversary throughout this supplier's notes. The uncoloured `Happy Anniversary Foil` (Rs40) stays.",
+      "aka": [
+        "red ha foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Happy Anniversary Foil",
+      "paise": null,
+      "aka": [
+        "golden ha foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Rose Gold Happy Anniversary Foil",
+      "paise": null,
+      "aka": [
+        "Rosegold ha foil",
+        "rose gold ha foil",
+        "rosegold happy anniversary foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Rose Gold Crown Foil",
+      "paise": null,
+      "_note": "`chroun` read as crown. The uncoloured `Crown Foil` (Rs4) stays.",
+      "aka": [
+        "Rosegold chroun pack",
+        "rosegold crown"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Foil Small",
+      "paise": null,
+      "_note": "`bacha` is bachcha, a child. Distinct from the plain `Baby Foil` (Rs4) — which of the three sizes that one is has not been established.",
+      "aka": [
+        "bacha smoll foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Foil Big",
+      "paise": null,
+      "_note": "Was matching `Heart Foil Big` at 67% before this row existed — a confident wrong answer, which is the failure mode a missing row causes.",
+      "aka": [
+        "bacha foil big"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Just Married Foil",
+      "paise": null
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Haldi Ceremony Foil",
+      "paise": null,
+      "_note": "The FOIL. `Haldi Banner` (Rs12) is a different product and is untouched."
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Annaprashan Foil",
+      "paise": null,
+      "aka": [
+        "annprashan gold foil",
+        "golden anp foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Welcome Foil",
+      "paise": null,
+      "_note": "FLAG: `welcome foil golden` could be Welcome Baby or Welcome Home, both of which already exist as foils (Rs35 / Rs38). Listed on its own rather than folded into either. Confirm which, or whether it is a third product.",
+      "aka": [
+        "welcome foil golden"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Golden Baby Shower Foil",
+      "paise": null,
+      "_note": "Was matching `Baby Foil` at 67%.",
+      "aka": [
+        "baby shower golden foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Red Heart Foil",
+      "paise": null,
+      "_note": "`hart` read as heart. The uncoloured `Heart Foil` 12\" (Rs1.50) stays.",
+      "aka": [
+        "red hart foil"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Green Star Foil",
+      "paise": null,
+      "_note": "Was matching `Blue Star Foil` at 80% — same product, wrong colour, and colours are the whole point of a star foil."
     },
     {
       "category": "Banner",
@@ -487,7 +672,8 @@
       "material": "Annaprashan Banner",
       "paise": 1200,
       "aka": [
-        "Annaprasan banner"
+        "Annaprasan banner",
+        "anp banner"
       ],
       "size": "6*4\""
     },
@@ -496,7 +682,8 @@
       "material": "Annaprashan Banner Kit",
       "paise": 3500,
       "aka": [
-        "Annaprasan banner kit"
+        "Annaprasan banner kit",
+        "anp banner kit"
       ]
     },
     {
@@ -515,14 +702,18 @@
     {
       "category": "Banner",
       "material": "Haldi Banner",
-      "paise": 1200
+      "paise": 1200,
+      "aka": [
+        "haldi ceremony banner"
+      ]
     },
     {
       "category": "Banner",
       "material": "HBD Banner",
       "paise": 1000,
       "aka": [
-        "happy birthday"
+        "happy birthday",
+        "happy birthday banner"
       ],
       "sellsAs": "Happy Birthday Banner"
     },
@@ -531,7 +722,9 @@
       "material": "HBD Bunting",
       "paise": 1200,
       "aka": [
-        "HBD banner Banting"
+        "HBD banner Banting",
+        "happy birthday bunting",
+        "happy birthday banner banting"
       ],
       "sellsAs": "Happy Birthday Bunting Banner"
     },
@@ -540,7 +733,9 @@
       "material": "Blue HBD Banner",
       "paise": 1200,
       "aka": [
-        "HBD banner blue"
+        "HBD banner blue",
+        "blue happy birthday banner",
+        "happy birthday banner blue"
       ]
     },
     {
@@ -548,7 +743,9 @@
       "material": "Jungle HBD Banner",
       "paise": 1200,
       "aka": [
-        "HBD jungle banner"
+        "HBD jungle banner",
+        "jungle happy birthday banner",
+        "happy birthday jungle banner"
       ]
     },
     {
@@ -557,6 +754,134 @@
       "paise": null,
       "aka": [
         "emogi banner"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Black Happy Anniversary Banner",
+      "paise": null,
+      "_note": "`Anniversary Banner` (Rs12) has no colour on it and is left alone.",
+      "aka": [
+        "ha banner black",
+        "black ha banner",
+        "happy anniversary banner black"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Red Happy Anniversary Banner",
+      "paise": null,
+      "aka": [
+        "ha banner red",
+        "red ha banner",
+        "happy anniversary banner red"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Glitter HBD Bunting, All Colours",
+      "paise": null,
+      "_note": "`gletar` read as glitter. `HBD Bunting` (Rs12) is the plain one and stays.",
+      "aka": [
+        "All colors gletar hbd bunting",
+        "glitter happy birthday bunting all colours",
+        "all colors gletar happy birthday bunting"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Glitter Bunting",
+      "paise": null,
+      "_note": "FLAG: the note says `gletar bunting old`. `old` could mean old stock, an older design, or a different product. Entered as its own row rather than guessed into the row above.",
+      "aka": [
+        "gletar bunting old"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Pink Welcome Baby Banner",
+      "paise": null,
+      "aka": [
+        "welcome baby banner pink",
+        "pink wb banner",
+        "wb banner pink"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Blue Welcome Baby Banner",
+      "paise": null,
+      "aka": [
+        "welcome baby blue banner",
+        "blue wb banner",
+        "wb blue banner"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Pink Half Birthday Banner",
+      "paise": null,
+      "_note": "FLAG: half birthday and six months are the same occasion, so this may be the existing `6 Month Birthday Banner` (Rs10) in pink. Kept separate — merging two products that only LOOK alike is the mistake to avoid.",
+      "aka": [
+        "half birthday banner pink"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Blue Half Birthday Banner",
+      "paise": null,
+      "aka": [
+        "half hbd banner blue",
+        "half happy birthday banner blue"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Rose Gold Peanut Banner",
+      "paise": null,
+      "_note": "FLAG, the least confident row here: `Peanut` is not a party theme I can place, and it is spelt the same on both of his lines so it is probably not a slip. Possibly a baby-shower `little peanut` banner. Please say what this is.",
+      "aka": [
+        "Peanut banner rose gold"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Golden Peanut Banner",
+      "paise": null,
+      "aka": [
+        "Peanut banner golden"
+      ]
+    },
+    {
+      "category": "Themed Set",
+      "material": "Annaprashan Kit With Props, English",
+      "paise": null,
+      "_note": "Vansh: *\"english aannprashna — is it talking about annaprasan anp kit 25 rs one? diff eng and hindi we have.\"* So this is the ENGLISH version of `Annaprashan Kit With Props` (Rs25), not a banner. **That Rs25 row is left exactly as it is** — it carries no language, and labelling it Hindi is Vansh's call, not a guess to make here. Once he says, that row gets `, Hindi` and this one gets his price.",
+      "aka": [
+        "english aannprashna",
+        "anp kit with props english"
+      ],
+      "piecesPerPack": 16
+    },
+    {
+      "category": "Banner",
+      "material": "Golden BTB Bunting",
+      "paise": null,
+      "_note": "`brtb` read as BTB, Bride To Be — `BTB Sash` already uses that code. Confirm.",
+      "aka": [
+        "brtb bunting golden",
+        "golden bride to be bunting",
+        "bride to be bunting golden"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "Rose Gold BTB Bunting",
+      "paise": null,
+      "aka": [
+        "brtb bunting rosegold",
+        "rose gold bride to be bunting",
+        "bride to be bunting rosegold"
       ]
     },
     {
@@ -632,7 +957,8 @@
       "material": "Annaprashan Kit With Props",
       "paise": 2500,
       "aka": [
-        "Annaprasan with props kit complete"
+        "Annaprasan with props kit complete",
+        "anp kit with props"
       ],
       "piecesPerPack": 16
     },
@@ -641,7 +967,8 @@
       "material": "Cocomelon Set, 5 pcs",
       "paise": 3800,
       "aka": [
-        "Cocomelon foil Balloon Set 5 PCs"
+        "Cocomelon foil Balloon Set 5 PCs",
+        "cocomelan five pcs set"
       ],
       "piecesPerPack": 5
     },
@@ -667,7 +994,10 @@
       "category": "Themed Set",
       "material": "GTB Kit",
       "paise": 3400,
-      "sellsAs": "Groom To Be Foil Letter Kit"
+      "sellsAs": "Groom To Be Foil Letter Kit",
+      "aka": [
+        "groom to be kit"
+      ]
     },
     {
       "category": "Themed Set",
@@ -699,7 +1029,8 @@
       "material": "Peppa Pig Set, 5 pcs",
       "paise": 3800,
       "aka": [
-        "peppa pig 5 pse set"
+        "peppa pig 5 pse set",
+        "pepa pig"
       ],
       "piecesPerPack": 5
     },
@@ -717,7 +1048,9 @@
       "material": "Space Theme HBD Set, 5 foils",
       "paise": 3800,
       "aka": [
-        "Space Theme HBD kit (5 foils)"
+        "Space Theme HBD kit (5 foils)",
+        "space theme happy birthday set 5 foils",
+        "space theme happy birthday kit 5 foils"
       ],
       "piecesPerPack": 5
     },
@@ -729,6 +1062,110 @@
         "Welcome home golden 100 pcs ok"
       ],
       "piecesPerPack": 100
+    },
+    {
+      "category": "Themed Set",
+      "material": "Hello Kitty Set, 5 pcs",
+      "paise": null,
+      "_note": "The 5-piece set. `Kitty Foil` (Rs15) is a single foil and is untouched.",
+      "aka": [
+        "kitty five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Boss Baby Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "boss baby five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Spiderman Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "spiderman five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Unicorn Set, 5 pcs",
+      "paise": null,
+      "_note": "The 5-piece set. `Unicorn` (Rs5) is a single and stays.",
+      "aka": [
+        "unicorn five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Minnie Mouse Set, 5 pcs",
+      "paise": null,
+      "_note": "`Mini mouse` read as Minnie, and listed separately from Mickey below — the note has both, one line apart, so they are two products.",
+      "aka": [
+        "Mini mouse five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Mickey Mouse Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "Micky mouse five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Rainbow Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "renbow five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Barbie Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "barbie five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Masha Set, 5 pcs",
+      "paise": null,
+      "_note": "FLAG: `Masha Set, Card Packed` (Rs38) already exists. Card-packed and a 5-pc set may be the same goods in different packing, or two products. Kept apart until Vansh says.",
+      "aka": [
+        "masa five pcs set"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Blue First Birthday Set, 5 pcs",
+      "paise": null,
+      "_note": "The colourless `First Birthday Set, 5 pcs` stays; the supplier sends blue and pink separately.",
+      "aka": [
+        "first birthday five pcs set foil blue"
+      ],
+      "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Pink First Birthday Set, 5 pcs",
+      "paise": null,
+      "aka": [
+        "first birthday five pcs set pink foil"
+      ],
+      "piecesPerPack": 5
     },
     {
       "category": "Decoration",
@@ -749,7 +1186,8 @@
       "material": "LED String Light, 10 m",
       "paise": 1900,
       "aka": [
-        "led 10 mtr"
+        "led 10 mtr",
+        "10 mtr led"
       ],
       "size": "10m"
     },
@@ -796,22 +1234,67 @@
       "paise": 500
     },
     {
+      "category": "Decoration",
+      "material": "LED String Light, 15 m",
+      "paise": null,
+      "size": "15m",
+      "_note": "Vansh: *\"i think it is 15 mtr one if the supplier is saying — our inventory can lie.\"* Before this row it matched the 10 m at full confidence: a missing row does not read as missing, it reads as the nearest wrong answer.",
+      "aka": [
+        "15 mtr led"
+      ]
+    },
+    {
+      "category": "Decoration",
+      "material": "LED String Light, 7 m",
+      "paise": null,
+      "size": "7m",
+      "_note": "FLAG: not on this delivery note. Added because Vansh's partner mentions a 7 m packing — *\"maybe two type of packing we have for light, 7 and 15, maybe 10 too — for now have them diff.\"* Confirm it is real before anything is costed against it."
+    },
+    {
+      "category": "Decoration",
+      "material": "Butterfly Loose",
+      "paise": null,
+      "_note": "FLAG: `loose` reads as not card-packed, against `Butterfly 3D, 12 pcs` (Rs25) which stays. `new` is unexplained — new stock, or a new design?",
+      "aka": [
+        "battarfly loose new"
+      ]
+    },
+    {
+      "category": "Decoration",
+      "material": "Straw, 2 kg",
+      "paise": null,
+      "size": "2 kg",
+      "_note": "FLAG: `strow` read as straw, sold by weight. Filed under Decoration because nothing else fits; say if it is packing material and it moves to Packaging.",
+      "aka": [
+        "strow 2 kg"
+      ]
+    },
+    {
       "category": "Sash",
       "material": "BTB Sash",
       "paise": null,
-      "sellsAs": "Bride To Be Sash"
+      "sellsAs": "Bride To Be Sash",
+      "aka": [
+        "bride to be sash"
+      ]
     },
     {
       "category": "Sash",
       "material": "GTB Sash",
       "paise": 850,
-      "sellsAs": "Groom To Be Sash"
+      "sellsAs": "Groom To Be Sash",
+      "aka": [
+        "groom to be sash"
+      ]
     },
     {
       "category": "Sash",
       "material": "HBD Sash",
       "paise": null,
-      "sellsAs": "Happy Birthday Sash"
+      "sellsAs": "Happy Birthday Sash",
+      "aka": [
+        "happy birthday sash"
+      ]
     },
     {
       "category": "Adhesive",
@@ -867,6 +1350,17 @@
       "paise": null,
       "aka": [
         "meesho barcode 9×12"
+      ]
+    },
+    {
+      "category": "Packaging",
+      "material": "Meesho Barcode Polybag 8x10",
+      "paise": null,
+      "size": "8x10",
+      "_note": "The 9x12 already exists. Bag sizes are bought by the inch and the two are different products.",
+      "aka": [
+        "8×10 meesho barcode",
+        "8x10 meesho barcode"
       ]
     }
   ],

@@ -232,6 +232,10 @@ process.env.WW_KITS_DIR ??= KITS_DIR;
  */
 const ORDERS_DIR = folderPath("orders", path.join(WORKSPACE, "orders"));
 process.env.WW_ORDERS_DIR ??= ORDERS_DIR;
+// Deliveries sit beside the packing, for the reason the rates and packers do: both are records of
+// something that happened in the real world on a date, and both belong on the synced drive.
+const STOCK_DIR = path.join(path.dirname(ORDERS_DIR), "stock");
+process.env.WW_STOCK_DIR ??= STOCK_DIR;
 
 /**
  * Categories are the one WW_* dir that is NOT user state — they ship with the app.
@@ -788,9 +792,98 @@ ipcMain.handle("money", async (_e, from: string, to: string, market?: string) =>
   const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
   const ledgers = await orders.listLedgers();
   return {
-    money: orders.money(ledgers, listKits(KITS_DIR, loadMaterials()), from, to, market),
+    money: orders.money(ledgers, listKits(KITS_DIR, loadMaterials()), from, to, market, await readAds()),
     pay: orders.packerPay(ledgers, from, to, await readRates(), market),
   };
+});
+
+/**
+ * What comes back, what has stopped selling, and what is being used up.
+ *
+ * One handler and one round trip, like `money`, because the screen draws all three at once and
+ * they read the same two things: the parcel ledger and the costed kits.
+ */
+ipcMain.handle("howItSells", async (_e, from: string, to: string, market?: string) => {
+  const orders = await ordersEngine();
+  const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
+  return orders.howItSells(await orders.listLedgers(), listKits(KITS_DIR, loadMaterials()), from, to, market);
+});
+
+/**
+ * Raw stock — the material actually in the building, not the material a listing is made of.
+ *
+ * `stock/<date>.json` is one checked delivery. **`stock/aliases.json` is what makes it survive
+ * week two**: the supplier's price list and ours are different vocabularies — of Vansh's real
+ * 19 Aug note, 61 lines matched only 7 rows confidently — so the first tally is a lot of picking.
+ * Every pick is remembered against the wording it was made for, and the next delivery matches
+ * itself. Without it he re-picks three dozen rows every week and stops using the screen.
+ *
+ * Aliases live here rather than as `aka` on the material, deliberately: `categories/materials.json`
+ * is a PRICE list that ships with the app, and one supplier's spelling is not a fact about a
+ * material's price. Keeping them apart means an app update cannot lose his vocabulary and his
+ * vocabulary cannot bloat the shipped list.
+ */
+const stockEngine = () => import("../src/stock-core.js");
+const ALIASES_FILE = () => path.join(STOCK_DIR, "aliases.json");
+
+async function readAliases(): Promise<Record<string, string>> {
+  try {
+    return JSON.parse(await readFile(ALIASES_FILE(), "utf8")) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+/** The supplier's claim against our count, matched to the price list. Nothing is written. */
+ipcMain.handle("tallyNotes", async (_e, claimedNote: string, countedNote: string) => {
+  const { readNote, tally } = await stockEngine();
+  const { loadMaterials } = await inventoryEngine();
+  const materials = loadMaterials();
+  return {
+    rows: tally(readNote(claimedNote), readNote(countedNote), materials, await readAliases()),
+    // Every row on the price list, so the dropdown can offer more than the top five guesses.
+    materials: materials.map((m) => ({ key: `${m.category}|${m.material}`, name: m.material, category: m.category })),
+  };
+});
+
+/** Remember a pick, so next week's delivery matches itself. Null forgets one. */
+ipcMain.handle("setAlias", async (_e, name: string, key: string | null) => {
+  const aliases = await readAliases();
+  if (key === null) delete aliases[name];
+  else aliases[name] = key;
+  await mkdir(STOCK_DIR, { recursive: true });
+  await writeFile(ALIASES_FILE(), `${JSON.stringify(aliases, null, 2)}\n`);
+  return aliases;
+});
+
+ipcMain.handle("saveDelivery", async (_e, d: unknown) => {
+  await (await stockEngine()).writeDelivery(d as never);
+  return true;
+});
+
+/**
+ * What is on the shelf: deliveries in, packing out.
+ *
+ * Usage comes from the SAME arithmetic the How it sells screen shows — the parcel ledger times
+ * each kit's own material lines — rather than a second count kept here. It is measured from the
+ * first delivery on record, because before that there was no stock figure for it to come off.
+ */
+ipcMain.handle("stock", async () => {
+  const stock = await stockEngine();
+  const orders = await ordersEngine();
+  const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
+
+  const deliveries = await stock.listDeliveries();
+  const from = stock.firstDelivery(deliveries);
+  const names = new Map(loadMaterials().map((m) => [`${m.category}|${m.material}`, m.material]));
+
+  const used = new Map<string, number>();
+  if (from !== null) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { burn } = orders.howItSells(await orders.listLedgers(), listKits(KITS_DIR, loadMaterials()), from, today);
+    for (const b of burn) used.set(b.key, b.packs);
+  }
+  return { deliveries, from, onHand: stock.onHand(deliveries, used, names), aliases: await readAliases() };
 });
 
 /** A packer's rate, in paise per packet. Zero or absent means their pay is not worked out here. */
@@ -802,6 +895,39 @@ ipcMain.handle("setRate", async (_e, name: string, paise: number) => {
 });
 
 ipcMain.handle("rates", () => readRates());
+
+/**
+ * Ads and boost, in paise, per day per marketplace — `{ "2026-08-21": { meesho: 45000 } }`.
+ *
+ * Beside the days it is spent on, for the same reason the rates are: it is a money record, it must
+ * survive a reinstall, and it must follow the folder onto a synced drive. **It is not a second
+ * expenses file** — materials and revenue are derived and deliberately never stored, but nothing
+ * in the ledger or the kit knows what Meesho charged to promote a listing. This is the only cost
+ * here that has no other source than a person reading it off the Ads dashboard.
+ */
+const ADS_FILE = () => path.join(ORDERS_DIR, "ads.json");
+
+async function readAds(): Promise<Record<string, Record<string, number>>> {
+  try {
+    return JSON.parse(await readFile(ADS_FILE(), "utf8")) as Record<string, Record<string, number>>;
+  } catch {
+    return {};
+  }
+}
+
+ipcMain.handle("ads", () => readAds());
+
+/** Set one day's spend on one marketplace. Zero clears it, so a mistyped number can be undone. */
+ipcMain.handle("setAds", async (_e, on: string, market: string, paise: number) => {
+  const ads = await readAds();
+  const day = { ...ads[on], [market]: paise };
+  if (paise <= 0) delete day[market];
+  const next = { ...ads, [on]: day };
+  if (Object.keys(day).length === 0) delete next[on];
+  await mkdir(ORDERS_DIR, { recursive: true });
+  await writeFile(ADS_FILE(), `${JSON.stringify(next, null, 2)}\n`);
+  return next;
+});
 
 /**
  * Mark a parcel as come back, or take that mark off.
@@ -1179,21 +1305,22 @@ ipcMain.handle("folders", () =>
 );
 
 /**
- * Put loose files in the ready folder into the `GTB/`, `ANP/` … folders they belong in.
+ * Put loose files in the ready folder into the `GTB/`, `ANP/`, `HBD/peppa/` … folders they belong in.
  *
  * The finish step has grouped by SKU code since WW-156, but everything finished BEFORE that is
  * still lying in the root — 48 files on Vansh's machine — and the grouping is only useful if it
  * covers the lot. This is that one-off catch-up, and it stays available because a file can always
  * arrive in the root by hand.
  *
- * `skuGroup` from the engine, not a copy: this MOVES files, so it has to agree with the code that
- * names the folders, not merely follow the same rule. Only the root is read, only files, and
+ * `skuGroup` and `themeIn` from the engine, not copies: this MOVES files, so it has to agree with
+ * the code that names the folders, not merely follow the same rule. Only files are moved, and
  * nothing is ever overwritten — a name already taken in the group folder is left where it is and
  * reported, because two different images called `GTB-2.1.jpg` is a real possibility and silently
  * keeping one of them is the wrong answer to it. Folders in the root are left alone entirely.
  */
 ipcMain.handle("tidyReady", async () => {
   const { skuGroup } = await import("../src/finish-core.js");
+  const { themeIn } = await import("../src/id.js");
   const dir = FOLDERS.ready.dir;
   let moved = 0;
   const clashed: string[] = [];
@@ -1209,23 +1336,42 @@ ipcMain.handle("tidyReady", async () => {
    * there, and walking into it would scatter its contents across the tree.
    */
   const top = await readdir(dir, { withFileTypes: true }).catch(() => []);
-  const from = ["", ...top.filter((e) => e.isDirectory() && /^[A-Z]+$/.test(e.name)).map((e) => e.name)];
+  const tags = top.filter((e) => e.isDirectory() && /^[A-Z]+$/.test(e.name)).map((e) => e.name);
+  /**
+   * Its own theme folders too — `HBD/peppa` — so this stays self-correcting now that the rule has
+   * a second level. Theme folders are lower case, which is what tells them from a folder somebody
+   * made: `Inventory list/` lives in the ready folder and walking into it would scatter it.
+   */
+  const themes = (
+    await Promise.all(
+      tags.map(async (tag) =>
+        (await readdir(path.join(dir, tag), { withFileTypes: true }).catch(() => []))
+          .filter((e) => e.isDirectory() && /^[a-z]+$/.test(e.name))
+          .map((e) => path.join(tag, e.name)),
+      ),
+    )
+  ).flat();
+  const from = ["", ...tags, ...themes];
 
   for (const sub of from) {
     const here = path.join(dir, sub);
     for (const e of await readdir(here, { withFileTypes: true }).catch(() => [])) {
       if (!e.isFile() || e.name.startsWith(".")) continue;
       const group = skuGroup(e.name);
-      if (!group || group === sub) continue; // no code, or already where it belongs
-      const to = path.join(dir, group, e.name);
+      if (!group) continue; // no code in the name at all — the root is where it belongs
+      // Tag, then theme. `themeIn` is "" for an un-themed name and for one whose theme was already
+      // thrown away (`HBD-01`), so those stay one level up rather than being guessed into a folder.
+      const want = path.join(group, themeIn(e.name));
+      if (want === sub) continue; // already where it belongs
+      const to = path.join(dir, want, e.name);
       if (existsSync(to)) {
         clashed.push(e.name);
         continue;
       }
-      await mkdir(path.join(dir, group), { recursive: true });
+      await mkdir(path.join(dir, want), { recursive: true });
       await rename(path.join(here, e.name), to);
       moved += 1;
-      groups.add(group);
+      groups.add(want);
     }
   }
   return { moved, clashed, groups: [...groups].sort() };

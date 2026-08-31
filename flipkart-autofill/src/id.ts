@@ -57,8 +57,52 @@ export function normalizeId(name: string): string {
  * is wrong in a way that never announces itself — `ANP001` is inside `ANP-10-…` too.
  */
 export function leadCode(name: string): string {
-  const m = /^([A-Za-z]+)[\s_-]*0*(\d+)/.exec(path.basename(name));
+  const base = path.basename(name);
+  const themed = THEMED.exec(base);
+  if (themed !== null) return `${themed[1]}${themed[2]}${themed[3]}`.toUpperCase();
+  const m = /^([A-Za-z]+)[\s_-]*0*(\d+)/.exec(base);
   return m === null ? "" : `${m[1].toUpperCase()}${m[2]}`;
+}
+
+/**
+ * A tag with a THEME under it: `HBD-peppa01`, `HBD-Kitty01`, `HBD-space02`, `HBD-dore01`.
+ *
+ * **`HBD` is not one product and the code has been pretending it is.** Peppa, Kitty, space and
+ * doremon are four different listings that buyers search for with four different sets of words,
+ * and the old grammar — letters, then a number — could not see the theme at all: `leadCode` gave
+ * `""` for every one of them, and `cleanId` collapsed all four onto `HBD-01`, `HBD-02`… so two
+ * themes sharing a number were **one ID, overwriting each other's files**. Vansh, 2026-08-21:
+ * *"every peppa or theme image showing 1.1 thing not the full name."* That `1.1` is `HBD-01` with
+ * a slot on the end, which is the theme having been thrown away three steps earlier.
+ *
+ * **Three deliberate tightenings, each of which keeps an existing name working:**
+ *
+ * - The tag is **at most four letters**. Real tags are `ANP`, `WB`, `GTB`, `HBD`, `HAL`, `SVP`,
+ *   `WKU`. Without a bound, a descriptive folder like `annaprashan kit 2` would read `annaprashan`
+ *   as a tag and `kit` as a theme.
+ * - A **separator is required** between tag and theme. `photo booth 16` cannot match, because
+ *   `phot` is not followed by one.
+ * - **Anchored.** It describes how a name STARTS, like `leadCode` itself; an unanchored version
+ *   would find a code in the middle of a title.
+ *
+ * Both spellings normalise the same, which is what lets `cleanId` write the readable one:
+ * `HBD-peppa01` and `HBD-peppa-01` are both `HBDPEPPA1`.
+ */
+const THEMED = /^([A-Za-z]{1,4})[\s_-]+([A-Za-z]+)[\s_-]*0*(\d+)/;
+
+/**
+ * The theme in a name, lower case — `HBD-peppa01` → `peppa`. `""` when there is none.
+ *
+ * What the ready folder files a listing under, one level below its tag: `ready/HBD/peppa/`. The
+ * tag is `skuGroup`'s job and stays exactly as it was, because peppa IS a Happy Birthday kit.
+ *
+ * **`HBD-01` gives `""`, and that is the honest answer, not a bug.** A file finished before this
+ * existed has already had its theme thrown away (C-070), so nothing can say which of peppa, kitty,
+ * space or doremon it was. It stays in `HBD/` rather than being guessed into a theme folder.
+ */
+export function themeIn(name: string): string {
+  const m = THEMED.exec(path.basename(name));
+  return m === null ? "" : m[2].toLowerCase();
 }
 
 /**

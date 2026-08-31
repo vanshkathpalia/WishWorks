@@ -56,6 +56,8 @@ export interface Money {
   packets: number;
   revenuePaise: number;
   materialsPaise: number;
+  /** Ads and boost in the window — the one cost typed in by hand, because nothing derives it. */
+  adsPaise: number;
   profitPaise: number;
   /** Every costed SKU and what it put in — the working behind the totals, and which kit priced it. */
   costed: { name: string; kit: string; qty: number; revenuePaise: number; materialsPaise: number }[];
@@ -65,6 +67,70 @@ export interface Money {
   reversals: { packets: number; revenuePaise: number; materialsPaise: number; rto: number; returned: number };
   byMarket: { name: string; qty: number }[];
 }
+
+/** One cut of the return figures — a SKU, a courier or a marketplace, counted the same way. */
+export interface BackRate {
+  name: string;
+  packets: number;
+  rto: number;
+  returned: number;
+  /** `(rto + returned) / packets`, 0-1, over the parcels PACKED in the window. */
+  backRate: number;
+  /** The revenue on the ones that came back, frozen at the tick. */
+  lostPaise: number;
+}
+
+/** What comes back, what has stopped selling, and what is being used up. */
+export interface HowItSells {
+  bySku: BackRate[];
+  byCourier: BackRate[];
+  byMarket: BackRate[];
+  /** Parcels packed across every ledger — how the screen tells "no sales" from "no manifest yet". */
+  packedEver: number;
+  /** Costed kits with nothing packed in the window, oldest sale first. */
+  slow: { sku: string; lastPacked: string | null }[];
+  /** Materials the window's packing consumed, and what that is per week. */
+  burn: { key: string; name: string; packs: number; perWeek: number }[];
+}
+
+/** One material across the supplier's claim and our count. */
+export interface TallyRow {
+  name: string;
+  /** `category|material`. Null means nothing on the price list matched — a row to add, or to pick. */
+  key: string | null;
+  score: number;
+  choices: { material: { category: string; material: string }; score: number }[];
+  overridden: boolean;
+  /** What he says he sent. Null when only we listed it. */
+  claimed: number | null;
+  /** What we counted. Null is "not counted", which is not the same as none arriving. */
+  counted: number | null;
+  unit: string;
+  mismatch: boolean;
+}
+
+/** A delivery once checked — the only thing stored. Stock itself is derived. */
+export interface Delivery {
+  date: string;
+  claimedNote: string;
+  countedNote: string;
+  picks: Record<string, string>;
+  lines: { key: string | null; name: string; qty: number; unit: string }[];
+}
+
+/** One material's stock: what came in, what the packing ate, what is left. */
+export interface OnHand {
+  key: string;
+  name: string;
+  received: number;
+  used: number;
+  left: number;
+  unit: string;
+  weeksLeft: number | null;
+}
+
+/** Ads and boost, in paise, per day per marketplace: `{ "2026-08-21": { meesho: 45000 } }`. */
+export type AdSpend = Record<string, Record<string, number>>;
 
 /** One packer over a stretch of days. */
 export interface PackerPay {
@@ -452,6 +518,25 @@ export interface WwApi {
   /** Each packer's rate in paise per packet. */
   rates(): Promise<Record<string, number>>;
   setRate(name: string, paise: number): Promise<Record<string, number>>;
+  howItSells(from: string, to: string, market?: string): Promise<HowItSells>;
+  /** The supplier's claim against our count. Reads only — nothing is written until saveDelivery. */
+  tallyNotes(claimedNote: string, countedNote: string): Promise<{
+    rows: TallyRow[];
+    materials: { key: string; name: string; category: string }[];
+  }>;
+  /** Remember a pick against the wording it was made for; null forgets it. */
+  setAlias(name: string, key: string | null): Promise<Record<string, string>>;
+  saveDelivery(d: Delivery): Promise<boolean>;
+  stock(): Promise<{
+    deliveries: Delivery[];
+    /** The first delivery on record — the day usage starts counting from. */
+    from: string | null;
+    onHand: OnHand[];
+    aliases: Record<string, string>;
+  }>;
+  /** Ads and boost spend, in paise, per day per marketplace. */
+  ads(): Promise<AdSpend>;
+  setAds(on: string, market: string, paise: number): Promise<AdSpend>;
   /** Every parcel already packed — what the returns screen picks from. */
   sent(): Promise<SubOrder[]>;
   /**

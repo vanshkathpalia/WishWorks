@@ -17,7 +17,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { finishedName, nameWords, skuGroup } from "../src/finish-core.js";
+import { cleanId, finishedName, nameWords, skuGroup } from "../src/finish-core.js";
+import { leadCode, normalizeId, themeIn } from "../src/id.js";
+import { skuPrefix } from "../gui/shared.js";
 import { NO_DESCRIPTIONS } from "../src/image-meta.js";
 
 const exec = promisify(execFile);
@@ -331,5 +333,92 @@ describe("skuGroup", () => {
     // A grouping nobody can predict is worse than no grouping.
     expect(skuGroup("123")).toBe("");
     expect(skuGroup("")).toBe("");
+  });
+});
+
+/**
+ * A theme under a tag — WW-192.
+ *
+ * `HBD` is four different listings: peppa, kitty, space and doremon. The old grammar was "letters,
+ * then a number" and could not see a theme at all, so `leadCode` returned `""` for every one of
+ * them and `cleanId` collapsed them onto `HBD-01` / `HBD-02`. **Three of his listings shared one
+ * ID and overwrote each other's finished files**, which is what Vansh saw as *"every peppa or theme
+ * image showing 1.1 thing not the full name"* — `1.1` is `HBD-01` with a slot number on the end.
+ *
+ * The other half of this test is the half he asked for by name: *"be careful this should not break
+ * the proper working of normal listing SKU names with no sub part."* Every un-themed shape in the
+ * repo is pinned below, and they must keep their exact old answers.
+ */
+describe("a theme under a tag", () => {
+  it("keeps the theme, so two themes are never one listing", () => {
+    expect(leadCode("HBD-peppa01")).toBe("HBDPEPPA1");
+    expect(leadCode("HBD-Kitty01")).toBe("HBDKITTY1");
+    expect(leadCode("HBD-dore01")).toBe("HBDDORE1");
+    expect(leadCode("HBD-space02")).toBe("HBDSPACE2");
+
+    // The collision that was live on disk: three listings, one ID.
+    expect(new Set(["HBD-peppa01", "HBD-Kitty01", "HBD-dore01"].map(cleanId)).size).toBe(3);
+    expect(cleanId("HBD-peppa01")).toBe("HBD-peppa-01");
+    expect(cleanId("HBD peppa 01")).toBe("HBD-peppa-01");
+  });
+
+  it("spells the theme one way, so the folder and the SKU still find each other", () => {
+    // cleanId writes `HBD-peppa-01`; the kit is filed `HBD-peppa01`. Both are one identity.
+    expect(leadCode("HBD-peppa-01")).toBe(leadCode("HBD-peppa01"));
+    expect(normalizeId("HBD-peppa-01")).toBe(normalizeId("HBD-peppa01"));
+    // Case is not identity either — the folder may be typed `HBD kitty 01`.
+    expect(leadCode("HBD kitty 01")).toBe(leadCode("HBD-Kitty01"));
+  });
+
+  it("leaves every un-themed SKU exactly as it was", () => {
+    // Pinned against the OLD behaviour, name by name. A change to any of these is the regression
+    // Vansh asked to be protected from, not an improvement.
+    for (const [name, lead, clean] of [
+      ["ANP001", "ANP1", "ANP-001"],
+      ["HBD001", "HBD1", "HBD-001"],
+      ["HBD-01", "HBD1", "HBD-01"],
+      ["GTB-1", "GTB1", "GTB-1"],
+      ["WB003", "WB3", "WB-003"],
+      ["ANP 3", "ANP3", "ANP-3"],
+      ["ANP 1 - p", "ANP1", "ANP-1"],
+      ["WKU001-ANP001", "WKU1", "WKU-001"],
+      ["SVP033 - ANP002", "SVP33", "SVP-033"],
+      ["S-971322657", "S971322657", "S-971322657"],
+      ["ANP-4-annaprashan-decoration-kit-red-gold-2.jpg", "ANP4", "ANP-4"],
+      // No leading letters at all — still no code, and still not invented.
+      ["007 annaprashan ct", "", "007-annaprashan-ct"],
+      ["150", "", "150"],
+      // Descriptive folder names: a long first word is NOT a tag, so no theme is read into them.
+      ["annaprashan kit 2", "", "ANNAPRASHAN-2"],
+      ["photo booth 16", "", "PHOTO-16"],
+    ] as const) {
+      expect(`${name} → ${leadCode(name)}`).toBe(`${name} → ${lead}`);
+      expect(`${name} → ${cleanId(name)}`).toBe(`${name} → ${clean}`);
+    }
+  });
+
+  it("gives the ready folder a second level, and only where there is a theme", () => {
+    // `ready/HBD/peppa/` — the tag stays the tag, the theme is a folder under it.
+    expect([skuGroup("HBD-peppa-01"), themeIn("HBD-peppa-01")]).toEqual(["HBD", "peppa"]);
+    expect([skuGroup("HBD-Kitty01"), themeIn("HBD-Kitty01")]).toEqual(["HBD", "kitty"]);
+    // The finished file's whole name, which is what tidyReady reads.
+    expect(themeIn("HBD-peppa-01-happy-birthday-peppa-theme-decoration-2.jpg")).toBe("peppa");
+
+    // An un-themed listing gets "" — and path.join drops it, so ANP-1 lands in ready/ANP/ as
+    // before. This is the half that must not move.
+    for (const id of ["ANP-1", "ANP001", "GTB-1", "WB003", "SVP033 - ANP002", "007 annaprashan ct"]) {
+      expect(`${id} → ${themeIn(id)}`).toBe(`${id} → `);
+    }
+
+    // A file finished BEFORE the theme was kept has already lost it (C-070). Nothing can say which
+    // theme `HBD-01` was, so it stays in HBD/ rather than being guessed into a theme folder.
+    expect(themeIn("HBD-01.2.jpg")).toBe("");
+  });
+
+  it("still files a theme under its tag, not under a category of its own", () => {
+    // skuGroup/skuPrefix already knew this and must not drift: peppa is a Happy Birthday kit.
+    expect(skuPrefix("HBD-peppa01")).toBe("HBD");
+    expect(skuPrefix("HBD-Kitty01")).toBe("HBD");
+    expect(skuPrefix("HBD-peppa-01")).toBe("HBD");
   });
 });

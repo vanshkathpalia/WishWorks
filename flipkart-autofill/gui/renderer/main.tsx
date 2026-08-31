@@ -16,7 +16,8 @@ import { Convert } from "./Convert.js";
 import { Images } from "./Images.js";
 import { Inventory } from "./Inventory.js";
 import { Orders } from "./Orders.js";
-import { Money, Packers, Returns } from "./Money.js";
+import { Money, Packers, Returns, Sells } from "./Money.js";
+import { Stock } from "./Stock.js";
 import { Flipkart } from "./Flipkart.js";
 import { Check, Finish, ListingCopy, Meesho } from "./steps.js";
 import { FolderSetting, useAccount } from "./ui.js";
@@ -59,6 +60,8 @@ const STEPS = [
   { name: "Money", does: "What was packed, what it cost, what is left" },
   { name: "Packer pay", does: "Packets each by day, week and month, and what that comes to" },
   { name: "Came back", does: "Mark an RTO or a return on the day it arrives" },
+  { name: "How it sells", does: "Return rates by courier and SKU, slow movers, materials used" },
+  { name: "Raw stock", does: "Tally a delivery against the supplier's note, and what is left" },
 ];
 
 /**
@@ -74,7 +77,7 @@ const STEPS = [
 const SECTIONS = [
   // One word each, because three tabs share a 250px rail and "New listing" / "Cost a kit" wrapped
   // onto three lines apiece. The step under each tab carries the longer name and the `does` line.
-  { tab: "Orders", steps: [8, 9, 10, 11], numbered: false },
+  { tab: "Orders", steps: [8, 9, 10, 11, 12, 13], numbered: false },
   { tab: "Listing", steps: [0, 1, 2, 3, 4, 5, 6], numbered: true },
   { tab: "Costing", steps: [7], numbered: false },
 ];
@@ -109,6 +112,10 @@ function Panel({ step }: { step: number }) {
       return <Packers n={0} />;
     case 11:
       return <Returns n={0} />;
+    case 12:
+      return <Sells n={0} />;
+    case 13:
+      return <Stock n={0} />;
     default:
       return null;
   }

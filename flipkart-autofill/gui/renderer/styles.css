@@ -1983,6 +1983,85 @@ textarea.json {
   color: var(--bad);
 }
 
+/* Find a row among sixty, without scrolling. */
+.hunt {
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 420px;
+}
+
+/* Two delivery notes side by side — his claim and our count. */
+.notes-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.notes-pair label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.notes-pair textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+/* A row the two lists disagree about — the only thing on this screen that is an error. */
+.rows tr.bad-row td {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+.rows td .strong,
+.rows td.strong {
+  font-weight: 700;
+}
+.pill {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.pill.warn {
+  border-color: var(--warn, #d0a24c);
+  color: var(--warn, #d0a24c);
+}
+.pill.bad {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* Ads and boost — the one figure on the money screen that is typed in rather than derived. */
+.ads-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.ads-strip label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.ads-strip input {
+  width: 130px;
+  font-variant-numeric: tabular-nums;
+}
+.ads-strip small {
+  flex: 1 1 220px;
+  font-size: 12px;
+}
+
 /* A pill carrying a sentence rather than two words — the reversals note. */
 .warnpill.block {
   display: block;

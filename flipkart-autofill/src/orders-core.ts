@@ -19,7 +19,7 @@
 import zlib from "node:zlib";
 import { copyFile, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { leadCode } from "./id.js";
+import { leadCode, themeIn } from "./id.js";
 import { ROOT } from "./paths.js";
 
 /** One text cell as the PDF draws it: where it sits, and which stream (≈ page) drew it. */
@@ -111,6 +111,18 @@ export interface SubOrder extends Shipment {
   firstSeen: string;
   /** `YYYY-MM-DD` — the day it was packed. Absent means it is still outstanding. */
   packedOn?: string;
+  /**
+   * The exact moment of the tick, ISO UTC — `packedOn` is the working day, this is the clock.
+   *
+   * **Added before anything reads it, which is the only time it can be.** Packets per person per
+   * hour is a question somebody will ask, and it is the one figure here that cannot be worked out
+   * later: a date says a packet was done on Tuesday and nothing on disk will ever say when on
+   * Tuesday. One field, written at a moment we were already writing.
+   *
+   * Nothing computes pay or money from it — those use `packedOn`, the day, because a day is what a
+   * wage is counted in and a parcel packed at 00:30 for the day before must not move months.
+   */
+  packedAt?: string;
   /** Who packed it. Empty or absent even when packed: the names can be filled in later. */
   packedBy?: string[];
   /**
@@ -283,7 +295,7 @@ export function packSku(
     subOrders: ledger.subOrders.map((p) => {
       if (p.sku !== sku || p.packedOn || left <= 0) return p;
       left -= p.qty;
-      return { ...p, packedOn: on, packedBy: by, ...(priceAt(p) ?? {}) };
+      return { ...p, packedOn: on, packedAt: new Date().toISOString(), packedBy: by, ...(priceAt(p) ?? {}) };
     }),
   };
 }
@@ -298,7 +310,7 @@ export function unpackSku(ledger: Ledger, sku: string, on: string): Ledger {
     ...ledger,
     subOrders: ledger.subOrders.map((p) => {
       if (p.sku !== sku || p.packedOn !== on) return p;
-      const { packedOn: _gone, packedBy: _also, ...rest } = p;
+      const { packedOn: _gone, packedAt: _when, packedBy: _also, ...rest } = p;
       return rest;
     }),
   };
@@ -708,7 +720,9 @@ export async function addSkuImage(
 ): Promise<string> {
   const { skuGroup } = await import("./finish-core.js");
   const name = sku.trim().replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  const dir = path.join(readyDir, skuGroup(sku));
+  // Tag then theme, the same two levels the finish step writes — otherwise a hand-added picture
+  // would sit in `HBD/` while the finished ones for that listing sit in `HBD/peppa/`.
+  const dir = path.join(readyDir, skuGroup(sku), themeIn(sku));
   await mkdir(dir, { recursive: true });
   const to = path.join(dir, `${name}-${position}${path.extname(file).toLowerCase()}`);
   await copyFile(file, to);
@@ -812,6 +826,33 @@ const codesIn = (name: string): string[] =>
   [...name.matchAll(/([A-Za-z]+)[\s_-]*0*(\d+)/g)].map((m) => `${m[1].toUpperCase()}${m[2]}`);
 
 /**
+ * What was spent on ads and boost, in paise, by day and by marketplace.
+ *
+ * **The one cost here that nothing can derive.** Materials and revenue both fall out of the kit
+ * and the ledger, which is why this repo refuses to store a second copy of them — but no parcel
+ * knows what its marketplace charged to promote it, and no report we read carries it. Meesho's
+ * Ads dashboard shows a spend per day; Flipkart's PLA campaigns show the same thing under
+ * Advertising. Somebody reads the number off and types it in, and that is the whole mechanism.
+ *
+ * Per DAY rather than per month because the money screen's windows are today / this week / this
+ * month, and a monthly lump would make two of the three lie. Per MARKETPLACE because the screen
+ * splits by one, and a total that cannot be split is one the Meesho/Flipkart switch has to ignore.
+ */
+export type AdSpend = Record<string, Record<string, number>>;
+
+/** Ads and boost inside a window, for one marketplace or all of them. */
+export function adSpend(ads: AdSpend, from: string, to: string, market?: string): number {
+  let paise = 0;
+  for (const [day, byMarket] of Object.entries(ads)) {
+    if (day < from || day > to) continue;
+    for (const [name, amount] of Object.entries(byMarket)) {
+      if (market === undefined || name === market) paise += amount;
+    }
+  }
+  return paise;
+}
+
+/**
  * What a stretch of days was worth: what was packed, what it cost in materials, what came back.
  *
  * **Three separate facts, never one number.** Revenue and materials come from the costed kit;
@@ -836,10 +877,14 @@ export function money(
    * against Flipkart* — not about resolving a conflict, because there is not one.
    */
   market?: string,
+  /** Ads and boost, by day and marketplace. Absent means none was ever typed in — not zero spend. */
+  ads: AdSpend = {},
 ): {
   packets: number;
   revenuePaise: number;
   materialsPaise: number;
+  /** Ads and boost in the window. Typed in by hand; nothing we read carries it. */
+  adsPaise: number;
   profitPaise: number;
   /**
    * Every costed SKU and what it put in — the working, not just the answer.
@@ -904,11 +949,14 @@ export function money(
   const rank = (m: Map<string, number>) =>
     [...m].map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty);
 
+  const adsPaise = adSpend(ads, from, to, market);
+
   return {
     packets,
     revenuePaise,
     materialsPaise,
-    profitPaise: revenuePaise - materialsPaise - reversals.revenuePaise,
+    adsPaise,
+    profitPaise: revenuePaise - materialsPaise - reversals.revenuePaise - adsPaise,
     costed: [...costed]
       .map(([name, r]) => ({ name, ...r }))
       .sort((a, b) => b.revenuePaise - a.revenuePaise),
@@ -916,6 +964,137 @@ export function money(
     reversals,
     byMarket: rank(byMarket),
   };
+}
+
+/**
+ * What a kit is made of, as the reorder view needs it. Filled from `listKits`.
+ *
+ * Packs rather than pieces, because a pack is what gets bought: *"you are using 40 gold balloons a
+ * week"* is only useful next to *"the last purchase was 500"*, and both are counted the same way.
+ */
+export interface KitMaterials {
+  sku: string;
+  materials?: { key: string; name: string; packs: number }[];
+}
+
+/**
+ * How it sells: what comes back, what has stopped selling, and what is being used up.
+ *
+ * **Three questions neither seller panel can answer**, which is the whole reason this exists rather
+ * than being a worse copy of their dashboards. Meesho shows Meesho's returns; Flipkart shows
+ * Flipkart's; neither shows both in one place, neither joins any of it to what a kit costs US, and
+ * **neither cuts by courier at all** — which is the actionable one, because if one courier RTOs
+ * twice as often on the same SKU that is a handover decision the next morning.
+ *
+ * **The rate is attributed to the parcels PACKED in the window, not to the returns received in it.**
+ * Those are different questions and only the first one is about a SKU or a courier: a return that
+ * arrives in August belongs to whoever shipped it in July. Dividing this month's returns by this
+ * month's packing would mix two populations and move every rate whenever volume changed.
+ *
+ * ponytail: the consequence is that a recent window UNDER-reports — parcels packed last week have
+ * not had time to come back yet — so the screen says so and offers a window that ends weeks ago.
+ * The fix, if it ever matters, is a cohort age cutoff; nobody has asked the question that needs it.
+ */
+export function howItSells(
+  ledgers: Ledger[],
+  kits: (KitMoney & KitMaterials)[],
+  from: string,
+  to: string,
+  market?: string,
+): {
+  /** Per SKU, per courier, per marketplace — the same arithmetic, cut three ways. */
+  bySku: BackRate[];
+  byCourier: BackRate[];
+  byMarket: BackRate[];
+  /**
+   * Parcels packed across every ledger, whenever. **Not a statistic — it is how the screen tells
+   * *nothing sold in these 90 days* from *no manifest has ever been read*.** Those need different
+   * sentences and different advice, and with no ledger every costed kit is trivially a slow mover,
+   * which would print 26 rows of nonsense.
+   */
+  packedEver: number;
+  /** Costed kits with nothing packed in the window: stock held for nobody. */
+  slow: { sku: string; lastPacked: string | null }[];
+  /**
+   * Materials consumed by the window's packing, and what that is per week.
+   *
+   * Keyed as well as named, because the raw-stock panel nets this against deliveries and the name
+   * is a label — two materials in different categories can share one.
+   */
+  burn: { key: string; name: string; packs: number; perWeek: number }[];
+} {
+  const all = ledgers.flatMap((l) => l.subOrders);
+  const packed = all.filter(
+    (p) => p.packedOn && p.packedOn >= from && p.packedOn <= to && (market === undefined || p.market === market),
+  );
+
+  const cut = (key: (p: SubOrder) => string): BackRate[] => {
+    const rows = new Map<string, BackRate>();
+    for (const p of packed) {
+      const name = key(p) || "unknown";
+      const r = rows.get(name) ?? { name, packets: 0, rto: 0, returned: 0, backRate: 0, lostPaise: 0 };
+      r.packets += p.qty;
+      if (p.status === "rto") r.rto += p.qty;
+      if (p.status === "returned") r.returned += p.qty;
+      // What a parcel that came back cost us: the sale we did not keep. Frozen figures first, for
+      // the same reason `money` uses them — a price corrected today must not rewrite last month.
+      if (p.status) r.lostPaise += (p.paidPaise ?? kitForSku(p.sku, kits)?.pays?.[p.market] ?? 0) * p.qty;
+      rows.set(name, r);
+    }
+    return [...rows.values()]
+      .map((r) => ({ ...r, backRate: r.packets === 0 ? 0 : (r.rto + r.returned) / r.packets }))
+      .sort((a, b) => b.backRate - a.backRate || b.packets - a.packets);
+  };
+
+  // Last packed across EVERY ledger, not just the window — "nothing since March" is the sentence,
+  // and it needs the date outside the window to be able to say it.
+  const lastPacked = new Map<string, string>();
+  for (const p of all) {
+    if (!p.packedOn) continue;
+    const kit = kitForSku(p.sku, kits);
+    if (!kit) continue;
+    const seen = lastPacked.get(kit.sku);
+    if (seen === undefined || p.packedOn > seen) lastPacked.set(kit.sku, p.packedOn);
+  }
+  const sold = new Set(packed.map((p) => kitForSku(p.sku, kits)?.sku).filter(Boolean));
+  const slow = kits
+    .filter((k) => k.costPaise !== undefined && !sold.has(k.sku))
+    .map((k) => ({ sku: k.sku, lastPacked: lastPacked.get(k.sku) ?? null }))
+    .sort((a, b) => (a.lastPacked ?? "").localeCompare(b.lastPacked ?? ""));
+
+  const used = new Map<string, { name: string; packs: number }>();
+  for (const p of packed) {
+    for (const m of kitForSku(p.sku, kits)?.materials ?? []) {
+      const u = used.get(m.key) ?? { name: m.name, packs: 0 };
+      u.packs += m.packs * p.qty;
+      used.set(m.key, u);
+    }
+  }
+  const weeks = Math.max(1, (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 6.048e8);
+  const burn = [...used]
+    .map(([key, u]) => ({ key, name: u.name, packs: u.packs, perWeek: Math.round((u.packs / weeks) * 10) / 10 }))
+    .sort((a, b) => b.packs - a.packs);
+
+  return {
+    bySku: cut((p) => p.sku),
+    byCourier: cut((p) => p.courier),
+    byMarket: cut((p) => p.market),
+    packedEver: all.filter((p) => p.packedOn).length,
+    slow,
+    burn,
+  };
+}
+
+/** One cut of the return figures — a SKU, a courier or a marketplace, counted the same way. */
+export interface BackRate {
+  name: string;
+  packets: number;
+  rto: number;
+  returned: number;
+  /** `(rto + returned) / packets`, 0-1. */
+  backRate: number;
+  /** The revenue on the ones that came back, frozen at the tick. */
+  lostPaise: number;
 }
 
 /**

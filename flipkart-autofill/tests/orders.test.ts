@@ -20,8 +20,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  addSkuImage, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
-  clearBack, idsInFile, type KitMoney, kitForSku, leftToPack, markBack, money, packSku, packerPay, parcelCredit,
+  addSkuImage, adSpend, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
+  clearBack, howItSells, idsInFile, type KitMoney, kitForSku, leftToPack, markBack, money, packSku, packerPay, parcelCredit,
   parseManifest, unpackSku, workerCredit,
 } from "../src/orders-core.js";
 
@@ -256,6 +256,83 @@ describe("the parcel ledger", () => {
 });
 
 /**
+ * How it sells. The three questions neither seller panel answers: what comes back cut by COURIER,
+ * what has stopped selling, and what the packing is using up.
+ *
+ * The one that could quietly be wrong is the denominator. A return arrives weeks after the parcel
+ * left, so "returns received this month / packed this month" mixes two populations and is not a
+ * fact about any SKU or any courier. The rate here belongs to the parcels packed in the window.
+ */
+describe("how it sells", () => {
+  const kits = [
+    { sku: "ANP003", costPaise: 8000, pays: { meesho: 15000 }, materials: [{ key: "Balloons|Gold balloon", name: "Gold balloon", packs: 2 }] },
+    // Costed but never packed — the slow-mover case, and it must not be confused with uncosted.
+    { sku: "ZZZ001", costPaise: 5000, pays: { meesho: 9000 }, materials: [{ key: "Ribbon|Ribbon", name: "Ribbon", packs: 1 }] },
+  ];
+  const parcel = (id: string, courier: string) =>
+    ({ subOrder: id, awb: `A${id}`, sku: "ANP003", qty: 1, courier, market: "meesho" });
+
+  /** Four packed on 20 Aug: two by Valmo (one comes back in September), two by Delhivery. */
+  function shipped() {
+    let l = mergeShipments(
+      null,
+      [parcel("1", "Valmo"), parcel("2", "Valmo"), parcel("3", "Delhivery"), parcel("4", "Delhivery")],
+      "2026-08-20",
+      "a.pdf",
+    );
+    l = packSku(l, "ANP003", "2026-08-20", ["Asha"], Infinity, () => ({ paidPaise: 15000, materialsPaise: 8000 }));
+    return markBack(l, "1", "rto", "2026-09-05");
+  }
+
+  it("blames the courier that shipped it, not the month the parcel came back in", () => {
+    // September, when the RTO actually arrived: nothing was PACKED then, so no rate is claimed.
+    expect(howItSells([shipped()], kits, "2026-09-01", "2026-09-30").byCourier).toEqual([]);
+
+    // August, when it shipped, is where the rate belongs — and only Valmo carries it.
+    const aug = howItSells([shipped()], kits, "2026-08-01", "2026-08-31").byCourier;
+    expect(aug).toMatchObject([
+      { name: "Valmo", packets: 2, rto: 1, backRate: 0.5, lostPaise: 15000 },
+      { name: "Delhivery", packets: 2, rto: 0, backRate: 0 },
+    ]);
+  });
+
+  it("names a costed kit nothing has sold, and knows when it last did", () => {
+    const { slow } = howItSells([shipped()], kits, "2026-08-01", "2026-08-31");
+    expect(slow).toEqual([{ sku: "ZZZ001", lastPacked: null }]);
+
+    // ANP003 sold in August, so it is not slow there — but it is in September.
+    expect(howItSells([shipped()], kits, "2026-09-01", "2026-09-30").slow.map((k) => k.sku))
+      .toEqual(["ZZZ001", "ANP003"]);
+    expect(howItSells([shipped()], kits, "2026-09-01", "2026-09-30").slow[1].lastPacked).toBe("2026-08-20");
+  });
+
+  /**
+   * The bug this screen shipped with. Vansh: *"I think it is broken, blank screen when I clicked
+   * on it."* His `orders/` held `rates.json` and no ledger, every cut came back empty, and the
+   * panel had been gated on `bySku` — so the whole screen collapsed to one grey line and read as
+   * broken. **"Nothing has sold" and "no manifest has ever been read" are different states** and
+   * they need different sentences: with no ledger, all 26 costed kits are trivially slow movers,
+   * which would have printed a page of nonsense instead.
+   */
+  it("tells an empty ledger from a quiet window, because they need different sentences", () => {
+    const empty = howItSells([], kits, "2026-08-01", "2026-08-31");
+    expect(empty.packedEver).toBe(0);
+    expect(empty.bySku).toEqual([]);
+
+    // Something HAS been packed — just not in this window. Same empty cuts, different state.
+    const quiet = howItSells([shipped()], kits, "2026-01-01", "2026-01-31");
+    expect(quiet.packedEver).toBe(4);
+    expect(quiet.bySku).toEqual([]);
+  });
+
+  it("multiplies each kit's own lines by what was packed, so a reorder has a number", () => {
+    // Four packets x two packs of gold balloon, over a 30-day window = 8 packs, ~1.9 a week.
+    const { burn } = howItSells([shipped()], kits, "2026-08-01", "2026-08-31");
+    expect(burn).toEqual([{ key: "Balloons|Gold balloon", name: "Gold balloon", packs: 8, perWeek: 1.9 }]);
+  });
+});
+
+/**
  * The money. Three separate facts and never one number: what was packed, what it cost, and what
  * came back. A SKU nobody has costed contributes an UNKNOWN, not a zero — folding those into the
  * profit would be confidently wrong on exactly the days the partner's SKUs sell well.
@@ -288,6 +365,29 @@ describe("what a day was worth", () => {
     expect(m.materialsPaise).toBe(9000 + 7000);
     expect(m.profitPaise).toBe(33000 - 16000);
     expect(m.uncosted).toEqual([{ name: "007 annaprashan ct", qty: 1 }]);
+  });
+
+  /**
+   * Ads and boost. Everything else on the money screen is derived from the kit and the ledger;
+   * this is the one cost that is typed in, because no parcel and no report carries it. It is
+   * dated per day and split per marketplace so it survives the same two filters as everything
+   * else — a month figure lumped onto one day would make "today" and "this week" both lie.
+   */
+  it("takes ads and boost off the profit, per day and per marketplace", () => {
+    const ads = { "2026-08-20": { meesho: 5000, flipkart: 3000 }, "2026-08-21": { meesho: 100000 } };
+    const m = money([packed()], kits, "2026-08-20", "2026-08-20", undefined, ads);
+    expect(m.adsPaise).toBe(8000);
+    expect(m.profitPaise).toBe(33000 - 16000 - 8000);
+
+    // The marketplace switch filters it too, or the Meesho-only view would carry Flipkart's spend.
+    expect(money([packed()], kits, "2026-08-20", "2026-08-20", "meesho", ads).adsPaise).toBe(5000);
+
+    // And a day outside the window is another day's money — never folded into this one.
+    expect(adSpend(ads, "2026-08-20", "2026-08-21")).toBe(108000);
+    expect(adSpend(ads, "2026-08-22", "2026-08-31")).toBe(0);
+
+    // No file yet is not zero spend, but it is the only thing arithmetic can do with it.
+    expect(money([packed()], kits, "2026-08-20", "2026-08-20").adsPaise).toBe(0);
   });
 
   /**

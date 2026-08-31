@@ -897,6 +897,18 @@ export interface KitRow {
   costPaise?: number;
   /** Per marketplace, what a sale actually brings in — the settlement, or the price it implies. */
   pays?: Record<string, number>;
+  /**
+   * What it is made of, in PACKS — for the reorder view, which multiplies this by what was packed.
+   *
+   * Packs and not pieces because a pack is the unit that gets bought: *"40 gold balloons a week"*
+   * only means something beside *"the last purchase was 500"*. Unmatched lines are left out, the
+   * same rule the total follows — a material nobody has priced is an unknown, not a zero.
+   *
+   * **The key is what joins**, not the name: the raw-stock panel nets these against deliveries, and
+   * two materials in different categories can be spelt the same. The name rides along because it is
+   * what a person reads.
+   */
+  materials?: { key: string; name: string; packs: number }[];
 }
 
 /**
@@ -920,9 +932,10 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
           savedAt: k.savedAt ?? "",
         };
         if (materials) {
-          const cost = costKit(
+          const costed = costKit(
             k.lines ?? [], materials, k.overrides ?? {}, k.sku, k.prices ?? {}, k.counts ?? {},
-          ).totalPaise;
+          );
+          const cost = costed.totalPaise;
           const left: Record<string, number> = {};
           const pays: Record<string, number> = {};
           for (const [id, v] of Object.entries(k.marketplaces ?? {})) {
@@ -934,6 +947,10 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
             if (paid > 0) pays[id] = paid;
           }
           row.costPaise = cost;
+          const parts = costed.lines
+            .filter((l) => l.match !== null)
+            .map((l) => ({ key: materialKey(l.match!), name: l.match!.material, packs: l.packs }));
+          if (parts.length > 0) row.materials = parts;
           if (Object.keys(left).length > 0) row.left = left;
           if (Object.keys(pays).length > 0) row.pays = pays;
         }

@@ -14,7 +14,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import type { Money as MoneyTotals, PackerPay, SubOrder } from "../shared.js";
+import type { AdSpend, BackRate, HowItSells, Money as MoneyTotals, PackerPay, SubOrder } from "../shared.js";
 
 const rupees = (paise: number) =>
   `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -86,18 +86,81 @@ function RangePick({ which, setWhich }: ReturnType<typeof useRange>) {
   );
 }
 
+/**
+ * Ads and boost, typed in by the day.
+ *
+ * **Everything else on this screen is derived; this is the one thing that is entered.** That is
+ * not the second-expenses-file mistake this repo has made twice — materials and revenue are
+ * already answered by the costed kit, but nothing anywhere knows what a marketplace charged to
+ * promote a listing. It is on their Ads dashboard and nowhere we can read.
+ *
+ * By the day, because the windows above are today / this week / this month and a monthly lump
+ * would make two of them wrong. Both marketplaces have this — Meesho calls it Ads &amp; boost,
+ * Flipkart calls it PLA under Advertising — so both get a box, and one left empty simply means
+ * nothing was spent there.
+ */
+function Ads({ today, onSaved }: { today: string; onSaved: () => void }) {
+  const [day, setDay] = useState(today);
+  const [ads, setAds] = useState<AdSpend>({});
+
+  useEffect(() => void window.ww.ads().then(setAds, () => setAds({})), []);
+
+  const save = (market: string, typed: string) => {
+    const paise = Math.round(Number(typed || 0) * 100);
+    if (paise === (ads[day]?.[market] ?? 0)) return;
+    void window.ww.setAds(day, market, paise).then((a) => {
+      setAds(a);
+      onSaved();
+    });
+  };
+
+  return (
+    <div className="ads-strip">
+      <label>
+        Ads &amp; boost on
+        <input type="date" value={day} max={today} onChange={(e) => setDay(e.target.value || today)} />
+      </label>
+      {["meesho", "flipkart"].map((market) => (
+        <label key={market}>
+          {market === "meesho" ? "Meesho ₹" : "Flipkart ₹"}
+          {/* Keyed by the day, so changing the date reloads the boxes rather than leaving the
+              previous day's figures sitting there looking like this day's. */}
+          <input
+            key={`${market}-${day}`}
+            type="number"
+            min={0}
+            step="1"
+            placeholder="0"
+            defaultValue={ads[day]?.[market] ? (ads[day][market] / 100).toString() : ""}
+            onBlur={(e) => save(market, e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          />
+        </label>
+      ))}
+      <small className="muted">
+        Read it off the marketplace&apos;s own Ads screen — it is the only cost here that nothing
+        else knows.
+      </small>
+    </div>
+  );
+}
+
 export function Money({ n }: { n: number }) {
   const range = useRange();
   const [market, setMarket] = useState<string | undefined>(undefined);
   const [totals, setTotals] = useState<MoneyTotals | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setTotals(null);
+  const load = useCallback(() => {
     void window.ww
       .money(range.from, range.to, market)
       .then((r) => setTotals(r.money), (e: Error) => setError(e.message));
   }, [range.from, range.to, market]);
+
+  useEffect(() => {
+    setTotals(null);
+    load();
+  }, [load]);
 
   return (
     <section className="panel orders">
@@ -107,7 +170,9 @@ export function Money({ n }: { n: number }) {
           What the packing was worth. Revenue and materials come from the costed kits, so this is
           the same arithmetic the <b>Costing</b> tab shows — a price corrected there moves this the
           same day. Anything packed whose SKU has no costed kit is listed at the bottom and left
-          out of the totals, because an unknown must not read as free.
+          out of the totals, because an unknown must not read as free. <b>Ads and boost</b> are the
+          exception: no parcel and no report knows what a marketplace charged to promote a listing,
+          so that one number is typed in per day, below.
         </p>
       </header>
 
@@ -134,11 +199,17 @@ export function Money({ n }: { n: number }) {
               <b>{rupees(totals.materialsPaise)}</b>
               <span>of materials used</span>
             </div>
+            <div>
+              <b>{rupees(totals.adsPaise)}</b>
+              <span>on ads &amp; boost</span>
+            </div>
             <div className={totals.profitPaise < 0 ? "bad" : "good"}>
               <b>{rupees(totals.profitPaise)}</b>
-              <span>left after materials</span>
+              <span>left after materials and ads</span>
             </div>
           </div>
+
+          <Ads today={range.to} onSaved={load} />
 
           {totals.reversals.packets > 0 && (
             <p className="warnpill block">
@@ -210,6 +281,220 @@ export function Money({ n }: { n: number }) {
                 like <code>WKU001-ANP001</code> answers to both of its codes.
               </p>
             </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * A longer window than the money screen's, because a return is not same-day.
+ *
+ * Today / this week / this month are the wage windows; a parcel that comes back does so weeks
+ * after it went out, so a rate read over seven days is mostly noise. Thirty days is the shortest
+ * that says anything and ninety is where it settles.
+ */
+function useLongRange() {
+  const [days, setDays] = useState(90);
+  const now = new Date();
+  const from = new Date(now);
+  from.setDate(now.getDate() - days);
+  return { days, setDays, from: iso(from), to: iso(now) };
+}
+
+const percent = (r: number) => `${(r * 100).toFixed(1)}%`;
+
+/** One cut of the return figures. Same columns three times, because it is the same arithmetic. */
+function BackTable({ rows, head }: { rows: BackRate[]; head: string }) {
+  if (rows.length === 0) return null;
+  return (
+    <table className="rows inv-table">
+      <thead>
+        <tr>
+          <th>{head}</th>
+          <th>Packets</th>
+          <th>RTO</th>
+          <th>Returned</th>
+          <th>Came back</th>
+          <th>Sale lost</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.name}>
+            <td>{r.name}</td>
+            <td>{r.packets}</td>
+            <td>{r.rto || ""}</td>
+            <td>{r.returned || ""}</td>
+            {/* Coloured off the rate, not the count: two back out of three is the problem, two out
+                of two hundred is a Tuesday. */}
+            <td className={r.backRate >= 0.15 ? "bad" : r.backRate > 0 ? "" : "muted"}>
+              {r.backRate > 0 ? percent(r.backRate) : "—"}
+            </td>
+            <td>{r.lostPaise > 0 ? rupees(r.lostPaise) : "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * How it sells — what comes back, what has stopped, and what is being used up.
+ *
+ * **Three questions neither seller panel answers**, which is the only reason to build a screen at
+ * all: Meesho shows Meesho, Flipkart shows Flipkart, neither joins any of it to what a kit costs
+ * us, and **neither cuts by courier** — the one that is actionable, because a courier that RTOs
+ * twice as often on the same SKU is a handover decision tomorrow morning.
+ *
+ * The rate belongs to the parcels PACKED in the window, not to the returns received in it: a
+ * parcel that comes back in August was shipped in July, and dividing one month's returns by the
+ * same month's packing would move every rate whenever volume did.
+ */
+export function Sells({ n }: { n: number }) {
+  const range = useLongRange();
+  const [market, setMarket] = useState<string | undefined>(undefined);
+  const [view, setView] = useState<HowItSells | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setView(null);
+    void window.ww
+      .howItSells(range.from, range.to, market)
+      .then(setView, (e: Error) => setError(e.message));
+  }, [range.from, range.to, market]);
+
+  return (
+    <section className="panel orders">
+      <header>
+        <h1>{n === 0 ? "How it sells" : `${n}. How it sells`}</h1>
+        <p>
+          What comes back, what has stopped selling, and what is being used up — the things the
+          seller dashboards cannot show you. They each know their own marketplace and none of them
+          knows what a kit costs us. <b>The SKU rate is the one to act on:</b> a product that comes
+          back often can be worth less than a slower one that stays sold.
+        </p>
+      </header>
+
+      <div className="two-picks">
+        <div className="picks">
+          {[30, 90, 365].map((d) => (
+            <button key={d} className={d === range.days ? "chosen" : ""} onClick={() => range.setDays(d)}>
+              {d === 365 ? "Last year" : `Last ${d} days`}
+            </button>
+          ))}
+        </div>
+        <MarketPick market={market} setMarket={setMarket} />
+      </div>
+      {error && <p className="error">{error}</p>}
+
+      {view === null ? (
+        <p className="muted">{error ? "" : "Working it out…"}</p>
+      ) : view.packedEver === 0 ? (
+        /* No ledger at all — and this is NOT the same as nothing having sold. Every screen under
+           Orders is empty until a manifest is read, so say that rather than printing an empty
+           table; the first version gated the whole panel on one grey line and read as broken. */
+        <p className="warnpill block">
+          No manifest has been read yet, so there is nothing to measure.
+          <small>
+            Drop one on <b>Pack today</b> and this fills in on its own — every figure here is
+            worked out from the parcels in the ledger.
+          </small>
+        </p>
+      ) : (
+        <>
+          {view.bySku.length === 0 && (
+            <p className="warnpill block">
+              Nothing was packed in this window.
+              <small>
+                Try a longer one — returns arrive weeks after the parcel does, so the short windows
+                are the ones most likely to be empty.
+              </small>
+            </p>
+          )}
+
+          {view.bySku.length > 0 && <h3>By SKU</h3>}
+          <BackTable rows={view.bySku} head="SKU" />
+
+          {view.byMarket.length > 1 && (
+            <>
+              <h3>By marketplace</h3>
+              <BackTable rows={view.byMarket} head="Marketplace" />
+            </>
+          )}
+
+          {view.byCourier.length > 0 && (
+            <>
+              <h3>By courier</h3>
+              {/* Down here rather than at the top, and that is Vansh's correction: *"we don't
+                  choose the delivery partner, and for Flipkart we just have one option, Ekart —
+                  maybe we can raise a ticket but still I think this is almost useless."* He is
+                  right that it is not a handover decision, because there is no handover to make.
+                  Kept, because a ticket needs a number, and this is the only place one exists. */}
+              <p className="muted">
+                You do not choose the courier, so this is not a decision — it is <b>evidence</b>.
+                If one is consistently worse on the same SKUs, this is the figure to put in a
+                ticket to the marketplace.
+              </p>
+              <BackTable rows={view.byCourier} head="Courier" />
+            </>
+          )}
+
+          {view.bySku.length > 0 && (
+          <p className="warnpill block">
+            Counted against the parcels <b>packed</b> in this window, not the returns received in
+            it — a parcel that comes back in August was shipped in July.
+            <small>
+              So the most recent weeks read low: those parcels have not had time to come back. Read
+              the ninety-day figure when you want the real rate.
+            </small>
+          </p>
+          )}
+
+          {view.slow.length > 0 && (
+            <div className="uncosted">
+              <h3>
+                Nothing sold in this window
+                <small>costed kits with no parcels — stock held for nobody</small>
+              </h3>
+              <ul>
+                {view.slow.map((k) => (
+                  <li key={k.sku}>
+                    <span className="lid">{k.sku}</span>
+                    <span className="qty">{k.lastPacked ? `last ${showDate(k.lastPacked)}` : "never"}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {view.burn.length > 0 && (
+            <>
+              <h3>Materials used</h3>
+              <p className="muted">
+                Packs consumed by this window&apos;s packing, from each kit&apos;s own lines — so
+                the per-week figure is the one to hold a purchase order against.
+              </p>
+              <table className="rows inv-table">
+                <thead>
+                  <tr>
+                    <th>Material</th>
+                    <th>Packs used</th>
+                    <th>Per week</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.burn.map((b) => (
+                    <tr key={b.name}>
+                      <td>{b.name}</td>
+                      <td>{b.packs}</td>
+                      <td>{b.perWeek}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </>
       )}

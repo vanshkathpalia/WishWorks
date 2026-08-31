@@ -13,6 +13,7 @@
 import { readdir, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { themeIn } from "./id.js";
 import {
   buildExif, composeDescription, descriptionsFor, duplicatePositions, meeshoResidue,
   NO_DESCRIPTIONS, type Descriptions,
@@ -144,6 +145,18 @@ export interface FinishResult {
  */
 export function cleanId(folderName: string): string {
   const name = folderName.trim().replace(/\s+-\s*p\s*$/i, "").trim(); // drop the "- p" pending flag
+  /**
+   * A theme under a tag — `HBD peppa 01` — keeps its theme. **This is tried FIRST and it is the
+   * whole fix for WW-192**: the rule below reads "letters, then any non-digits, then a number",
+   * which quietly threw `peppa` away and returned `HBD-01`. Peppa, Kitty, space and doremon then
+   * shared one ID and overwrote each other's finished files.
+   *
+   * It is deliberately a separate, anchored, narrow match rather than an edit to the general rule,
+   * so a folder the old rule handled cannot change meaning: the tag is at most four letters and a
+   * separator must follow it, which `annaprashan kit 2` and `photo booth 16` both fail.
+   */
+  const themed = name.match(/^([A-Za-z]{1,4})[\s_-]+([A-Za-z]+)[\s_-]*(\d+)/);
+  if (themed) return `${themed[1].toUpperCase()}-${themed[2].toLowerCase()}-${themed[3]}`;
   const m = name.match(/([A-Za-z]+)\D*?(\d+)/);
   if (m) return `${m[1].toUpperCase()}-${m[2]}`;
   return name.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || folderName;
@@ -329,7 +342,9 @@ async function finishListing(
   const words = nameWords(await descriptionsFor(id));
   // Grouped here rather than in the app, so `npm run finish` and the app cannot file the same
   // listing in two different places — and so batch mode gets it for free.
-  const dest = path.join(outDir, skuGroup(id));
+  // Tag, then theme: `ready/HBD/peppa/`. `themeIn` is "" for an un-themed listing and `path.join`
+  // drops it, so `ANP-1` still lands in `ready/ANP/` exactly as before.
+  const dest = path.join(outDir, skuGroup(id), themeIn(id));
   await mkdir(dest, { recursive: true });
   for (let i = 0; i < files.length; i++) {
     try {

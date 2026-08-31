@@ -2154,6 +2154,141 @@ with nobody named are offered back in the left column, because **naming is allow
 and that only works if there is a way back to what was ticked.** Otherwise "later" means never —
 which is exactly the 34 above.
 
+## C-072 — A missing row does not read as missing; it reads as the nearest wrong answer
+
+**Class:** Data · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-21 ·
+**Status:** Fixed (WW-194)
+
+On the first real tally, `15 mtr led` matched **`LED String Light, 10 m`** — and the badge said
+*matched*, not *check this*. Full confidence, wrong length, wrong price. Vansh: *"i think it is
+15 mtr one if the supplier is saying — our inventory can lie."*
+
+**He is right about which side is the evidence.** The delivery note describes what physically
+arrived; `materials.json` is only our record of it, and it was incomplete. There was no 15 m row, so
+the matcher did what a fuzzy matcher does with a near-miss: it returned the nearest thing above the
+floor, silently.
+
+**Why this is the important failure and not the loud one.** A line that matches NOTHING is visible —
+it says *not on the list* in red and somebody fixes it. A line that matches the WRONG row looks
+finished. It would have costed every LED kit at the 10 m price and nothing on any screen would have
+said so.
+
+**Fix.** 50 missing rows added, including all three LED lengths as separate products (7 m, 10 m,
+15 m) — Vansh: *"maybe two type of packing we have for light, 7 and 15, maybe 10 too — for now have
+them diff."* And the instruction that generalises it, which he had to give twice: **add, flag, never
+merge or replace.** A generic row stays even when four colour variants are added beside it, because
+merging two products that only look alike is the same mistake in the other direction.
+
+**The general shape:** a fuzzy matcher's confidence is about the rows it HAS. It cannot be confident
+about an absence, so it never reports one. Completeness of the list is not a tidiness concern — it is
+what makes the confidence score mean anything at all.
+
+## C-071 — A cut sold as "the number worth acting on", for a decision nobody makes
+
+**Class:** Product · **Category:** Wrong assumption · **Caught by:** Vansh · **Date:** 2026-08-21 ·
+**Status:** Fixed (WW-193)
+
+The **How it sells** screen led with returns cut by courier, and its own copy called it *"the number
+worth acting on"* on the reasoning that a courier RTOing twice as often on the same SKU is a handover
+decision. Vansh: *"bro we don't choose the delivery partner, and for Flipkart we just have one
+option, Ekart. But ya we can maybe raise a ticket — but still I think this is almost useless."*
+
+**The reasoning was sound and the premise was never checked.** A handover decision requires a
+handover to make, and on a marketplace that assigns the courier there isn't one. Every word of the
+justification was about a lever he does not have.
+
+**Fix, and why not deletion.** The table moves below SKU and marketplace, and its copy now says what
+it actually is: *you do not choose the courier, so this is evidence, not a decision — if one is
+consistently worse on the same SKUs, this is the figure to put in a ticket.* He named that use
+himself, and it is the only place such a number exists. Deleting a working cut because its headline
+was oversold is the mistake C-036 is about; retargeting the claim is the fix (see
+`docs/learning/7-a-warning-is-a-request-for-a-decision.md`).
+
+**The general shape:** *actionable* is a claim about the reader's options, not about the data. Before
+calling a number actionable, name the action and check that the person reading it can take it.
+
+## C-070 — A theme under a tag was thrown away, and two listings became one ID
+
+**Class:** Code · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-21 ·
+**Status:** Fixed (WW-192)
+
+*"Every peppa or theme image showing 1.1 thing not the full name."*
+
+**Cause, in one line of regex.** `cleanId` read a name as *letters, then any non-digits, then a
+number*:
+
+```js
+const m = name.match(/([A-Za-z]+)\D*?(\d+)/);   // "HBD peppa 01" → "HBD" + "01"
+```
+
+The theme matched `\D*?` and was discarded. So `HBD-peppa01`, `HBD-Kitty01` and `HBD-dore01` all
+became **`HBD-01`**, and `HBD-dore02` and `HBD-space02` both became **`HBD-02`**. The `1.1` Vansh saw
+is `HBD-01` with a slot number on the end — the theme having been dropped three steps earlier.
+`leadCode` had the same blind spot from the other direction: it returned `""` for every themed name,
+so a themed SKU never matched its costed kit and read as *not costed* on the Money screen.
+
+**Not cosmetic.** Two different listings sharing one ID means the second one's finished images
+overwrite the first one's. It had not happened in this repo yet — the JSONs kept their real names
+and there is no `ready/` folder here — but `images/1-raw/HBD-kitty01` was queued to do exactly that
+on the next `finish`.
+
+**Fix.** A themed code is now its own anchored, narrow rule, tried *before* the general one rather
+than replacing it: `^([A-Za-z]{1,4})[\s_-]+([A-Za-z]+)[\s_-]*0*(\d+)`. Three deliberate
+tightenings, each protecting a name the old rule handled:
+
+- **tag ≤ 4 letters** — real tags are `ANP`, `WB`, `GTB`, `HBD`, `HAL`, `SVP`, `WKU`; without the
+  bound, `annaprashan kit 2` would read `annaprashan` as a tag and `kit` as a theme;
+- **a separator required after the tag** — `photo booth 16` cannot match, `phot` is not followed
+  by one;
+- **anchored** — it describes how a name starts, so no code is found inside a title.
+
+**What Vansh asked for, and how it was answered.** *"Be careful this should not break the proper
+working of normal listing SKU names with no sub part."* Every name on disk — 123 of them across
+`image-meta/`, `products/`, `inventory/`, `images/` — was run through the old and the new code and
+diffed. **13 changed, all 13 themed, 0 others.** The un-themed shapes are now pinned name by name in
+`tests/finish.test.ts` against their exact old answers, so a future edit to this grammar fails loudly
+rather than quietly re-mangling a normal SKU.
+
+**Already correct, and left alone:** `skuGroup` and `skuPrefix` — they knew about themes already
+(*"`HBD-Kitty01` and `HBD-DORE01` are Happy Birthday kits called Kitty and Doraemon"*) and still
+file every theme under `HBD`, which is what the ready folder's subfolders use.
+
+**The general shape:** a grammar with a wildcard in the middle (`\D*?`) does not fail on input it
+does not understand — it silently swallows it. The two names that collide are the only evidence, and
+they only collide once you have two.
+
+## C-069 — A new screen gated on one empty list, and read as broken
+
+**Class:** Code · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-21 ·
+**Status:** Fixed (WW-191)
+
+*"I think it is broken, blank screen when I clicked on it."* The new **How it sells** tab rendered
+one grey line and nothing else.
+
+**Cause.** The panel was written as `view.bySku.length === 0 ? <one sentence> : <everything>`. On
+this machine `orders/` holds `rates.json` and **no ledger file at all**, so every cut came back
+empty and that single branch swallowed the whole screen — including the slow-mover list, which had
+26 rows of real content sitting behind it.
+
+**Two mistakes, and the second is the one worth recording.**
+
+**(a)** One section's emptiness was used as the gate for every other section. Each now stands on its
+own data: a table renders when it has rows, and its heading renders with it.
+
+**(b)** **"Nothing has sold" and "no manifest has ever been read" were collapsed into one state.**
+They need different sentences and different advice — and they are not cosmetically different: with
+no ledger, *every* costed kit is trivially a slow mover, so the honest version of that screen would
+have printed 26 rows of nonsense. `howItSells` now returns `packedEver`, and the panel says *no
+manifest has been read yet* and points at **Pack today**, or *nothing was packed in this window* and
+suggests a longer one.
+
+**The check that would have caught it** was the one not written: every test built a ledger first.
+Added — `howItSells([], …)` against no ledger at all, and against a window with nothing in it.
+
+**The general shape:** an empty state is a state, and a screen with several independent sections has
+several of them. Testing only the populated path is how a panel ships that nobody can tell from a
+crash.
+
 ## C-068 — Two patches reported as applied that never ran
 
 **Class:** Process · **Category:** Bug · **Caught by:** Vansh · **Date:** 2026-08-20 ·

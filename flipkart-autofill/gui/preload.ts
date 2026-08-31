@@ -92,6 +92,15 @@ const api: WwApi = {
   money: (from: string, to: string, market?: string) => ipcRenderer.invoke("money", from, to, market),
   rates: () => ipcRenderer.invoke("rates"),
   setRate: (name: string, paise: number) => ipcRenderer.invoke("setRate", name, paise),
+  howItSells: (from: string, to: string, market?: string) =>
+    ipcRenderer.invoke("howItSells", from, to, market),
+  tallyNotes: (claimedNote: string, countedNote: string) =>
+    ipcRenderer.invoke("tallyNotes", claimedNote, countedNote),
+  setAlias: (name: string, key: string | null) => ipcRenderer.invoke("setAlias", name, key),
+  saveDelivery: (d: unknown) => ipcRenderer.invoke("saveDelivery", d),
+  stock: () => ipcRenderer.invoke("stock"),
+  ads: () => ipcRenderer.invoke("ads"),
+  setAds: (on: string, market: string, paise: number) => ipcRenderer.invoke("setAds", on, market, paise),
   sent: () => ipcRenderer.invoke("sent"),
   readReport: (file: string, status: "rto" | "returned") =>
     ipcRenderer.invoke("readReport", file, status),
