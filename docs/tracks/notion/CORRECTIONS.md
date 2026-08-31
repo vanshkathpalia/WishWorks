@@ -2313,3 +2313,129 @@ returns-report reader, also never applied, also reported.
 **Cheap lesson.** After any interrupted or errored command, verify the artefact, not the exit code
 — `grep -c` for the thing that was supposed to land. And a green typecheck says nothing about the
 half of a UI change that lives in CSS: if a change has a visual half, the check has to be visual.
+
+---
+
+## C-073 — Four of our own attributes were banned as somebody else's
+
+**Class:** Data · **Category:** Bug · **Caught by:** Vansh (via the 3.8 / 5 score) ·
+**Date:** 2026-08-26 · **Status:** Fixed (WW-195)
+
+*"After filling only 35 fields at flipkart only 3.8 is coming."*
+
+`PROMPT-product.md` carried a **LEAVE THESE OUT ALWAYS** list, correctly explaining that this
+Flipkart category is shared with hand fans, blowouts, crackers and battery toys. The list was
+right about twenty of its entries and wrong about three:
+
+- **`Printed Text`** — our banners, sashes and cutouts are covered in printed text, and it is
+  wording buyers actually type into search.
+- **`Visual Effects`** — "Metallic Shine", "Chrome Finish", "Glitter" are properties of the
+  balloons in the inventory, not of a hand fan.
+- **`Other Dimensions`** — a measured banner or curtain size, which the size infographic
+  already needs anyway.
+
+A fourth, **`Handle`**, was in the same list and is a plain Yes/No that a balloon kit can answer:
+No, exactly like `Foldable` and `Carry Bag Included`, which have been in the defaults from the
+start. It is now a default.
+
+**How it happened.** The list was written in one pass by reading the category's field names and
+asking "does this sound like a fan?" Three names that sound like fan parts are not, and nothing
+ever re-read the list against the products. The blanks then became invisible: the fill report
+only speaks about fields it *tries*, so a field the prompt never emits produces no line at all —
+neither a ⏭️ nor a ❌. **Four fields were missing for weeks and no output anywhere mentioned
+them.**
+
+**The lesson, and it is not "check the list more carefully".** A leave-out list is the one kind
+of configuration that reports nothing when it is wrong. Everything else in this repo announces
+its own failures — a mismatch prints the widget, an unmapped label is named, a bad character is
+quoted. An exclusion is silent by construction, so the only thing that catches a wrong one is
+comparing the form's field list against what we send, which is now a check written into the
+prompt's own **BEFORE YOU ANSWER** block.
+
+
+## C-074 — The stock panel subtracted packets and called them pieces
+**2026-08-31 · Class: Design · Caught by: Vansh · Cost: a shelf figure nobody could have trusted · Status: Fixed**
+
+**What shipped.** `onHand` netted a delivery's packs against the packs a kit consumes. Every number
+on screen was individually correct: the delivery really was 1 pkt, and the kit really does cost one
+pack of heart foil. The subtraction between them was meaningless.
+
+**What it did.** A kit uses 4 heart foils out of a packet of 50. `packs = ceil(4 / 50) = 1`, so the
+first order retired the entire packet and the shelf read 0 with 46 balloons on it. Two orders and
+it read −1. The panel exists to say *this is about to run out*, and the material it was loudest
+about was the one that was not.
+
+**Why it got past.** Both sides were called *packs*, and they were both true — in different
+sentences. `packs` on a kit line answers *what do I buy*, where rounding up is correct and
+deliberate (WW-115 put it there so a 16-piece line was not costed as 16 packs). `pkt` on a delivery
+note answers *what came in the van*. Nothing in the type system, and nothing on screen, said the two
+were different quantities, because both are integers with the same word next to them.
+
+**The fix.** Both convert to pieces, with `piecesPerPack` — already on the material, for the costing
+case. A kit now carries `packs` and `pieces` and each one is used for the question it answers.
+
+**The lesson.** *Same word, same units* is an assumption, and it is invisible precisely when both
+numbers are right. A subtraction between two figures that came from different places deserves the
+same suspicion as a total that has two sources (C-049, C-061) — the failure here was not a wrong
+number anywhere, it was an operation between two correct ones.
+
+## C-075 — A hover was allowed to change what you had chosen
+**2026-08-31 · Class: Design · Caught by: Vansh · Cost: the packing screen felt broken · Status: Fixed**
+
+**What shipped.** *"If I hover over any listing then its inventory image opens"* was built as
+`showing = hover ?? sku` — the main pane followed the cursor.
+
+**What it did.** The picture, the packet count and the tick lived in that pane, so moving the mouse
+across the list to reach the picture you had just selected replaced it with every SKU on the way.
+Vansh: *"it is irritating it and changing it just by hovering and not by selecting."*
+
+**The tell that was already in the code.** The tick had a guard — `hover === null || hover === row.sku`
+— written so that hovering could not arm a control for a SKU you merely passed. That guard is an
+admission: the design had put a control in a pane the cursor could swap, and then defended it.
+**A guard that exists to protect against your own layout is evidence the layout is wrong.**
+
+**The fix.** Hovering gets a box of its own in the left column and the main pane follows the
+selection only. The guard was deleted rather than kept, because there is nothing left for it to
+guard against.
+
+
+## C-076 — The naming step was unmounted by the tick that created it
+**2026-08-31 · Class: Code · Caught by: Vansh · Cost: every manifest's last batch, unattributed · Status: Fixed**
+
+**What shipped.** The orders body — queue, picture, tick and the *who packed it* step — rendered
+only when `view.outstanding.length > 0`.
+
+**What it did.** Ticking the last SKU of a manifest empties `outstanding`. So the click that set
+`naming` also removed the element that draws it, in the same render. Every manifest's final batch
+went in with nobody named, silently. Vansh: *"the last packing of every manifest."*
+
+**Why it got past.** It is WW-183 again — *the pane a control lives in disappears underneath it* —
+and WW-183's fix was to move naming **out of the row** and into the pane. That was correct and
+insufficient: the pane had its own disappearing condition one level up, and nothing had asked what
+it was. **A fix that moves a control to safer ground has to check what that ground is gated on.**
+
+**The tell nobody read.** *Nothing left to pack — 12 done today* appearing the instant the last
+tick landed. That sentence was the bug's own output, printed where the naming step should have
+been, and it looked like success.
+
+**The fix.** The body renders whenever there is a queue **or** a batch waiting to be named; the
+empty-queue sentence moved inside the list. The packets were never lost — they sit in *Nobody
+named yet* — but nobody looks there, so a month of last batches was heading for pay day unnamed.
+
+## C-077 — There was no way to say an order was cancelled
+**2026-08-31 · Class: Design · Caught by: Vansh · Cost: a wrong queue and a wrong shelf · Status: Fixed**
+
+**The gap.** Nineteen orders on the manifest, one cancelled by the marketplace afterwards. Nothing
+in the app could say so. The queue asked for a packet that would never ship, and if it was packed,
+its materials came off the shelf and its money went into the day.
+
+**Why it was missing.** Every state a parcel could reach had been modelled as something that
+*happens to it* — packed, RTO, returned — each one dated, counted and reversible. A cancellation is
+none of those: nothing was sent, so there is nothing to date and nothing to reverse. The model had
+no room for a parcel that simply should not be there, and the reflex fix — a fourth status — would
+have put a permanent row in every table for an event whose entire content is *this does not exist*.
+
+**The lesson.** Deletion is a state too. A record that can only ever be annotated is a record you
+cannot correct, and Vansh's own framing is the rule: *"we are dealing with data, I should be able to
+edit it, delete it, change it — patch, delete, everything."* The guard against a careless delete is
+telling the truth about its blast radius at the moment of the click, not withholding the button.
