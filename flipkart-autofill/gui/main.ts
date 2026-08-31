@@ -1004,12 +1004,34 @@ ipcMain.handle(
 );
 
 /** Every parcel packed but not yet marked as come back — what the returns screen picks from. */
+/**
+ * Every parcel we know of, newest packing first — **including the ones not packed yet**.
+ *
+ * It was packed-only, for the returns screen, which is the only thing that can come back. It now
+ * carries the outstanding ones too, because the same table is where a **cancelled** order is
+ * deleted, and a cancellation almost always lands before the parcel is packed. The screen still
+ * shows nothing until you search or something is marked, so the extra rows change no first sight.
+ */
 ipcMain.handle("sent", async () => {
   const ledgers = await (await ordersEngine()).listLedgers();
   return ledgers
     .flatMap((l) => l.subOrders)
-    .filter((p) => p.packedOn)
-    .sort((a, b) => (b.packedOn ?? "").localeCompare(a.packedOn ?? ""));
+    .sort((a, b) => (b.packedOn ?? b.firstSeen).localeCompare(a.packedOn ?? a.firstSeen));
+});
+
+/**
+ * Delete one parcel for good — the order cancelled after the manifest printed.
+ *
+ * Every ledger is searched rather than the current month, because a parcel from the 31st sits in
+ * last month's file and is exactly the one somebody cancels on the 1st.
+ */
+ipcMain.handle("dropParcel", async (_e, subOrder: string) => {
+  const engine = await ordersEngine();
+  for (const ledger of await engine.listLedgers()) {
+    const next = engine.dropParcel(ledger, subOrder);
+    if (next.subOrders.length !== ledger.subOrders.length) await engine.writeLedger(next);
+  }
+  return ordersView();
 });
 
 /**

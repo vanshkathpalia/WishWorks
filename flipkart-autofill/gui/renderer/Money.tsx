@@ -19,6 +19,9 @@ import type { AdSpend, BackRate, HowItSells, Money as MoneyTotals, PackerPay, Su
 const rupees = (paise: number) =>
   `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** `meesho` → `Meesho`. The market id is stored lower-case; nobody writes it that way. */
+const shopName = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
+
 /** `2026-08-20` → `20 Aug`. */
 const showDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -27,18 +30,36 @@ const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /**
- * Today, this week, this month — the three windows anybody actually asks about.
+ * Today, this week, this month — **or any two dates you name**.
  *
  * The week starts on Monday because that is how a working week is counted here, and "this month"
  * is the calendar month the wages are paid for.
+ *
+ * The named range exists because the three rolling windows can only ever answer *now*, and Vansh
+ * 2026-08-31: *"ten to fifteenth August… we should have it, why not."* A figure you cannot go back
+ * and look at again is a figure nobody checks. Both boxes default to today, so a single day is
+ * just the case where they agree — one control, not two.
  */
 export function useRange() {
-  const [which, setWhich] = useState<"today" | "week" | "month">("today");
+  const [which, setWhich] = useState<"today" | "week" | "month" | "dates">("today");
+  const [from, setFrom] = useState(iso(new Date()));
+  const [to, setTo] = useState(iso(new Date()));
   const now = new Date();
-  const from = new Date(now);
-  if (which === "week") from.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  if (which === "month") from.setDate(1);
-  return { which, setWhich, from: iso(from), to: iso(now) };
+  const start = new Date(now);
+  if (which === "week") start.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  if (which === "month") start.setDate(1);
+  return {
+    which,
+    setWhich,
+    from: which === "dates" ? from : iso(start),
+    // Backwards dates would silently return nothing, which reads as "we sold nothing that week".
+    // Whichever way round they are typed, the earlier one is the start.
+    to: which === "dates" ? (to < from ? from : to) : iso(now),
+    setFrom,
+    setTo,
+    typedFrom: from,
+    typedTo: to,
+  };
 }
 
 /**
@@ -47,8 +68,7 @@ export function useRange() {
  * **There is no settlement to reconcile between the two**, which is the question this looks like
  * it raises: a costed kit stores what each marketplace pays *separately*, so a parcel is always
  * priced by the one that sold it, and every parcel records which that was. This switch is for
- * reading — *how did Meesho do against Flipkart* — not for resolving a conflict, because there is
- * not one to resolve.
+ * reading one of them alone — the per-SKU table below shows both side by side without it.
  */
 export function MarketPick({
   market,
@@ -73,15 +93,25 @@ export function MarketPick({
   );
 }
 
-/** The three-way switch, shared by the money screen and the pay screen. */
-function RangePick({ which, setWhich }: ReturnType<typeof useRange>) {
+/** The window switch, shared by the money screen and the pay screen. */
+function RangePick({ which, setWhich, typedFrom, typedTo, setFrom, setTo }: ReturnType<typeof useRange>) {
+  const today = iso(new Date());
   return (
     <div className="picks">
-      {(["today", "week", "month"] as const).map((r) => (
+      {(["today", "week", "month", "dates"] as const).map((r) => (
         <button key={r} className={r === which ? "chosen" : ""} onClick={() => setWhich(r)}>
-          {r === "today" ? "Today" : r === "week" ? "This week" : "This month"}
+          {r === "today" ? "Today" : r === "week" ? "This week" : r === "month" ? "This month" : "Pick the dates…"}
         </button>
       ))}
+      {/* Only when that window is chosen: date boxes sitting there unused read as a filter already
+          applied to everything beside them. Both days are INCLUDED — 10 to 15 is six days. */}
+      {which === "dates" && (
+        <span className="date-range">
+          <input type="date" value={typedFrom} max={today} onChange={(e) => setFrom(e.target.value || today)} />
+          to
+          <input type="date" value={typedTo} max={today} onChange={(e) => setTo(e.target.value || today)} />
+        </span>
+      )}
     </div>
   );
 }
@@ -235,6 +265,7 @@ export function Money({ n }: { n: number }) {
                 <tr>
                   <th>SKU</th>
                   <th>Priced by the kit</th>
+                  <th>Where it sold</th>
                   <th>Packets</th>
                   <th>Came in</th>
                   <th>Materials</th>
@@ -248,7 +279,17 @@ export function Money({ n }: { n: number }) {
                     {/* Which kit priced it — the line that answers "where is this number from?".
                         `SVP033` is priced by the kit `SVP033 - ANP002`, and that is easy to
                         forget you ever costed. */}
-                    <td className="muted">{c.kit}</td>
+                    {/* One code, two shops. The Both/Meesho/Flipkart switch above answers *how did
+                        Meesho do* by hiding Flipkart, which is the wrong question for a line about
+                        one product: what you want is the same SKU's two shops side by side, because
+                        that comparison is the reason to keep both listings. */}
+                    <td className="split">
+                      {c.markets.map((m) => (
+                        <span key={m.name}>
+                          <b>{shopName(m.name)}</b> {m.qty} · {rupees(m.revenuePaise)}
+                        </span>
+                      ))}
+                    </td>
                     <td>{c.qty}</td>
                     <td>{rupees(c.revenuePaise)}</td>
                     <td>{rupees(c.materialsPaise)}</td>
@@ -649,6 +690,22 @@ export function Returns({ n }: { n: number }) {
     load();
   }
 
+  /**
+   * Delete a parcel that was cancelled — asking first, because there is no undo but the manifest.
+   *
+   * The question names the day it would move, since that is the whole risk: deleting an unpacked
+   * parcel only shortens the queue, while deleting a packed one takes its money out of a day
+   * already reported and its materials off the shelf's usage.
+   */
+  async function drop(p: SubOrder) {
+    const where = p.packedOn
+      ? `It was packed on ${showDate(p.packedOn)}, so that day's money and materials change.`
+      : "It has not been packed, so only the queue changes.";
+    if (!window.confirm(`Delete ${p.sku} · ${p.subOrder}?\n\n${where}\n\nThe only way back is to drop its manifest in again.`)) return;
+    await window.ww.dropParcel(p.subOrder);
+    load();
+  }
+
   /** Drop the marketplace's own report in — the parcels in it mark themselves. */
   async function report(files: string[], status: "rto" | "returned") {
     if (files.length === 0) return;
@@ -717,7 +774,7 @@ export function Returns({ n }: { n: number }) {
       {note && <p className="allgood">{note}</p>}
       {error && <p className="error">{error}</p>}
 
-      <h3>Or mark one by hand</h3>
+      <h3>Or mark one by hand — and delete a cancelled one</h3>
       <input
         type="text"
         className="wide"
@@ -725,15 +782,20 @@ export function Returns({ n }: { n: number }) {
         value={find}
         onChange={(e) => setFind(e.target.value)}
       />
+      <p className="muted">
+        Searching reaches <b>every</b> parcel, including ones not packed yet — which is where a
+        <b> cancelled</b> order is found. Cancelled is not RTO and not a return: nothing was sent,
+        so it is deleted rather than marked, and it stops counting against the shelf.
+      </p>
 
       {sent === null ? (
         <p className="muted">Looking…</p>
       ) : shown.length === 0 ? (
         <p className="muted">
           {sent.length === 0
-            ? "Nothing has been packed yet."
+            ? "No manifest has been read yet."
             : find.trim() === ""
-              ? "Nothing has come back yet. Drop a report above, or search for one parcel."
+              ? "Nothing has come back yet. Drop a report above, or search for one parcel — by SKU to find a cancelled one."
               : "Nothing matches that."}
         </p>
       ) : (
@@ -745,13 +807,14 @@ export function Returns({ n }: { n: number }) {
               <th>Courier</th>
               <th>Order no.</th>
               <th>What happened</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {shown.slice(0, 200).map((p) => (
               <tr key={p.subOrder} className={p.status ? "warn" : ""}>
                 <td>{p.sku}</td>
-                <td>{p.packedOn ? showDate(p.packedOn) : "—"}</td>
+                <td>{p.packedOn ? showDate(p.packedOn) : <span className="muted">not yet</span>}</td>
                 <td>{p.courier}</td>
                 <td className="path">{p.subOrder}</td>
                 <td>
@@ -770,6 +833,11 @@ export function Returns({ n }: { n: number }) {
                     </button>
                     {p.status && <span className="muted">on {showDate(p.statusOn!)}</span>}
                   </div>
+                </td>
+                <td>
+                  <button className="drop-one" title="Cancelled — delete it" onClick={() => void drop(p)}>
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}

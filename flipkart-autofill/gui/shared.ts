@@ -60,7 +60,15 @@ export interface Money {
   adsPaise: number;
   profitPaise: number;
   /** Every costed SKU and what it put in — the working behind the totals, and which kit priced it. */
-  costed: { name: string; kit: string; qty: number; revenuePaise: number; materialsPaise: number }[];
+  costed: {
+    name: string;
+    kit: string;
+    qty: number;
+    revenuePaise: number;
+    materialsPaise: number;
+    /** The same SKU on each marketplace it sold on — one code, two shops, side by side. */
+    markets: { name: string; qty: number; revenuePaise: number }[];
+  }[];
   /** Packed in the window but with no costed kit — shown, never counted as free. */
   uncosted: { name: string; qty: number }[];
   /** Came back in the window, whenever it was packed. */
@@ -125,21 +133,21 @@ export interface OnHand {
   received: number;
   used: number;
   left: number;
+  /** Pieces in one packet, when the price list says so. Null means it is bought singly. */
+  perPack: number | null;
   unit: string;
+  perWeek: number;
   weeksLeft: number | null;
+  /** It runs out before a new delivery could arrive. */
+  order: boolean;
 }
 
 /** Ads and boost, in paise, per day per marketplace: `{ "2026-08-21": { meesho: 45000 } }`. */
 export type AdSpend = Record<string, Record<string, number>>;
 
 /** One packer over a stretch of days. */
-  /** Pieces in one packet, when the price list says so. Null means it is bought singly. */
-  perPack: number | null;
 export interface PackerPay {
-  perWeek: number;
   name: string;
-  /** It runs out before a new delivery could arrive. */
-  order: boolean;
   packets: number;
   paise: number;
 }
@@ -537,16 +545,21 @@ export interface WwApi {
     /** The first delivery on record — the day usage starts counting from. */
     from: string | null;
     onHand: OnHand[];
+    /** Weeks of cover below which a material is flagged to reorder. */
+    reorderWeeks: number;
     aliases: Record<string, string>;
   }>;
   /** Ads and boost spend, in paise, per day per marketplace. */
   ads(): Promise<AdSpend>;
   setAds(on: string, market: string, paise: number): Promise<AdSpend>;
-  /** Every parcel already packed — what the returns screen picks from. */
+  /**
+   * Every parcel we hold, packed or not, newest first.
+   *
+   * Not packed-only: the same table is where a **cancelled** order is deleted, and a cancellation
+   * usually arrives before the parcel is packed.
+   */
   sent(): Promise<SubOrder[]>;
   /**
-    /** Weeks of cover below which a material is flagged to reorder. */
-    reorderWeeks: number;
    * Read a marketplace's RTO or returns report and mark every parcel of ours it mentions.
    *
    * The report's format is never parsed — the text is searched for sub-order numbers and AWBs we
@@ -559,6 +572,14 @@ export interface WwApi {
   ): Promise<Attempt<{ marked: number; skus: string[]; view: OrdersView }>>;
   /** Mark one parcel RTO or returned on a given day, or `null` to take the mark off. */
   returned(subOrder: string, status: "rto" | "returned" | null, on: string): Promise<OrdersView>;
+  /**
+   * Delete one parcel for good — an order cancelled after the manifest printed.
+   *
+   * **Not a return and not an RTO**: nothing was sent, so there is nothing to date or reverse.
+   * It leaves the queue, the day's money and the shelf's usage. Dropping its manifest in again is
+   * the only way back.
+   */
+  dropParcel(subOrder: string): Promise<OrdersView>;
   /**
    * Tick a SKU off, undo that tick, or name the packers on one already ticked.
    *

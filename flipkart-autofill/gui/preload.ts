@@ -106,6 +106,7 @@ const api: WwApi = {
     ipcRenderer.invoke("readReport", file, status),
   returned: (subOrder: string, status: "rto" | "returned" | null, on: string) =>
     ipcRenderer.invoke("returned", subOrder, status, on),
+  dropParcel: (subOrder: string) => ipcRenderer.invoke("dropParcel", subOrder),
   packing: (
     action: "pack" | "unpack" | "credit",
     sku: string,

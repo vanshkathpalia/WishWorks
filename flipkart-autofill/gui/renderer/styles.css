@@ -1990,6 +1990,36 @@ textarea.json {
   color: inherit;
 }
 
+/* Two date boxes and the word between them, on the money and pay screens. */
+.date-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.date-range input {
+  font: inherit;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #100e0d;
+  color: var(--ink);
+}
+
+/* The same SKU's two shops in one cell — one line each, never wrapped into a sentence. */
+.split {
+  font-size: 13px;
+}
+.split span {
+  display: block;
+  white-space: nowrap;
+}
+.split b {
+  color: var(--muted);
+  font-weight: 500;
+}
+
 /* Put today's tick back. Quiet: it lives in a list that is read far more often than corrected. */
 .summary .undo {
   padding: 3px 9px;
@@ -2000,6 +2030,18 @@ textarea.json {
 .summary .undo:hover {
   color: var(--warn);
   border-color: var(--warn);
+}
+
+/* Delete a cancelled parcel. Quiet until you are on the row: it is the one control here with
+   no undo, so it must not compete with RTO and Returned for the eye. */
+.drop-one {
+  color: var(--muted);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.drop-one:hover {
+  color: var(--bad);
+  border-color: var(--bad);
 }
 
 /* Packed, but nobody named yet — the list that gives those packets back. */

@@ -21,8 +21,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   addSkuImage, adSpend, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
-  clearBack, howItSells, idsInFile, type KitMoney, kitForSku, leftToPack, markBack, money, packSku, packerPay, parcelCredit,
-  parseManifest, unpackSku, workerCredit,
+  clearBack, dropParcel, howItSells, idsInFile, type KitMoney, kitForSku, leftToPack, markBack, money, packSku, packerPay,
+  parcelCredit, parseManifest, unpackSku, workerCredit,
 } from "../src/orders-core.js";
 
 const pdf = readFileSync(path.join(import.meta.dirname, "fixtures", "meesho-manifest.pdf"));
@@ -177,6 +177,28 @@ describe("the parcel ledger", () => {
     ]);
   });
 
+  /**
+   * The cancelled order. Vansh, 2026-08-31: *"it had nineteen orders, but later on one of those
+   * orders got cancelled… I would like to erase that so that it does not change my inventory
+   * subtraction."* Deleting has to reach the packed ones too — a cancellation can arrive after
+   * somebody has already made the packet — and when it does, that day's money must move with it.
+   */
+  it("deletes one parcel and nothing else, packed or not", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "ANP003")], "2026-08-20", "a.pdf");
+    l = dropParcel(l, "1");
+    expect(outstanding(l.subOrders)).toMatchObject([{ sku: "ANP003", qty: 1 }]);
+
+    // A parcel already packed and counted: deleting it takes the packet out of the day as well.
+    l = packSku(l, "ANP003", "2026-08-20", ["Asha"]);
+    expect(daySummary([l], "2026-08-20").packets).toBe(1);
+    l = dropParcel(l, "2");
+    expect(daySummary([l], "2026-08-20").packets).toBe(0);
+    expect(l.subOrders).toEqual([]);
+
+    // An id that is not here changes nothing — the caller sweeps every month's ledger with it.
+    expect(dropParcel(l, "nope").subOrders).toEqual([]);
+  });
+
   it("pays by the day it was PACKED, not the day it was ordered", () => {
     // Seen 31 Aug, packed 1 Sep — filed under August, paid in September.
     let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "ANP003")], "2026-08-31", "a.pdf");
@@ -230,6 +252,27 @@ describe("the parcel ledger", () => {
     l = packSku(l, "ANP003", "2026-08-20");
     l = packSku(l, "GTB001", "2026-08-20", ["Asha"]);
     expect(daySummary([l], "2026-08-20").unnamedBySku).toEqual([{ name: "ANP003", qty: 1 }]);
+  });
+
+  /**
+   * One code, two shops. Vansh: *"this data should show both Meesho and Flipkart at the same place
+   * because we are using the same SKU numbers at both."* The marketplace switch answers by hiding
+   * one of them, which is the wrong shape for a line about one product.
+   */
+  it("splits one SKU's row across the marketplaces it sold on, at each one's own price", () => {
+    const kits: KitMoney[] = [{ sku: "ANP006", costPaise: 8000, pays: { meesho: 15000, flipkart: 17000 } }];
+    let l = mergeShipments(null, [parcel("1", "ANP006"), parcel("2", "ANP006")], "2026-08-20", "m.pdf");
+    l = mergeShipments(l, [parcel("7", "ANP006")], "2026-08-20", "f.csv", "flipkart");
+    l = packSku(l, "ANP006", "2026-08-20", ["Asha"]);
+
+    const [row] = money([l], kits, "2026-08-20", "2026-08-20").costed;
+    expect(row.qty).toBe(3);
+    expect(row.markets).toEqual([
+      { name: "meesho", qty: 2, revenuePaise: 30000 },
+      { name: "flipkart", qty: 1, revenuePaise: 17000 },
+    ]);
+    // The split adds up to the row, and the row to the total — three numbers, one fact.
+    expect(row.markets.reduce((n, m) => n + m.revenuePaise, 0)).toBe(row.revenuePaise);
   });
 
   it("un-ticking gives back only what that tick took", () => {

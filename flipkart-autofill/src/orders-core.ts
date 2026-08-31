@@ -324,6 +324,24 @@ export function unpackSku(ledger: Ledger, sku: string, on: string): Ledger {
   };
 }
 
+/**
+ * Take a parcel off the books for good — the order that was cancelled after the manifest printed.
+ *
+ * Vansh, 2026-08-31: *"it had nineteen orders, but later on one of those orders got cancelled. So
+ * I would like to erase that so that it does not change my inventory subtraction."* A cancelled
+ * order is not a return and not an RTO: nothing was ever sent, so there is nothing to date, count
+ * or reverse. The honest record of it is its absence.
+ *
+ * **It really is gone**, which is the point and also the hazard: deleting a parcel already ticked
+ * takes its money out of the day it was packed and its materials off the shelf's usage. That is
+ * correct for a cancellation and wrong for a mistake, so the screen says which day it would move
+ * before it does anything. There is no undo — the manifest it came from is the undo, and dropping
+ * that file in again brings it back, because `sources` only ever dedupes on the parcel's own id.
+ */
+export function dropParcel(ledger: Ledger, subOrder: string): Ledger {
+  return { ...ledger, subOrders: ledger.subOrders.filter((p) => p.subOrder !== subOrder) };
+}
+
 /** Name the packers on subOrders already ticked — the answer that is allowed to arrive later. */
 export function creditSku(
   ledger: Ledger,
@@ -902,7 +920,26 @@ export function money(
    * priced each line, which is the bit that surprises: `SVP033` is priced by the kit
    * `SVP033 - ANP002`, and it is easy to forget that kit exists.
    */
-  costed: { name: string; kit: string; qty: number; revenuePaise: number; materialsPaise: number }[];
+  costed: {
+    name: string;
+    kit: string;
+    qty: number;
+    revenuePaise: number;
+    materialsPaise: number;
+    /**
+     * The same SKU on each marketplace it sold on, in one row.
+     *
+     * **One code, two shops, two prices.** Vansh: *"this data should show both Meesho and Flipkart
+     * at the same place because we are using the same SKU numbers at both."* The `market` switch
+     * answers *how did Meesho do* by hiding Flipkart, which is the wrong question for a line about
+     * one product — you want to see that ANP006 went out 4 times on Meesho for ₹600 and twice on
+     * Flipkart for ₹340, because that comparison is the reason to keep both listings.
+     *
+     * Only the marketplaces this SKU actually sold on, so a row is never padded with zeroes for a
+     * shop it was never listed in.
+     */
+    markets: { name: string; qty: number; revenuePaise: number }[];
+  }[];
   /** Packed in the window but with no costed kit — shown, never folded into the total. */
   uncosted: { name: string; qty: number }[];
   /** Came back in the window: what it takes off the revenue, and the materials at risk with it. */
@@ -913,7 +950,10 @@ export function money(
   const all = ledgers.flatMap((l) => l.subOrders);
   const uncosted = new Map<string, number>();
   const byMarket = new Map<string, number>();
-  const costed = new Map<string, { kit: string; qty: number; revenuePaise: number; materialsPaise: number }>();
+  const costed = new Map<
+    string,
+    { kit: string; qty: number; revenuePaise: number; materialsPaise: number; markets: Map<string, { qty: number; revenuePaise: number }> }
+  >();
   let packets = 0;
   let revenuePaise = 0;
   let materialsPaise = 0;
@@ -935,10 +975,14 @@ export function money(
     revenuePaise += paid * p.qty;
     materialsPaise += cost * p.qty;
     const row = costed.get(p.sku)
-      ?? { kit: kit?.sku ?? "priced when packed", qty: 0, revenuePaise: 0, materialsPaise: 0 };
+      ?? { kit: kit?.sku ?? "priced when packed", qty: 0, revenuePaise: 0, materialsPaise: 0, markets: new Map() };
     row.qty += p.qty;
     row.revenuePaise += paid * p.qty;
     row.materialsPaise += cost * p.qty;
+    const onMarket = row.markets.get(p.market) ?? { qty: 0, revenuePaise: 0 };
+    onMarket.qty += p.qty;
+    onMarket.revenuePaise += paid * p.qty;
+    row.markets.set(p.market, onMarket);
     costed.set(p.sku, row);
   }
 
@@ -966,7 +1010,13 @@ export function money(
     adsPaise,
     profitPaise: revenuePaise - materialsPaise - reversals.revenuePaise - adsPaise,
     costed: [...costed]
-      .map(([name, r]) => ({ name, ...r }))
+      .map(([name, r]) => ({
+        ...r,
+        name,
+        markets: [...r.markets]
+          .map(([market, m]) => ({ name: market, ...m }))
+          .sort((a, b) => b.qty - a.qty),
+      }))
       .sort((a, b) => b.revenuePaise - a.revenuePaise),
     uncosted: rank(uncosted),
     reversals,
