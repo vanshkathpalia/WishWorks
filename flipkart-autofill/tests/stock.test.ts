@@ -115,20 +115,70 @@ describe("tallying his count against the supplier's claim", () => {
 });
 
 describe("what is left on the shelf", () => {
-  const delivery = (date: string, qty: number): Delivery => ({
+  const FOIL = "Foil|Groom To Be Foil Balloon";
+  const delivery = (date: string, qty: number, unit = "pkt"): Delivery => ({
     date,
     claimedNote: "",
     countedNote: "",
     picks: {},
-    lines: [{ key: "Foil|Groom To Be Foil Balloon", name: "Groom To Be Foil Balloon", qty, unit: "pkt" }],
+    lines: [{ key: FOIL, name: "Groom To Be Foil Balloon", qty, unit }],
   });
+  /** Sold in packets of 50 — the number the price list already carries, for costing. */
+  const perPack = new Map([[FOIL, 50]]);
 
   it("takes the packing off the deliveries, and puts what runs out first at the top", () => {
     const rows = onHand(
       [delivery("2026-08-19", 5), delivery("2026-08-26", 3)],
-      new Map([["Foil|Groom To Be Foil Balloon", 6]]),
+      new Map([[FOIL, { pieces: 300, perWeek: 100 }]]),
+      new Map(),
+      perPack,
     );
-    expect(rows[0]).toMatchObject({ received: 8, used: 6, left: 2 });
+    // 8 packets of 50 = 400 pieces in, 300 used.
+    expect(rows[0]).toMatchObject({ received: 400, used: 300, left: 100, weeksLeft: 1 });
+  });
+
+  /**
+   * The bug the piece count exists for. Vansh, 2026-08-31: *"ten packets does not mean ten
+   * units"* — one kit takes 4 heart foils out of a packet of 50, and the old arithmetic netted
+   * packs against packs, so the first order retired the whole packet and the shelf read empty
+   * with 46 pieces sitting on it.
+   */
+  it("counts pieces, not packets, so one order does not retire a whole packet", () => {
+    const [row] = onHand([delivery("2026-08-19", 1)], new Map([[FOIL, { pieces: 4, perWeek: 4 }]]), new Map(), perPack);
+    expect(row).toMatchObject({ received: 50, used: 4, left: 46 });
+  });
+
+  /** A note written in pieces is already in pieces. Multiplying it would invent 22,500 balloons. */
+  it("leaves a line written in pieces alone", () => {
+    const [row] = onHand([delivery("2026-08-19", 450, "pcs")], new Map(), new Map(), perPack);
+    expect(row.received).toBe(450);
+  });
+
+  /**
+   * The whole point of the panel: say it BEFORE it runs out. The supplier takes a week, so a week
+   * of cover is already too late — see `REORDER_WEEKS`.
+   */
+  it("flags what runs out before the supplier could deliver, and not what does not", () => {
+    const used = (pieces: number, perWeek: number) => new Map([[FOIL, { pieces, perWeek }]]);
+    // 50 pieces in, 30 used, 10 a week: two weeks left, which is the edge — flagged.
+    expect(onHand([delivery("2026-08-19", 1)], used(30, 10), new Map(), perPack)[0].order).toBe(true);
+    // Same shelf, a quarter of the rate: eight weeks, no flag.
+    expect(onHand([delivery("2026-08-19", 1)], used(30, 2.5), new Map(), perPack)[0].order).toBe(false);
+    // Nothing used at all: no rate, so no weeks and no flag — a blank is not a promise.
+    const idle = onHand([delivery("2026-08-19", 1)], new Map(), new Map(), perPack)[0];
+    expect(idle).toMatchObject({ weeksLeft: null, order: false });
+  });
+
+  it("puts the soonest to run out first, which is not the smallest pile", () => {
+    const two = (key: string, qty: number): Delivery => ({
+      ...delivery("2026-08-19", qty), lines: [{ key, name: key, qty, unit: "pcs" }],
+    });
+    const rows = onHand(
+      [two("Led|Led", 200), two("Pump|Pump", 5)],
+      new Map([["Led|Led", { pieces: 0, perWeek: 100 }], ["Pump|Pump", { pieces: 0, perWeek: 1 }]]),
+    );
+    // 200 LEDs at 100 a week go before 5 pumps at one a week, though 200 is the bigger number.
+    expect(rows.map((r) => r.key)).toEqual(["Led|Led", "Pump|Pump"]);
   });
 
   it("ignores a line nothing on the price list matched — there is nothing to net it against", () => {

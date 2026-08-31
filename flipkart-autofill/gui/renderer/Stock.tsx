@@ -47,7 +47,9 @@ export function Stock({ n }: { n: number }) {
   const [rows, setRows] = useState<TallyRow[] | null>(null);
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
   const [edits, setEdits] = useState<Record<string, number>>({});
-  const [stock, setStock] = useState<{ deliveries: Delivery[]; from: string | null; onHand: OnHand[] } | null>(null);
+  const [stock, setStock] = useState<
+    { deliveries: Delivery[]; from: string | null; onHand: OnHand[]; reorderWeeks: number } | null
+  >(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [find, setFind] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +110,8 @@ export function Stock({ n }: { n: number }) {
    * Case and spacing are ignored on both sides, because the supplier does not capitalise — Vansh:
    * *"he has not cared about 1st letter capital, maybe using computer."*
    */
+  const toOrder = (stock?.onHand ?? []).filter((r) => r.order);
+
   const loose = (s2: string) => s2.toLowerCase().replace(/[^a-z0-9]+/g, "");
   const hunt = loose(find);
   const shown = (rows ?? []).filter(
@@ -263,9 +267,24 @@ export function Stock({ n }: { n: number }) {
         </p>
       ) : (
         <>
+          {/* The one sentence the panel exists for. A count of rows, not a list of them: the list
+              is right below, already sorted so those rows are the first ones. */}
+          {toOrder.length > 0 && (
+            <p className="warnpill block">
+              <b>
+                Order {toOrder.length} material{toOrder.length === 1 ? "" : "s"} now.
+              </b>{" "}
+              {toOrder.map((r) => r.name).join(", ")}.
+              <small>
+                Less than {stock.reorderWeeks} weeks left at the recent rate, and the supplier takes
+                about one — so ordering later means running out.
+              </small>
+            </p>
+          )}
           <p className="muted">
             Received since {stock.from}, less what the packing used — the same arithmetic{" "}
-            <b>How it sells</b> shows, so there is no second count. Lowest first.
+            <b>How it sells</b> shows, so there is no second count. <b>Everything is in pieces</b>:
+            a packet of 50 that one kit takes 4 from is 46 left, not none. Soonest to run out first.
           </p>
           <table className="rows inv-table">
             <thead>
@@ -274,21 +293,41 @@ export function Stock({ n }: { n: number }) {
                 <th>Came in</th>
                 <th>Used</th>
                 <th>Left</th>
-                <th>Unit</th>
+                <th>A week</th>
+                <th>Weeks left</th>
               </tr>
             </thead>
             <tbody>
               {stock.onHand.map((r) => (
-                <tr key={r.key}>
-                  <td>{r.name}</td>
+                <tr key={r.key} className={r.order ? "bad-row" : ""}>
+                  <td>
+                    {r.name}
+                    {r.perPack !== null && <small className="muted"> · {r.perPack} in a {r.unit || "pkt"}</small>}
+                  </td>
                   <td>{r.received}</td>
                   <td>{r.used || "—"}</td>
-                  <td className={r.left <= 0 ? "bad" : r.left <= 2 ? "warn" : ""}>{r.left}</td>
-                  <td className="muted">{r.unit}</td>
+                  <td className={r.left <= 0 ? "bad" : r.order ? "warn" : ""}>
+                    {r.left}
+                    {/* Percent left, because that is how Vansh reads a shelf — "half gone". It is
+                        of what has EVER come in, so it drops back after every delivery. */}
+                    {r.received > 0 && r.used > 0 && (
+                      <small className="muted"> · {Math.round((r.left / r.received) * 100)}%</small>
+                    )}
+                  </td>
+                  <td className="muted">{r.perWeek || "—"}</td>
+                  <td className={r.order ? "bad" : ""}>
+                    {r.weeksLeft === null ? "—" : r.left <= 0 ? "out" : r.weeksLeft}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <p className="muted">
+            <small>
+              A blank week rate means no kit that uses it has been packed since {stock.from}, so
+              there is no rate to run out at — not that it is safe.
+            </small>
+          </p>
         </>
       )}
     </section>

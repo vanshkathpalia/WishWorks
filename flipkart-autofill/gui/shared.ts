@@ -90,7 +90,7 @@ export interface HowItSells {
   /** Costed kits with nothing packed in the window, oldest sale first. */
   slow: { sku: string; lastPacked: string | null }[];
   /** Materials the window's packing consumed, and what that is per week. */
-  burn: { key: string; name: string; packs: number; perWeek: number }[];
+  burn: { key: string; name: string; packs: number; perWeek: number; pieces: number; piecesPerWeek: number }[];
 }
 
 /** One material across the supplier's claim and our count. */
@@ -118,7 +118,7 @@ export interface Delivery {
   lines: { key: string | null; name: string; qty: number; unit: string }[];
 }
 
-/** One material's stock: what came in, what the packing ate, what is left. */
+/** One material's stock: what came in, what the packing ate, what is left. All in PIECES. */
 export interface OnHand {
   key: string;
   name: string;
@@ -133,8 +133,13 @@ export interface OnHand {
 export type AdSpend = Record<string, Record<string, number>>;
 
 /** One packer over a stretch of days. */
+  /** Pieces in one packet, when the price list says so. Null means it is bought singly. */
+  perPack: number | null;
 export interface PackerPay {
+  perWeek: number;
   name: string;
+  /** It runs out before a new delivery could arrive. */
+  order: boolean;
   packets: number;
   paise: number;
 }
@@ -540,6 +545,8 @@ export interface WwApi {
   /** Every parcel already packed — what the returns screen picks from. */
   sent(): Promise<SubOrder[]>;
   /**
+    /** Weeks of cover below which a material is flagged to reorder. */
+    reorderWeeks: number;
    * Read a marketplace's RTO or returns report and mark every parcel of ours it mentions.
    *
    * The report's format is never parsed — the text is searched for sub-order numbers and AWBs we

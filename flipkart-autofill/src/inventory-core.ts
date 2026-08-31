@@ -898,17 +898,20 @@ export interface KitRow {
   /** Per marketplace, what a sale actually brings in — the settlement, or the price it implies. */
   pays?: Record<string, number>;
   /**
-   * What it is made of, in PACKS — for the reorder view, which multiplies this by what was packed.
+   * What it is made of — for the reorder view, which multiplies this by what was packed.
    *
-   * Packs and not pieces because a pack is the unit that gets bought: *"40 gold balloons a week"*
-   * only means something beside *"the last purchase was 500"*. Unmatched lines are left out, the
-   * same rule the total follows — a material nobody has priced is an unknown, not a zero.
+   * **Both figures, because they answer different questions.** `packs` is what gets BOUGHT: *"40
+   * gold balloons a week"* only means something beside *"the last purchase was 500"*. `pieces` is
+   * what gets USED, and it is the one the shelf is netted in: a kit takes 4 heart foils out of a
+   * packet of 50, and `packs` rounds that to a whole packet per order, which retires the packet on
+   * the first sale. Unmatched lines are left out, the same rule the total follows — a material
+   * nobody has priced is an unknown, not a zero.
    *
    * **The key is what joins**, not the name: the raw-stock panel nets these against deliveries, and
    * two materials in different categories can be spelt the same. The name rides along because it is
    * what a person reads.
    */
-  materials?: { key: string; name: string; packs: number }[];
+  materials?: { key: string; name: string; packs: number; pieces: number }[];
 }
 
 /**
@@ -949,7 +952,7 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
           row.costPaise = cost;
           const parts = costed.lines
             .filter((l) => l.match !== null)
-            .map((l) => ({ key: materialKey(l.match!), name: l.match!.material, packs: l.packs }));
+            .map((l) => ({ key: materialKey(l.match!), name: l.match!.material, packs: l.packs, pieces: l.qty }));
           if (parts.length > 0) row.materials = parts;
           if (Object.keys(left).length > 0) row.left = left;
           if (Object.keys(pays).length > 0) row.pays = pays;

@@ -215,11 +215,17 @@ export async function writeDelivery(d: Delivery): Promise<void> {
 export interface OnHand {
   key: string;
   name: string;
+  /** **Pieces, always.** A packet is not a unit — see `onHand`. */
   received: number;
-  /** Packs consumed by parcels packed since the first delivery was recorded. */
+  /** Pieces consumed by parcels packed since the first delivery was recorded. */
   used: number;
   left: number;
+  /** Pieces in one packet, when the price list says so. Null means it is bought singly. */
+  perPack: number | null;
+  /** The unit the delivery was written in. A label, now that the arithmetic is in pieces. */
   unit: string;
+  /** Pieces the packing eats in a week, at the recent rate. */
+  perWeek: number;
   /**
    * Weeks of stock at the recent rate, or null when nothing has been used yet.
    *
@@ -228,43 +234,80 @@ export interface OnHand {
    * fortnight of another.
    */
   weeksLeft: number | null;
+  /** It runs out before a new delivery could arrive. The flag Vansh asked not to keep on paper. */
+  order: boolean;
 }
 
 /**
- * What is on the shelf: deliveries in, packing out.
+ * Order it now, or it runs out before it can get here.
+ *
+ * The supplier takes **a week** — Vansh, 2026-08-31: *"it takes one week of time for the supplier
+ * to get the product to us"* — so flagging at one week of cover is already too late: you would
+ * pack the last piece as the van arrives. Two weeks is that week, plus a week to notice the flag,
+ * place the order, and be wrong about the rate.
+ *
+ * ponytail: one number for every material. A per-material lead time is a column on the material,
+ * the day somebody names a material with a different one.
+ */
+export const REORDER_WEEKS = 2;
+
+/** Units that mean a PACK of something, not one of it. Anything else is counted as pieces. */
+const PACK_UNIT = /^(pkt|pkts|packet|packets|petti|peti|bandal|bandel|bundle)$/;
+
+/**
+ * What is on the shelf: deliveries in, packing out, **counted in pieces**.
+ *
+ * **A packet is not a unit.** Vansh, 2026-08-31: *"ten packets does not mean ten units. A packet
+ * could have fifty pieces or a hundred"*. One kit uses 4 heart foils out of a packet of 50, so
+ * netting packs against packs — which this did until now — retired a whole packet on the first
+ * order and showed the shelf empty with 46 pieces sitting on it. Both sides are converted to
+ * pieces with `piecesPerPack` off the price list, which is where that number is already recorded
+ * (it exists so a 16-piece line is not costed as 16 packs). A material without one is bought
+ * singly, like a balloon, and the conversion is a no-op for it.
  *
  * **Usage is counted only from the first delivery on record**, because before that there was no
  * stock figure for it to come off. Counting a year of packing against a carton that arrived on
  * Tuesday would show every material as deeply negative and the panel would be useless on day one.
  *
- * ponytail: units are taken at face value — a `pkt` in a delivery is netted against a `pack` in a
- * kit, and a `pcs` line against a kit that counts pieces. That is right for every material here
- * because both sides are describing the same box, but a supplier who switches from packets to
- * pieces mid-list will read wrong; the unit is on screen next to the number so it is visible. If
- * it ever bites, the fix is a pieces-per-pack column on the material, not arithmetic here.
+ * ponytail: a `petti` (a carton of packets) converts as if it were one packet, so a carton reads
+ * low. The unit is on screen beside the number, and the fix is a pieces-per-carton column — not
+ * arithmetic here, and not before somebody actually takes a carton of something in.
  */
 export function onHand(
   deliveries: Delivery[],
-  /** Packs used per material key, from the parcel ledger x each kit's lines. */
-  usedByKey: Map<string, number>,
+  /** Pieces used per material, and pieces per week — the parcel ledger x each kit's own lines. */
+  used: Map<string, { pieces: number; perWeek: number }>,
   names: Map<string, string> = new Map(),
+  /** Pieces in one pack, per material, from the price list. */
+  perPack: Map<string, number> = new Map(),
 ): OnHand[] {
   const rows = new Map<string, OnHand>();
   for (const d of deliveries) {
     for (const l of d.lines) {
       if (l.key === null) continue; // not on the price list — there is nothing to net it against
-      const r = rows.get(l.key)
-        ?? { key: l.key, name: names.get(l.key) ?? l.name, received: 0, used: 0, left: 0, unit: l.unit, weeksLeft: null };
-      r.received += l.qty;
+      const per = perPack.get(l.key) ?? null;
+      const r = rows.get(l.key) ?? {
+        key: l.key, name: names.get(l.key) ?? l.name, received: 0, used: 0, left: 0,
+        perPack: per, unit: l.unit, perWeek: 0, weeksLeft: null, order: false,
+      };
+      r.received += per !== null && PACK_UNIT.test(l.unit) ? l.qty * per : l.qty;
       if (r.unit === "") r.unit = l.unit;
       rows.set(l.key, r);
     }
   }
   for (const r of rows.values()) {
-    r.used = usedByKey.get(r.key) ?? 0;
+    const u = used.get(r.key);
+    r.used = u?.pieces ?? 0;
+    r.perWeek = u?.perWeek ?? 0;
     r.left = r.received - r.used;
+    r.weeksLeft = r.perWeek > 0 ? Math.round((r.left / r.perWeek) * 10) / 10 : null;
+    r.order = r.left <= 0 || (r.weeksLeft !== null && r.weeksLeft <= REORDER_WEEKS);
   }
-  return [...rows.values()].sort((a, b) => a.left - b.left);
+  // Soonest to run out first, which is not the smallest number: 200 LEDs at 100 a week go before
+  // 5 cartons of pump, and a quantity on its own cannot say that. Anything never used sorts last.
+  return [...rows.values()].sort(
+    (a, b) => (a.weeksLeft ?? Infinity) - (b.weeksLeft ?? Infinity) || a.left - b.left,
+  );
 }
 
 /** The earliest delivery on record — the day usage starts counting from. `null` when there are none. */

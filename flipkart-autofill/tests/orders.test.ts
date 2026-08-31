@@ -265,9 +265,10 @@ describe("the parcel ledger", () => {
  */
 describe("how it sells", () => {
   const kits = [
-    { sku: "ANP003", costPaise: 8000, pays: { meesho: 15000 }, materials: [{ key: "Balloons|Gold balloon", name: "Gold balloon", packs: 2 }] },
+    // Two packs of gold balloon, which is 100 PIECES — the distinction the shelf is netted in.
+    { sku: "ANP003", costPaise: 8000, pays: { meesho: 15000 }, materials: [{ key: "Balloons|Gold balloon", name: "Gold balloon", packs: 2, pieces: 100 }] },
     // Costed but never packed — the slow-mover case, and it must not be confused with uncosted.
-    { sku: "ZZZ001", costPaise: 5000, pays: { meesho: 9000 }, materials: [{ key: "Ribbon|Ribbon", name: "Ribbon", packs: 1 }] },
+    { sku: "ZZZ001", costPaise: 5000, pays: { meesho: 9000 }, materials: [{ key: "Ribbon|Ribbon", name: "Ribbon", packs: 1, pieces: 1 }] },
   ];
   const parcel = (id: string, courier: string) =>
     ({ subOrder: id, awb: `A${id}`, sku: "ANP003", qty: 1, courier, market: "meesho" });
@@ -327,8 +328,12 @@ describe("how it sells", () => {
 
   it("multiplies each kit's own lines by what was packed, so a reorder has a number", () => {
     // Four packets x two packs of gold balloon, over a 30-day window = 8 packs, ~1.9 a week.
+    // The same packing in pieces is 400, which is the figure the shelf comes down by — a pack is
+    // what gets BOUGHT and a piece is what gets USED, and they are not each other.
     const { burn } = howItSells([shipped()], kits, "2026-08-01", "2026-08-31");
-    expect(burn).toEqual([{ key: "Balloons|Gold balloon", name: "Gold balloon", packs: 8, perWeek: 1.9 }]);
+    expect(burn).toEqual([
+      { key: "Balloons|Gold balloon", name: "Gold balloon", packs: 8, perWeek: 1.9, pieces: 400, piecesPerWeek: 93.3 },
+    ]);
   });
 });
 

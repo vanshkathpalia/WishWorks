@@ -969,12 +969,13 @@ export function money(
 /**
  * What a kit is made of, as the reorder view needs it. Filled from `listKits`.
  *
- * Packs rather than pieces, because a pack is what gets bought: *"you are using 40 gold balloons a
- * week"* is only useful next to *"the last purchase was 500"*, and both are counted the same way.
+ * Packs because a pack is what gets bought: *"you are using 40 gold balloons a week"* is only
+ * useful next to *"the last purchase was 500"*. Pieces because a pack is not a unit — a kit takes
+ * 4 out of a packet of 50, and only the piece figure can net that against the shelf.
  */
 export interface KitMaterials {
   sku: string;
-  materials?: { key: string; name: string; packs: number }[];
+  materials?: { key: string; name: string; packs: number; pieces: number }[];
 }
 
 /**
@@ -1018,10 +1019,13 @@ export function howItSells(
   /**
    * Materials consumed by the window's packing, and what that is per week.
    *
+   * **In packs for the purchase order, in pieces for the shelf** — see `KitMaterials`. The two are
+   * the same number for anything bought singly and wildly different for anything in a packet.
+   *
    * Keyed as well as named, because the raw-stock panel nets this against deliveries and the name
    * is a label — two materials in different categories can share one.
    */
-  burn: { key: string; name: string; packs: number; perWeek: number }[];
+  burn: { key: string; name: string; packs: number; perWeek: number; pieces: number; piecesPerWeek: number }[];
 } {
   const all = ledgers.flatMap((l) => l.subOrders);
   const packed = all.filter(
@@ -1062,17 +1066,19 @@ export function howItSells(
     .map((k) => ({ sku: k.sku, lastPacked: lastPacked.get(k.sku) ?? null }))
     .sort((a, b) => (a.lastPacked ?? "").localeCompare(b.lastPacked ?? ""));
 
-  const used = new Map<string, { name: string; packs: number }>();
+  const used = new Map<string, { name: string; packs: number; pieces: number }>();
   for (const p of packed) {
     for (const m of kitForSku(p.sku, kits)?.materials ?? []) {
-      const u = used.get(m.key) ?? { name: m.name, packs: 0 };
+      const u = used.get(m.key) ?? { name: m.name, packs: 0, pieces: 0 };
       u.packs += m.packs * p.qty;
+      u.pieces += m.pieces * p.qty;
       used.set(m.key, u);
     }
   }
   const weeks = Math.max(1, (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 6.048e8);
+  const rate = (n: number) => Math.round((n / weeks) * 10) / 10;
   const burn = [...used]
-    .map(([key, u]) => ({ key, name: u.name, packs: u.packs, perWeek: Math.round((u.packs / weeks) * 10) / 10 }))
+    .map(([key, u]) => ({ key, ...u, perWeek: rate(u.packs), piecesPerWeek: rate(u.pieces) }))
     .sort((a, b) => b.packs - a.packs);
 
   return {

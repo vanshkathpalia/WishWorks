@@ -875,15 +875,26 @@ ipcMain.handle("stock", async () => {
 
   const deliveries = await stock.listDeliveries();
   const from = stock.firstDelivery(deliveries);
-  const names = new Map(loadMaterials().map((m) => [`${m.category}|${m.material}`, m.material]));
+  const materials = loadMaterials();
+  const names = new Map(materials.map((m) => [`${m.category}|${m.material}`, m.material]));
+  // Pieces in a packet, off the price list — the one place that number is already written down.
+  const perPack = new Map(
+    materials.filter((m) => m.piecesPerPack).map((m) => [`${m.category}|${m.material}`, m.piecesPerPack!]),
+  );
 
-  const used = new Map<string, number>();
+  const used = new Map<string, { pieces: number; perWeek: number }>();
   if (from !== null) {
     const today = new Date().toISOString().slice(0, 10);
-    const { burn } = orders.howItSells(await orders.listLedgers(), listKits(KITS_DIR, loadMaterials()), from, today);
-    for (const b of burn) used.set(b.key, b.packs);
+    const { burn } = orders.howItSells(await orders.listLedgers(), listKits(KITS_DIR, materials), from, today);
+    for (const b of burn) used.set(b.key, { pieces: b.pieces, perWeek: b.piecesPerWeek });
   }
-  return { deliveries, from, onHand: stock.onHand(deliveries, used, names), aliases: await readAliases() };
+  return {
+    deliveries,
+    from,
+    onHand: stock.onHand(deliveries, used, names, perPack),
+    reorderWeeks: stock.REORDER_WEEKS,
+    aliases: await readAliases(),
+  };
 });
 
 /** A packer's rate, in paise per packet. Zero or absent means their pay is not worked out here. */
