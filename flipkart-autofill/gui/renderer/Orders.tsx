@@ -33,6 +33,52 @@ import { fileUrl } from "./ui.js";
  */
 const seenImages = new Map<string, string | null>();
 
+/**
+ * A SKU's picture, from the remembered answer when there is one.
+ *
+ * `.catch(() => null)` is not tidiness: an IPC call that rejects never settles, so without it a
+ * failure leaves the caller on "Looking…" for ever — indistinguishable from a frozen app, which is
+ * exactly what WW-182 looked like. No picture is the honest answer to any failure here.
+ */
+function findPicture(sku: string, position: number, fresh = false): Promise<string | null> {
+  const key = `${sku}|${position}`;
+  const seen = seenImages.get(key);
+  if (!fresh && seen !== undefined) return Promise.resolve(seen);
+  return window.ww.skuImage(sku, position).catch(() => null).then((found) => {
+    seenImages.set(key, found);
+    return found;
+  });
+}
+
+/**
+ * The hovered SKU's picture, in a box of its own beside the list.
+ *
+ * Small, and only the packet picture: it answers *"which one is this?"* while you look for the one
+ * you are about to pack. Everything that DOES something — the tick, the position buttons, adding a
+ * picture — stays in the main pane, on the SKU you clicked, so running the cursor down the list
+ * cannot arm a control or move what you were looking at.
+ */
+function Peek({ sku }: { sku: string }) {
+  const [file, setFile] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let live = true;
+    setFile(seenImages.get(`${sku}|2`));
+    void findPicture(sku, 2).then((found) => live && setFile(found));
+    return () => { live = false; }; // a cursor crossing five rows must not paint the third one last
+  }, [sku]);
+
+  return (
+    <figure className="peek">
+      {file ? <img src={fileUrl(file)} alt={`What goes in a ${sku} packet`} /> : null}
+      <figcaption>
+        {sku}
+        <small>{file === undefined ? "looking…" : file === null ? "no picture" : "click to open it"}</small>
+      </figcaption>
+    </figure>
+  );
+}
+
 /** `2026-08-19` → `19 Aug 2026`. The panel shows dates the way the manifest prints them. */
 const showDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -53,12 +99,8 @@ function SkuImage({ sku, qty, tick }: { sku: string; qty: number; tick: React.Re
   const [position, setPosition] = useState(2);
   const [file, setFile] = useState<string | null | undefined>(undefined);
 
-  // `.catch(() => null)` is not tidiness: an IPC call that rejects never settles, so without it a
-  // failure leaves this on "Looking…" for ever — which is indistinguishable from a frozen app and
-  // is exactly what WW-182 looked like. No picture is the honest answer to any failure here.
-  //
-  // Cached because the list is now HOVERABLE: running a cursor down ten SKUs would otherwise walk
-  // the ready folder ten times, and that folder is on a shared drive.
+  // The remembered answer is used SYNCHRONOUSLY when there is one — a promise, even a resolved
+  // one, settles a tick late, and that tick is a flash of "Looking…" on a picture already in hand.
   const load = useCallback((fresh = false) => {
     const key = `${sku}|${position}`;
     if (!fresh && seenImages.has(key)) {
@@ -66,10 +108,7 @@ function SkuImage({ sku, qty, tick }: { sku: string; qty: number; tick: React.Re
       return;
     }
     setFile(undefined);
-    void window.ww.skuImage(sku, position).catch(() => null).then((found) => {
-      seenImages.set(key, found);
-      setFile(found);
-    });
+    void findPicture(sku, position, fresh).then(setFile);
   }, [sku, position]);
   useEffect(() => load(), [load]);
 
@@ -183,15 +222,19 @@ function PackedTick({ qty, onPack }: { qty: number; onPack: (limit?: number) => 
 }
 
 /**
- * Who packed the batch just ticked — a step in the pane, not a menu on a vanishing row.
+ * Who packed the batch just ticked — a dropdown over the picture, not a screen instead of it.
  *
- * **Skipping is a first-class answer.** *Not now* leaves the packets recorded and unnamed, and the
- * tally counts them so they can be named before pay day; the left-hand list offers them back. What
- * must never happen is the tick waiting for a name, which is how a morning gets packed and nothing
- * gets recorded at all.
+ * **It is `<details>`, which is a dropdown the browser already has**: it opens, it closes, it
+ * needs no outside-click handler and no state. Open by default, because it appears in answer to
+ * something you just did and the answer is usually one click away.
  *
- * `replacing` is what keeps two batches of one SKU apart: the morning's two credited to Asha stay
- * hers when the afternoon's two are credited to Ravi.
+ * **It does not live in the tick, and it must not.** Ticking takes the SKU out of the queue, so
+ * anything hanging off that row unmounts a moment later — that was WW-183, thirty-four packets
+ * recorded with nobody named. It sits in the pane instead, and the pane is now drawn even when the
+ * queue is empty, which is the same bug one level up (WW-198).
+ *
+ * Naming is allowed to lag: *Not now* leaves the batch in **Nobody named yet**, which is how a
+ * busy morning actually goes.
  */
 function WhoPacked({
   sku,
@@ -214,11 +257,20 @@ function WhoPacked({
   const share = chosen.length > 0 ? qty / chosen.length : 0;
 
   return (
-    <div className="who-packed">
-      <h2>
-        {qty} packet{qty === 1 ? "" : "s"} of {sku} packed
-        <small>Who did it?</small>
-      </h2>
+    <details className="who-packed" open>
+      <summary>
+        <b>
+          {qty} packet{qty === 1 ? "" : "s"} of {sku} packed
+        </b>
+        {chosen.length === 0 ? (
+          <em>who did it?</em>
+        ) : (
+          <span>
+            {chosen.join(", ")}
+            {chosen.length > 1 && ` — ${Number(share.toFixed(2))} each`}
+          </span>
+        )}
+      </summary>
 
       <div className="who">
         {workers.map((name) => {
@@ -253,25 +305,26 @@ function WhoPacked({
             }}
           />
         )}
-      </div>
 
-      <p className="muted">
-        {chosen.length > 1
-          ? `Split ${chosen.length} ways — ${Number(share.toFixed(2))} packets each toward this month's pay.`
-          : "Pick as many as shared it. You can also leave it and name them later."}
-      </p>
-
-      <div className="picks">
         <button className="primary" onClick={onDone}>
           {chosen.length > 0 ? "Done" : "Not now"}
         </button>
       </div>
-    </div>
+    </details>
   );
 }
 
 /** The tally: what went out today, who packed it, where it is going, and what is still waiting. */
-function Summary({ summary, onClose }: { summary: DaySummary; onClose: () => void }) {
+function Summary({
+  summary,
+  onClose,
+  onUnpack,
+}: {
+  summary: DaySummary;
+  onClose: () => void;
+  /** Put a SKU back in the queue — see the *By SKU* column below. */
+  onUnpack: (sku: string) => void;
+}) {
   const rows = (title: string, list: { name: string; qty: number }[]) =>
     list.length === 0 ? null : (
       <div>
@@ -301,10 +354,44 @@ function Summary({ summary, onClose }: { summary: DaySummary; onClose: () => voi
           )}
         </p>
         <div className="summary-cols">
-          {rows("By SKU", summary.bySku)}
+          {/**
+           * By SKU, with a way back — the tick was one click and undoing it should be too.
+           *
+           * **It is here and nowhere else**, because this is the only list of what was packed
+           * today: a ticked SKU leaves the queue, so the screen behind this has nothing left to
+           * put an undo on. Only today's tick is undone, and only a SKU that was packed today
+           * appears in this column at all, so yesterday's work cannot be reached from here.
+           *
+           * ponytail: it gives back the whole SKU's packing for the day, not one packet of it —
+           * a mis-click is a mis-click on the tick, which was all of them. If un-doing one of six
+           * ever comes up, that is a parcel-level control and belongs beside the delete in
+           * *Came back*.
+           */}
+          {summary.bySku.length > 0 && (
+            <div>
+              <h3>By SKU</h3>
+              <ul>
+                {summary.bySku.map((r) => (
+                  <li key={r.name}>
+                    <span className="lid">{r.name}</span>
+                    <span className="qty">{r.qty}</span>
+                    <button className="undo" title="Not packed after all — put it back" onClick={() => onUnpack(r.name)}>
+                      Undo
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {rows("By packer", summary.byPacker)}
           {rows("By courier", summary.byCourier)}
         </div>
+        <p className="muted">
+          <small>
+            <b>Undo</b> puts that SKU&apos;s packing back in the queue for today only — the packets,
+            the names and the money with it. Yesterday&apos;s stays as it was.
+          </small>
+        </p>
         <button className="close" onClick={onClose}>
           Done
         </button>
@@ -332,9 +419,14 @@ export function Orders() {
    */
   const [lookup, setLookup] = useState("");
   /**
-   * The SKU under the cursor. Hovering the queue shows that SKU's picture without moving the
-   * selection — Vansh: *"if I hover over any listing then its inventory image opens"* — which is
-   * how you check what a code IS while looking for the one you are about to pack.
+   * The SKU under the cursor — *"if I hover over any listing then its inventory image opens"*,
+   * which is how you check what a code IS while looking for the one you are about to pack.
+   *
+   * **It shows in a box of its own beside the list, and the main pane never moves.** It used to
+   * drive the main pane, and that was the glitching Vansh reported on 2026-08-31: crossing the
+   * list to reach the picture you had SELECTED swapped it for every SKU on the way, and the
+   * picture, the packet count and the tick all changed under the cursor. A hover is a look; only
+   * a click chooses.
    */
   const [hover, setHover] = useState<string | null>(null);
   /**
@@ -354,9 +446,9 @@ export function Orders() {
 
   const row = view?.outstanding.find((r) => r.sku === sku) ?? null;
   const packets = view?.outstanding.reduce((n, r) => n + r.qty, 0) ?? 0;
-  /** The picture follows the cursor when there is one, and the selection otherwise. */
-  const showing = hover ?? sku;
-  const showingQty = view?.outstanding.find((r) => r.sku === showing)?.qty ?? 0;
+  /** The main pane follows the SELECTION. Hovering has its own box; see `hover`. */
+  const showing = sku;
+  const showingQty = row?.qty ?? 0;
 
   /** Tick a batch off and go straight to naming it — the two halves of one action. */
   function pack(target: string, qty: number, limit?: number) {
@@ -461,13 +553,18 @@ export function Orders() {
         </div>
       ) : view === null ? (
         <p className={error ? "error" : "muted"}>{error ?? "Looking…"}</p>
-      ) : view.outstanding.length === 0 ? (
-        <p className="muted">
-          {view.summary.packets > 0
-            ? `Nothing left to pack — ${view.summary.packets} done today.`
-            : "Nothing to pack. Download the manifest from the seller panel and drop it in."}
-        </p>
       ) : (
+        /**
+         * **Drawn whenever there is a queue OR a batch waiting to be named**, and that second half
+         * is the fix for the bug Vansh hit every single manifest: *"the last packing on clicking
+         * the packing is not picking up the who packed."*
+         *
+         * Ticking the LAST SKU empties `outstanding`, and this whole block used to be gated on it
+         * being non-empty — so the naming step was unmounted in the same render that created it,
+         * and the last batch of every manifest went in with nobody named. Exactly WW-183 again, one
+         * level up: the pane a control lives in disappeared underneath it. The queue emptying is
+         * not the end of the work; naming it is.
+         */
         <div className="orders-body">
           <aside className="sku-list">
             <h3>
@@ -477,6 +574,13 @@ export function Orders() {
                 today
               </small>
             </h3>
+            {view.outstanding.length === 0 && (
+              <p className="muted">
+                {view.summary.packets > 0
+                  ? `Nothing left — ${view.summary.packets} done today.`
+                  : "Nothing to pack. Drop the manifest in above."}
+              </p>
+            )}
             <ul onMouseLeave={() => setHover(null)}>
               {view.outstanding.map((r) => (
                 <li key={r.sku}>
@@ -499,6 +603,18 @@ export function Orders() {
                 </li>
               ))}
             </ul>
+
+            {/* Sticks to the bottom of the list, so it is in the same place whichever row the
+                cursor is on, and it does not reflow the list it sits under. */}
+            {hover !== null && hover !== sku && <Peek sku={hover} />}
+
+            {/* Where a cancelled order goes. Said here because this is where the wrong count is
+                noticed — the queue says 19 and the marketplace has cancelled one of them. */}
+            <p className="muted">
+              <small>
+                An order cancelled? Delete it in <b>Came back</b> — search its SKU or order number.
+              </small>
+            </p>
 
             {view.summary.unnamedBySku.length > 0 && (
               /* Packed today with nobody named. Naming is allowed to lag the tick, which only
@@ -547,7 +663,11 @@ export function Orders() {
           </aside>
 
           <div className="sku-detail">
-            {naming !== null ? (
+            {/* A strip ABOVE the picture, never instead of it — Vansh: *"I don't like the UI… it
+                was just a dropdown, a multi select dropdown with a plus sign to add someone new."*
+                It took the whole pane over, so ticking a SKU replaced the thing you were looking
+                at with a form. It is the same multi-select; it just no longer evicts the screen. */}
+            {naming !== null && (
               <WhoPacked
                 sku={naming.sku}
                 qty={naming.qty}
@@ -557,23 +677,28 @@ export function Orders() {
                 onAddWorker={addWorker}
                 onDone={() => setNaming(null)}
               />
-            ) : showing === null ? (
-              <p className="muted">Pick a SKU on the left, or hover one to see its picture.</p>
+            )}
+            {showing === null ? (
+              naming === null && (
+                <p className="muted">Pick a SKU on the left, or hover one to see its picture.</p>
+              )
             ) : (
               <>
                 <h2>
                   {showing}
                   <small>
-                    {showingQty} packet{showingQty === 1 ? "" : "s"} to make
+                    {row === null
+                      ? "nothing left of this one"
+                      : `${showingQty} packet${showingQty === 1 ? "" : "s"} to make`}
                   </small>
                 </h2>
                 <SkuImage
                   sku={showing}
                   qty={showingQty}
                   tick={
-                    /* Only the SELECTED SKU can be ticked. Hovering shows a picture; it must never
-                       arm a control, or running the cursor down the list packs the wrong thing. */
-                    row !== null && (hover === null || hover === row.sku) ? (
+                    /* Only the SELECTED SKU can be ticked — and now that hovering cannot change
+                       what is on show, the control is never armed for a SKU you merely passed. */
+                    row !== null ? (
                       <PackedTick qty={row.qty} onPack={(limit) => pack(row.sku, row.qty, limit)} />
                     ) : null
                   }
@@ -584,7 +709,20 @@ export function Orders() {
         </div>
       )}
 
-      {tally && view && <Summary summary={view.summary} onClose={() => setTally(false)} />}
+      {tally && view && (
+        <Summary
+          summary={view.summary}
+          onClose={() => setTally(false)}
+          onUnpack={(target) => {
+            // The batch being named may be the one going back; leaving that strip up would offer
+            // to credit packets that no longer exist.
+            if (naming?.sku === target) setNaming(null);
+            void window.ww
+              .packing("unpack", target, view.today, {})
+              .then(setView, (e: Error) => setError(e.message));
+          }}
+        />
+      )}
     </section>
   );
 }

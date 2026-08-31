@@ -242,6 +242,22 @@ describe("the parcel ledger", () => {
     expect(l.subOrders[0].packedOn).toBe("2026-08-19"); // yesterday's is untouched
   });
 
+  /**
+   * The state the Undo button could otherwise reach: packed, marked RTO, then un-ticked. The
+   * parcel would sit in the queue to be made again while its reversal still came off the month —
+   * never packed and returned at the same time.
+   */
+  it("refuses to un-tick a parcel that has already come back", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003")], "2026-08-20", "a.pdf");
+    l = packSku(l, "ANP003", "2026-08-20", ["Asha"]);
+    l = markBack(l, "1", "rto", "2026-08-25");
+    expect(unpackSku(l, "ANP003", "2026-08-20").subOrders[0].packedOn).toBe("2026-08-20");
+
+    // Take the mark off and it un-ticks like anything else — two corrections, in order.
+    l = clearBack(l, "1");
+    expect(unpackSku(l, "ANP003", "2026-08-20").subOrders[0].packedOn).toBeUndefined();
+  });
+
   it("reads a real manifest straight into a ledger", () => {
     const m = parseManifest(pdf);
     const l = mergeShipments(null, m.shipments, m.date!, "manifest.pdf");

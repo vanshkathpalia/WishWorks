@@ -59,7 +59,7 @@ const STEPS = [
   { name: "Pack today", does: "Read the manifest, tick off the packing, credit the packer" },
   { name: "Money", does: "What was packed, what it cost, what is left" },
   { name: "Packer pay", does: "Packets each by day, week and month, and what that comes to" },
-  { name: "Came back", does: "Mark an RTO or a return on the day it arrives" },
+  { name: "Came back", does: "Mark an RTO or return, or delete a cancelled order" },
   { name: "How it sells", does: "Return rates by courier and SKU, slow movers, materials used" },
   { name: "Raw stock", does: "Tally a delivery against the supplier's note, and what is left" },
 ];

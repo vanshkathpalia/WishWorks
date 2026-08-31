@@ -304,12 +304,20 @@ export function packSku(
 export const leftToPack = (ledger: Ledger, sku: string): number =>
   ledger.subOrders.filter((p) => p.sku === sku && !p.packedOn).reduce((n, p) => n + p.qty, 0);
 
-/** Undo the tick for one SKU on one day — everything it marked, and nothing anyone else did. */
+/**
+ * Undo the tick for one SKU on one day — everything it marked, and nothing anyone else did.
+ *
+ * **A parcel that has already come back is left alone.** RTO and returned are facts about a parcel
+ * that shipped, so un-packing one would put it back in the queue to be made again while its
+ * reversal still counted against the month — a parcel simultaneously never packed and returned.
+ * Take the RTO mark off first if that is really what happened; the two are separate corrections
+ * because they are separate mistakes.
+ */
 export function unpackSku(ledger: Ledger, sku: string, on: string): Ledger {
   return {
     ...ledger,
     subOrders: ledger.subOrders.map((p) => {
-      if (p.sku !== sku || p.packedOn !== on) return p;
+      if (p.sku !== sku || p.packedOn !== on || p.status !== undefined) return p;
       const { packedOn: _gone, packedAt: _when, packedBy: _also, ...rest } = p;
       return rest;
     }),
