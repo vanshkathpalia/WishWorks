@@ -50,7 +50,8 @@
   "Minimum Order Quantity (MinOQ)": "1",
   "Fullfilment by": "Seller",
   "Procurement type": "Express",
-  "Procurement SLA": "1",
+  "_Procurement SLA": "2 on Vansh's instruction, 2026-09-03: \"Procurement SLA is 2 in our case, not 1.\" It is the time we promise between an order and handing the parcel over, and a promise the packing cannot keep is what turns into a late dispatch penalty. Nothing derives it — it is a decision about how this shop works, so it lives here and not in a prompt.",
+  "Procurement SLA": "2",
   "Stock": "100",
   "Shipping provider": "Flipkart",
 

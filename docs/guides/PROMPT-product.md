@@ -171,9 +171,16 @@ Lists (arrays — no commas inside any entry)
   "Balloon Type"         – every KIND of balloon in the pack, not just the main one.
                            Metallic/chrome latex balloons and foil balloons are different
                            types — a pack with both needs both, e.g. ["Metallic", "Foil"].
-  "Key Spec"             – 3 short specs, each a COUNT or a MEASUREMENT, e.g.
-                           ["50 Balloons", "12 inch", "Red and White"]. Never a slogan —
-                           "Complete Decoration Kit" is not a spec.
+  "Key Spec"             – 3 short specs, in THIS ORDER:
+                           1. the TOTAL piece count — "67 Pieces" — the number the title
+                              already promises. Always first, always the word "Pieces".
+                           2. and 3. the two most distinguishing items, each a COUNT plus the
+                              noun a buyer would type: ["46 Balloons", "16 Cutouts"],
+                              ["10 m LED Light", "8 Heart Foil Balloons"].
+                           A colour is NOT a spec — it is already in "Color", and a buyer
+                           filters on it there. A measurement with no noun is not one either:
+                           "3ft x 6ft" says nothing, "3ft x 6ft Curtain" is a spec.
+                           Never a slogan — "Complete Decoration Kit" is not a spec.
                            *** HARD LIMIT: 22 CHARACTERS PER ENTRY, COUNT THEM. ***
                            Flipkart refuses to save the listing and says "the provided length
                            25 is greater than the allowed limit 22". It counts each entry on
