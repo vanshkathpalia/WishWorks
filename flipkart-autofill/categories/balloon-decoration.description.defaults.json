@@ -66,6 +66,16 @@
     "party decorations by colour swatch."
   ],
 
+  "_Quantity unit": [
+    "The form's label is 'Quantity * (unit)' and the star is in the MIDDLE, which matters: label",
+    "matching strips a trailing star only, so a key of 'Quantity (unit)' would match nothing and",
+    "the picker would keep whatever it opened on. The key below is the label verbatim.",
+    "GRAMS, on Vansh's instruction 2026-09-03: 'fill Quantity 250 g, not kg, be careful.' The",
+    "number itself is derived in listing.ts as Weight x 1000, so 0.250 kg of parcel is 250 g here",
+    "— one measured fact, printed twice in the two units the form asks for."
+  ],
+  "Quantity * (unit)": "g",
+
   "Type": "Decoration Kit",
   "Size": "Medium",
   "Size in Number": "8"

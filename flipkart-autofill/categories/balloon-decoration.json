@@ -100,6 +100,14 @@
       "furniture": false
     },
     {
+      "label": "Breadth",
+      "kind": "text",
+      "multi": false,
+      "companion": false,
+      "furniture": false,
+      "source": "typed by hand 2026-09-03. Package Details on the Price/Stock tab is Length/Breadth/Height in CM, and Vansh's fill report said 'Breadth matches no field on any tab' \u2014 the box is plainly on the form in his screenshot, but no scan has ever reached that section, so the value had nowhere to go and was silently never typed. Run `npm run scan` on that tab and this guessed row is replaced by the measured one."
+    },
+    {
       "label": "HSN *",
       "kind": "text",
       "multi": false,
