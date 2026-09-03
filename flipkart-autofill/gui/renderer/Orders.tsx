@@ -679,8 +679,14 @@ export function Orders() {
               />
             )}
             {showing === null ? (
+              /* With an empty queue there is nothing on the left to pick, so the old line —
+                 *pick a SKU on the left* — pointed at a list that is not there. */
               naming === null && (
-                <p className="muted">Pick a SKU on the left, or hover one to see its picture.</p>
+                <p className="muted">
+                  {view.outstanding.length === 0
+                    ? "Nothing waiting. Drop the next manifest in when it comes, or look a SKU up above."
+                    : "Pick a SKU on the left, or hover one to see its picture."}
+                </p>
               )
             ) : (
               <>

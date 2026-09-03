@@ -239,7 +239,11 @@ export function Money({ n }: { n: number }) {
             </div>
           </div>
 
-          <Ads today={range.to} onSaved={load} />
+          {/* Keyed by the window's last day, so picking 10–15 August opens the ad boxes ON the
+              15th. The day is state inside the strip and would otherwise stay at whatever it was
+              when the screen first drew — leaving a date input holding a value later than its own
+              `max`, and a figure typed into the wrong day. */}
+          <Ads key={range.to} today={range.to} onSaved={load} />
 
           {totals.reversals.packets > 0 && (
             <p className="warnpill block">
@@ -818,21 +822,32 @@ export function Returns({ n }: { n: number }) {
                 <td>{p.courier}</td>
                 <td className="path">{p.subOrder}</td>
                 <td>
-                  <div className="picks">
-                    <button
-                      className={p.status === "rto" ? "chosen" : ""}
-                      onClick={() => void mark(p, p.status === "rto" ? null : "rto")}
-                    >
-                      RTO
-                    </button>
-                    <button
-                      className={p.status === "returned" ? "chosen" : ""}
-                      onClick={() => void mark(p, p.status === "returned" ? null : "returned")}
-                    >
-                      Returned
-                    </button>
-                    {p.status && <span className="muted">on {showDate(p.statusOn!)}</span>}
-                  </div>
+                  {/**
+                   * **Only a parcel that shipped can come back.** These marks are offered on the
+                   * packed ones alone, now that the search reaches every parcel: marking an
+                   * unpacked one returned would book a reversal against revenue that was never
+                   * taken — never packed and returned at the same time, which is the state
+                   * `unpackSku` refuses to create from the other direction.
+                   */}
+                  {p.packedOn === undefined ? (
+                    <span className="muted">not packed — nothing to come back</span>
+                  ) : (
+                    <div className="picks">
+                      <button
+                        className={p.status === "rto" ? "chosen" : ""}
+                        onClick={() => void mark(p, p.status === "rto" ? null : "rto")}
+                      >
+                        RTO
+                      </button>
+                      <button
+                        className={p.status === "returned" ? "chosen" : ""}
+                        onClick={() => void mark(p, p.status === "returned" ? null : "returned")}
+                      >
+                        Returned
+                      </button>
+                      {p.status && <span className="muted">on {showDate(p.statusOn!)}</span>}
+                    </div>
+                  )}
                 </td>
                 <td>
                   <button className="drop-one" title="Cancelled — delete it" onClick={() => void drop(p)}>

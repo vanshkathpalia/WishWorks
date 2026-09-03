@@ -302,7 +302,9 @@ export function Stock({ n }: { n: number }) {
                 <tr key={r.key} className={r.order ? "bad-row" : ""}>
                   <td>
                     {r.name}
-                    {r.perPack !== null && <small className="muted"> · {r.perPack} in a {r.unit || "pkt"}</small>}
+                    {/* Always "a packet": `piecesPerPack` counts what is in a PACK, whatever unit
+                        the delivery note happened to be written in — "50 in a pcs" is nonsense. */}
+                    {r.perPack !== null && <small className="muted"> · {r.perPack} in a packet</small>}
                   </td>
                   <td>{r.received}</td>
                   <td>{r.used || "—"}</td>

@@ -2,7 +2,7 @@
   "name": "flipkart-autofill",
   "private": true,
   "//": "version/description/author exist for electron-builder, which refuses to build without a version and warns without the other two. The version is what shows in the installer and in Help > About, so bump it when you hand a new build to somebody.",
-  "version": "1.1.5",
+  "version": "1.2.0",
   "description": "WishWorks Seller OS — prepare listing images and fill the Flipkart form",
   "author": "WishWorks",
   "type": "module",
