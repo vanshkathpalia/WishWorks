@@ -73,6 +73,20 @@ export interface Money {
   uncosted: { name: string; qty: number }[];
   /** Came back in the window, whenever it was packed. */
   reversals: { packets: number; revenuePaise: number; materialsPaise: number; rto: number; returned: number };
+  /**
+   * The second account: of this window's packing, what is old enough to believe.
+   *
+   * **Not a bank balance** — it is what should have arrived on parcels past the return window, with
+   * no commission, GST or marketplace fee taken off, because nothing here reads a settlement
+   * statement yet. The three partition the window's packets exactly.
+   */
+  landed: { packets: number; revenuePaise: number };
+  /** Days after packing before the money is believed — the engine's figure, not the screen's. */
+  settleDays: number;
+  /** Packed too recently for a return to have shown up — still a forecast. */
+  inFlight: { packets: number; revenuePaise: number };
+  /** Packed in this window and since come back. */
+  cameBack: { packets: number; revenuePaise: number };
   byMarket: { name: string; qty: number }[];
 }
 
@@ -140,6 +154,11 @@ export interface OnHand {
   weeksLeft: number | null;
   /** It runs out before a new delivery could arrive. */
   order: boolean;
+  /**
+   * Counted in packets, with nothing saying how many pieces are in one — so the row is a question,
+   * not a figure. `left`, `weeksLeft` and `order` are not worked out for it.
+   */
+  needsPackSize: boolean;
 }
 
 /** Ads and boost, in paise, per day per marketplace: `{ "2026-08-21": { meesho: 45000 } }`. */
@@ -442,7 +461,7 @@ export interface WwApi {
   editMaterial(
     key: string,
     /** `material` renames the row; the old name is kept as an `aka` so old sheets still match. */
-    patch: { paise?: number | null; size?: string; material?: string },
+    patch: { paise?: number | null; size?: string; material?: string; piecesPerPack?: number },
   ): Promise<Attempt<Material[]>>;
 
   /** Add a material the list has never had. Refused in a packaged app, same as the price above. */

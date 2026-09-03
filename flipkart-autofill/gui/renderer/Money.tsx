@@ -243,6 +243,37 @@ export function Money({ n }: { n: number }) {
               15th. The day is state inside the strip and would otherwise stay at whatever it was
               when the screen first drew — leaving a date input holding a value later than its own
               `max`, and a figure typed into the wrong day. */}
+          {/**
+           * The second account, under the first. Vansh: *"we will maintain two accounts — the
+           * stuff we have sent, and the money we actually got."* The tiles above are what went
+           * out; this is how much of it is real yet, and it is deliberately a sentence rather than
+           * another row of big numbers — a figure this provisional should not look as solid as the
+           * packet count beside it.
+           */}
+          {totals.packets > 0 && (
+            <p className={totals.inFlight.packets > 0 ? "warnpill block" : "muted"}>
+              <b>{rupees(totals.landed.revenuePaise)} landed</b> — {totals.landed.packets} packet
+              {totals.landed.packets === 1 ? "" : "s"} past the {totals.settleDays}-day return
+              window.
+              {totals.inFlight.packets > 0 && (
+                <>
+                  {" "}
+                  {totals.inFlight.packets} still in the air (
+                  {rupees(totals.inFlight.revenuePaise)}), which can still come back.
+                </>
+              )}
+              {totals.cameBack.packets > 0 && (
+                <> {totals.cameBack.packets} of this window&apos;s packing already did.</>
+              )}
+              <small>
+                What should have arrived, not what the bank shows: commission, GST and the
+                marketplace&apos;s own fees are not taken off, because nothing here reads a
+                settlement statement yet. {totals.settleDays} days is our estimate of their
+                pickup-to-return cycle, not a published figure.
+              </small>
+            </p>
+          )}
+
           <Ads key={range.to} today={range.to} onSaved={load} />
 
           {totals.reversals.packets > 0 && (

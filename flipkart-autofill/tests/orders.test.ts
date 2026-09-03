@@ -275,6 +275,46 @@ describe("the parcel ledger", () => {
     expect(row.markets.reduce((n, m) => n + m.revenuePaise, 0)).toBe(row.revenuePaise);
   });
 
+  /**
+   * The two accounts. Vansh, 2026-09-03: *"we will maintain two accounts — the stuff we have sent,
+   * and the money we actually got. The later is the one that will have deducted for RTO and
+   * return… this later will change after 20 days of the parcel being sent."*
+   *
+   * The trap this pins: **age is measured against TODAY, not against the end of the window.** If
+   * it were measured against `to`, every window that is already in the past would read as fully
+   * settled the moment it aged — which is the one answer nobody can ever check.
+   */
+  it("keeps what was sent apart from what is old enough to believe", () => {
+    const kits: KitMoney[] = [{ sku: "ANP003", costPaise: 8000, pays: { meesho: 15000 } }];
+    let l = mergeShipments(
+      null,
+      [parcel("1", "ANP003"), parcel("2", "ANP003"), parcel("3", "ANP003")],
+      "2026-08-01",
+      "a.pdf",
+    );
+    l = packSku(l, "ANP003", "2026-08-01", ["Asha"]);
+    l = markBack(l, "3", "rto", "2026-08-14");
+
+    // Asked on 25 August: 24 days after packing, so the two live ones are past the window.
+    const late = money([l], kits, "2026-08-01", "2026-08-31", undefined, {}, "2026-08-25");
+    expect(late.packets).toBe(3);
+    expect(late.landed).toEqual({ packets: 2, revenuePaise: 30000 });
+    expect(late.inFlight).toEqual({ packets: 0, revenuePaise: 0 });
+    expect(late.cameBack).toEqual({ packets: 1, revenuePaise: 15000 });
+
+    // The same window asked on the 10th — nine days in, nothing has cleared yet and the first
+    // account has not changed at all. That gap between them is the whole point.
+    const early = money([l], kits, "2026-08-01", "2026-08-31", undefined, {}, "2026-08-10");
+    expect(early.revenuePaise).toBe(late.revenuePaise);
+    expect(early.landed.packets).toBe(0);
+    expect(early.inFlight).toEqual({ packets: 2, revenuePaise: 30000 });
+
+    // Whatever the day, the three account for every packet exactly once.
+    for (const m of [early, late]) {
+      expect(m.landed.packets + m.inFlight.packets + m.cameBack.packets).toBe(m.packets);
+    }
+  });
+
   it("un-ticking gives back only what that tick took", () => {
     let l = mergeShipments(null, [parcel("1", "ANP003"), parcel("2", "ANP003")], "2026-08-20", "a.pdf");
     l = packSku(l, "ANP003", "2026-08-19", ["Ravi"]);   // yesterday's tick, on one of them

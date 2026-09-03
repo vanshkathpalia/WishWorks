@@ -879,6 +879,25 @@ export function adSpend(ads: AdSpend, from: string, to: string, market?: string)
 }
 
 /**
+ * Days after packing before a parcel's money is believed.
+ *
+ * Vansh, 2026-09-03: *"this later will change after 20 days of the parcel being sent, because I
+ * think that much delay Flipkart and Meesho does — for completing the whole cycle of pickup,
+ * deliver, and also the return timeline finishing."* Until that window closes a sale can still
+ * turn into an RTO or a return, so **the money is a forecast, not a fact**, and a screen that
+ * prints one as the other is wrong every time on the most recent — and most looked-at — figures.
+ *
+ * ponytail: one number for both marketplaces, and it is Vansh's estimate rather than anything
+ * either of them publishes. When a settlement statement is finally parsed it will say what the
+ * real cycle is, per marketplace, and this becomes two figures or disappears entirely.
+ */
+export const SETTLE_DAYS = 20;
+
+/** Whole days between two `YYYY-MM-DD` dates. */
+const daysBetween = (from: string, to: string): number =>
+  Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
+
+/**
  * What a stretch of days was worth: what was packed, what it cost in materials, what came back.
  *
  * **Three separate facts, never one number.** Revenue and materials come from the costed kit;
@@ -905,6 +924,15 @@ export function money(
   market?: string,
   /** Ads and boost, by day and marketplace. Absent means none was ever typed in — not zero spend. */
   ads: AdSpend = {},
+  /**
+   * The day the question is being asked — which is **not** the end of the window.
+   *
+   * A parcel packed on 10 August is 24 days old today whichever window you are looking at, so how
+   * long it has had to come back is measured against now. Measuring it against `to` would make
+   * every historical window read as fully settled the moment it was in the past, which is the one
+   * answer that is never checkable.
+   */
+  asOf: string = new Date().toISOString().slice(0, 10),
 ): {
   packets: number;
   revenuePaise: number;
@@ -944,6 +972,27 @@ export function money(
   uncosted: { name: string; qty: number }[];
   /** Came back in the window: what it takes off the revenue, and the materials at risk with it. */
   reversals: { packets: number; revenuePaise: number; materialsPaise: number; rto: number; returned: number };
+  /**
+   * **The second account: the money that is actually ours.**
+   *
+   * Vansh: *"we will maintain two accounts — the stuff we have sent, and the money we actually
+   * got. The later is the one that will have deducted for RTO and return."* The totals above are
+   * the first account: everything packed in the window, priced at the tick. These three partition
+   * that same packing by what has since become of it, so nothing is counted twice and nothing is
+   * lost between them — `landed + inFlight + cameBack === packets`.
+   *
+   * **`landed` is still not a bank balance** and must never be labelled as one: it is what should
+   * have arrived, on parcels old enough that a return would have shown up by now. Commission, GST
+   * and the marketplace's own fees are not in it, because nothing in this app reads a settlement
+   * statement yet. It is the honest ceiling on the real money, not the real money.
+   */
+  landed: { packets: number; revenuePaise: number };
+  /** `SETTLE_DAYS`, handed out so the screen never re-types the number it is explaining. */
+  settleDays: number;
+  /** Packed too recently to be sure of — the forecast half of the first account. */
+  inFlight: { packets: number; revenuePaise: number };
+  /** Packed in this window and since come back, whenever it came back. Its own cohort, not the day's. */
+  cameBack: { packets: number; revenuePaise: number };
   byMarket: { name: string; qty: number }[];
 } {
   const inWindow = (d?: string) => d !== undefined && d >= from && d <= to;
@@ -958,10 +1007,27 @@ export function money(
   let revenuePaise = 0;
   let materialsPaise = 0;
 
+  const landed = { packets: 0, revenuePaise: 0 };
+  const inFlight = { packets: 0, revenuePaise: 0 };
+  const cameBack = { packets: 0, revenuePaise: 0 };
+
   for (const p of all) {
     if (!inWindow(p.packedOn) || (market !== undefined && p.market !== market)) continue;
     packets += p.qty;
     byMarket.set(p.market, (byMarket.get(p.market) ?? 0) + p.qty);
+
+    /**
+     * Which of the three this parcel is in — asked BEFORE the uncosted `continue` below, so a SKU
+     * nobody has costed still counts as a packet somewhere. Its revenue is 0 in whichever bucket
+     * it lands in, exactly as it is 0 in the totals: unknown, never free.
+     */
+    const worth = (p.paidPaise ?? kitForSku(p.sku, kits)?.pays?.[p.market] ?? 0) * p.qty;
+    const bucket =
+      p.status !== undefined ? cameBack
+      : daysBetween(p.packedOn!, asOf) >= SETTLE_DAYS ? landed
+      : inFlight;
+    bucket.packets += p.qty;
+    bucket.revenuePaise += worth;
     // **Frozen first, today's kit second.** What a parcel earned is a fact about the day it went
     // out, so correcting a price now must not rewrite a month already reported — the same rule
     // that dates a return to the day it came back rather than to its packing day.
@@ -1004,6 +1070,10 @@ export function money(
   const adsPaise = adSpend(ads, from, to, market);
 
   return {
+    landed,
+    settleDays: SETTLE_DAYS,
+    inFlight,
+    cameBack,
     packets,
     revenuePaise,
     materialsPaise,
