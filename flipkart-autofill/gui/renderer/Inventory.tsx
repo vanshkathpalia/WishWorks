@@ -261,6 +261,47 @@ const sumGst = (m: { price?: number; ship?: number; settle?: number; gst?: numbe
 const sumPrice = (m: { ship?: number; settle?: number; gst?: number; gstAmt?: number }): number | null =>
   m.settle === undefined ? null : round2(m.settle + sumGst(m) + (m.ship ?? 0));
 
+/**
+ * What each marketplace actually pays for this kit — on hover, over the chip.
+ *
+ * Vansh, 2026-09-03: *"if I hover on each of these SKU JSONs in the cost a kit page, on hover
+ * Meesho and Flipkart bank settlement price would come."* It replaces a native `title` that could
+ * only say one line and appeared a second late.
+ *
+ * **It is CSS, not state.** No `onMouseEnter`, no `hover` variable, nothing re-renders — the panel
+ * behind it cannot so much as flicker while the cursor crosses twenty-six chips. That is the same
+ * rule the packing queue had to learn the hard way (C-075): a hover is a look, and the moment it
+ * drives React state it starts moving things that were not asked to move. `pointer-events: none`
+ * so the tooltip can never eat the hover that is drawing it.
+ *
+ * **Settled and implied are labelled apart.** A settlement is what the marketplace said it paid; the
+ * other is our arithmetic on a listed price they can discount without telling us — which Meesho
+ * does. Printing both as one number would be the confident-wrong-figure this panel exists to avoid.
+ */
+function Settlements({ kit }: { kit: KitRow }) {
+  const shops = Object.entries(kit.pays ?? {});
+
+  return (
+    <span className="kit-tip" aria-hidden="true">
+      <b>{kit.sku}</b>
+      {shops.length === 0 ? (
+        <em>No listed price yet — nothing to settle.</em>
+      ) : (
+        shops.map(([id, paid]) => (
+          <span key={id} className="kit-tip-row">
+            <i>{id}</i>
+            <b>{rupees(paid)}</b>
+            <em>
+              {kit.settled?.[id] === undefined ? "implied by the price" : "settled"}
+              {kit.left?.[id] !== undefined && ` · leaves ${rupees(kit.left[id])}`}
+            </em>
+          </span>
+        ))
+      )}
+    </span>
+  );
+}
+
 export function Inventory({ n }: { n: number }) {
   const [prompt, setPrompt] = useState("");
   const [editing, setEditing] = useState(false);
@@ -936,19 +977,12 @@ export function Inventory({ n }: { n: number }) {
                           }
                           return (
                             <span key={k.file} className="inv-kit">
-                              <button
-                                style={driftStyle(d)}
-                                title={
-                                  k.left
-                                    ? Object.entries(k.left)
-                                        .map(([id, v]) => `${id}: leaves ${rupees(v)}`)
-                                        .join("  ·  ")
-                                    : "No listed price yet, so there is no margin to judge."
-                                }
-                                onClick={() => void reopen(k.file)}
-                              >
+                              {/* No `title` any more: a native tooltip would open on top of the
+                                  panel below and say less. */}
+                              <button style={driftStyle(d)} onClick={() => void reopen(k.file)}>
                                 {k.sku}
                               </button>
+                              <Settlements kit={k} />
                               <button
                                 className="tiny"
                                 title={`Delete ${k.sku}`}

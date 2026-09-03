@@ -675,6 +675,11 @@
       "_note": "Added because `Gold Crown Foil` on GTB007 was matching `Rose Gold Crown Foil` once that row existed — rose gold shares more words with it than plain `Crown Foil` does. Price inherited from `Crown Foil`. C-073."
     },
     {
+      "category": "Foil Balloon",
+      "material": "Glass Foil",
+      "paise": 400
+    },
+    {
       "category": "Banner",
       "material": "6 Month Birthday Banner",
       "paise": 1000

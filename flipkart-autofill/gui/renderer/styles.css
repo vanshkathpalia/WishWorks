@@ -2335,3 +2335,89 @@ button.chosen:hover {
   display: block;
   margin-top: 3px;
 }
+
+/*
+ * What each marketplace pays for a kit, on hover over its chip.
+ *
+ * CSS only — no state, no re-render, nothing behind it can move while the cursor crosses the list.
+ * `pointer-events: none` so the panel can never eat the hover that is drawing it, and the fade is
+ * on opacity + transform so it costs no layout.
+ */
+/*
+ * Anchored to the ROW, not to the chip, and that is deliberate twice over.
+ *
+ * A chip at the right-hand end would push a 220px panel past the edge of the screen — and because
+ * `main` scrolls vertically, the browser makes the other axis scroll too, so the whole page would
+ * gain a horizontal scrollbar on hover. Anchoring to the row's left edge cannot overflow.
+ *
+ * It also means the panel appears in the SAME PLACE for every chip in the group instead of chasing
+ * the cursor along the row, which is the difference between reading it and watching it move.
+ */
+.inv-saved {
+  position: relative;
+}
+.kit-tip {
+  position: absolute;
+  left: 0;
+  /* Below, never above: the first group sits near the top of the panel and a tooltip above it
+     would open off the edge of the scroll area. */
+  top: calc(100% + 6px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #221d1b;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  opacity: 0;
+  /* Starts a little high and settles down into place, because it opens downwards. */
+  transform: translateY(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  pointer-events: none;
+}
+/* `focus-within` so tabbing to the chip shows the same thing a cursor does. */
+.inv-kit:hover .kit-tip,
+.inv-kit:focus-within .kit-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+.kit-tip > b {
+  color: var(--muted);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.kit-tip-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.kit-tip-row i {
+  font-style: normal;
+  text-transform: capitalize;
+  min-width: 58px;
+  color: var(--ink);
+}
+.kit-tip-row b {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.kit-tip em,
+.kit-tip-row em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 12px;
+}
+/* Somebody who has asked for less motion gets the panel, just not the slide. */
+@media (prefers-reduced-motion: reduce) {
+  .kit-tip {
+    transition: opacity 0.16s ease;
+    transform: none;
+  }
+}

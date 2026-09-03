@@ -835,6 +835,38 @@ describe("what a sale actually leaves", () => {
     expect(rows.find((r) => r.sku === "NOT-LISTED")!.left).toBeUndefined();
   });
 
+  /**
+   * The chip's hover panel shows what each marketplace pays, and has to be able to say **which
+   * kind of number it is showing**. A settlement is what the marketplace said it paid; the other
+   * is arithmetic on a listed price they can discount without telling us — which Meesho does. Both
+   * land in `pays`, and only `settled` can tell them apart.
+   */
+  it("marks which marketplace figure is a real settlement and which is inferred", () => {
+    const dir = tmp();
+    saveKit(
+      {
+        image: null,
+        lines: [{ item: "ARCH TAPE", qty: 2 }],
+        overrides: {},
+        marginPercent: 50,
+        savedAt: "",
+        sku: "BOTH",
+        marketplaces: {
+          meesho: { settlementPaise: 15000, shippingPaise: 4000 },
+          flipkart: { pricePaise: 20000, shippingPaise: 4000 },
+        },
+      },
+      dir,
+    );
+
+    const [row] = listKits(dir, PRICES);
+    // Both pay something, so both are offered to the panel...
+    expect(Object.keys(row.pays!).sort()).toEqual(["flipkart", "meesho"]);
+    expect(row.pays!.meesho).toBe(15000);
+    // ...but only Meesho has actually told us. Flipkart's is our own arithmetic.
+    expect(row.settled).toEqual({ meesho: 15000 });
+  });
+
   it("prefers the settlement over any price, because that is the money that arrived", () => {
     // ₹240 in the bank, ₹19 of materials. The shop price is irrelevant to this figure — which is
     // the case that made it: Meesho cuts the listed price and pays the seller the same.

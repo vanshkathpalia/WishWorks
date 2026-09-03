@@ -898,6 +898,18 @@ export interface KitRow {
   /** Per marketplace, what a sale actually brings in — the settlement, or the price it implies. */
   pays?: Record<string, number>;
   /**
+   * The marketplaces whose figure in `pays` is a **real settlement**, not one worked back from the
+   * listed price.
+   *
+   * `pays` deliberately merges the two, because everything downstream wants one number for *what
+   * arrives*. But they are not the same claim: a settlement is what the marketplace said it paid,
+   * and the other is our arithmetic on a price they can discount without telling us — Meesho cuts
+   * the shop price and settles the seller the same, which is the case that put `settlementPaise`
+   * in the file at all. Anything that shows the figure to a person has to be able to say which it
+   * is looking at, and only this says so.
+   */
+  settled?: Record<string, number>;
+  /**
    * What it is made of — for the reorder view, which multiplies this by what was packed.
    *
    * **Both figures, because they answer different questions.** `packs` is what gets BOUGHT: *"40
@@ -941,6 +953,7 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
           const cost = costed.totalPaise;
           const left: Record<string, number> = {};
           const pays: Record<string, number> = {};
+          const settled: Record<string, number> = {};
           for (const [id, v] of Object.entries(k.marketplaces ?? {})) {
             const each = v ? leftForMarket(v, cost) : null;
             if (each !== null) left[id] = each;
@@ -948,6 +961,9 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
             // listed price implies once GST and delivery come out of it. Same rules as the panel.
             const paid = v?.settlementPaise ?? (v ? marketPrice(v) - (v.shippingPaise ?? 0) - gstOn(v) : 0);
             if (paid > 0) pays[id] = paid;
+            // Recorded separately, never inferred: a marketplace that has told us what it paid is
+            // a different kind of fact from one whose price we have done arithmetic on.
+            if (v?.settlementPaise !== undefined) settled[id] = v.settlementPaise;
           }
           row.costPaise = cost;
           const parts = costed.lines
@@ -956,6 +972,7 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
           if (parts.length > 0) row.materials = parts;
           if (Object.keys(left).length > 0) row.left = left;
           if (Object.keys(pays).length > 0) row.pays = pays;
+          if (Object.keys(settled).length > 0) row.settled = settled;
         }
         return [row];
       } catch {
