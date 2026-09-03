@@ -289,7 +289,7 @@ export function loadMaterials(dir = CATEGORIES_DIR, editsFile = PRICE_EDITS_FILE
  */
 function applyEdit(
   key: string,
-  patch: { paise?: number | null; size?: string; material?: string; aka?: string[] },
+  patch: { paise?: number | null; size?: string; material?: string; aka?: string[]; piecesPerPack?: number },
   dir: string,
   editsFile: string,
 ): void {
@@ -325,7 +325,7 @@ function applyEdit(
  */
 export function editMaterial(
   key: string,
-  patch: { paise?: number | null; size?: string; material?: string },
+  patch: { paise?: number | null; size?: string; material?: string; piecesPerPack?: number },
   dir = CATEGORIES_DIR,
   editsFile = PRICE_EDITS_FILE,
 ): Material[] {

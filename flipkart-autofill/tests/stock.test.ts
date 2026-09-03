@@ -181,6 +181,45 @@ describe("what is left on the shelf", () => {
     expect(rows.map((r) => r.key)).toEqual(["Led|Led", "Pump|Pump"]);
   });
 
+  /**
+   * The silent half of counting in pieces. Only 23 of 172 materials carry a `piecesPerPack` and the
+   * supplier writes almost everything in `pkt`, so without this most of the shelf would net 5
+   * PACKETS against 300 PIECES of packing, land far below zero and flag everything to reorder at
+   * once. Vansh, 2026-09-03: *"pkt and pcs can create a problem."*
+   */
+  it("asks for the pack size instead of subtracting packets from pieces", () => {
+    const [row] = onHand(
+      [delivery("2026-08-19", 5)],
+      new Map([[FOIL, { pieces: 300, perWeek: 100 }]]),
+      new Map(),
+      new Map(), // nobody has said how many are in a packet
+    );
+    expect(row).toMatchObject({ needsPackSize: true, weeksLeft: null, order: false });
+    // What came in is still shown — it is the units that do not match, not the count.
+    expect(row.received).toBe(5);
+  });
+
+  it("puts the rows nobody can work out above the ones that can", () => {
+    const unknown: Delivery = {
+      ...delivery("2026-08-19", 5),
+      lines: [{ key: "Foil|Mystery", name: "Mystery", qty: 5, unit: "pkt" }],
+    };
+    const rows = onHand(
+      [delivery("2026-08-19", 1), unknown],
+      new Map([[FOIL, { pieces: 30, perWeek: 10 }]]),
+      new Map(),
+      perPack,
+    );
+    // The known one is two weeks from running out and would otherwise sort first.
+    expect(rows.map((r) => r.key)).toEqual(["Foil|Mystery", FOIL]);
+  });
+
+  /** A note written in pieces needs no pack size, even for a material nobody has measured. */
+  it("does not ask when the note already counted pieces", () => {
+    const [row] = onHand([delivery("2026-08-19", 450, "pcs")], new Map(), new Map(), new Map());
+    expect(row.needsPackSize).toBe(false);
+  });
+
   it("ignores a line nothing on the price list matched — there is nothing to net it against", () => {
     const d = { ...delivery("2026-08-19", 5), lines: [{ key: null, name: "zzz", qty: 5, unit: "pkt" }] };
     expect(onHand([d], new Map())).toEqual([]);

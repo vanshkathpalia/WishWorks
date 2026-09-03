@@ -236,6 +236,19 @@ export interface OnHand {
   weeksLeft: number | null;
   /** It runs out before a new delivery could arrive. The flag Vansh asked not to keep on paper. */
   order: boolean;
+  /**
+   * The note counted this in PACKETS and nothing knows how many pieces are in one.
+   *
+   * **The row is not arithmetic then, it is a question**, and this is what makes the screen ask it
+   * instead of answering wrongly. Only 23 of 172 materials carry a `piecesPerPack`, and the
+   * supplier writes almost everything in `pkt` — so netting 5 packets against 300 pieces of
+   * packing would put most of the shelf deep in the negative and flag everything to reorder at
+   * once. Vansh, 2026-09-03: *"pkt and pcs can create a problem."*
+   *
+   * `left`, `weeksLeft` and `order` are all left alone on such a row: a figure nobody can defend
+   * is worse than a blank, because a blank asks and a figure asserts.
+   */
+  needsPackSize: boolean;
 }
 
 /**
@@ -269,6 +282,10 @@ const PACK_UNIT = /^(pkt|pkts|packet|packets|petti|peti|bandal|bandel|bundle)$/;
  * stock figure for it to come off. Counting a year of packing against a carton that arrived on
  * Tuesday would show every material as deeply negative and the panel would be useless on day one.
  *
+ * **A pack unit whose pack size nobody knows is not guessed at**, it is flagged: see
+ * `needsPackSize`. That was the silent half of this — the conversion is only as good as
+ * `piecesPerPack`, and most rows do not have one yet.
+ *
  * ponytail: a `petti` (a carton of packets) converts as if it were one packet, so a carton reads
  * low. The unit is on screen beside the number, and the fix is a pieces-per-carton column — not
  * arithmetic here, and not before somebody actually takes a carton of something in.
@@ -288,9 +305,11 @@ export function onHand(
       const per = perPack.get(l.key) ?? null;
       const r = rows.get(l.key) ?? {
         key: l.key, name: names.get(l.key) ?? l.name, received: 0, used: 0, left: 0,
-        perPack: per, unit: l.unit, perWeek: 0, weeksLeft: null, order: false,
+        perPack: per, unit: l.unit, perWeek: 0, weeksLeft: null, order: false, needsPackSize: false,
       };
-      r.received += per !== null && PACK_UNIT.test(l.unit) ? l.qty * per : l.qty;
+      const inPacks = PACK_UNIT.test(l.unit);
+      r.received += per !== null && inPacks ? l.qty * per : l.qty;
+      if (inPacks && per === null) r.needsPackSize = true;
       if (r.unit === "") r.unit = l.unit;
       rows.set(l.key, r);
     }
@@ -300,13 +319,19 @@ export function onHand(
     r.used = u?.pieces ?? 0;
     r.perWeek = u?.perWeek ?? 0;
     r.left = r.received - r.used;
+    // Packets against pieces is not a subtraction. The row asks for its pack size instead.
+    if (r.needsPackSize) continue;
     r.weeksLeft = r.perWeek > 0 ? Math.round((r.left / r.perWeek) * 10) / 10 : null;
     r.order = r.left <= 0 || (r.weeksLeft !== null && r.weeksLeft <= REORDER_WEEKS);
   }
-  // Soonest to run out first, which is not the smallest number: 200 LEDs at 100 a week go before
+  // Rows that cannot be worked out at all come first — they are the ones with something to do.
+  // Then soonest to run out, which is not the smallest number: 200 LEDs at 100 a week go before
   // 5 cartons of pump, and a quantity on its own cannot say that. Anything never used sorts last.
   return [...rows.values()].sort(
-    (a, b) => (a.weeksLeft ?? Infinity) - (b.weeksLeft ?? Infinity) || a.left - b.left,
+    (a, b) =>
+      Number(b.needsPackSize) - Number(a.needsPackSize)
+      || (a.weeksLeft ?? Infinity) - (b.weeksLeft ?? Infinity)
+      || a.left - b.left,
   );
 }
 

@@ -111,6 +111,24 @@ export function Stock({ n }: { n: number }) {
    * *"he has not cared about 1st letter capital, maybe using computer."*
    */
   const toOrder = (stock?.onHand ?? []).filter((r) => r.order);
+  const asking = (stock?.onHand ?? []).filter((r) => r.needsPackSize);
+
+  /**
+   * Answer *how many pieces in a packet* — written onto the material, not onto this delivery.
+   *
+   * It belongs to the material because it is a fact about the product, true of every delivery of
+   * it that has ever arrived and every one still to come; storing it against one note would ask
+   * the same question again next week. It is the same `piecesPerPack` the costing panel already
+   * uses to keep a 16-piece line from being priced as 16 packs — one number, one meaning, filled
+   * in from wherever you happen to notice it is missing.
+   */
+  const setPackSize = (key: string, pieces: number) => {
+    if (!Number.isFinite(pieces) || pieces <= 0) return;
+    void window.ww.editMaterial(key, { piecesPerPack: pieces }).then(
+      () => loadStock(),
+      (e: Error) => setError(e.message),
+    );
+  };
 
   const loose = (s2: string) => s2.toLowerCase().replace(/[^a-z0-9]+/g, "");
   const hunt = loose(find);
@@ -269,6 +287,22 @@ export function Stock({ n }: { n: number }) {
         <>
           {/* The one sentence the panel exists for. A count of rows, not a list of them: the list
               is right below, already sorted so those rows are the first ones. */}
+          {/* Above the reorder line, because until these are answered the reorder line is
+              incomplete — a material whose shelf cannot be worked out cannot be flagged either. */}
+          {asking.length > 0 && (
+            <p className="warnpill block">
+              <b>
+                {asking.length} material{asking.length === 1 ? "" : "s"} counted in packets
+              </b>{" "}
+              — say how many pieces are in one and the shelf works itself out. Until then those rows
+              are left blank rather than guessed at.
+              <small>
+                The note says <i>5 pkt</i> and the packing uses pieces; without the pack size those
+                two are not the same unit and subtracting them would put most of the shelf below
+                zero at once.
+              </small>
+            </p>
+          )}
           {toOrder.length > 0 && (
             <p className="warnpill block">
               <b>
@@ -308,18 +342,43 @@ export function Stock({ n }: { n: number }) {
                   </td>
                   <td>{r.received}</td>
                   <td>{r.used || "—"}</td>
-                  <td className={r.left <= 0 ? "bad" : r.order ? "warn" : ""}>
-                    {r.left}
-                    {/* Percent left, because that is how Vansh reads a shelf — "half gone". It is
-                        of what has EVER come in, so it drops back after every delivery. */}
-                    {r.received > 0 && r.used > 0 && (
-                      <small className="muted"> · {Math.round((r.left / r.received) * 100)}%</small>
-                    )}
-                  </td>
-                  <td className="muted">{r.perWeek || "—"}</td>
-                  <td className={r.order ? "bad" : ""}>
-                    {r.weeksLeft === null ? "—" : r.left <= 0 ? "out" : r.weeksLeft}
-                  </td>
+
+                  {r.needsPackSize ? (
+                    /* One cell across the three number columns: there is no left, no weekly rate
+                       and no weeks left until the question in it is answered. */
+                    <td colSpan={3} className="ask-pack">
+                      <label>
+                        Pieces in one packet?
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="50"
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && setPackSize(r.key, Number(e.currentTarget.value))
+                          }
+                          onBlur={(e) => setPackSize(r.key, Number(e.target.value))}
+                        />
+                      </label>
+                      <small className="muted">
+                        {r.received} {r.unit || "pkt"} in so far
+                      </small>
+                    </td>
+                  ) : (
+                    <>
+                      <td className={r.left <= 0 ? "bad" : r.order ? "warn" : ""}>
+                        {r.left}
+                        {/* Percent left, because that is how Vansh reads a shelf — "half gone". It
+                            is of what has EVER come in, so it drops back after every delivery. */}
+                        {r.received > 0 && r.used > 0 && (
+                          <small className="muted"> · {Math.round((r.left / r.received) * 100)}%</small>
+                        )}
+                      </td>
+                      <td className="muted">{r.perWeek || "—"}</td>
+                      <td className={r.order ? "bad" : ""}>
+                        {r.weeksLeft === null ? "—" : r.left <= 0 ? "out" : r.weeksLeft}
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

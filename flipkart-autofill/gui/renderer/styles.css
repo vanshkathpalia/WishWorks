@@ -2309,3 +2309,29 @@ button.chosen:hover {
   outline: none;
   border-color: var(--accent);
 }
+
+/* A shelf row that cannot be worked out until somebody says how big a packet is. */
+.ask-pack {
+  background: #2a211b;
+}
+.ask-pack label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--warn);
+}
+.ask-pack input {
+  width: 72px;
+  padding: 5px 8px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: #100e0d;
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+}
+.ask-pack small {
+  display: block;
+  margin-top: 3px;
+}
