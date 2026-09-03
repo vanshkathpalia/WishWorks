@@ -29,7 +29,7 @@ const MARK: Record<FieldRow["status"], string> = {
 
 const MEANS: Record<FieldRow["status"], string> = {
   filled: "typed and read back the same",
-  not_found: "belongs to another tab",
+  not_found: "no field with this label on the page",
   mismatch: "the form shows something else",
   failed: "could not be filled",
 };

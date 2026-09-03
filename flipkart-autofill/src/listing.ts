@@ -684,7 +684,11 @@ export async function fillAll(
         break;
       case "not_found":
         report.notFound.push(label);
-        say(`⏭️  ${label} — belongs to another tab`);
+        // NOT "belongs to another tab". That wording cost two rounds of testing on 2026-09-03:
+        // Breadth, Height and Weight are REQUIRED boxes sitting in plain sight on the Price/Stock
+        // tab, and the report called them another tab's business. All `not_found` means is that
+        // no attribute row on the page right now carries that label.
+        say(`⏭️  ${label} — no field with this label on the page right now`);
         break;
       case "mismatch":
         report.mismatch.push(label);
@@ -704,7 +708,7 @@ export const needsEyes = (r: Report): number => r.mismatch.length + r.failed.len
 export function printReport(r: Report): void {
   console.log(`\n──────── RESULT ────────
 ✅ filled & checked  : ${r.filled.length}
-⏭️  other tab's fields: ${r.notFound.length}
+⏭️  not on this page   : ${r.notFound.length}
 ⚠️  NEEDS A LOOK      : ${r.mismatch.length}${r.mismatch.length ? "  (" + r.mismatch.join(", ") + ")" : ""}
 ❌ failed             : ${r.failed.length}${r.failed.length ? "  (" + r.failed.join(", ") + ")" : ""}`);
 }
