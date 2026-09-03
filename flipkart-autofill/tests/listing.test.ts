@@ -388,9 +388,43 @@ describe("Flipkart's character limits", () => {
     expect(p[0].value).toContain("15 Gold Metallic Balloons");
   });
 
-  it("leaves an over-length field blank — the save fails for the whole listing otherwise", () => {
+  it("leaves an over-length field blank when NOTHING in it fits", () => {
     const values = { "Key Spec": ["4 Heart Shape Red Foil Balloons"], Stock: "100" };
     expect(Object.keys(fillableValues(values, checkValues(values)))).toEqual(["Stock"]);
+  });
+
+  /**
+   * Vansh, on a live listing: *"why are we not filling this??"* One entry over 22 characters was
+   * costing the whole field — and eight of the product files in this repo have exactly that, most
+   * with only one entry over. Key Spec shows under the title, so those eight listings were missing
+   * a buyer-visible line because of one word too many.
+   */
+  it("keeps the Key Spec entries that fit and drops only the ones that do not", () => {
+    const values = {
+      // 21, 25 and 18 characters.
+      "Key Spec": ["16 Photo Booth Props", "15 Gold Metallic Balloons", "1 Foil Curtain"],
+      Stock: "100",
+    };
+    expect(fillableValues(values, checkValues(values))["Key Spec"]).toEqual([
+      "16 Photo Booth Props",
+      "1 Foil Curtain",
+    ]);
+  });
+
+  it("never shortens an entry to make it fit — two true specs beat three with a lie", () => {
+    const values = { "Key Spec": ["20 Red and 20 Gold Balloons", "4 Star Foils"] };
+    const kept = fillableValues(values, checkValues(values))["Key Spec"] as string[];
+    expect(kept).toEqual(["4 Star Foils"]);
+    expect(kept.some((s) => s.startsWith("20 Red"))).toBe(false);
+  });
+
+  /**
+   * `Color` counts the SUM of its entries, not each one, so dropping entries there would change
+   * what colour the product is. The per-entry rule must not reach it.
+   */
+  it("does not thin out a field whose limit is the total, only one whose limit is per entry", () => {
+    const values = { Color: ["Red", "Gold", "x".repeat(90)] };
+    expect(Object.keys(fillableValues(values, checkValues(values)))).toEqual([]);
   });
 });
 

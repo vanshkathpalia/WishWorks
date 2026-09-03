@@ -480,10 +480,49 @@ export function fillableValues(
   catDir = CATEGORIES_DIR,
 ): Values {
   const skip = new Set(problems.map((p) => p.label));
-  const stated = Object.fromEntries(Object.entries(values).filter(([label]) => !skip.has(label)));
+  const stated = Object.fromEntries(
+    Object.entries(values)
+      .map(([label, v]) => [label, keepWhatFits(label, v)] as const)
+      .filter(([label, v]) => v !== undefined && (!skip.has(label) || fitsPerEntry(label))),
+  ) as Values;
   // The pads go UNDERNEATH: `values`, not `stated`, decides what counts as blank, so a field
   // `checkValues` rejected stays rejected instead of being papered over. See padBlanks.
   return category ? { ...padBlanks(values, category, catDir), ...stated } : stated;
+}
+
+/**
+ * A field whose limit is per ENTRY rather than across the whole value — see `MAX_EACH`.
+ *
+ * The distinction decides whether one bad entry can be dropped on its own. It can here, because
+ * each entry stands alone; it cannot for `Color`, whose limit is the sum, and where dropping
+ * entries would quietly change what colour the product is.
+ */
+const fitsPerEntry = (label: string): boolean => MAX_EACH[label] !== undefined;
+
+/**
+ * Drop the entries Flipkart would reject and keep the rest — for per-entry limits only.
+ *
+ * **One entry over the limit was costing the whole field.** Vansh, looking at a blank Key Spec on
+ * a live listing: *"why are we not filling this??"* `Key Spec` allows several values and limits
+ * each to 22 characters; a single 25-character one made `checkValues` raise a problem, and a
+ * problem skips its field. **Eight of the product files in this repo lose Key Spec entirely, and
+ * most of them have only one entry over** — so a field that is buyer-visible under the title, on
+ * eight listings, was blank because of one word too many.
+ *
+ * **Entries are dropped whole, never shortened.** Truncating "16 Photo Booth Props" to fit is a
+ * different claim about the product, and this file's whole rule is that a wrong value is worse
+ * than an empty one — an empty box is visible and a wrong one looks finished. Two true specs beat
+ * three with a lie in them, and beat nothing at all.
+ *
+ * `undefined` when nothing survives: the field is then skipped exactly as before, and — because
+ * `padBlanks` reads the ORIGINAL values — it is still not padded, since it was stated and wrong
+ * rather than blank.
+ */
+function keepWhatFits(label: string, v: Values[string]): Values[string] | undefined {
+  const each = MAX_EACH[label];
+  if (each === undefined || !Array.isArray(v)) return v;
+  const kept = v.filter((s) => String(s).length <= each);
+  return kept.length === 0 ? undefined : kept.length === v.length ? v : kept;
 }
 
 /**
@@ -589,7 +628,10 @@ export function describeProblems(problems: Problem[]): string {
   const long = problems.filter((p) => p.kind === "toolong");
   if (long.length) {
     lines.push(`⚠️  These are over Flipkart's character limit — it rejects the SAVE, not just the`);
-    lines.push(`    field, so they are LEFT BLANK:`);
+    // The two cases end differently and the report has to say which, or the reader goes looking
+    // for a blank field that is not blank: a per-entry limit loses only the entry that broke it.
+    lines.push(`    field. A Key Spec entry over the limit is DROPPED and the others still go in;`);
+    lines.push(`    a Color over the total leaves the whole field blank:`);
     for (const p of long) lines.push(`   ${p.label}: ${p.value}`);
     lines.push(`   Shorten them and put them in by hand. Color is 80 characters for all three`);
     lines.push(`   phrases together; each Key Spec entry is 22.`);
