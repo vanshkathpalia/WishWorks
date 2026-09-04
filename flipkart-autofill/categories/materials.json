@@ -329,6 +329,14 @@
     },
     {
       "category": "Foil Balloon",
+      "material": "Baby Girl Foil",
+      "paise": null,
+      "aka": [
+        "Bally Girl"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
       "material": "Golden Moon Foil, Card Packed",
       "paise": 800,
       "aka": [
@@ -363,6 +371,15 @@
       "category": "Foil Balloon",
       "material": "Crown Foil",
       "paise": 400
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Crown Foil Big",
+      "paise": null,
+      "aka": [
+        "big crown foil",
+        "crown foil large"
+      ]
     },
     {
       "category": "Foil Balloon",
@@ -460,6 +477,15 @@
       "paise": 200,
       "aka": [
         "Star Foil baly boy"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Girl Star Foil",
+      "paise": null,
+      "aka": [
+        "Star Foil baly girl",
+        "Star Foil baby girl"
       ]
     },
     {
