@@ -481,15 +481,6 @@
     },
     {
       "category": "Foil Balloon",
-      "material": "Baby Girl Star Foil",
-      "paise": null,
-      "aka": [
-        "Star Foil baly girl",
-        "Star Foil baby girl"
-      ]
-    },
-    {
-      "category": "Foil Balloon",
       "material": "Blue Star Foil",
       "paise": 150,
       "aka": [
@@ -942,7 +933,8 @@
       "aka": [
         "BLUE MATTALIC Curtain",
         "Blue Metallic Curtain"
-      ]
+      ],
+      "sellsAs": "Blue Metallic Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -951,7 +943,8 @@
       "aka": [
         "BLUE Pestle Curtain",
         "Blue Pastel Curtain"
-      ]
+      ],
+      "sellsAs": "Blue Pastel Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -959,7 +952,8 @@
       "paise": 400,
       "aka": [
         "Golden Curtain"
-      ]
+      ],
+      "sellsAs": "Golden Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -967,7 +961,8 @@
       "paise": 400,
       "aka": [
         "Pink Metallic Curtain"
-      ]
+      ],
+      "sellsAs": "Pink Metallic Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -976,7 +971,8 @@
       "aka": [
         "Pink Pestle Curtain",
         "Pink Pastel Curtain"
-      ]
+      ],
+      "sellsAs": "Pink Pastel Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -984,7 +980,8 @@
       "paise": 400,
       "aka": [
         "Purple Curtain"
-      ]
+      ],
+      "sellsAs": "Purple Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -992,7 +989,8 @@
       "paise": 400,
       "aka": [
         "Red Curtain"
-      ]
+      ],
+      "sellsAs": "Red Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -1000,7 +998,8 @@
       "paise": 400,
       "aka": [
         "Rose Curtain"
-      ]
+      ],
+      "sellsAs": "Rose Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -1008,7 +1007,8 @@
       "paise": 400,
       "aka": [
         "Rose Gold Curtain"
-      ]
+      ],
+      "sellsAs": "Rose Gold Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -1016,7 +1016,8 @@
       "paise": 400,
       "aka": [
         "Silver Curtain"
-      ]
+      ],
+      "sellsAs": "Silver Fringe Curtain"
     },
     {
       "category": "Fringes",
@@ -1024,7 +1025,8 @@
       "paise": 400,
       "aka": [
         "Black Frings"
-      ]
+      ],
+      "sellsAs": "Black Fringe Curtain"
     },
     {
       "category": "Themed Set",

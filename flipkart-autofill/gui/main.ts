@@ -532,14 +532,65 @@ ipcMain.handle(
  */
 ipcMain.handle(
   "editMaterial",
-  async (_e, key: string, patch: { paise?: number | null; size?: string; material?: string }): Promise<Attempt<unknown>> => {
+  async (
+    _e,
+    key: string,
+    patch: {
+      paise?: number | null; size?: string; material?: string;
+      piecesPerPack?: number; category?: string; sellsAs?: string;
+    },
+  ): Promise<Attempt<unknown>> => {
     try {
-      return { ok: true, result: (await inventoryEngine()).editMaterial(key, patch) };
+      const result = (await inventoryEngine()).editMaterial(key, patch);
+      await followTheKey(key, patch);
+      return { ok: true, result };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
   },
 );
+
+/**
+ * A renamed or moved material takes its KEY with it — so every saved kit has to follow.
+ *
+ * **This is the bug behind the worst hour of 2026-09-04.** A material's key is
+ * `category|material`, and a saved kit's `overrides` and `prices` are keyed by it. Renaming a row
+ * changed the key and left every kit that had picked that row pointing at a key nothing answers
+ * to: the line stopped costing, which on screen looks *exactly* like the material having been
+ * deleted — Vansh: *"the Age 2 got removed."* It was not removed; the pointer to it was.
+ *
+ * It surfaced as `No material called "2 age foil|Age Foil "Age 1"" in the price list`, which is a
+ * dangling key being handed back to the engine. That message is now unreachable from this path.
+ *
+ * Renaming has kept the old name as an `aka` since WW-179, which is the same idea one level down —
+ * the WORDS keep matching. Nobody had done it for the KEY, which is the half that machines use.
+ */
+async function followTheKey(oldKey: string, patch: { material?: string; category?: string }): Promise<void> {
+  if (patch.material === undefined && patch.category === undefined) return;
+  const [oldCategory, oldMaterial] = [oldKey.slice(0, oldKey.indexOf("|")), oldKey.slice(oldKey.indexOf("|") + 1)];
+  const newKey = `${(patch.category ?? oldCategory).trim()}|${(patch.material ?? oldMaterial).trim()}`;
+  if (newKey === oldKey) return;
+
+  const { KITS_DIR } = await inventoryEngine();
+  const files = await readdir(KITS_DIR).catch(() => [] as string[]);
+  for (const name of files.filter((f) => f.endsWith(".json"))) {
+    const file = path.join(KITS_DIR, name);
+    const kit = JSON.parse(await readFile(file, "utf8")) as {
+      overrides?: Record<string, string>;
+      prices?: Record<string, number>;
+    };
+    let moved = false;
+    for (const [line, k] of Object.entries(kit.overrides ?? {})) {
+      if (k === oldKey) { kit.overrides![line] = newKey; moved = true; }
+    }
+    if (kit.prices?.[oldKey] !== undefined) {
+      kit.prices[newKey] = kit.prices[oldKey];
+      delete kit.prices[oldKey];
+      moved = true;
+    }
+    if (moved) await writeFile(file, `${JSON.stringify(kit, null, 2)}\n`);
+  }
+}
 
 /** Add a material the list has never had. Writable everywhere now, same as `editMaterial`. */
 ipcMain.handle(

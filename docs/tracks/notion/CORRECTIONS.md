@@ -2439,3 +2439,30 @@ have put a permanent row in every table for an event whose entire content is *th
 cannot correct, and Vansh's own framing is the rule: *"we are dealing with data, I should be able to
 edit it, delete it, change it — patch, delete, everything."* The guard against a careless delete is
 telling the truth about its blast radius at the moment of the click, not withholding the button.
+
+
+## C-078 — A rename moved the key and left every pointer behind
+**2026-09-04 · Class: Code · Caught by: Vansh · Cost: an hour, and a kit that looked corrupted · Status: Fixed**
+
+**What shipped.** `editMaterial` renamed a material and carefully kept the old NAME as an `aka`, so
+every sheet that used it kept matching. It did nothing about the KEY.
+
+**What it did.** A key is `category|material`. Saved kits point at materials by key. So a rename
+silently pointed every kit that used that material at a key nothing answers to — the line stopped
+costing and read as *not on the price list*, which looks exactly like the row having been deleted.
+Vansh: *"the Age 2 got removed."* It was not. Then editing that line handed the stale key back to
+the engine, which is where `No material called "2 age foil|Age Foil "Age 1""` came from.
+
+**Why it got past.** The `aka` mechanism looks like the whole answer to renaming, and it is a good
+one — for humans and sheets, which match on words. Machines match on keys, and nothing in the file
+said keys were a second thing that needed following. A guard that solves half a problem is worse
+than none, because it stops anyone looking for the other half.
+
+**The lesson.** *If renaming a thing needs a compatibility story for its NAME, it needs one for its
+ID too.* Ask what else identifies the thing being renamed, and who is holding a copy.
+
+**A second failure in the same hour, worth its own line.** The *add to the price list* button
+appeared only on lines matching nothing. A wrong match and a missing match are the same need — *this
+is not the thing I mean* — and offering the fix for only one of them left renaming the wrongly
+matched row as the only move, which is what merged two products into one. **An escape hatch that is
+only reachable from the empty state is not an escape hatch.**

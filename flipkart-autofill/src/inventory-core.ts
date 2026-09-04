@@ -289,7 +289,10 @@ export function loadMaterials(dir = CATEGORIES_DIR, editsFile = PRICE_EDITS_FILE
  */
 function applyEdit(
   key: string,
-  patch: { paise?: number | null; size?: string; material?: string; aka?: string[]; piecesPerPack?: number },
+  patch: {
+    paise?: number | null; size?: string; material?: string; aka?: string[];
+    piecesPerPack?: number; category?: string; sellsAs?: string;
+  },
   dir: string,
   editsFile: string,
 ): void {
@@ -325,7 +328,23 @@ function applyEdit(
  */
 export function editMaterial(
   key: string,
-  patch: { paise?: number | null; size?: string; material?: string; piecesPerPack?: number },
+  patch: {
+    paise?: number | null; size?: string; material?: string; piecesPerPack?: number;
+    /**
+     * Move it to a different group.
+     *
+     * Vansh, 2026-09-04, having put a row in the wrong one: *"now it's category can't be
+     * changed."* It could not, and the only way out was deleting and re-adding — which loses the
+     * `aka` list, i.e. every sheet spelling that row has ever been matched by.
+     *
+     * **The category is half the key** (`category|material`), so moving a row renames its key,
+     * and a key is what a saved kit's override points at. `moveMaterial` in the app migrates
+     * those in the same breath; nothing here may move a row without it.
+     */
+    category?: string;
+    /** What a BUYER calls it, when the stock name is not it. See `Material.sellsAs`. */
+    sellsAs?: string;
+  },
   dir = CATEGORIES_DIR,
   editsFile = PRICE_EDITS_FILE,
 ): Material[] {

@@ -461,7 +461,13 @@ export interface WwApi {
   editMaterial(
     key: string,
     /** `material` renames the row; the old name is kept as an `aka` so old sheets still match. */
-    patch: { paise?: number | null; size?: string; material?: string; piecesPerPack?: number },
+    patch: {
+      paise?: number | null; size?: string; material?: string; piecesPerPack?: number;
+      /** Move it to another group. The key changes with it — see the engine's note. */
+      category?: string;
+      /** What a buyer calls it, when the stock name is not it. */
+      sellsAs?: string;
+    },
   ): Promise<Attempt<Material[]>>;
 
   /** Add a material the list has never had. Refused in a packaged app, same as the price above. */

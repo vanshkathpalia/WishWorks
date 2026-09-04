@@ -709,6 +709,33 @@ export function Inventory({ n }: { n: number }) {
     setTimeout(() => setPriceNote(null), 8000);
   }
 
+  /**
+   * Move a material into a different group.
+   *
+   * Vansh, 2026-09-04: *"now it's category can't be changed — is that even concerning?"* It was:
+   * the only way out of a wrong group was deleting the row and adding it again, which throws away
+   * its `aka` list — every spelling of that material any sheet has ever been matched by.
+   *
+   * **The category is half the key**, so moving a row renames its key. The engine's IPC follows it
+   * into every saved kit in the same call (`followTheKey`); without that the kits that had picked
+   * this row would point at a key nothing answers to, which is the failure that looked like a
+   * material being deleted.
+   */
+  async function fixCategory(materialKey: string, category: string) {
+    const r = await window.ww.editMaterial(materialKey, { category: category.trim() });
+    if (!r.ok) {
+      setPriceNote(r.message);
+      return;
+    }
+    setMaterials(r.result);
+    void window.ww.materialGaps().then(setGaps);
+    setPriceNote(
+      `${materialKey.split("|")[1]} is under ${category.trim()} now. Every kit that uses it ` +
+      `followed automatically.`,
+    );
+    setTimeout(() => setPriceNote(null), 8000);
+  }
+
   async function fixList(materialKey: string, paise: number) {
     const r = await window.ww.editMaterial(materialKey, { paise });
     if (!r.ok) {
@@ -1121,6 +1148,19 @@ export function Inventory({ n }: { n: number }) {
                           }}
                           onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                         />
+                        {/* Which group it sits in — a picker, never a text box: the free-text
+                            version of this on the ADD form is what put a category called
+                            "2 age foil" into the list both machines ship with. */}
+                        <select
+                          className="size-box"
+                          value={l.match.category}
+                          title="Which group this material sits in"
+                          onChange={(e) => void fixCategory(key(l.match!), e.target.value)}
+                        >
+                          {byCategory.map(([category]) => (
+                            <option key={category} value={category}>{category}</option>
+                          ))}
+                        </select>
                         <input
                           type="text"
                           className="size-box"
@@ -1179,11 +1219,18 @@ export function Inventory({ n }: { n: number }) {
                     />
                     {l.flagged && <span className="warnpill">check</span>}
                     {l.match && l.paise === null && <span className="warnpill">no price set</span>}
-                    {/* The other half of "not on the price list". Until this button existed the
-                        only fix was opening materials.json in an editor — impossible on the
-                        partner's machine, so a kit with a genuinely new product in it could not be
-                        costed and the item quietly left the total. */}
-                    {!l.match && adding !== i && (
+                    {/**
+                      * **Offered on EVERY line, matched or not** — and that is the fix for the
+                      * worst hour of 2026-09-04. It used to appear only when a line matched
+                      * nothing, so a line that matched the WRONG thing had no way to say *this is
+                      * a product you do not have yet*. Vansh: *"adding new option wasn't coming
+                      * up"* — so he renamed the row it had wrongly matched instead, which turned
+                      * two different products into one and looked like a row being deleted.
+                      *
+                      * A wrong match and a missing match are the same need. The button says which
+                      * case it is, so a matched line does not read as broken.
+                      */}
+                    {adding !== i && (
                       <button
                         className="tiny"
                         onClick={() => {
@@ -1192,7 +1239,7 @@ export function Inventory({ n }: { n: number }) {
                           setDraft({ name: l.item, category: "", price: "" });
                         }}
                       >
-                        add to the price list
+                        {l.match ? "not this — add a new one" : "add to the price list"}
                       </button>
                     )}
                     {adding === i && (
