@@ -405,6 +405,8 @@ export function Orders() {
   const [sku, setSku] = useState<string | null>(null);
   const [workers, setWorkers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** What an import just did, when it has something to report. */
+  const [note, setNote] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tally, setTally] = useState(false);
@@ -484,7 +486,12 @@ export function Orders() {
       try {
         const r = await window.ww.addManifest(file);
         if (!r.ok) setError(r.message);
-        else setView(r.result);
+        else {
+          setView(r.result);
+          // An orders export says what it DID — new, packed, RTO, cancelled. A manifest carries no
+          // note and this stays null, exactly as before.
+          if (r.note) setNote(r.note);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -520,7 +527,9 @@ export function Orders() {
           else setError("Couldn't read that. Use the button instead.");
         }}
       >
-        <strong>{busy ? "Reading the manifest…" : "Drop the manifest PDF here"}</strong>
+        <strong>
+          {busy ? "Reading it…" : "Drop the manifest PDF — or an orders export (.csv)"}
+        </strong>
         <div className="picks">
           <button onClick={() => void window.ww.pick("orders", "files").then(load)}>
             Choose a manifest…
@@ -529,6 +538,7 @@ export function Orders() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      {note && <p className="allgood">{note}</p>}
 
       <div className="sku-lookup">
         <input

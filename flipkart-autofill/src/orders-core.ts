@@ -138,6 +138,15 @@ export interface SubOrder extends Shipment {
   /** `YYYY-MM-DD` — the day it came back, which is the day the money moves. */
   statusOn?: string;
   /**
+   * The marketplace has said this one was DELIVERED.
+   *
+   * **It is what turns the landed account from an estimate into a fact.** `SETTLE_DAYS` guesses
+   * that a parcel old enough is safe; this is the marketplace saying so. Only their orders export
+   * carries it — a manifest is written before anything ships — so it is absent on most parcels and
+   * absence means *not known*, never *not delivered*.
+   */
+  delivered?: boolean;
+  /**
    * What this parcel was worth **when it was packed**, in paise — the money, frozen at the tick.
    *
    * Vansh spotted the hole: *"all that name SKU cost the same, but that may not be true — maybe we
@@ -517,6 +526,190 @@ function manifestDate(all: Cell[]): string | null {
     return `${m[3]}-${String(month + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
   }
   return null;
+}
+
+
+/**
+ * The marketplace's own ORDERS export — the way back when the manifest was never downloaded.
+ *
+ * Vansh, 2026-09-04: *"if for many days I missed the manifest, does uploading a payment invoice
+ * like this work there too? This has SKU name too."* It does, and it is a better source than the
+ * manifest for everything except one thing: **it carries the sub-order number**, which is the
+ * parcel's identity here, so an export and a manifest describing the same parcel land on the same
+ * row and neither double-counts. His three exports hold 111 parcels against 9 in the ledger.
+ *
+ * It also answers three questions the manifest cannot:
+ *   - **CANCELLED** — 14 of 83 in his August file. Those never shipped, so they must not be added
+ *     and must be REMOVED if a manifest already brought them in. That is the cancelled-order
+ *     problem, arriving as data instead of a button.
+ *   - **RTO_*** — the parcel went and came back, which the returns screen otherwise waits for a
+ *     separate report to learn.
+ *   - **the price actually charged**, per parcel, which is a real settlement rather than a figure
+ *     worked back from a listed price.
+ *
+ * Deliberately NOT parsed: everything else in the file. Columns are read by name and a file
+ * missing one of the four that matter is refused whole, because a half-read order file is worse
+ * than none — it looks like a slow day.
+ */
+export interface CsvOrder {
+  subOrder: string;
+  sku: string;
+  qty: number;
+  /** `YYYY-MM-DD`, the marketplace's own order date. */
+  on: string;
+  /** What the marketplace says it charged, in paise. Absent when the column is blank. */
+  paidPaise?: number;
+  /**
+   * What has become of it, in our words rather than theirs.
+   *
+   * `waiting` is a parcel that has not shipped yet — it belongs in the queue, not in the money.
+   */
+  state: "delivered" | "shipped" | "back" | "cancelled" | "waiting";
+}
+
+/** Their status column, mapped once, here — the only place that has to know their vocabulary. */
+function stateOf(reason: string): CsvOrder["state"] {
+  const r = reason.trim().toUpperCase();
+  if (r.startsWith("RTO") || r.includes("RETURN")) return "back";
+  if (r === "CANCELLED" || r === "CANCELED") return "cancelled";
+  if (r === "DELIVERED" || r === "DOOR_STEP_EXCHANGED") return "delivered";
+  if (r === "SHIPPED") return "shipped";
+  return "waiting"; // READY_TO_SHIP, PENDING, and anything they add later
+}
+
+/**
+ * One CSV row into fields, honouring quotes.
+ *
+ * `Product Name` contains commas in every row of a real export — splitting on "," turns one order
+ * into nine columns of nonsense and shifts every field after it.
+ */
+function csvRow(line: string): string[] {
+  const out: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quoted) {
+      if (c === '"' && line[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { out.push(field); field = ""; }
+    else field += c;
+  }
+  out.push(field);
+  return out;
+}
+
+/** Read a marketplace orders export. Throws when the columns that matter are not all there. */
+export function readOrdersCsv(text: string): CsvOrder[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+  if (lines.length < 2) throw new Error("That file has no rows in it.");
+  const head = csvRow(lines[0]).map((h) => h.trim().toLowerCase());
+  const at = (want: string) => head.findIndex((h) => h === want);
+
+  const cols = {
+    sub: at("sub order no"),
+    sku: at("sku"),
+    qty: at("quantity"),
+    on: at("order date"),
+    reason: at("reason for credit entry"),
+    paid: at("supplier discounted price (incl gst and commision)"),
+  };
+  const missing = (["sub", "sku", "qty", "on"] as const).filter((k) => cols[k] < 0);
+  if (missing.length > 0) {
+    throw new Error(
+      `That does not look like an orders export — it has no ${missing.join(", ")} column. ` +
+      `On Meesho it is Payments -> Order Payments -> Download.`,
+    );
+  }
+
+  const out: CsvOrder[] = [];
+  for (const line of lines.slice(1)) {
+    const f = csvRow(line);
+    const subOrder = (f[cols.sub] ?? "").trim();
+    const sku = (f[cols.sku] ?? "").trim();
+    if (subOrder === "" || sku === "") continue; // a totals row, or a blank the export pads with
+    const paid = cols.paid < 0 ? NaN : Number((f[cols.paid] ?? "").trim());
+    out.push({
+      subOrder,
+      sku,
+      qty: Math.max(1, Number((f[cols.qty] ?? "1").trim()) || 1),
+      on: (f[cols.on] ?? "").trim().slice(0, 10),
+      ...(Number.isFinite(paid) && paid > 0 ? { paidPaise: Math.round(paid * 100) } : {}),
+      state: cols.reason < 0 ? "shipped" : stateOf(f[cols.reason] ?? ""),
+    });
+  }
+  return out;
+}
+
+/**
+ * Fold an orders export into a month's ledger.
+ *
+ * **A parcel that shipped is marked packed on its own order date.** It demonstrably went out, and
+ * the shelf only counts what was packed — so an import that left `packedOn` unset would put the
+ * sales in the ledger and still not take the materials off the stock. Nobody is named on it,
+ * which is true and is a state the screen already draws: those parcels appear under *nobody named
+ * yet* rather than being credited to a person who may not have packed them.
+ *
+ * A CANCELLED row is removed rather than added — see `dropParcel`. It is the only case here that
+ * takes something away, and it is the one Vansh has been asking for since the manifest counted an
+ * order the marketplace later cancelled.
+ */
+export function mergeOrdersCsv(
+  ledger: Ledger | null,
+  orders: CsvOrder[],
+  source: string,
+  market = "meesho",
+): { ledger: Ledger; added: number; packed: number; back: number; cancelled: number } {
+  const live = orders.filter((o) => o.state !== "cancelled");
+  const seen = live.map((o) => o.on).sort()[0] ?? orders[0]?.on ?? "";
+  const before = new Set((ledger?.subOrders ?? []).map((p) => p.subOrder));
+
+  let next = mergeShipments(
+    ledger,
+    live.map((o) => ({ subOrder: o.subOrder, awb: "", sku: o.sku, qty: o.qty, courier: "" })),
+    seen,
+    source,
+    market,
+  );
+
+  const byId = new Map(live.map((o) => [o.subOrder, o]));
+  let packed = 0;
+  let back = 0;
+  next = {
+    ...next,
+    subOrders: next.subOrders.map((p) => {
+      const o = byId.get(p.subOrder);
+      if (!o) return p;
+      const paid = o.paidPaise === undefined ? {} : { paidPaise: o.paidPaise };
+      if (o.state === "waiting") return { ...p, ...paid };
+      // Already ticked by hand? That record is somebody's work and their pay — never overwritten.
+      const wasPacked = p.packedOn !== undefined;
+      if (!wasPacked) packed++;
+      const shipped = wasPacked ? p : { ...p, packedOn: o.on, packedBy: [] };
+      const arrived = o.state === "delivered" ? { delivered: true } : {};
+      if (o.state !== "back") return { ...shipped, ...paid, ...arrived };
+      back++;
+      return { ...shipped, ...paid, status: "rto" as const, statusOn: p.statusOn ?? o.on };
+    }),
+  };
+
+  let cancelled = 0;
+  for (const o of orders) {
+    if (o.state !== "cancelled") continue;
+    const had = next.subOrders.length;
+    next = dropParcel(next, o.subOrder);
+    if (next.subOrders.length !== had) cancelled++;
+  }
+
+  return {
+    ledger: next,
+    added: next.subOrders.filter((p) => !before.has(p.subOrder)).length,
+    packed,
+    back,
+    cancelled,
+  };
 }
 
 /**
@@ -1022,9 +1215,12 @@ export function money(
      * it lands in, exactly as it is 0 in the totals: unknown, never free.
      */
     const worth = (p.paidPaise ?? kitForSku(p.sku, kits)?.pays?.[p.market] ?? 0) * p.qty;
+    // **Told beats guessed.** `SETTLE_DAYS` is our estimate that nothing can come back any more;
+    // `delivered` is the marketplace saying it arrived. A parcel it has confirmed is landed on day
+    // one, and only the ones nobody has confirmed have to wait out the window.
     const bucket =
       p.status !== undefined ? cameBack
-      : daysBetween(p.packedOn!, asOf) >= SETTLE_DAYS ? landed
+      : p.delivered || daysBetween(p.packedOn!, asOf) >= SETTLE_DAYS ? landed
       : inFlight;
     bucket.packets += p.qty;
     bucket.revenuePaise += worth;

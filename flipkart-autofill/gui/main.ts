@@ -362,7 +362,7 @@ ipcMain.handle("pick", async (e, step: StepId, mode: "folder" | "files"): Promis
       mode !== "files"
         ? undefined
         : step === "orders"
-          ? [{ name: "Manifest PDF", extensions: ["pdf"] }]
+          ? [{ name: "Manifest or orders export", extensions: ["pdf", "csv"] }]
           : step === "orders-report"
             // Whatever the marketplace exports. Nothing here reads their columns — the ids are
             // found in the text — so the list is about what they hand out, not what we parse.
@@ -801,7 +801,43 @@ async function ordersView(on = today()) {
  * there — adds only what is genuinely new. See `mergeShipments`.
  */
 ipcMain.handle("addManifest", async (_e, file: string): Promise<Attempt<unknown>> => {
-  const { parseManifest, mergeShipments, readLedger, writeLedger } = await ordersEngine();
+  const engine = await ordersEngine();
+  const { parseManifest, mergeShipments, readLedger, writeLedger } = engine;
+
+  /**
+   * An ORDERS EXPORT rather than a manifest — the same drop zone, because to the person holding
+   * the file they are the same errand: *tell the app what went out.*
+   *
+   * It is the way back from missed days, and it says more than a manifest can: which parcels were
+   * DELIVERED, which came back, which the marketplace CANCELLED, and what each one actually paid.
+   * A cancelled row does not arrive, it LEAVES — see `mergeOrdersCsv`.
+   *
+   * Rows are split by month because a ledger is a month, and an export spans whatever range was
+   * asked for; a single file crossing a month boundary would otherwise land entirely in the first.
+   */
+  if (file.toLowerCase().endsWith(".csv")) {
+    const rows = engine.readOrdersCsv(await readFile(file, "utf8"));
+    if (rows.length === 0) return { ok: false, message: `No orders found in ${path.basename(file)}.` };
+    const months = [...new Set(rows.map((r) => r.on.slice(0, 7)))].filter(Boolean).sort();
+    let added = 0, packed = 0, back = 0, cancelled = 0;
+    for (const month of months) {
+      const mine = rows.filter((r) => r.on.slice(0, 7) === month);
+      const r = engine.mergeOrdersCsv(await readLedger(month), mine, path.basename(file));
+      await writeLedger(r.ledger);
+      added += r.added; packed += r.packed; back += r.back; cancelled += r.cancelled;
+    }
+    return {
+      ok: true,
+      result: await ordersView(),
+      note:
+        `${added} new parcel${added === 1 ? "" : "s"} from ${path.basename(file)}` +
+        `${packed ? `, ${packed} marked packed` : ""}` +
+        `${back ? `, ${back} marked RTO` : ""}` +
+        `${cancelled ? `, ${cancelled} cancelled and removed` : ""}.`,
+    };
+  }
+
+
   const parsed = parseManifest(await readFile(file));
   if (parsed.shipments.length === 0) {
     return {

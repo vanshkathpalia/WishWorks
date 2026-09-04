@@ -21,8 +21,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   addSkuImage, adSpend, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
-  clearBack, dropParcel, howItSells, idsInFile, type KitMoney, kitForSku, leftToPack, markBack, money, packSku, packerPay,
-  parcelCredit, parseManifest, unpackSku, workerCredit,
+  clearBack, dropParcel, howItSells, idsInFile, type KitMoney, kitForSku, leftToPack, markBack, mergeOrdersCsv, money,
+  packSku, packerPay, parcelCredit, parseManifest, readOrdersCsv, unpackSku, workerCredit,
 } from "../src/orders-core.js";
 
 const pdf = readFileSync(path.join(import.meta.dirname, "fixtures", "meesho-manifest.pdf"));
@@ -441,6 +441,84 @@ describe("how it sells", () => {
  * came back. A SKU nobody has costed contributes an UNKNOWN, not a zero — folding those into the
  * profit would be confidently wrong on exactly the days the partner's SKUs sell well.
  */
+/**
+ * The marketplace's own orders export — the way back when a manifest was never downloaded.
+ *
+ * Built against Vansh's three real files (111 parcels against 9 in the ledger). The fixture keeps
+ * the two shapes that break a naive reader: a Product Name with COMMAS in it, and a CANCELLED row,
+ * which is the one kind of row that takes something away instead of adding it.
+ */
+describe("an orders export", () => {
+  /** A manifest parcel, for the cases where an export meets one the manifest already brought in. */
+  const parcel = (id: string, sku: string) =>
+    ({ subOrder: id, awb: `A${id}`, sku, qty: 1, courier: "Valmo" });
+
+  const CSV = [
+    '"Reason for Credit Entry","Sub Order No","Order Date","Product Name","SKU","Quantity","Supplier Discounted Price (Incl GST and Commision)"',
+    '"DELIVERED","3133043013172_1","2026-07-27","Balloon Kit, Red and Gold, 54 pcs","SVP033","1","150.0"',
+    '"SHIPPED","3144610877642_1","2026-07-30","Welcome Baby Kit","WB001","1","132.0"',
+    '"RTO_COMPLETE","3144655368632_1","2026-07-30","Anniversary Kit","HAL001","1","150.0"',
+    '"CANCELLED","3144655368633_1","2026-07-31","Groom Kit","GTB005","1","0"',
+    '"READY_TO_SHIP","3144655368634_1","2026-07-31","Doraemon Kit","HBD-dore01","1","200.0"',
+  ].join("\n");
+
+  it("reads the columns that matter and ignores the rest", () => {
+    const rows = readOrdersCsv(CSV);
+    expect(rows).toHaveLength(5);
+    // The comma inside "Balloon Kit, Red and Gold, 54 pcs" must not shift every field after it.
+    expect(rows[0]).toMatchObject({ subOrder: "3133043013172_1", sku: "SVP033", qty: 1, paidPaise: 15000 });
+    expect(rows.map((r) => r.state)).toEqual(["delivered", "shipped", "back", "cancelled", "waiting"]);
+  });
+
+  it("refuses a file that is not an orders export, rather than reading half of it", () => {
+    expect(() => readOrdersCsv('"Order Date","SKU"\n"2026-07-27","ANP001"')).toThrow(/sub|order/i);
+  });
+
+  it("brings the shipped ones in packed, marks the RTO, and takes the cancelled one OUT", () => {
+    const rows = readOrdersCsv(CSV);
+    const r = mergeOrdersCsv(null, rows, "export.csv");
+    expect(r.added).toBe(4);            // the cancelled row never arrives
+    expect(r.packed).toBe(3);           // delivered + shipped + rto all demonstrably went out
+    expect(r.back).toBe(1);
+    // Waiting is in the ledger but NOT packed — it belongs in the queue, not in the money.
+    const waiting = r.ledger.subOrders.find((p) => p.sku === "HBD-dore01")!;
+    expect(waiting.packedOn).toBeUndefined();
+    // Only what the marketplace confirmed carries `delivered`; a SHIPPED one does not.
+    expect(r.ledger.subOrders.find((p) => p.sku === "SVP033")!.delivered).toBe(true);
+    expect(r.ledger.subOrders.find((p) => p.sku === "WB001")!.delivered).toBeUndefined();
+  });
+
+  /**
+   * The cancelled-order problem, arriving as data instead of a button: a manifest counted it, the
+   * marketplace then cancelled it, and the export is what says so.
+   */
+  it("removes a parcel a manifest already brought in, once the export says CANCELLED", () => {
+    let l = mergeShipments(null, [parcel("3144655368633_1", "GTB005")], "2026-07-31", "m.pdf");
+    expect(l.subOrders).toHaveLength(1);
+    l = mergeOrdersCsv(l, readOrdersCsv(CSV), "export.csv").ledger;
+    expect(l.subOrders.some((p) => p.subOrder === "3144655368633_1")).toBe(false);
+  });
+
+  it("never overwrites a tick somebody already made — that record is their pay", () => {
+    let l = mergeShipments(null, [parcel("3133043013172_1", "SVP033")], "2026-07-27", "m.pdf");
+    l = packSku(l, "SVP033", "2026-07-28", ["Asha"]);
+    const r = mergeOrdersCsv(l, readOrdersCsv(CSV), "export.csv");
+    const p = r.ledger.subOrders.find((x) => x.subOrder === "3133043013172_1")!;
+    expect(p.packedOn).toBe("2026-07-28");
+    expect(p.packedBy).toEqual(["Asha"]);
+    expect(r.packed).toBe(2); // it was already packed, so it is not counted as newly packed
+  });
+
+  /** A delivered parcel is landed on day one — the marketplace has said so, so nothing is guessed. */
+  it("counts a confirmed delivery as landed without waiting out the return window", () => {
+    const kits: KitMoney[] = [{ sku: "SVP033", costPaise: 5000, pays: { meesho: 15000 } }];
+    const l = mergeOrdersCsv(null, readOrdersCsv(CSV), "export.csv").ledger;
+    const m = money([l], kits, "2026-07-01", "2026-07-31", undefined, {}, "2026-07-28");
+    expect(m.landed.packets).toBe(1);   // delivered, one day old
+    expect(m.inFlight.packets).toBe(1); // shipped, and nobody has confirmed it
+  });
+});
+
 describe("what a day was worth", () => {
   const kits: KitMoney[] = [
     // A combo kit: the code that matters is the last one, so this is the ANP001 listing.

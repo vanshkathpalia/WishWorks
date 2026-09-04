@@ -204,7 +204,14 @@ export type {
 export type FolderKey = "images" | "meta" | "products" | "kits" | "orders" | "ready";
 
 /** Anything that talks to the browser can fail for ordinary reasons; none of them are crashes. */
-export type Attempt<T> = { ok: true; result: T } | { ok: false; message: string };
+/**
+ * The result of something that can fail with a sentence rather than an exception.
+ *
+ * `note` is for a SUCCESS that still has something to say — an orders export reporting how many
+ * parcels were new, packed, RTO or cancelled. Without it the only way to tell the operator what
+ * an import actually did would be to fail on purpose.
+ */
+export type Attempt<T> = { ok: true; result: T; note?: string } | { ok: false; message: string };
 
 /**
  * One seller account: one Gmail, one Flipkart + Meesho login, one Drive folder (WW-154).
