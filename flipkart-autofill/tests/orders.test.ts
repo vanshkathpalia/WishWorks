@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   addSkuImage, adSpend, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
-  clearBack, dropParcel, howItSells, idsInFile, type KitMoney, kitForSku, leftToPack, markBack, mergeOrdersCsv, money,
+  clearBack, dropParcel, type Ledger, howItSells, idsInFile, type KitMaterials, type KitMoney, kitForSku, leftToPack, markBack, mergeOrdersCsv, money,
   packSku, packerPay, parcelCredit, parseManifest, readOrdersCsv, unpackSku, workerCredit,
 } from "../src/orders-core.js";
 
@@ -516,6 +516,61 @@ describe("an orders export", () => {
     const m = money([l], kits, "2026-07-01", "2026-07-31", undefined, {}, "2026-07-28");
     expect(m.landed.packets).toBe(1);   // delivered, one day old
     expect(m.inFlight.packets).toBe(1); // shipped, and nobody has confirmed it
+  });
+});
+
+/**
+ * **Importing the same thing twice must change nothing** — the property is called IDEMPOTENCE, and
+ * the sub-order number is what provides it: it is the parcel's natural key, so re-importing a file
+ * re-states facts about parcels already known instead of creating new ones.
+ *
+ * Vansh, 2026-09-04: *"I don't want repetitive subtraction when any two PDFs had some same date and
+ * orders — duplicated subtraction I don't want."* It is the one arithmetic error nobody would ever
+ * spot: the shelf would just drain faster than the shop does, and every figure would look plausible.
+ *
+ * This is asserted on the MATERIALS, not on the parcel count, because that is what he is protecting.
+ * Counting parcels twice is visible; consuming materials twice is not.
+ */
+describe("no double subtraction", () => {
+  const kits: (KitMoney & KitMaterials)[] = [{
+    sku: "SVP033", costPaise: 5000, pays: { meesho: 15000 },
+    materials: [{ key: "Balloon|Red Balloon", name: "Red Balloon", packs: 1, pieces: 20 }],
+  }];
+  const p = (id: string) => ({ subOrder: id, awb: "A", sku: "SVP033", qty: 1, courier: "Valmo" });
+  const used = (l: Ledger) => howItSells([l], kits, "2026-01-01", "2026-12-31").burn[0]?.pieces ?? 0;
+
+  it("counts a parcel once however many manifests mention it", () => {
+    // Meesho's manifest is a snapshot of everything ready to ship, so the 2pm download repeats the
+    // 12pm one. Two files, three parcels, sixty pieces — never a hundred.
+    let l = mergeShipments(null, [p("1"), p("2")], "2026-08-20", "12pm.pdf");
+    l = packSku(l, "SVP033", "2026-08-20", ["Asha"]);
+    expect(used(l)).toBe(40);
+
+    l = mergeShipments(l, [p("1"), p("2"), p("3")], "2026-08-20", "2pm.pdf");
+    l = packSku(l, "SVP033", "2026-08-20", ["Asha"]);
+    expect(used(l)).toBe(60);
+
+    // The same file again, by mistake. Nothing moves.
+    l = mergeShipments(l, [p("1"), p("2"), p("3")], "2026-08-20", "2pm.pdf");
+    expect(used(l)).toBe(60);
+    expect(l.subOrders).toHaveLength(3);
+  });
+
+  it("does not subtract again when an orders export covers parcels a manifest already brought in", () => {
+    let l = mergeShipments(null, [p("1"), p("2")], "2026-08-20", "m.pdf");
+    l = packSku(l, "SVP033", "2026-08-20", ["Asha"]);
+    const before = used(l);
+
+    const csv = [
+      '"Reason for Credit Entry","Sub Order No","Order Date","SKU","Quantity"',
+      '"DELIVERED","1","2026-08-20","SVP033","1"',
+      '"DELIVERED","2","2026-08-20","SVP033","1"',
+    ].join("\n");
+    l = mergeOrdersCsv(l, readOrdersCsv(csv), "export.csv").ledger;
+    expect(used(l)).toBe(before);
+    // Twice more, for good measure: the file is the same facts, not more of them.
+    l = mergeOrdersCsv(l, readOrdersCsv(csv), "export.csv").ledger;
+    expect(used(l)).toBe(before);
   });
 });
 
