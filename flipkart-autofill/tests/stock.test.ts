@@ -112,7 +112,39 @@ describe("tallying his count against the supplier's claim", () => {
     });
     expect(rows[0]).toMatchObject({ key: "Chrome|Silver Chrome Balloon", score: 1, overridden: true });
   });
+  /**
+   * **Vansh's own handwriting, which is not his supplier's.** The unit rule was built against the
+   * supplier, who writes `pkt` on every line. Of Vansh's real 44-line count, 14 lines carried no
+   * unit at all and every one came back as ZERO — the quietest way a delivery goes uncounted.
+   */
+  it("takes a number at the start of the line when nothing carries a unit", () => {
+    const by = (frag: string) => readNote(NO_UNITS).find((l) => l.raw.includes(frag))!;
+    expect(by("peanut")).toMatchObject({ qty: 5, unit: "", name: "green peanut banner" });
+    expect(by("anp hindi")).toMatchObject({ qty: 20, name: "anp hindi" });
+    // A SECOND number belongs to the name: five packets of a SIX MONTH banner, not "5 to 6".
+    expect(by("month banner")).toMatchObject({ qty: 5, name: "6 month banner blue" });
+    // Filler words left behind by the count are dropped; the material is not.
+    expect(by("for green")).toMatchObject({ qty: 5, name: "green frings" });
+  });
+
+  /** The fallback must never outrank the unit, or a name with digits in it reads as the count. */
+  it("still finds the quantity by its unit first, wherever it sits", () => {
+    expect(readNote("Blue no foil. 0 to9 450 pcs ok")[0]).toMatchObject({ qty: 450, unit: "pcs" });
+  });
+
+  /** Genuinely unreadable stays unreadable — a guess here is worse than a question. */
+  it("leaves a line nobody could read at zero, so it shows on screen", () => {
+    const rows = readNote("I guess 3 moon silver foil - god knows how many ??\nCurtain net 5 white 12? pink yellow green ?");
+    expect(rows.map((r) => r.qty)).toEqual([0, 0]);
+  });
+
 });
+
+/** Vansh's own count, verbatim — the lines that carry no unit at all. */
+const NO_UNITS = `5 green peanut banner
+20 anp hindi
+5 - 6 month banner blue
+5 for green frings`;
 
 describe("what is left on the shelf", () => {
   const FOIL = "Foil|Groom To Be Foil Balloon";

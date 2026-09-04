@@ -61,8 +61,20 @@ const UNITS = "pkt|pkts|packet|packets|pcs|pc|piece|pieces|petti|peti|bandal|ban
  * whatever is left. That handles all three, and it is why the unit list above matters — without a
  * unit to anchor on, `0 to9` in the third line reads as the quantity.
  *
+ * **The unit is not always there.** That rule was built against the SUPPLIER's note, and he writes
+ * `pkt` on every line. Vansh does not: of his own 44-line count, 14 lines had no unit at all — `20
+ * anp hindi`, `5 green peanut banner`, `5 blue mikky mouse set` — and every one of them came back
+ * as **zero**, which is the quietest way a delivery can go uncounted. So when nothing carries a
+ * unit, the fallback is a number at the START of the line, which is where a count goes when
+ * somebody is writing quickly.
+ *
+ * It is a FALLBACK and not the first rule, which matters: `Blue no foil. 0 to9 450 pcs` must still
+ * read 450, and it only does because the unit anchor is tried first.
+ *
  * Lines with no number at all are still returned, with `qty: 0`. A line the reader could not
- * understand must appear on screen saying so; dropping it silently is how a delivery goes uncounted.
+ * understand must appear on screen saying so; dropping it silently is how a delivery goes
+ * uncounted — and two of Vansh's really are unreadable (`Curtain net 5 white 12? pink yellow green
+ * ?`), which is a question for a human and not something to guess at.
  *
  * ponytail: `ok` at the end is the writer ticking his own list, so it is stripped. If a material is
  * ever actually called "ok" this is wrong, and it is a one-word fix in `clean` below.
@@ -76,9 +88,19 @@ export function readNote(text: string): NoteLine[] {
     if (/^[A-Za-z]*\s*\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\.?$/.test(line)) continue;
 
     const m = new RegExp(`(\\d+)\\s*[,.]?\\s*(${UNITS})\\b`, "i").exec(line);
-    const qty = m === null ? 0 : Number(m[1]);
+    // No unit anywhere: take a number written at the very start as the count. Anything further in
+    // is part of the name (`half birthday`, `0 to9`, `15 mtr`) and is left alone.
+    // ONLY the first number. A second one belongs to the name — `5 - 6 month banner` is five of a
+    // SIX MONTH banner, and swallowing the 6 as a range turned it into "month banner".
+    const lead = m === null ? /^(\d+)\s*/.exec(line) : null;
+
+    const qty = m !== null ? Number(m[1]) : lead !== null ? Number(lead[1]) : 0;
     const unit = m === null ? "" : m[2].toLowerCase();
-    const name = clean(m === null ? line : line.slice(0, m.index) + " " + line.slice(m.index + m[0].length));
+    const name = clean(
+      m !== null ? line.slice(0, m.index) + " " + line.slice(m.index + m[0].length)
+      : lead !== null ? line.slice(lead[0].length)
+      : line,
+    );
     out.push({ qty, unit, name: name || clean(line), raw: line });
   }
   return out;
@@ -91,7 +113,14 @@ export function readNote(text: string): NoteLine[] {
  * behind when the unit is cut out of the middle, and `. brtb bunting golden` matches nothing.
  */
 const clean = (s: string): string =>
-  s.replace(/\bok\b\.?\s*$/i, "").replace(/^[.,\s]+|[.,\s]+$/g, "").replace(/\s+/g, " ").trim();
+  s
+    .replace(/\bok\b\.?\s*$/i, "")
+    // What is left when a leading count is taken off: `5 - 6 month banner` -> `6 month banner`,
+    // `5 for green frings` -> `green frings`. Words, not punctuation, so no material loses one.
+    .replace(/^(?:for|of|x)\b\s*/i, "")
+    .replace(/^[-–—./,\s]+|[-–—.,\s]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** One material across the two lists, and whether they agree about it. */
 export interface TallyRow {
