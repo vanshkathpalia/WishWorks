@@ -20,7 +20,7 @@
 
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rename, rm, copyFile, stat } from "node:fs/promises";
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { filePathFromUrl } from "./shared.js";
@@ -217,36 +217,6 @@ process.env.WW_PRODUCTS_DIR ??= PRODUCTS_DIR;
 const KITS_DIR = folderPath("kits", path.join(WORKSPACE, "inventory"));
 process.env.WW_KITS_DIR ??= KITS_DIR;
 
-/**
- * Price corrections and materials added by hand — **beside the kits they price, not in userData.**
- *
- * `categories/materials.json` ships read-only inside the app, so on a packaged machine every price
- * fix and every new material lands in this overlay instead. It used to live in `userData`, which is
- * per MACHINE: the partner adds *Green Peanut Banner*, and it exists on her laptop and nowhere
- * else — while the add form promises out loud that it *"goes into the shipped price list, for every
- * kit and both machines."* On Vansh's own machine that is true (the file is writable and he commits
- * it); on the partner's it never was, and the two lists drift apart silently.
- *
- * Beside the kits it follows the account, and follows it onto the synced drive the kits already sit
- * on — so a correction one of them makes is a correction both of them have, which is what the
- * sentence on screen has always claimed. Two different seller accounts still keep their own,
- * because the kits folder is per account.
- */
-const PRICE_EDITS = path.join(KITS_DIR, "price-edits.json");
-process.env.WW_PRICE_EDITS ??= PRICE_EDITS;
-/**
- * Carry an existing overlay over, once. Anything already corrected on this machine is somebody's
- * work and must not be stranded in the old location by an update.
- */
-try {
-  const old = path.join(USER_DATA, "price-edits.json");
-  if (existsSync(old) && !existsSync(PRICE_EDITS)) {
-    mkdirSync(path.dirname(PRICE_EDITS), { recursive: true });
-    copyFileSync(old, PRICE_EDITS);
-  }
-} catch {
-  // A machine that cannot copy it keeps using the shipped list — never a crash on launch.
-}
 
 /**
  * A file per day of orders, plus the list of people who pack.

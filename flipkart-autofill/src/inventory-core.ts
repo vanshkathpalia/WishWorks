@@ -235,6 +235,22 @@ export interface SavedKit {
  * — same as before this existed, where it could not be made at all. Put the file in the shared
  * kits folder if that ever matters, and mind that `listKits` reads every `.json` in there.
  */
+/**
+ * **Per MACHINE, and that is Vansh's decision, not an oversight.**
+ *
+ * `categories/materials.json` ships read-only inside a packaged app, so every price fix and every
+ * material added on the partner's laptop lands here instead of in the file. Moving it beside the
+ * kits was tried on 2026-09-04 and taken straight back out: *"close that, local is good enough."*
+ *
+ * The failure that prompted it is real and is accepted with eyes open: point the kits folder at a
+ * synced drive and the KITS travel while the prices they were costed against do not, so one kit can
+ * total differently on two machines with nothing on screen saying why. The answer if it ever
+ * matters is the one they already use for everything else — *"we can share the zip file of that
+ * json list folder if we ever need to"* — a folder they trust, not a sync mechanism this app would
+ * have to own and get wrong.
+ *
+ * Do not move it again without asking. The reason it looks wrong is written down here.
+ */
 export const PRICE_EDITS_FILE =
   process.env.WW_PRICE_EDITS ?? path.join(userDataDir(), "price-edits.json");
 
