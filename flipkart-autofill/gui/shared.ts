@@ -147,7 +147,16 @@ export interface Delivery {
   claimedNote: string;
   countedNote: string;
   picks: Record<string, string>;
-  lines: { key: string | null; name: string; qty: number; unit: string }[];
+  lines: {
+    key: string | null;
+    name: string;
+    qty: number;
+    unit: string;
+    /** What he claimed for this line, beside what we counted. Null: he did not list it. */
+    claimed?: number | null;
+    /** The unit he wrote, when it differed from ours. */
+    claimedUnit?: string;
+  }[];
 }
 
 /** One material's stock: what came in, what the packing ate, what is left. All in PIECES. */

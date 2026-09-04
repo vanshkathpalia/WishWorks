@@ -271,7 +271,28 @@ export interface Delivery {
    * What actually came in. **The counted figure, not the claimed one** — the count is the one
    * somebody did with their hands, and the claim is what it is checked against.
    */
-  lines: { key: string | null; name: string; qty: number; unit: string }[];
+  lines: {
+    key: string | null;
+    name: string;
+    /** What we counted — the figure the shelf is built from. */
+    qty: number;
+    unit: string;
+    /**
+     * What HE claimed for this line, kept beside what we counted.
+     *
+     * Vansh, 2026-09-04: *"the one going in final delivery is what I say at the end — but that
+     * delivery should have flagged the difference between what he says vs me, because it is
+     * getting finalised and saved."* The count still decides the shelf; the claim rides along, so
+     * a saved delivery can still answer *what did he say about this one* months later. Both notes
+     * are stored whole as well, but a note is prose — this is the difference, per material, after
+     * the matching and the human's picks have been applied to it.
+     *
+     * Null when he did not list it at all, which is not the same as claiming zero.
+     */
+    claimed?: number | null;
+    /** The unit each side wrote, when they differed - 50 pcs against 5 pkt. */
+    claimedUnit?: string;
+  }[];
 }
 
 export async function listDeliveries(): Promise<Delivery[]> {

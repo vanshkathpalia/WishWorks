@@ -18,8 +18,9 @@
  *   counted number stays editable, and a pick is remembered so the next delivery matches itself.
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Delivery, OnHand, TallyRow } from "../shared.js";
+import { MaterialPicker } from "./ui.js";
 
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -140,6 +141,9 @@ export function Stock({ n }: { n: number }) {
         name: r.name,
         qty: edits[r.name] ?? r.counted ?? r.claimed ?? 0,
         unit: r.unit,
+        // The claim rides along with the count, so the saved delivery still knows what he said.
+        claimed: r.claimed,
+        ...(r.claimedUnit && r.claimedUnit !== r.countedUnit ? { claimedUnit: r.claimedUnit } : {}),
       })),
     };
     void window.ww.saveDelivery(d).then(() => {
@@ -177,6 +181,16 @@ export function Stock({ n }: { n: number }) {
    * Case and spacing are ignored on both sides, because the supplier does not capitalise — Vansh:
    * *"he has not cared about 1st letter capital, maybe using computer."*
    */
+  /** The price list grouped by category, which is the shape the shared picker takes. */
+  const byCategory = useMemo(() => {
+    const groups = new Map<string, { category: string; material: string }[]>();
+    for (const m of materials) {
+      if (!groups.has(m.category)) groups.set(m.category, []);
+      groups.get(m.category)!.push({ category: m.category, material: m.name });
+    }
+    return [...groups].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [materials]);
+
   const toOrder = (stock?.onHand ?? []).filter((r) => r.order);
   const asking = (stock?.onHand ?? []).filter((r) => r.needsPackSize);
 
@@ -320,60 +334,115 @@ export function Stock({ n }: { n: number }) {
             )}
           </div>
 
-          <table className="rows inv-table">
-            <thead>
-              <tr>
-                <th>As written</th>
-                <th>Which material</th>
-                <th>He says</th>
-                <th>You counted</th>
-                <th>Unit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((r) => (
-                <tr key={r.name} className={r.mismatch ? "bad-row" : ""}>
-                  <td>
-                    {r.name}
-                    <br />
-                    <Band row={r} />
-                  </td>
-                  <td>
-                    {/* Every row on the price list, not just the top guesses — a wrong match and a
-                        missing one are both fixed here, and the guesses are only a head start. */}
-                    <select value={r.key ?? ""} onChange={(e) => pick(r.name, e.target.value)}>
-                      <option value="">— nothing on the list —</option>
-                      {materials.map((m) => (
-                        <option key={m.key} value={m.key}>
-                          {m.name} · {m.category}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className={r.counted === null ? "strong" : ""}>{r.claimed ?? "—"}</td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      placeholder={r.counted === null ? "—" : ""}
-                      value={edits[r.name] ?? r.counted ?? ""}
-                      onChange={(e) =>
-                        setEdits({ ...edits, [r.name]: Number(e.target.value || 0) })
-                      }
-                    />
-                  </td>
-                  <td className="muted">{r.unit}</td>
-                </tr>
-              ))}
-              {shown.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="muted">
-                    Nothing matches “{find}”. The search covers what he wrote and what it matched.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {/**
+            * **Four groups, not one list of 84 rows.** Vansh, looking at the real thing: *"this is
+            * not telling us what I mentioned extra and what he does"* — one sorted table made
+            * *only he listed it* and *we disagree* look like the same kind of row, when only the
+            * second is a problem. The order is the order of what it costs you to ignore.
+            */}
+          {[
+            {
+              title: "Needs a decision",
+              why: "The two of you do not agree, or you counted in units that cannot be compared.",
+              rows: shown.filter((r) => r.mismatch || (r.unitsDiffer && r.agreesInPieces === null)),
+            },
+            {
+              title: "Only on his note",
+              why: "He says he sent it and your count does not mention it. If both notes are about the same delivery, this is what to check on the shelf.",
+              rows: shown.filter((r) => r.claimed !== null && r.counted === null),
+            },
+            {
+              title: "Only on your count",
+              why: "You have it and his note does not list it — an earlier delivery, or something he forgot to write.",
+              rows: shown.filter((r) => r.claimed === null && r.counted !== null),
+            },
+            {
+              title: "Agreed",
+              why: "Both notes say the same number. Nothing to do.",
+              rows: shown.filter((r) => r.claimed !== null && r.counted !== null && !r.mismatch
+                && !(r.unitsDiffer && r.agreesInPieces === null)),
+            },
+          ].filter((g) => g.rows.length > 0).map((g) => (
+            <div key={g.title} className="tally-group">
+              <h3>
+                {g.title}
+                <small>{g.rows.length} · {g.why}</small>
+              </h3>
+              <table className="rows inv-table">
+                <thead>
+                  <tr>
+                    <th>As written</th>
+                    <th>Which material</th>
+                    <th>He says</th>
+                    <th>You counted</th>
+                    <th>Unit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.rows.map((r) => (
+                    <tr key={r.name} className={r.mismatch ? "bad-row" : ""}>
+                      <td>
+                        {r.name}
+                        <br />
+                        <Band row={r} />
+                      </td>
+                      <td>
+                        {/**
+                          * **The closest row, one click away.** Measured on Vansh's real notes: the
+                          * right answer for an unmatched line is usually its top candidate at
+                          * 50-57%, just under the 60% floor — `cocomellon set` -> Cocomelon Set at
+                          * 57%, `peppa` -> Peppa Pig Set at 57%. The floor is right to keep (a
+                          * quiet wrong match is the one thing worse than a blank), but burying the
+                          * good guess in a list of 178 made every one of them a hunt.
+                          */}
+                        {r.key === null && r.choices[0] && (
+                          <button
+                            className="tiny take-closest"
+                            onClick={() =>
+                              pick(r.name, `${r.choices[0].material.category}|${r.choices[0].material.material}`)
+                            }
+                          >
+                            use {r.choices[0].material.material} · {Math.round(r.choices[0].score * 100)}%
+                          </button>
+                        )}
+                        {/* The SAME control Cost a kit uses — type to search, near misses first.
+                            It was a plain `<select>` here, which opens 178 rows over half the
+                            screen and can only be searched by first letter. */}
+                        <MaterialPicker
+                          id={`tally-${r.name}`}
+                          name={r.key ? (r.key.split("|")[1] ?? "") : ""}
+                          flagged={r.key !== null && r.score < 0.85}
+                          choices={r.choices}
+                          byCategory={byCategory}
+                          onPick={(k) => pick(r.name, k)}
+                        />
+                      </td>
+                      <td className={r.counted === null ? "strong" : ""}>{r.claimed ?? "—"}</td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          placeholder={r.counted === null ? "—" : ""}
+                          value={edits[r.name] ?? r.counted ?? ""}
+                          onChange={(e) => setEdits({ ...edits, [r.name]: Number(e.target.value || 0) })}
+                        />
+                      </td>
+                      <td className="muted">
+                        {r.unitsDiffer
+                          ? `${r.claimedUnit || "?"} vs ${r.countedUnit || "?"}`
+                          : r.unit}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          {shown.length === 0 && (
+            <p className="muted">
+              Nothing matches “{find}”. The search covers what he wrote and what it matched.
+            </p>
+          )}
 
           <div className="two-picks">
             {/* Saves EVERY row, not the ones on screen — a filter is for looking, and a delivery

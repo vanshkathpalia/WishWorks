@@ -7,7 +7,7 @@
  * every dialog opens where that step was last used.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { Account, FolderKey, Listing, StepId } from "../shared.js";
 import { isForAccount } from "../shared.js";
 
@@ -272,5 +272,118 @@ export function NotBuilt({ n, label, why }: { n: number; label: string; why: str
       </header>
       <p className="muted">Not in the app yet — it is the next thing being built.</p>
     </section>
+  );
+}
+
+
+/** A row as this picker needs it — a name, its group, and a price when there is one. */
+export interface PickRow {
+  category: string;
+  material: string;
+  paise?: number | null;
+}
+
+const key = (m: PickRow) => `${m.category}|${m.material}`;
+const rupees = (paise: number) => `₹${(paise / 100).toFixed(2).replace(/\.00$/, "")}`;
+
+/**
+ * Pick a material by TYPING, not by scrolling 178 rows.
+ *
+ * **Shared, because Raw stock had a plain `<select>` and it showed.** Vansh, with the tally's
+ * dropdown open over half the screen: *"the list opening here is not as good as the cost a kit
+ * searching one."* It was the same job — *which row is this?* — answered by two different controls,
+ * and only one of them could be searched. Props are structural rather than `Material`, so the
+ * tally can pass its own rows without inventing prices it does not have.
+ *
+ * A `<select>` can only be searched by the first letters of a name, so finding *Silver Confetti
+ * Balloon* meant knowing it starts with "Silver" and scrolling past everything else that does.
+ * `<input list>` is the same control with substring search, and it is native — no combobox
+ * library, no keyboard handling, no popup positioning of our own.
+ *
+ * **It cannot be left in a half-typed state.** Only a name that IS a row commits; anything else is
+ * held as text and thrown away on blur, so the box always goes back to saying what the line is
+ * actually costed as. An empty box is the one other real answer — *not on the price list* — and
+ * commits as such.
+ */
+export function MaterialPicker({
+  id,
+  name,
+  flagged,
+  choices,
+  byCategory,
+  onPick,
+}: {
+  id: string;
+  /** The material this line is costed as right now, or "" for none. */
+  name: string;
+  flagged: boolean;
+  /** The near misses the matcher already found, best first. */
+  choices: { material: PickRow; score: number }[];
+  byCategory: [string, PickRow[]][];
+  onPick: (key: string) => void;
+}) {
+  /** What is being typed, while it is not yet a row. `null` means the box shows `name`. */
+  const [typed, setTyped] = useState<string | null>(null);
+  const byName = useMemo(
+    () => new Map(byCategory.flatMap(([, rows]) => rows.map((m) => [m.material.toLowerCase(), m]))),
+    [byCategory],
+  );
+  // The near misses go first so they are what an unopened list offers; showing them again inside
+  // their category would just be the same row twice.
+  const ranked = choices.map((c) => c.material.material);
+
+  function commit(text: string) {
+    const hit = byName.get(text.trim().toLowerCase());
+    if (hit) {
+      onPick(key(hit));
+      setTyped(null);
+      return;
+    }
+    if (text.trim() === "") {
+      onPick("");
+      setTyped(null);
+      return;
+    }
+    setTyped(text);
+  }
+
+  return (
+    <>
+      <input
+        // Spelt out, not left to default: the app's input styling is `input[type="text"]`, and an
+        // attribute selector does not match an attribute that is not there. Without it this box
+        // renders as a white browser default in a dark panel.
+        type="text"
+        className={flagged ? "loose" : ""}
+        list={id}
+        value={typed ?? name}
+        placeholder={name ? "type to search, or pick from the list" : "— not on the price list —"}
+        spellCheck={false}
+        onChange={(e) => commit(e.target.value)}
+        // Clicking in empties the box so the list opens on EVERYTHING. The browser filters a
+        // datalist by whatever is already in the field, so a line matched to "Silver Confetti
+        // Balloon" would otherwise open a list of exactly that one row — useless for the case this
+        // control exists for, which is not remembering what the list holds. Nothing is committed
+        // here: blur puts the current match straight back.
+        onFocus={() => setTyped("")}
+        onBlur={() => setTyped(null)}
+      />
+      <datalist id={id}>
+        {choices.map((c) => (
+          <option key={`c-${key(c.material)}`} value={c.material.material}>
+            closest · {Math.round(c.score * 100)}%
+          </option>
+        ))}
+        {byCategory.map(([category, rows]) =>
+          rows
+            .filter((m) => !ranked.includes(m.material))
+            .map((m) => (
+              <option key={key(m)} value={m.material}>
+                {category} · {m.paise === null || m.paise === undefined ? "no price" : rupees(m.paise)}
+              </option>
+            )),
+        )}
+      </datalist>
+    </>
   );
 }
