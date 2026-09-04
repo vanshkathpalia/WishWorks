@@ -141,6 +141,27 @@ export interface TallyRow {
   unit: string;
   /** The two lists disagree about the number. Only meaningful when both sides have one. */
   mismatch: boolean;
+  /** The unit HE wrote, and the one you wrote. Empty when that side did not say. */
+  claimedUnit: string;
+  countedUnit: string;
+  /**
+   * **The two of you counted in different units, so the numbers were never comparable.**
+   *
+   * Vansh, 2026-09-04, on `silver love foil pack — he says 50, you counted 5`: *"these are the
+   * same thing, and this was the issue I was talking about — 1 pkt may have 10 pcs for something
+   * and sometimes 100 pcs for another. We have to flag it."* He wrote 50 PIECES, Vansh counted 5
+   * PACKETS, and subtracting one from the other produced a 45-unit shortfall that never existed.
+   *
+   * It is its own state and not a `mismatch`, because the two need opposite actions: a mismatch
+   * means somebody is short, and this means somebody should say how many are in a packet. When
+   * the price list knows (`piecesPerPack`), `agreesInPieces` settles it outright.
+   */
+  unitsDiffer: boolean;
+  /**
+   * True when the two sides ARE the same delivery once converted, false when they genuinely
+   * differ, and null when nothing knows how many pieces are in a packet.
+   */
+  agreesInPieces: boolean | null;
 }
 
 /**
@@ -184,10 +205,13 @@ export function tally(
     // not evidence that they are the same thing.
     const id = r.key ?? `?${line.name.toLowerCase()}`;
     const row = rows.get(id) ?? {
-      name: line.name, ...r, claimed: null, counted: null, unit: line.unit, mismatch: false,
+      name: line.name, ...r, claimed: null, counted: null, unit: line.unit,
+      claimedUnit: "", countedUnit: "", mismatch: false, unitsDiffer: false, agreesInPieces: null,
     };
     row[side] = (row[side] ?? 0) + line.qty;
     if (row.unit === "") row.unit = line.unit;
+    if (side === "claimed" && row.claimedUnit === "") row.claimedUnit = line.unit;
+    if (side === "counted" && row.countedUnit === "") row.countedUnit = line.unit;
     // The supplier's wording wins the label, because his note is the one being checked.
     if (side === "claimed") row.name = line.name;
     rows.set(id, row);
@@ -195,8 +219,32 @@ export function tally(
   for (const l of claimed) add(l, "claimed");
   for (const l of counted) add(l, "counted");
 
+  const perPack = new Map(
+    materials.filter((m) => m.piecesPerPack).map((m) => [materialKey(m), m.piecesPerPack!]),
+  );
+
   return [...rows.values()]
-    .map((r) => ({ ...r, mismatch: r.claimed !== null && r.counted !== null && r.claimed !== r.counted }))
+    .map((r) => {
+      const both = r.claimed !== null && r.counted !== null;
+      // A pack unit against a piece unit is not a disagreement about the NUMBER, it is two
+      // different questions being answered. `packs` is the same test the shelf uses.
+      const differ = both && r.claimedUnit !== "" && r.countedUnit !== ""
+        && packUnit(r.claimedUnit) !== packUnit(r.countedUnit);
+      const per = r.key === null ? undefined : perPack.get(r.key);
+      const inPieces = (n: number, unit: string) =>
+        per !== undefined && packUnit(unit) ? n * per : n;
+      const agrees = !differ || per === undefined
+        ? null
+        : inPieces(r.claimed!, r.claimedUnit) === inPieces(r.counted!, r.countedUnit);
+      return {
+        ...r,
+        unitsDiffer: differ,
+        agreesInPieces: agrees,
+        // A row that only LOOKS short because of units is not reported as short. When the pack
+        // size is known it is settled either way; when it is not, the question is the unit.
+        mismatch: both && r.claimed !== r.counted && (!differ || agrees === false),
+      };
+    })
     // Everything needing a decision first: a disagreement, then anything one side missed, then
     // anything the matcher was unsure of. A tally is a worklist, not a report.
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
@@ -204,6 +252,7 @@ export function tally(
 
 const rank = (r: TallyRow): number =>
   r.mismatch ? 0
+  : r.unitsDiffer && r.agreesInPieces === null ? 0.5
   : r.claimed === null || r.counted === null ? 1
   : r.key === null ? 2
   : r.score < SURE ? 3
@@ -295,6 +344,9 @@ export const REORDER_WEEKS = 2;
 
 /** Units that mean a PACK of something, not one of it. Anything else is counted as pieces. */
 const PACK_UNIT = /^(pkt|pkts|packet|packets|petti|peti|bandal|bandel|bundle)$/;
+
+/** Is this unit a pack of things rather than one thing? Used by the tally and by the shelf. */
+const packUnit = (unit: string): boolean => PACK_UNIT.test(unit);
 
 /**
  * What is on the shelf: deliveries in, packing out, **counted in pieces**.

@@ -129,6 +129,16 @@ export interface TallyRow {
   counted: number | null;
   unit: string;
   mismatch: boolean;
+  /** The unit he wrote, and the one you wrote. Empty when that side did not say. */
+  claimedUnit: string;
+  countedUnit: string;
+  /**
+   * You counted in different units, so the two numbers were never comparable — 50 pcs against
+   * 5 pkt. Its own state, not a shortfall: it asks how many are in a packet.
+   */
+  unitsDiffer: boolean;
+  /** Same delivery once converted, genuinely different, or null when no pack size is known. */
+  agreesInPieces: boolean | null;
 }
 
 /** A delivery once checked — the only thing stored. Stock itself is derived. */

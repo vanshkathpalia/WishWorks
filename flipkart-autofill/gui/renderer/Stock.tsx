@@ -40,6 +40,15 @@ function Band({ row }: { row: TallyRow }) {
   return <span className="muted">matched</span>;
 }
 
+/**
+ * Which group a not-on-the-list name probably belongs in.
+ *
+ * The matcher already found the closest rows; the closest one's group is a far better default than
+ * blank — *green peanut banner* has no row but its nearest is a Banner. It is only a DEFAULT: the
+ * picker beside it is what decides, and a wrong group is now fixable in place anyway.
+ */
+const guessGroup = (r: TallyRow): string => r.choices[0]?.material.category ?? "";
+
 export function Stock({ n }: { n: number }) {
   const [date, setDate] = useState(iso(new Date()));
   const [claimedNote, setClaimedNote] = useState("");
@@ -53,6 +62,48 @@ export function Stock({ n }: { n: number }) {
   const [saved, setSaved] = useState<string | null>(null);
   const [find, setFind] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** Which group each not-on-the-list name would go into, keyed by the wording it was written in. */
+  const [newGroups, setNewGroups] = useState<Record<string, string>>({});
+  const [addingAll, setAddingAll] = useState(false);
+
+  /**
+   * Put every unmatched line on the price list in one go.
+   *
+   * Vansh, 2026-09-04: *"I thought we did make an automatic listing logic after taking 1
+   * verification — these many new inventory items were found this time, do you want to have them
+   * in the list."* His 44-line count had **16** of them; adding those one at a time is how a
+   * screen stops being used.
+   *
+   * **One confirmation, never one click.** Every row goes into the file both machines ship with,
+   * so the batch is shown first with the group each will land in — and the group is a PICKER, for
+   * the same reason the add form's is: a typed one put a category called `2 age foil` in the list.
+   *
+   * **No price is invented.** They land as *price not set*, which the panel already draws in
+   * orange and counts as uncosted — a real material nobody has priced, never a free one.
+   */
+  async function addAllMissing() {
+    const missing = (rows ?? []).filter((r) => r.key === null);
+    if (missing.length === 0) return;
+    if (!window.confirm(
+      `Add ${missing.length} material${missing.length === 1 ? "" : "s"} to the price list?\n\n` +
+      `They go into the list both machines use, with no price set — you fill those in when you ` +
+      `know them.`,
+    )) return;
+
+    setAddingAll(true);
+    let added = 0;
+    const failed: string[] = [];
+    for (const r of missing) {
+      const category = (newGroups[r.name] ?? guessGroup(r)).trim();
+      if (category === "") { failed.push(`${r.name} (no group chosen)`); continue; }
+      const res = await window.ww.addMaterial({ category, material: r.name.trim(), paise: null });
+      if (res.ok) added++;
+      else failed.push(`${r.name} — ${res.message}`);
+    }
+    setAddingAll(false);
+    setError(failed.length === 0 ? null : `Added ${added}. Not added: ${failed.join("; ")}`);
+    run(); // re-tally, so what just landed shows as matched
+  }
 
   const loadStock = useCallback(() => {
     void window.ww.stock().then(setStock, (e: Error) => setError(e.message));
@@ -97,7 +148,23 @@ export function Stock({ n }: { n: number }) {
     }, (e: Error) => setError(e.message));
   };
 
-  const needsALook = (rows ?? []).filter((r) => r.mismatch || r.key === null || r.claimed === null || r.counted === null).length;
+  /**
+   * **Four different questions, counted separately.**
+   *
+   * They used to be one number, and on Vansh's real pair of notes it read *"69 need a look"* —
+   * which is not a worklist, it is a wall, and he said so: *"in this way this will be a lot of
+   * work for me mate."* 58 of those 69 were rows only ONE of the two notes mentioned, and that is
+   * only alarming if both notes describe the SAME delivery. His did not: he pasted what he has in
+   * stock against a specific note from 19 August, so of course most rows appear once.
+   *
+   * Only two of these are chores: a real shortfall, and a unit nobody can convert. The rest are
+   * facts about the pair of notes, and they are reported as facts.
+   */
+  const short = (rows ?? []).filter((r) => r.mismatch);
+  const unitQ = (rows ?? []).filter((r) => r.unitsDiffer && r.agreesInPieces === null);
+  const oneSided = (rows ?? []).filter((r) => r.claimed === null || r.counted === null);
+  const unlisted = (rows ?? []).filter((r) => r.key === null);
+  const needsALook = short.length + unitQ.length;
 
   /**
    * Find a row without scrolling sixty of them.
@@ -185,14 +252,58 @@ export function Stock({ n }: { n: number }) {
         <>
           <p className={needsALook > 0 ? "warnpill block" : "muted"}>
             {rows.length} materials read.{" "}
-            {needsALook > 0
-              ? `${needsALook} need a look — they are at the top.`
-              : "Both lists agree and every row matched."}
+            {needsALook === 0
+              ? "Nothing is short and every unit lines up."
+              : [
+                  short.length > 0 && `${short.length} short`,
+                  unitQ.length > 0 && `${unitQ.length} counted in different units`,
+                ].filter(Boolean).join(" · ") + " — at the top."}
             <small>
+              {oneSided.length > 0 && (
+                <>
+                  <b>{oneSided.length}</b> appear on only one of the two notes. That is normal
+                  unless both notes are about the <i>same</i> delivery — a stock list against one
+                  day&apos;s note will look like this and is not a shortfall.{" "}
+                </>
+              )}
               A number in <b>bold</b> is one only one of you listed. Blank is <i>not counted</i>,
               which is not the same as none arriving.
             </small>
           </p>
+
+          {/* The batch offer. It counts every unmatched row, not the ones on screen: a filter is
+              for looking, and adding only what is visible would quietly leave the rest out. */}
+          {unlisted.length > 0 && (
+            <div className="add-missing">
+              <p className="warnpill block">
+                <b>{unlisted.length} of these are not on the price list</b>{" "}
+                — until they are, they cannot be costed and they will not come off the shelf.
+                <small>
+                  They go in with no price. Check the group on each one first; the group is a guess
+                  from the closest row we did find.
+                </small>
+              </p>
+              <ul>
+                {unlisted.map((r) => (
+                  <li key={r.name}>
+                    <span className="lid">{r.name}</span>
+                    <select
+                      value={newGroups[r.name] ?? guessGroup(r)}
+                      onChange={(e) => setNewGroups({ ...newGroups, [r.name]: e.target.value })}
+                    >
+                      <option value="">— which group? —</option>
+                      {[...new Set(materials.map((m) => m.category))].sort().map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </li>
+                ))}
+              </ul>
+              <button className="go" disabled={addingAll} onClick={() => void addAllMissing()}>
+                {addingAll ? "Adding…" : "Add them all to the price list"}
+              </button>
+            </div>
+          )}
 
           <div className="two-picks">
             <input
