@@ -356,6 +356,8 @@ export function Inventory({ n }: { n: number }) {
   const [priceNote, setPriceNote] = useState<string | null>(null);
   /** The line index whose *add to the price list* form is open, and what has been typed into it. */
   const [adding, setAdding] = useState<number | null>(null);
+  /** True while the add form is asking for a brand-new group name rather than offering the list. */
+  const [newCategory, setNewCategory] = useState(false);
   const [draft, setDraft] = useState({ name: "", category: "", price: "" });
   /** Counts corrected by hand, by line index. The reading itself is never edited. */
   const [counts, setCounts] = useState<Record<number, number>>({});
@@ -1186,6 +1188,7 @@ export function Inventory({ n }: { n: number }) {
                         className="tiny"
                         onClick={() => {
                           setAdding(i);
+                          setNewCategory(false);
                           setDraft({ name: l.item, category: "", price: "" });
                         }}
                       >
@@ -1200,16 +1203,40 @@ export function Inventory({ n }: { n: number }) {
                           placeholder="name for the list"
                           onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
                         />
-                        {/* Existing categories offered, typing a new one allowed: a new product
-                            can be the first of its kind, and forcing it into the nearest existing
-                            group is how a scheme quietly stops describing the stock. */}
-                        <input
-                          type="text"
-                          list="mat-categories"
-                          value={draft.category}
-                          placeholder="category"
-                          onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
-                        />
+                        {/**
+                          * **A CHOICE, not a text box.** It was an `<input list=…>`, which looks
+                          * like a dropdown, accepts anything, and writes whatever it is given into
+                          * the shipped price list — Vansh typed the line's description, `2 age
+                          * foil`, and that became a real category sitting between Balloon and
+                          * Banner for every kit on both machines.
+                          *
+                          * A new category is still possible, because a new product really can be
+                          * the first of its kind — but it is now a deliberate act with its own
+                          * box, not something you do by mistyping into what looked like a picker.
+                          */}
+                        <select
+                          value={newCategory ? "\u0000new" : draft.category}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setNewCategory(v === "\u0000new");
+                            setDraft((d) => ({ ...d, category: v === "\u0000new" ? "" : v }));
+                          }}
+                        >
+                          <option value="">— which group? —</option>
+                          {byCategory.map(([category]) => (
+                            <option key={category} value={category}>{category}</option>
+                          ))}
+                          <option value={"\u0000new"}>+ a group that does not exist yet…</option>
+                        </select>
+                        {newCategory && (
+                          <input
+                            type="text"
+                            autoFocus
+                            value={draft.category}
+                            placeholder="name the new group"
+                            onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
+                          />
+                        )}
                         <input
                           type="number"
                           min={0}
@@ -1225,7 +1252,13 @@ export function Inventory({ n }: { n: number }) {
                         >
                           add
                         </button>
-                        <button className="tiny" onClick={() => setAdding(null)}>
+                        <button
+                          className="tiny"
+                          onClick={() => {
+                            setAdding(null);
+                            setNewCategory(false);
+                          }}
+                        >
                           cancel
                         </button>
                         {/* Blank is allowed and is not the same as free: it lands as "no price

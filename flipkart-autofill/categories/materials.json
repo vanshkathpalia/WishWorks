@@ -513,10 +513,12 @@
     },
     {
       "category": "Foil Balloon",
-      "material": "Welcome Baby Foil",
+      "material": "Pink Welcome Baby Foil",
       "paise": 3500,
       "aka": [
-        "wb foil"
+        "wb foil",
+        "Welcome Baby Foil",
+        "Blue Welcome Baby Foil"
       ]
     },
     {
@@ -903,63 +905,100 @@
       ]
     },
     {
-      "category": "Curtain",
-      "material": "Blue Metallic Curtain",
+      "category": "Banner",
+      "material": "Happy Anniversary Golden benting",
+      "paise": 3500
+    },
+    {
+      "category": "Fringes",
+      "material": "Blue Metallic Fringes",
       "paise": 400,
       "aka": [
-        "BLUE MATTALIC Curtain"
+        "BLUE MATTALIC Curtain",
+        "Blue Metallic Curtain"
       ]
     },
     {
-      "category": "Curtain",
-      "material": "Blue Pastel Curtain",
+      "category": "Fringes",
+      "material": "Blue Pastel Fringes",
       "paise": 400,
       "aka": [
-        "BLUE Pestle Curtain"
+        "BLUE Pestle Curtain",
+        "Blue Pastel Curtain"
       ]
     },
     {
-      "category": "Curtain",
-      "material": "Golden Curtain",
-      "paise": 400
-    },
-    {
-      "category": "Curtain",
-      "material": "Pink Metallic Curtain",
-      "paise": 400
-    },
-    {
-      "category": "Curtain",
-      "material": "Pink Pastel Curtain",
+      "category": "Fringes",
+      "material": "Golden Fringes",
       "paise": 400,
       "aka": [
-        "Pink Pestle Curtain"
+        "Golden Curtain"
       ]
     },
     {
-      "category": "Curtain",
-      "material": "Purple Curtain",
-      "paise": 400
+      "category": "Fringes",
+      "material": "Pink Metallic Fringes",
+      "paise": 400,
+      "aka": [
+        "Pink Metallic Curtain"
+      ]
     },
     {
-      "category": "Curtain",
-      "material": "Red Curtain",
-      "paise": 400
+      "category": "Fringes",
+      "material": "Pink Pastel Fringes",
+      "paise": 400,
+      "aka": [
+        "Pink Pestle Curtain",
+        "Pink Pastel Curtain"
+      ]
     },
     {
-      "category": "Curtain",
-      "material": "Rose Curtain",
-      "paise": 400
+      "category": "Fringes",
+      "material": "Purple Fringes",
+      "paise": 400,
+      "aka": [
+        "Purple Curtain"
+      ]
     },
     {
-      "category": "Curtain",
-      "material": "Rose Gold Curtain",
-      "paise": 400
+      "category": "Fringes",
+      "material": "Red Fringes",
+      "paise": 400,
+      "aka": [
+        "Red Curtain"
+      ]
     },
     {
-      "category": "Curtain",
-      "material": "Silver Curtain",
-      "paise": 400
+      "category": "Fringes",
+      "material": "Rose Fringes",
+      "paise": 400,
+      "aka": [
+        "Rose Curtain"
+      ]
+    },
+    {
+      "category": "Fringes",
+      "material": "Rose Gold Fringes",
+      "paise": 400,
+      "aka": [
+        "Rose Gold Curtain"
+      ]
+    },
+    {
+      "category": "Fringes",
+      "material": "Silver Fringes",
+      "paise": 400,
+      "aka": [
+        "Silver Curtain"
+      ]
+    },
+    {
+      "category": "Fringes",
+      "material": "Black Fringes",
+      "paise": 400,
+      "aka": [
+        "Black Frings"
+      ]
     },
     {
       "category": "Themed Set",
@@ -1196,8 +1235,11 @@
     },
     {
       "category": "Decoration",
-      "material": "Car Theme Topper",
-      "paise": null
+      "material": "Car Theme Set of 5",
+      "paise": 3500,
+      "aka": [
+        "Car Theme Topper"
+      ]
     },
     {
       "category": "Decoration",
@@ -1264,7 +1306,7 @@
     {
       "category": "Decoration",
       "material": "LED String Light, 7 m",
-      "paise": null,
+      "paise": 1500,
       "size": "7m",
       "_note": "FLAG: not on this delivery note. Added because Vansh's partner mentions a 7 m packing — *\"maybe two type of packing we have for light, 7 and 15, maybe 10 too — for now have them diff.\"* Confirm it is real before anything is costed against it."
     },
@@ -1379,6 +1421,17 @@
       "aka": [
         "8×10 meesho barcode",
         "8x10 meesho barcode"
+      ]
+    },
+    {
+      "category": "Age Foil",
+      "material": "Age Foil",
+      "paise": 1000,
+      "aka": [
+        "Age Foil \"Age 1\"",
+        "Age Foil \"Age 2\"",
+        "Age Foil \"Age ...\"",
+        "2 age foil"
       ]
     }
   ],

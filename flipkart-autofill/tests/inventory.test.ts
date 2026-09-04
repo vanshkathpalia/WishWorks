@@ -462,7 +462,9 @@ describe("a real ChatGPT reading, against the real shipped price list", () => {
       "Pink Pastel Balloon",
       "HBD Banner",
       "Kitty Foil", // "Balloon" here is the CATEGORY spelled out, not a missing word
-      "Pink Metallic Curtain",
+      // Renamed to Fringes 2026-09-03 and STILL MATCHED here — the reading under test says
+      // "Pink Metallic Curtain", so this line is the proof that `aka` carried the old name.
+      "Pink Metallic Fringes",
       "Glue Tape",
       "Arch Tape",
     ]);
