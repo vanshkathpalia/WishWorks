@@ -781,7 +781,8 @@ async function ordersView(on = today()) {
 
   return {
     today: on,
-    outstanding: outstanding(ledgers.flatMap((l) => l.subOrders)).map(({ sku, qty, byMarket }) => ({ sku, qty, byMarket })),
+    outstanding: outstanding(ledgers.flatMap((l) => l.subOrders))
+      .map(({ sku, qty, byMarket, byDay, oldest }) => ({ sku, qty, byMarket, byDay, oldest })),
     summary: daySummary(ledgers, on),
     monthPay: Object.entries(credit)
       .map(([name, qty]) => ({ name, qty: Number(qty.toFixed(2)) }))

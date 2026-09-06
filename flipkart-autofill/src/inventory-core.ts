@@ -392,7 +392,16 @@ export function editMaterial(
         `tie for ever, and a tie is settled by file order.`,
       );
     }
-    const aka = [...(row.aka ?? [])];
+    /**
+     * The old name goes in — and **the new one comes out**, which is the half that was missing.
+     *
+     * Rename A to B and `A` is added. Rename B back to A later and `B` is added, but `A` is still
+     * sitting in the list from the first rename — so the row now claims its OWN name as an alias
+     * and ties with itself for ever. Vansh did exactly that on 2026-09-06 experimenting with a
+     * white banner, and it put two clashes into the shipped price list, which the list's own test
+     * caught. A tie is settled by file order, which is a coin toss (WW-162).
+     */
+    const aka = [...(row.aka ?? [])].filter((a) => normalize(a) !== normalize(rename));
     if (!aka.some((a) => normalize(a) === normalize(row.material))) aka.push(row.material);
     applyEdit(key, { ...patch, material: rename, aka }, dir, editsFile);
     return loadMaterials(dir, editsFile);

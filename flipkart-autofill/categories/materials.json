@@ -42,7 +42,8 @@
       "paise": 80,
       "aka": [
         "BLUE PASTEL BALLOONS"
-      ]
+      ],
+      "size": "10\""
     },
     {
       "category": "Balloon",
@@ -191,7 +192,8 @@
       "paise": 80,
       "aka": [
         "PINK PASTEL BALLOONS"
-      ]
+      ],
+      "size": "10\""
     },
     {
       "category": "Balloon",
@@ -207,7 +209,8 @@
       "paise": 80,
       "aka": [
         "PURPLE (LIGHT) BALLOON"
-      ]
+      ],
+      "size": "10\""
     },
     {
       "category": "Balloon",
@@ -295,6 +298,17 @@
         "pink chrome"
       ],
       "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
+    },
+    {
+      "category": "Balloon",
+      "material": "Yellow Balloons",
+      "paise": 80,
+      "size": "10\""
+    },
+    {
+      "category": "Balloon",
+      "material": "Pastel Mint",
+      "paise": 80
     },
     {
       "category": "Foil Balloon",
@@ -699,6 +713,11 @@
       "paise": 400
     },
     {
+      "category": "Foil Balloon",
+      "material": "Cheers Foil Balloons",
+      "paise": 600
+    },
+    {
       "category": "Banner",
       "material": "6 Month Birthday Banner",
       "paise": 1000
@@ -772,6 +791,16 @@
         "HBD banner blue",
         "blue happy birthday banner",
         "happy birthday banner blue"
+      ]
+    },
+    {
+      "category": "Banner",
+      "material": "White HBD Banner",
+      "paise": 1200,
+      "aka": [
+        "HBD banner white",
+        "white happy birthday banner",
+        "happy birthday banner white"
       ]
     },
     {
@@ -1069,7 +1098,7 @@
     {
       "category": "Themed Set",
       "material": "First Birthday Set, 5 pcs",
-      "paise": null,
+      "paise": 3500,
       "aka": [
         "first birthday five pcs set"
       ],
@@ -1236,7 +1265,7 @@
     {
       "category": "Themed Set",
       "material": "Blue First Birthday Set, 5 pcs",
-      "paise": null,
+      "paise": 3500,
       "_note": "The colourless `First Birthday Set, 5 pcs` stays; the supplier sends blue and pink separately.",
       "aka": [
         "first birthday five pcs set foil blue"
@@ -1459,8 +1488,24 @@
         "Age Foil \"Age 1\"",
         "Age Foil \"Age 2\"",
         "Age Foil \"Age ...\"",
-        "2 age foil"
+        "2 age foil",
+        "Age Foil 5",
+        "Age Foil 1",
+        "Age Foil 8"
       ]
+    },
+    {
+      "category": "Age Foil",
+      "material": "5 No. Foil",
+      "paise": 1000,
+      "aka": [
+        "1 No. Foil"
+      ]
+    },
+    {
+      "category": "Age Foil",
+      "material": "8 No. Foil",
+      "paise": 1000
     }
   ],
   "_piecesPerPack": "How many PIECES come in one pack, where a material is bought as a pack. The sheet counts what a buyer sees ('16 photo props'); `paise` is the price of the pack those arrive in, and multiplying the two costed a 25 rupee kit at 400 (WW-137). Set only where the pack size is STATED IN THE NAME, plus 'Annaprashan Kit With Props' = 16 which Vansh gave. NOT guessed anywhere: a wrong number here divides a cost silently, which is the very failure it exists to prevent. Absent means bought singly, like a balloon. STILL MISSING: GTB Kit, Masha Set, Paw Patrol Topper, Annaprashan Banner Kit — nobody has said how many pieces are in those, so they still cost per piece and will read high if a sheet counts their contents."

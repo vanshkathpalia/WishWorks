@@ -79,6 +79,10 @@ function Peek({ sku }: { sku: string }) {
   );
 }
 
+/** `2026-08-19` → `19 Aug`. Short, for a chip that sits inside a queue row. */
+const showDay = (date: string) =>
+  new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
 /** `2026-08-19` → `19 Aug 2026`. The panel shows dates the way the manifest prints them. */
 const showDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -319,11 +323,14 @@ function Summary({
   summary,
   onClose,
   onUnpack,
+  onRename,
 }: {
   summary: DaySummary;
   onClose: () => void;
   /** Put a SKU back in the queue — see the *By SKU* column below. */
   onUnpack: (sku: string) => void;
+  /** Re-open naming for a batch already credited, with the current names preloaded. */
+  onRename: (sku: string, qty: number, by: string[]) => void;
 }) {
   const rows = (title: string, list: { name: string; qty: number }[]) =>
     list.length === 0 ? null : (
@@ -375,6 +382,21 @@ function Summary({
                   <li key={r.name}>
                     <span className="lid">{r.name}</span>
                     <span className="qty">{r.qty}</span>
+                    {/**
+                      * **Who is credited, and a way to change it.** Vansh, 2026-09-06: *"kavita has
+                      * done packing but its calculation is not appearing"* — 38 packets had gone in
+                      * under one name and naming was a ONE-WAY DOOR: the *nobody named yet* list
+                      * only ever offered back the batches with no name at all, so a mis-credit was
+                      * permanent. It is somebody's wages; it has to be correctable.
+                      */}
+                    <span className="who-on-it">{r.by.length > 0 ? r.by.join(", ") : "nobody named"}</span>
+                    <button
+                      className="undo"
+                      title="Change who is credited for these"
+                      onClick={() => onRename(r.name, r.qty, r.by)}
+                    >
+                      change
+                    </button>
                     <button className="undo" title="Not packed after all — put it back" onClick={() => onUnpack(r.name)}>
                       Undo
                     </button>
@@ -609,6 +631,19 @@ export function Orders() {
                     {r.byMarket.length > 1 && (
                       <em>{r.byMarket.map((m) => `${m.qty}${m.name[0].toUpperCase()}`).join(" ")}</em>
                     )}
+                    {/**
+                      * Which day these came from. Two manifests in the queue look like one pile
+                      * otherwise, and the OLD ones are the only ones that can be late — Vansh:
+                      * *"it should be separate based on order date, the breaching one."*
+                      * Only shown when it says something: one day is the ordinary case.
+                      */}
+                    {r.oldest !== "" && r.oldest < view.today && (
+                      <span className="from-day" title={r.byDay.map((d) => `${d.qty} from ${showDate(d.date)}`).join(" · ")}>
+                        {r.byDay.length > 1
+                          ? `${r.byDay[0].qty} from ${showDay(r.byDay[0].date)}, +${r.qty - r.byDay[0].qty} newer`
+                          : `from ${showDay(r.oldest)}`}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -729,6 +764,13 @@ export function Orders() {
         <Summary
           summary={view.summary}
           onClose={() => setTally(false)}
+          onRename={(target, qty, by) => {
+            // The names already on it become `chosen`, so `credit` REPLACES them rather than
+            // adding a second set beside the first — see `creditSku`'s `replacing`.
+            setNaming({ sku: target, qty });
+            setChosen(by);
+            setTally(false);
+          }}
           onUnpack={(target) => {
             // The batch being named may be the one going back; leaving that strip up would offer
             // to credit packets that no longer exist.

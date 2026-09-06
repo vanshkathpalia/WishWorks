@@ -41,7 +41,15 @@ export interface OrdersView {
    * Still to pack, by SKU, most first — with the marketplace split, because one code sells on both
    * and the two are not interchangeable: different money, and different couriers at handover.
    */
-  outstanding: { sku: string; qty: number; byMarket: { name: string; qty: number }[] }[];
+  outstanding: {
+    sku: string;
+    qty: number;
+    byMarket: { name: string; qty: number }[];
+    /** Which day's manifest each parcel came from, oldest first. */
+    byDay: { date: string; qty: number }[];
+    /** The oldest day in this row — what the queue is sorted on, because only the old can be late. */
+    oldest: string;
+  }[];
   summary: DaySummary;
   /** Packets per person this month — parcels, plus the older per-day records. */
   monthPay: { name: string; qty: number }[];
@@ -201,7 +209,8 @@ export interface DaySummary {
   unnamedBySku: { name: string; qty: number }[];
   /** Still outstanding across every month, right now. */
   left: number;
-  bySku: { name: string; qty: number }[];
+  /** Packed today, with the names already credited on each — see the tally's *change* button. */
+  bySku: { name: string; qty: number; by: string[] }[];
   byPacker: { name: string; qty: number }[];
   byCourier: { name: string; qty: number }[];
 }

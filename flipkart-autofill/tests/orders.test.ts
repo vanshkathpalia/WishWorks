@@ -172,6 +172,9 @@ describe("the parcel ledger", () => {
         sku: "ANP003",
         qty: 1,
         byMarket: [{ name: "meesho", qty: 1 }],
+        // The day it arrived on rides along, so the queue can say which parcels are the old ones.
+        byDay: [{ date: "2026-08-21", qty: 1 }],
+        oldest: "2026-08-21",
         subOrders: [expect.objectContaining({ subOrder: "3" })],
       },
     ]);

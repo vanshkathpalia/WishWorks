@@ -2458,3 +2458,13 @@ button.chosen:hover {
   background: #100e0d;
   color: var(--ink);
 }
+
+/* Which day's manifest a queue row's parcels came from. Only drawn when some are from an earlier
+   day — those are the ones that can breach their dispatch, and they sort to the top. */
+.sku-list li button .from-day {
+  display: block;
+  width: 100%;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--warn);
+}

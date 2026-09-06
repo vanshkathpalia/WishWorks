@@ -239,7 +239,16 @@ export function mergeShipments(
 /** Still to pack, grouped by SKU, most first — the list the packing screen works down. */
 export function outstanding(
   subOrders: SubOrder[],
-): { sku: string; qty: number; byMarket: { name: string; qty: number }[]; subOrders: SubOrder[] }[] {
+): {
+  sku: string;
+  qty: number;
+  byMarket: { name: string; qty: number }[];
+  /** Which day's manifest each parcel came from, oldest first. */
+  byDay: { date: string; qty: number }[];
+  /** The oldest day in this row — only the old can be late, so it is what the queue sorts on. */
+  oldest: string;
+  subOrders: SubOrder[];
+}[] {
   const by = new Map<string, SubOrder[]>();
   for (const p of subOrders) {
     if (p.packedOn) continue;
@@ -252,14 +261,30 @@ export function outstanding(
       // the money differs, and at handover the parcels go to different couriers.
       const m = new Map<string, number>();
       for (const p of ps) m.set(p.market, (m.get(p.market) ?? 0) + p.qty);
+      /**
+       * **Which day each parcel is from.** The queue is deliberately everything still to pack, not
+       * one day (WW-181) — but two days' manifests in it look like one pile, and Vansh, 2026-09-06:
+       * *"day wise separation is not there for manifest… it should be separate based on order date,
+       * the breaching one."* The oldest parcels are the ones about to miss their dispatch, and
+       * nothing on screen said which those were.
+       */
+      const days = new Map<string, number>();
+      for (const p of ps) days.set(p.firstSeen, (days.get(p.firstSeen) ?? 0) + p.qty);
+
       return {
         sku,
         qty: ps.reduce((n, p) => n + p.qty, 0),
         byMarket: [...m].map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty),
+        /** Oldest first: that is the order they have to be packed in. */
+        byDay: [...days].map(([date, qty]) => ({ date, qty })).sort((a, b) => a.date.localeCompare(b.date)),
+        /** The day the oldest one arrived — what the whole row is sorted and flagged on. */
+        oldest: [...days.keys()].sort()[0] ?? "",
         subOrders: ps,
       };
     })
-    .sort((a, b) => b.qty - a.qty);
+    // **Oldest first, then biggest.** A SKU with yesterday's parcels in it outranks a bigger one
+    // that only arrived this morning, because only the first can be late.
+    .sort((a, b) => a.oldest.localeCompare(b.oldest) || b.qty - a.qty);
 }
 
 /**
@@ -430,6 +455,18 @@ export function daySummary(ledgers: Ledger[], on: string) {
     [...m].map(([name, qty]) => ({ name, qty: Number(qty.toFixed(2)) })).sort((a, b) => b.qty - a.qty);
   const packed = ledgers.flatMap((l) => l.subOrders.filter((p) => p.packedOn === on));
   const bySku = new Map<string, number>();
+  /**
+   * The names already on each SKU today.
+   *
+   * **Naming was a one-way door.** Vansh, 2026-09-06: *"kavita has done packing but its
+   * calculation is not appearing"* — her 38 packets had gone in under his name, and once a batch
+   * was named there was no way to change it: the *nobody named yet* list only ever offered the
+   * UNnamed ones back. So a mis-credit was permanent, and it is somebody's wages.
+   *
+   * Re-crediting needs to know who is on the batch already, because `creditSku` replaces a NAMED
+   * set — handing it an empty `replacing` would credit the new person and leave the old one there.
+   */
+  const whoBySku = new Map<string, Set<string>>();
   const byPacker = new Map<string, number>();
   const byCourier = new Map<string, number>();
   for (const p of packed) {
@@ -437,6 +474,8 @@ export function daySummary(ledgers: Ledger[], on: string) {
     byCourier.set(p.courier || "—", (byCourier.get(p.courier || "—") ?? 0) + p.qty);
     for (const who of p.packedBy ?? []) {
       byPacker.set(who, (byPacker.get(who) ?? 0) + p.qty / (p.packedBy?.length ?? 1));
+      if (!whoBySku.has(p.sku)) whoBySku.set(p.sku, new Set());
+      whoBySku.get(p.sku)!.add(who);
     }
   }
   return {
@@ -455,7 +494,7 @@ export function daySummary(ledgers: Ledger[], on: string) {
       packed.filter((p) => !p.packedBy?.length).reduce((m, p) => m.set(p.sku, (m.get(p.sku) ?? 0) + p.qty), new Map<string, number>()),
     ),
     left: ledgers.flatMap((l) => l.subOrders).filter((p) => !p.packedOn).reduce((n, p) => n + p.qty, 0),
-    bySku: rank(bySku),
+    bySku: rank(bySku).map((r) => ({ ...r, by: [...(whoBySku.get(r.name) ?? [])] })),
     byPacker: rank(byPacker),
     byCourier: rank(byCourier),
   };
