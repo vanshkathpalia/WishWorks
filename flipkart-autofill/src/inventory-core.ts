@@ -967,7 +967,22 @@ export interface KitRow {
    * two materials in different categories can be spelt the same. The name rides along because it is
    * what a person reads.
    */
-  materials?: { key: string; name: string; packs: number; pieces: number }[];
+  materials?: {
+    key: string;
+    name: string;
+    packs: number;
+    pieces: number;
+    /**
+     * What this line costs in ONE kit, in paise — `each x packs`, exactly as the costing panel
+     * totals it. Null when the material has no price yet.
+     *
+     * It is here so a day's packing can be priced **per material** without re-costing every kit:
+     * `costPaise` already answers *what did the day's materials cost* as one number, and this is
+     * the working behind it — which is the question Vansh asked, *"calculate the amount of raw
+     * material used per day… we will see what were in SKUs and what are the cost for them."*
+     */
+    paise: number | null;
+  }[];
 }
 
 /**
@@ -1012,7 +1027,10 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
           row.costPaise = cost;
           const parts = costed.lines
             .filter((l) => l.match !== null)
-            .map((l) => ({ key: materialKey(l.match!), name: l.match!.material, packs: l.packs, pieces: l.qty }));
+            .map((l) => ({
+              key: materialKey(l.match!), name: l.match!.material,
+              packs: l.packs, pieces: l.qty, paise: l.paise,
+            }));
           if (parts.length > 0) row.materials = parts;
           if (Object.keys(left).length > 0) row.left = left;
           if (Object.keys(pays).length > 0) row.pays = pays;

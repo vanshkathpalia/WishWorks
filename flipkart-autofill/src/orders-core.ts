@@ -1338,7 +1338,7 @@ export function money(
  */
 export interface KitMaterials {
   sku: string;
-  materials?: { key: string; name: string; packs: number; pieces: number }[];
+  materials?: { key: string; name: string; packs: number; pieces: number; paise: number | null }[];
 }
 
 /**
@@ -1388,7 +1388,25 @@ export function howItSells(
    * Keyed as well as named, because the raw-stock panel nets this against deliveries and the name
    * is a label — two materials in different categories can share one.
    */
-  burn: { key: string; name: string; packs: number; perWeek: number; pieces: number; piecesPerWeek: number }[];
+  burn: {
+    key: string;
+    name: string;
+    packs: number;
+    perWeek: number;
+    pieces: number;
+    piecesPerWeek: number;
+    /**
+     * What this material COST across the window's packing, in paise.
+     *
+     * Vansh, 2026-09-06: *"I want a data where we will calculate the amount of raw material used
+     * per day after manifest upload… to calculate the price we will see what were in SKUs and what
+     * are the cost for them."* The quantity was already here; this is the same multiplication
+     * carried one step further, using the price the costing panel used.
+     */
+    paise: number;
+    /** True when some of this material's lines have no price, so `paise` is a floor, not a total. */
+    partlyUnpriced: boolean;
+  }[];
 } {
   const all = ledgers.flatMap((l) => l.subOrders);
   const packed = all.filter(
@@ -1429,12 +1447,20 @@ export function howItSells(
     .map((k) => ({ sku: k.sku, lastPacked: lastPacked.get(k.sku) ?? null }))
     .sort((a, b) => (a.lastPacked ?? "").localeCompare(b.lastPacked ?? ""));
 
-  const used = new Map<string, { name: string; packs: number; pieces: number }>();
+  const used = new Map<
+    string,
+    { name: string; packs: number; pieces: number; paise: number; partlyUnpriced: boolean }
+  >();
   for (const p of packed) {
     for (const m of kitForSku(p.sku, kits)?.materials ?? []) {
-      const u = used.get(m.key) ?? { name: m.name, packs: 0, pieces: 0 };
+      const u = used.get(m.key) ?? { name: m.name, packs: 0, pieces: 0, paise: 0, partlyUnpriced: false };
       u.packs += m.packs * p.qty;
       u.pieces += m.pieces * p.qty;
+      // An unpriced line adds nothing and SAYS so. Folding it in as zero would make a day's
+      // materials look cheaper the more of them nobody has priced — the one failure this whole
+      // file guards against everywhere else.
+      if (m.paise === null) u.partlyUnpriced = true;
+      else u.paise += m.paise * p.qty;
       used.set(m.key, u);
     }
   }
@@ -1442,7 +1468,9 @@ export function howItSells(
   const rate = (n: number) => Math.round((n / weeks) * 10) / 10;
   const burn = [...used]
     .map(([key, u]) => ({ key, ...u, perWeek: rate(u.packs), piecesPerWeek: rate(u.pieces) }))
-    .sort((a, b) => b.packs - a.packs);
+    // Dearest first: the question behind this is where the day's money went, and that is not the
+    // material there is most of.
+    .sort((a, b) => b.paise - a.paise || b.packs - a.packs);
 
   return {
     bySku: cut((p) => p.sku),

@@ -368,9 +368,9 @@ describe("the parcel ledger", () => {
 describe("how it sells", () => {
   const kits = [
     // Two packs of gold balloon, which is 100 PIECES — the distinction the shelf is netted in.
-    { sku: "ANP003", costPaise: 8000, pays: { meesho: 15000 }, materials: [{ key: "Balloons|Gold balloon", name: "Gold balloon", packs: 2, pieces: 100 }] },
+    { sku: "ANP003", costPaise: 8000, pays: { meesho: 15000 }, materials: [{ key: "Balloons|Gold balloon", name: "Gold balloon", packs: 2, pieces: 100, paise: 700 }] },
     // Costed but never packed — the slow-mover case, and it must not be confused with uncosted.
-    { sku: "ZZZ001", costPaise: 5000, pays: { meesho: 9000 }, materials: [{ key: "Ribbon|Ribbon", name: "Ribbon", packs: 1, pieces: 1 }] },
+    { sku: "ZZZ001", costPaise: 5000, pays: { meesho: 9000 }, materials: [{ key: "Ribbon|Ribbon", name: "Ribbon", packs: 1, pieces: 1, paise: 200 }] },
   ];
   const parcel = (id: string, courier: string) =>
     ({ subOrder: id, awb: `A${id}`, sku: "ANP003", qty: 1, courier, market: "meesho" });
@@ -434,7 +434,12 @@ describe("how it sells", () => {
     // what gets BOUGHT and a piece is what gets USED, and they are not each other.
     const { burn } = howItSells([shipped()], kits, "2026-08-01", "2026-08-31");
     expect(burn).toEqual([
-      { key: "Balloons|Gold balloon", name: "Gold balloon", packs: 8, perWeek: 1.9, pieces: 400, piecesPerWeek: 93.3 },
+      {
+        key: "Balloons|Gold balloon", name: "Gold balloon", packs: 8, perWeek: 1.9,
+        pieces: 400, piecesPerWeek: 93.3,
+        // Four packets x ₹7.00 of gold balloon in each — the same multiplication, one step further.
+        paise: 2800, partlyUnpriced: false,
+      },
     ]);
   });
 });
@@ -537,7 +542,7 @@ describe("an orders export", () => {
 describe("no double subtraction", () => {
   const kits: (KitMoney & KitMaterials)[] = [{
     sku: "SVP033", costPaise: 5000, pays: { meesho: 15000 },
-    materials: [{ key: "Balloon|Red Balloon", name: "Red Balloon", packs: 1, pieces: 20 }],
+    materials: [{ key: "Balloon|Red Balloon", name: "Red Balloon", packs: 1, pieces: 20, paise: 1600 }],
   }];
   const p = (id: string) => ({ subOrder: id, awb: "A", sku: "SVP033", qty: 1, courier: "Valmo" });
   const used = (l: Ledger) => howItSells([l], kits, "2026-01-01", "2026-12-31").burn[0]?.pieces ?? 0;

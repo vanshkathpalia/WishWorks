@@ -549,15 +549,20 @@ export function Sells({ n }: { n: number }) {
             <>
               <h3>Materials used</h3>
               <p className="muted">
-                Packs consumed by this window&apos;s packing, from each kit&apos;s own lines — so
-                the per-week figure is the one to hold a purchase order against.
+                Consumed by this window&apos;s packing, from each kit&apos;s own lines — so the
+                per-week figure is the one to hold a purchase order against. <b>Pick the dates
+                above</b> and set both to the same day to read one day&apos;s raw material off a
+                manifest you just dropped in. Dearest first: the question is where the money went,
+                which is not the material there is most of.
               </p>
               <table className="rows inv-table">
                 <thead>
                   <tr>
                     <th>Material</th>
                     <th>Packs used</th>
+                    <th>Pieces</th>
                     <th>Per week</th>
+                    <th>What it cost</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -565,10 +570,27 @@ export function Sells({ n }: { n: number }) {
                     <tr key={b.name}>
                       <td>{b.name}</td>
                       <td>{b.packs}</td>
-                      <td>{b.perWeek}</td>
+                      <td className="muted">{b.pieces}</td>
+                      <td className="muted">{b.perWeek}</td>
+                      <td>
+                        {rupees(b.paise)}
+                        {/* An unpriced line adds nothing, so the figure is a floor. Saying so is
+                            the difference between a total and a number that flatters itself. */}
+                        {b.partlyUnpriced && <small className="warnpill"> at least</small>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={4}>
+                      <b>What the packing ate</b>
+                    </td>
+                    <td>
+                      <b>{rupees(view.burn.reduce((n, b) => n + b.paise, 0))}</b>
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </>
           )}

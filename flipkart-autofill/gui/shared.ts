@@ -120,7 +120,13 @@ export interface HowItSells {
   /** Costed kits with nothing packed in the window, oldest sale first. */
   slow: { sku: string; lastPacked: string | null }[];
   /** Materials the window's packing consumed, and what that is per week. */
-  burn: { key: string; name: string; packs: number; perWeek: number; pieces: number; piecesPerWeek: number }[];
+  burn: {
+    key: string; name: string; packs: number; perWeek: number; pieces: number; piecesPerWeek: number;
+    /** What this material cost across the window's packing. */
+    paise: number;
+    /** Some of its lines have no price, so the figure is a floor rather than a total. */
+    partlyUnpriced: boolean;
+  }[];
 }
 
 /** One material across the supplier's claim and our count. */
