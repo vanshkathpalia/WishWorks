@@ -547,9 +547,17 @@
       "material": "Pink Welcome Baby Foil",
       "paise": 3500,
       "aka": [
-        "wb foil",
-        "Welcome Baby Foil",
-        "Blue Welcome Baby Foil"
+        "pink wb foil",
+        "welcome baby foil pink"
+      ]
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Blue Welcome Baby Foil",
+      "paise": 3500,
+      "aka": [
+        "blue wb foil",
+        "welcome baby foil blue"
       ]
     },
     {
