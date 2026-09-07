@@ -484,6 +484,48 @@ describe("a real ChatGPT reading, against the real shipped price list", () => {
   });
 });
 
+/**
+ * A kit's bill of materials is a DECISION, not something re-derived on every read.
+ *
+ * Vansh, 2026-09-07: *"hope in the JSONs the colour or any inventory item is getting stored,
+ * because it will get difficult when we subtract the inventory items when the manifest is
+ * uploaded."* It was not, and it had already bitten: `lines` holds the AI's wording, which row that
+ * became was decided fresh each time, and renaming a generic row to a colour re-pointed every kit
+ * that used it — while the manifest went on subtracting the new colour from the shelf.
+ */
+describe("what a kit line was taken to mean", () => {
+  /** The real shipped list — this is about how kits behave against the list they actually use. */
+  const real = () => loadMaterials(path.join(import.meta.dirname, "..", "categories"));
+  const line = [{ item: "Welcome Baby Foil", qty: 1 }];
+
+  it("uses the recorded material over a fresh match", () => {
+    const blue = { 0: "Foil Balloon|Blue Welcome Baby Foil" };
+    expect(costKit(line, real(), {}, "", {}, {}, blue).lines[0].match?.material)
+      .toBe("Blue Welcome Baby Foil");
+    // The same words, with nothing recorded, land on whichever row matches best today.
+    expect(costKit(line, real(), {}, "", {}, {}).lines[0].match?.material)
+      .not.toBe("Blue Welcome Baby Foil");
+  });
+
+  /**
+   * **The half that matters.** The words that point at a missing row are exactly the words that
+   * matched wrongly before it existed, so falling back to matching would quietly restore the bug.
+   */
+  it("leaves the line UNMATCHED when the recorded row has gone, rather than guessing again", () => {
+    const gone = real().filter((m) => m.material !== "Blue Welcome Baby Foil");
+    const kit = costKit(line, gone, {}, "", {}, {}, { 0: "Foil Balloon|Blue Welcome Baby Foil" });
+    expect(kit.lines[0].match).toBeNull();
+    expect(kit.unmatched).toBe(1);
+  });
+
+  it("still lets a human pick win over what was recorded", () => {
+    const kit = costKit(line, real(), { 0: "Foil Balloon|Pink Welcome Baby Foil" }, "", {}, {},
+      { 0: "Foil Balloon|Blue Welcome Baby Foil" });
+    expect(kit.lines[0].match?.material).toBe("Pink Welcome Baby Foil");
+    expect(kit.lines[0].overridden).toBe(true);
+  });
+});
+
 describe("the shipped price list", () => {
   it("reads materials.json, and an absent one is empty rather than a crash", () => {
     const dir = tmp();

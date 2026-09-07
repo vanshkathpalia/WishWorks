@@ -578,11 +578,17 @@ async function followTheKey(oldKey: string, patch: { material?: string; category
     const file = path.join(KITS_DIR, name);
     const kit = JSON.parse(await readFile(file, "utf8")) as {
       overrides?: Record<string, string>;
+      resolved?: Record<string, string>;
       prices?: Record<string, number>;
     };
     let moved = false;
     for (const [line, k] of Object.entries(kit.overrides ?? {})) {
       if (k === oldKey) { kit.overrides![line] = newKey; moved = true; }
+    }
+    // The saved resolution follows a rename exactly as a hand pick does — it is the same kind of
+    // pointer, and freezing one that cannot follow would rot on the first rename.
+    for (const [line, k] of Object.entries(kit.resolved ?? {})) {
+      if (k === oldKey) { kit.resolved![line] = newKey; moved = true; }
     }
     if (kit.prices?.[oldKey] !== undefined) {
       kit.prices[newKey] = kit.prices[oldKey];

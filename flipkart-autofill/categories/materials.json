@@ -311,6 +311,11 @@
       "paise": 80
     },
     {
+      "category": "Balloon",
+      "material": "Teal Balloon",
+      "paise": 80
+    },
+    {
       "category": "Foil Balloon",
       "material": "First Birthday Boy Foil",
       "paise": 200,
@@ -724,6 +729,11 @@
       "category": "Foil Balloon",
       "material": "Cheers Foil Balloons",
       "paise": 600
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Girl Leg Foil",
+      "paise": 1000
     },
     {
       "category": "Banner",
@@ -1288,6 +1298,21 @@
         "first birthday five pcs set pink foil"
       ],
       "piecesPerPack": 5
+    },
+    {
+      "category": "Themed Set",
+      "material": "Ironman Foil Set",
+      "paise": 3500
+    },
+    {
+      "category": "Themed Set",
+      "material": "Masha Foil",
+      "paise": 1000
+    },
+    {
+      "category": "Themed Set",
+      "material": "Spiderman foil set",
+      "paise": 3500
     },
     {
       "category": "Decoration",

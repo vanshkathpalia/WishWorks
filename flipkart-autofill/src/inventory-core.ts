@@ -173,6 +173,28 @@ export interface SavedKit {
   /** Line index → `category|material`. The corrections, kept apart from the reading. */
   overrides: Record<number, string>;
   /**
+   * **What each line WAS when the kit was saved** — line index → `category|material`.
+   *
+   * Vansh, 2026-09-07: *"hope in the JSONs the colour or any inventory item is getting stored,
+   * because it will get difficult when we subtract the inventory items when the manifest is
+   * uploaded."* It was not. `lines` holds the AI's wording (`Welcome Baby Foil`) and which ROW that
+   * becomes was decided fresh on every read — so when that row was renamed `Pink Welcome Baby
+   * Foil`, every kit using the generic silently became pink, and the manifest went on subtracting
+   * pink from the shelf. **323 of 435 lines had nothing but words behind them.**
+   *
+   * A kit's bill of materials is a decision, not a re-derivable guess, and the chain that eats the
+   * stock has to rest on the decision. This is the same move as freezing `paidPaise` onto a parcel
+   * at the tick (WW-187): the reading stays in `lines` as evidence, and what it was taken to MEAN
+   * is recorded beside it.
+   *
+   * It is NOT an override — `overridden` still means a human picked it, which is a different claim
+   * and is what the screen flags. And it cannot rot: `followTheKey` migrates these the moment a
+   * material is renamed or moved.
+   *
+   * Absent on kits saved before this, which simply match as they always did.
+   */
+  resolved?: Record<number, string>;
+  /**
    * Unit prices that apply to THIS KIT ONLY, keyed `category|material`, in paise.
    *
    * Two different things a wrong price can mean, and they must not share one control: *this batch
@@ -734,6 +756,8 @@ export function costKit(
   prices: Record<string, number> = {},
   /** Corrected counts by line index. See `SavedKit.counts`. */
   counts: Record<number, number> = {},
+  /** What each line was taken to mean when the kit was saved. See `SavedKit.resolved`. */
+  resolved: Record<number, string> = {},
 ): Kit {
   const byKey = new Map(materials.map((m) => [materialKey(m), m]));
 
@@ -746,12 +770,28 @@ export function costKit(
     const overridden = override !== undefined;
     const best = choices[0];
 
+    /**
+     * A human's pick wins; then what this kit was SAVED as; then a fresh match.
+     *
+     * The middle step is the one that keeps a manifest subtracting the same material next month as
+     * it did today.
+     *
+     * **A recorded row that has GONE leaves the line unmatched — it does not fall back to
+     * matching.** That fallback was the first shape of this and it was wrong: the words that
+     * resolve to a missing row are exactly the words that resolved wrongly before (`Welcome Baby
+     * Foil` finds *Pink* the moment *Blue* is gone), so falling through would quietly restore the
+     * bug this exists to stop. Unmatched is visible and asks; a wrong colour is silent and bills.
+     */
+    const wasDecided = !overridden && resolved[i] !== undefined;
+    const decided = wasDecided ? (byKey.get(resolved[i]) ?? null) : undefined;
     const match = overridden
       ? (byKey.get(override) ?? null)
-      : best && best.score >= FLOOR
-        ? best.material
-        : null;
-    const s = overridden ? 1 : (best?.score ?? 0);
+      : decided !== undefined
+        ? decided
+        : best && best.score >= FLOOR
+          ? best.material
+          : null;
+    const s = overridden ? 1 : decided ? 1 : (best?.score ?? 0);
 
     // A price given for THIS kit wins over the list, and counts even where the list has none —
     // that is the whole point of it, for a material nobody has priced yet.
@@ -778,7 +818,7 @@ export function costKit(
       ...line,
       match,
       score: s,
-      flagged: !overridden && match !== null && (s < SURE || tied),
+      flagged: !overridden && !wasDecided && match !== null && (s < SURE || tied),
       overridden,
       choices,
       /** Set when this line's unit price came from the kit rather than the price list. */
@@ -1008,6 +1048,7 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
         if (materials) {
           const costed = costKit(
             k.lines ?? [], materials, k.overrides ?? {}, k.sku, k.prices ?? {}, k.counts ?? {},
+            k.resolved ?? {},
           );
           const cost = costed.totalPaise;
           const left: Record<string, number> = {};

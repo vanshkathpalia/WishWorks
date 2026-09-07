@@ -500,6 +500,17 @@ export function Inventory({ n }: { n: number }) {
     if (!lines) return;
     const kept: SavedKit = {
       sku, image, lines, overrides,
+      /**
+       * What every matched line was taken to MEAN, recorded beside the words it was read from.
+       *
+       * Without this, which row a line becomes is decided fresh on every read — so a rename in the
+       * price list silently re-points kits that were costed months ago, and the manifest goes on
+       * subtracting the new material from the shelf. `lines` stays exactly as the AI wrote it,
+       * because that is the evidence; this is the decision.
+       */
+      resolved: Object.fromEntries(
+        (kit?.lines ?? []).flatMap((l, i) => (l.match ? [[i, `${l.match.category}|${l.match.material}`]] : [])),
+      ),
       prices: Object.fromEntries(
         Object.entries(prices).map(([k, v]) => [k, Math.round(v * 100)]),
       ),
