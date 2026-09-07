@@ -33,6 +33,11 @@
 > tests found no way to steer it. Closed, don't re-run.** Two rules survive: read the shipping
 > figure before submitting any main-image change, to catch a bad one (we saw ₹256); and the
 > **20px border (`--border=20`) is the one axis never tested** — still live if anyone wants it.
+> `docs/guides/DIRECT-STORE.md` — selling direct instead of paying the ₹150 return penalty.
+> **The premise was measured against our own `Orders_*.csv` and inverted:** the penalty is 8.9% of
+> revenue (₹15/settled order), there are **zero** post-delivery returns — every one is an RTO, which
+> **prepaid-only** kills without a website — and the real hole is a **₹172 average order**. Raise AOV
+> first. **No store app was built and none should be** until a rented store proves anyone buys direct.
 > **New session? Read `docs/reference/HANDOFF.md`**, then `docs/tracks/notion/TICKET_STATUS.md`
 > for current state and `docs/tracks/notion/CORRECTIONS.md` for what we got wrong.
 > The live work is `flipkart-autofill/` (Playwright bot that fills the Flipkart listing form).

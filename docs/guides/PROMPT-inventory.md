@@ -26,6 +26,15 @@ Rules:
   whichever one happens to be listed first** — that has already happened, more than once, at a
   different price each time. The colour is the word most often dropped. Where it is only in a
   heading — a group of lines sitting under one colour word — it belongs on every line in the group.
+
+  The SHAPE to aim for — these are not names to copy, they are how much a name has to say:
+
+  | too little        | enough                          | why |
+  |-------------------|---------------------------------|-----|
+  | `Balloons`        | `Dark Pink Pastel Balloons`     | thirty-four balloon rows fit "Balloons" |
+  | `Welcome Baby Foil` | `Blue Welcome Baby Foil`      | the same foil is stocked in two colours |
+  | `Curtain`         | `Silver Fringe Curtain`         | ten curtain rows differ only by colour |
+  | `Star Foil`       | `Golden Star Foil`              | six star rows, and one of them is a different product |
 - **The pictures are part of the sheet, not decoration — LOOK at them.** A caption is usually
   shorter than the thing it names, and the word it leaves out is usually the colour or the finish.
   Where a caption names only the kind of item and the photograph beside it shows that item plainly

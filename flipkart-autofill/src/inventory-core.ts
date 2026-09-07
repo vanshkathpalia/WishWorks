@@ -635,13 +635,52 @@ function scoreName(name: string, against: string, category = ""): number {
 }
 
 /** Priced and quiet at or above this. */
+/**
+ * Words that make a material a DIFFERENT PRODUCT rather than a better description of one.
+ *
+ * A colour or a size is one token among four, so `Pink Pastel Balloon` scored **86%** against
+ * `Dark Pink Pastel Balloon` — above `SURE`, matched silently, priced, and nobody was told. That is
+ * how the same failure arrived three times: `Welcome Baby Foil` becoming pink, `Pink Pastel
+ * Balloon` becoming dark, `Star Foil` nearly swallowing Baby Boy. Vansh, 2026-09-07: *"hence this
+ * colour thing is not yet picked."*
+ *
+ * The scoring is not changed — a narrowing is still a good match and still gets priced. What
+ * changes is that it can no longer be SILENT: see `narrowing` below.
+ */
+const QUALIFIER =
+  /^(dark|light|big|large|small|medium|mini|jumbo|pastel|metallic|chrome|matte|glitter|red|blue|green|pink|purple|black|white|golden|gold|silver|rose|rosegold|orange|yellow|peach|maroon|burgundy|grey|gray|multicolor|multicolour)$/i;
+
+/**
+ * The row says something about the product that the name being matched never claimed.
+ *
+ * `Pink Pastel Balloon` against `Dark Pink Pastel Balloon` is not a spelling difference, it is a
+ * question: WHICH pink? Anything answering that question with a qualifier the reading did not
+ * contain is capped just under `SURE`, which puts it in the band that already exists for exactly
+ * this — priced, and flagged for a human to glance at. Nothing is refused and nothing is guessed
+ * away; it simply stops being invisible.
+ */
+export function narrowing(name: string, m: Material): boolean {
+  // `sameWord`, not equality — it is the SAME notion of "close enough" the scorer already uses, so
+  // `Gold Balloons` does not get flagged against `Golden Balloon` and `Silver Crome` does not get
+  // flagged against `Silver Chrome`. Measured: exact membership moved 32 lines and roughly half
+  // were spelling, not colour.
+  const asked = tokens(name);
+  return tokens(m.material).some((w) => QUALIFIER.test(w) && !asked.some((a) => sameWord(a, w)));
+}
+
 export const SURE = 0.85;
 /** Priced but flagged at or above this; below it, left unpriced. */
 export const FLOOR = 0.6;
 
 export function candidates(name: string, materials: Material[], top = 5): Candidate[] {
   return materials
-    .map((material) => ({ material, score: score(name, material) }))
+    .map((material) => {
+      const raw = score(name, material);
+      // Capped here rather than inside `score` so the CAP is a fact about the pair, not a change
+      // to how names are compared. It only ever lowers, and only across the SURE line — the row
+      // stays the best answer, it just stops being a silent one.
+      return { material, score: raw >= SURE && narrowing(name, material) ? SURE - 0.01 : raw };
+    })
     .filter((c) => c.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, top);

@@ -437,8 +437,14 @@ describe("a real ChatGPT reading, against the real shipped price list", () => {
     const kit = costKit(lines, real(), {}, sku);
     expect(kit.unmatched).toBe(0);
     expect(kit.noPrice).toBe(0);
-    expect(kit.flagged).toBe(0);
     expect(kit.totalPaise).toBeGreaterThan(0);
+    /**
+     * **One line asks, and it is the right one.** `PASTEL PINK BALLOONS` lands on `Dark Pink
+     * Pastel Balloon` — that row was renamed to claim a specific shade and this reading never said
+     * which. Everything else still costs silently. Asserting WHICH line is flagged, rather than
+     * that none is: a count going to zero can also be achieved by breaking the flag.
+     */
+    expect(kit.lines.filter((l) => l.flagged).map((l) => l.item)).toEqual(["PASTEL PINK BALLOONS"]);
   });
 
   it("costs the pink-kitty packet with nothing flagged and nothing missed", () => {
@@ -459,7 +465,9 @@ describe("a real ChatGPT reading, against the real shipped price list", () => {
     );
     expect(kit.lines.map((l) => l.match?.material)).toEqual([
       "Dark Pink Balloon",
-      "Pink Pastel Balloon",
+      // Was `Pink Pastel Balloon` until that row was renamed to claim a shade. The reading says
+      // only "Pastel Pink", so it still matches — and is FLAGGED, asserted below.
+      "Dark Pink Pastel Balloon",
       "HBD Banner",
       "Kitty Foil", // "Balloon" here is the CATEGORY spelled out, not a missing word
       // Renamed to Fringes 2026-09-03 and STILL MATCHED here — the reading under test says
@@ -468,9 +476,10 @@ describe("a real ChatGPT reading, against the real shipped price list", () => {
       "Glue Tape",
       "Arch Tape",
     ]);
+    // The only line that cannot be certain is the one whose row names a shade the sheet did not.
+    expect(kit.lines.filter((l) => l.flagged).map((l) => l.item)).toEqual(["Pastel Pink Balloons"]);
     expect(kit.unmatched).toBe(0);
     expect(kit.noPrice).toBe(0);
-    expect(kit.flagged).toBe(0);
     expect(kit.totalPaise).toBeGreaterThan(0);
   });
 

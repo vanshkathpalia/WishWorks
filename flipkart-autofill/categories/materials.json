@@ -188,11 +188,8 @@
     },
     {
       "category": "Balloon",
-      "material": "Pink Pastel Balloon",
+      "material": "Dark Pink Pastel Balloon",
       "paise": 80,
-      "aka": [
-        "PINK PASTEL BALLOONS"
-      ],
       "size": "10\""
     },
     {
@@ -1313,6 +1310,11 @@
       "category": "Themed Set",
       "material": "Spiderman foil set",
       "paise": 3500
+    },
+    {
+      "category": "Themed Set",
+      "material": "Masha Foil Balloon",
+      "paise": 4000
     },
     {
       "category": "Decoration",
