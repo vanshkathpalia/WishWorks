@@ -314,6 +314,7 @@ export function Money({ n }: { n: number }) {
                     {/* Which kit priced it — the line that answers "where is this number from?".
                         `SVP033` is priced by the kit `SVP033 - ANP002`, and that is easy to
                         forget you ever costed. */}
+                    <td className="muted">{c.kit}</td>
                     {/* One code, two shops. The Both/Meesho/Flipkart switch above answers *how did
                         Meesho do* by hiding Flipkart, which is the wrong question for a line about
                         one product: what you want is the same SKU's two shops side by side, because

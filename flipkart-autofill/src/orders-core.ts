@@ -376,6 +376,57 @@ export function dropParcel(ledger: Ledger, subOrder: string): Ledger {
   return { ...ledger, subOrders: ledger.subOrders.filter((p) => p.subOrder !== subOrder) };
 }
 
+/**
+ * Take EVERY parcel of one SKU off a ledger — optionally only those first seen on one day.
+ *
+ * Vansh, 2026-09-12: *"the manifest regular saving is not working fine — last time even if SKUs are
+ * of 2 different days they were getting merged. We should have the option to delete one SKU data in
+ * case of anything like this."* `dropParcel` already does one at a time, which is right for a
+ * cancelled order and useless for twenty parcels read in under the wrong date.
+ *
+ * **Scoped by `firstSeen`, not by `packedOn`**, because the thing being undone is a READING — the
+ * manifest that brought them in — and the day it was read is the day they were first seen. Without
+ * a day it takes the SKU out wholesale.
+ */
+export function dropSku(ledger: Ledger, sku: string, firstSeen?: string): Ledger {
+  return {
+    ...ledger,
+    subOrders: ledger.subOrders.filter(
+      (p) => !(p.sku === sku && (firstSeen === undefined || p.firstSeen === firstSeen)),
+    ),
+  };
+}
+
+/**
+ * What deleting those parcels would take with them — asked BEFORE, so the warning has numbers in it.
+ *
+ * Vansh: *"delete it changes inventory subs too, so we should get a calculation warning of that
+ * too."* A count of parcels is not that warning; the materials and the money are.
+ */
+export function whatItTakes(
+  ledgers: Ledger[],
+  sku: string,
+  kits: (KitMoney & KitMaterials)[],
+  firstSeen?: string,
+): { packets: number; packed: number; revenuePaise: number; materialsPaise: number; pieces: number } {
+  const hit = ledgers
+    .flatMap((l) => l.subOrders)
+    .filter((p) => p.sku === sku && (firstSeen === undefined || p.firstSeen === firstSeen));
+  const kit = kitForSku(sku, kits);
+  const packedOnes = hit.filter((p) => p.packedOn);
+  return {
+    packets: hit.reduce((n, p) => n + p.qty, 0),
+    packed: packedOnes.reduce((n, p) => n + p.qty, 0),
+    // Only what was PACKED ever reached the money or the shelf; the rest was only ever a queue.
+    revenuePaise: packedOnes.reduce((n, p) => n + (p.paidPaise ?? kit?.pays?.meesho ?? 0) * p.qty, 0),
+    materialsPaise: packedOnes.reduce((n, p) => n + (p.materialsPaise ?? kit?.costPaise ?? 0) * p.qty, 0),
+    pieces: packedOnes.reduce(
+      (n, p) => n + (kit?.materials ?? []).reduce((m, x) => m + x.pieces * p.qty, 0),
+      0,
+    ),
+  };
+}
+
 /** Name the packers on subOrders already ticked — the answer that is allowed to arrive later. */
 export function creditSku(
   ledger: Ledger,

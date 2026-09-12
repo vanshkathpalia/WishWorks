@@ -29,7 +29,7 @@
  * already has one, which this repo has been bitten by twice (C-049, C-061).
  */
 
-import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
+import { readdir, readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./paths.js";
 import { candidates, materialKey, FLOOR, SURE, type Candidate, type Material } from "./inventory-core.js";
@@ -310,6 +310,22 @@ export async function listDeliveries(): Promise<Delivery[]> {
     ),
   );
   return all.filter((d): d is Delivery => d !== null).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * Take a saved delivery off the record entirely.
+ *
+ * Vansh, 2026-09-12, planning a test: *"do I have the freedom to delete some of the whole delivery
+ * later on, because my testing plan requires it."* Yes — and not only for testing: a delivery
+ * saved against the wrong date, or tallied twice, has no other way out.
+ *
+ * **The shelf moves the moment it goes**, because on-hand is deliveries minus packing and nothing
+ * stores a level. Deleting the EARLIEST one moves more than its own quantities: usage is counted
+ * from the first delivery on record, so the window the packing is measured over changes with it.
+ * The screen says so before it asks.
+ */
+export async function removeDelivery(date: string): Promise<void> {
+  await rm(path.join(STOCK_DIR, `${date}.json`), { force: true });
 }
 
 export async function writeDelivery(d: Delivery): Promise<void> {

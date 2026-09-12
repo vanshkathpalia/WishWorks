@@ -19,6 +19,23 @@
    * selectors were written at them. `color-scheme` is how a page TELLS the platform which way round
    * it is, and every native control follows it at once.
    */
+  --rail: #171413;
+  --btn: #262120;
+  --hover: #201b19;
+  --chosen: #2a211b;
+  --field: #100e0d;
+  --dim: #6d635b;
+  --dim-on: #9a8d82;
+  --on-accent: #1a1210;
+  --line-soft: #221e1c;
+  --well: #211c1a;
+  --ok-bg: #1d2118;
+  --ok-line: #2f3a26;
+  --ok-ink: #9fd08f;
+  --warn-bg: #3a2d16;
+  --warn-line: #4a3320;
+  --bad-bg: #2a1714;
+  --bad-line: #5a2f26;
   color-scheme: dark;
 }
 
@@ -38,6 +55,23 @@
   --accent: #c2560c;
   --warn: #9a6b06;
   --bad: #b23b22;
+  --rail: #f1ece6;
+  --btn: #ffffff;
+  --hover: #f3ede7;
+  --chosen: #fdeade;
+  --field: #ffffff;
+  --dim: #8a7f75;
+  --dim-on: #3d3630;
+  --on-accent: #ffffff;
+  --line-soft: #ece5de;
+  --well: #f6f2ee;
+  --ok-bg: #e9f3e3;
+  --ok-line: #b9d5a8;
+  --ok-ink: #2f6b1c;
+  --warn-bg: #fdf1dc;
+  --warn-line: #e6c88c;
+  --bad-bg: #fbe6e1;
+  --bad-line: #e0aa9c;
   color-scheme: light;
 }
 
@@ -96,7 +130,7 @@ button:hover {
   flex-direction: column;
   gap: 20px;
   padding: 22px 16px;
-  background: #171413;
+  background: var(--rail);
   border-right: 1px solid var(--line);
 }
 
@@ -140,7 +174,7 @@ button:hover {
   border: 0;
   border-radius: 8px;
   background: none;
-  color: #6d635b;
+  color: var(--dim);
   font-size: 14px;
   text-align: left;
 }
@@ -166,10 +200,10 @@ button:hover {
 .rail-foot small {
   font-size: 11.5px;
   line-height: 1.35;
-  color: #6d635b;
+  color: var(--dim);
 }
 .rail li button.current .step-text small {
-  color: #9a8d82;
+  color: var(--dim-on);
 }
 .rail-foot button {
   display: flex;
@@ -178,7 +212,7 @@ button:hover {
   gap: 2px;
 }
 .rail li button:hover {
-  background: #201b19;
+  background: var(--hover);
   color: var(--ink);
 }
 
@@ -194,19 +228,19 @@ button:hover {
 }
 
 .rail li button.current {
-  background: #2a211b;
+  background: var(--chosen);
   color: var(--ink);
 }
 .rail li button.current .num {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1210;
+  color: var(--on-accent);
   font-weight: 700;
 }
 
 /* Not built in the app yet. Still reachable — the panel says which command to run instead. */
 .later {
-  color: #6d635b;
+  color: var(--dim);
 }
 
 .rail-foot {
@@ -270,7 +304,7 @@ header p {
 }
 .drop.over {
   border-color: var(--accent);
-  background: #221b18;
+  background: var(--hover);
 }
 .drop.busy {
   border-style: solid;
@@ -317,7 +351,7 @@ header p {
   padding: 5px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #100e0d;
+  background: var(--field);
   color: var(--ink);
   font: inherit;
   text-align: center;
@@ -412,7 +446,7 @@ code {
 }
 .rows td {
   padding: 9px 12px 9px 0;
-  border-bottom: 1px solid #221e1c;
+  border-bottom: 1px solid var(--line-soft);
   vertical-align: top;
 }
 .rows tr.warn td:last-child {
@@ -428,8 +462,8 @@ code {
   gap: 16px;
   padding: 14px 16px;
   border-radius: 10px;
-  background: #1d2118;
-  border: 1px solid #2f3a26;
+  background: var(--ok-bg);
+  border: 1px solid var(--ok-line);
 }
 
 .failures {
@@ -472,7 +506,7 @@ code {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid #221e1c;
+  border-bottom: 1px solid var(--line-soft);
   font-size: 13px;
 }
 .accounts li.current b {
@@ -498,7 +532,7 @@ input.wide {
   display: flex;
   gap: 12px;
   padding: 6px 0;
-  border-bottom: 1px solid #221e1c;
+  border-bottom: 1px solid var(--line-soft);
   font-size: 13px;
 }
 .kv b {
@@ -523,7 +557,7 @@ input.wide {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1210;
+  color: var(--on-accent);
   font-weight: 600;
 }
 button.primary:disabled {
@@ -531,8 +565,8 @@ button.primary:disabled {
   cursor: default;
 }
 button.copied {
-  border-color: #4f7a3a;
-  color: #b6dfa0;
+  border-color: var(--ok-line);
+  color: var(--ok-ink);
 }
 label.inline {
   display: flex;
@@ -602,10 +636,10 @@ label.inline input[type="radio"] {
   text-align: left;
 }
 .picker li button:hover {
-  background: #221c1a;
+  background: var(--well);
 }
 .picker li button.chosen {
-  background: #2a211b;
+  background: var(--chosen);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 .lid {
@@ -622,7 +656,7 @@ label.inline input[type="radio"] {
   font-size: 11px;
   padding: 2px 7px;
   border-radius: 20px;
-  background: #2b2523;
+  background: var(--well);
   color: var(--muted);
 }
 .missing {
@@ -678,9 +712,9 @@ label.inline input[type="radio"] {
   flex-direction: column;
   gap: 12px;
   padding: 18px 20px 20px;
-  border: 1px solid #3a2f22;
+  border: 1px solid var(--warn-line);
   border-radius: 12px;
-  background: #1e1a15;
+  background: var(--warn-bg);
 }
 .inbox h3 {
   margin: 0;
@@ -690,9 +724,9 @@ label.inline input[type="radio"] {
 /* paste results */
 .problems {
   padding: 16px 18px;
-  border: 1px solid #4a3320;
+  border: 1px solid var(--warn-line);
   border-radius: 10px;
-  background: #241a13;
+  background: var(--warn-bg);
 }
 .problems h3 {
   margin: 0 0 10px;
@@ -712,8 +746,8 @@ label.inline input[type="radio"] {
   margin: 0;
   padding: 12px 16px;
   border-radius: 10px;
-  background: #1d2118;
-  border: 1px solid #2f3a26;
+  background: var(--ok-bg);
+  border: 1px solid var(--ok-line);
 }
 .field {
   border: 1px solid var(--line);
@@ -741,7 +775,7 @@ label.inline input[type="radio"] {
   font-size: 12px;
   padding: 2px 9px;
   border-radius: 20px;
-  background: #3a2d16;
+  background: var(--warn-bg);
   color: var(--warn);
 }
 .value {
@@ -759,7 +793,7 @@ label.inline input[type="radio"] {
   margin: 0;
   padding: 12px 16px;
   border-radius: 10px;
-  background: #221b18;
+  background: var(--hover);
   border: 1px solid var(--line);
   line-height: 1.7;
 }
@@ -783,19 +817,19 @@ label.inline input[type="radio"] {
   word-break: break-all;
 }
 .light.yes {
-  border-left-color: #5f9b45;
-  background: #1d2118;
+  border-left-color: var(--ok-line);
+  background: var(--ok-bg);
 }
 .light.no {
   border-left-color: var(--bad);
-  background: #241816;
+  background: var(--bad-bg);
 }
 .light.unknown {
   border-left-color: var(--warn);
-  background: #241f13;
+  background: var(--warn-bg);
 }
 .light.off {
-  border-left-color: #4a423d;
+  border-left-color: var(--dim);
 }
 
 /* Once you are in, logging in stops being news. One quiet line, not a panel. */
@@ -813,7 +847,7 @@ label.inline input[type="radio"] {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #5f9b45;
+  background: var(--ok-line);
   flex: none;
 }
 .light-strip .path {
@@ -833,7 +867,7 @@ label.inline input[type="radio"] {
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #100e0d;
+  background: var(--field);
   color: var(--ink);
   font: inherit;
 }
@@ -847,7 +881,7 @@ label.inline input[type="radio"] {
 .chip button {
   border: 0;
   border-radius: 0;
-  background: #262120;
+  background: var(--btn);
 }
 .chip .x {
   padding: 8px 11px;
@@ -888,8 +922,8 @@ label.inline input[type="radio"] {
   margin: 0;
   padding: 14px 18px;
   border-radius: 10px;
-  border: 1px solid #5a2f26;
-  background: #2a1714;
+  border: 1px solid var(--bad-line);
+  background: var(--bad-bg);
   line-height: 1.6;
 }
 
@@ -918,7 +952,7 @@ label.inline input[type="radio"] {
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #100e0d;
+  background: var(--field);
   color: var(--ink);
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 13px;
@@ -935,7 +969,7 @@ label.inline input[type="radio"] {
   align-items: center;
   gap: 12px;
   padding: 9px 0;
-  border-bottom: 1px solid #221e1c;
+  border-bottom: 1px solid var(--line-soft);
   font-size: 13.5px;
 }
 .versions li button {
@@ -972,7 +1006,7 @@ label.inline input[type="radio"] {
   height: 96px;
   object-fit: cover;
   border-radius: 8px;
-  background: #100e0d;
+  background: var(--field);
   flex: none;
 }
 .photo-body {
@@ -990,7 +1024,7 @@ label.inline input[type="radio"] {
   padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid var(--line);
-  background: #100e0d;
+  background: var(--field);
   color: var(--ink);
 }
 .photo .missing {
@@ -1039,7 +1073,7 @@ label.inline input[type="radio"] {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #332a20;
+  background: var(--warn-bg);
   color: var(--accent);
   font-size: 12px;
   font-weight: 700;
@@ -1059,7 +1093,7 @@ label.inline input[type="radio"] {
   padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid var(--line);
-  background: #100e0d;
+  background: var(--field);
   color: var(--ink);
 }
 
@@ -1474,11 +1508,11 @@ textarea.json {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #201b19;
+  background: var(--hover);
 }
 .named small {
   font-size: 11.5px;
-  color: #6d635b;
+  color: var(--dim);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -1488,7 +1522,7 @@ textarea.json {
   user-select: text;
 }
 .named .brandish {
-  color: #6d635b;
+  color: var(--dim);
   font-weight: 400;
 }
 .named em {
@@ -1529,7 +1563,7 @@ textarea.json {
   gap: 4px;
   padding: 3px;
   border-radius: 10px;
-  background: #12100f;
+  background: var(--bg);
   border: 1px solid var(--line);
 }
 .tabs button {
@@ -1539,12 +1573,12 @@ textarea.json {
   border: 0;
   border-radius: 7px;
   background: none;
-  color: #6d635b;
+  color: var(--dim);
   font-size: 13px;
   font-weight: 600;
 }
 .tabs button.current {
-  background: #2a211b;
+  background: var(--chosen);
   color: var(--ink);
 }
 
@@ -1583,7 +1617,7 @@ textarea.json {
   width: 100%;
   height: 150px;
   object-fit: contain;
-  background: #000;
+  background: var(--well);
 }
 .peek figcaption {
   margin-top: 5px;
@@ -1622,7 +1656,7 @@ textarea.json {
 }
 .sku-list li button.chosen {
   border-color: var(--accent);
-  background: #2a211b;
+  background: var(--chosen);
 }
 /* Packed rows go quiet rather than disappearing: the list is also the record of the day. */
 .sku-list li button.done .lid {
@@ -1641,15 +1675,15 @@ textarea.json {
   height: 24px;
   padding: 0 6px;
   border-radius: 7px;
-  background: #2e2926;
+  background: var(--well);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   font-size: 13px;
   flex: none;
 }
 .sku-list li button.done .qty {
-  background: #2a3a2a;
-  color: #9fd08f;
+  background: var(--ok-bg);
+  color: var(--ok-ink);
 }
 
 .month-pay {
@@ -1706,7 +1740,7 @@ textarea.json {
 }
 .sku-pictures .picks button.chosen {
   border-color: var(--accent);
-  background: #2a211b;
+  background: var(--chosen);
 }
 .sku-pictures .sku-image {
   margin: 0;
@@ -1734,7 +1768,7 @@ textarea.json {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #12100f;
+  background: var(--bg);
   color: var(--ink);
   width: 100%;
 }
@@ -1764,7 +1798,7 @@ textarea.json {
   padding: 3px 7px;
   border: 1px solid transparent;
   border-radius: 6px;
-  background: #211c1a;
+  background: var(--well);
   color: var(--muted);
 }
 .size-box:hover {
@@ -1805,7 +1839,7 @@ textarea.json {
   padding: 8px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #262120;
+  background: var(--btn);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -1814,9 +1848,9 @@ textarea.json {
   border-color: var(--accent);
 }
 .packed-tick.on {
-  border-color: #4f7a45;
-  background: #22301f;
-  color: #b6dfa8;
+  border-color: var(--ok-line);
+  background: var(--ok-bg);
+  color: var(--ok-ink);
 }
 .packed-tick input {
   width: 18px;
@@ -1944,7 +1978,7 @@ textarea.json {
   padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #12100f;
+  background: var(--bg);
   color: var(--ink);
   text-align: center;
 }
@@ -1973,7 +2007,7 @@ textarea.json {
 .who-packed {
   margin: 0 0 12px;
   border: 1px solid var(--accent);
-  background: #2a211b;
+  background: var(--chosen);
   border-radius: 8px;
   padding: 8px 12px;
 }
@@ -2002,7 +2036,7 @@ textarea.json {
 }
 .who button.chosen {
   border-color: var(--accent);
-  background: #3a2d23;
+  background: var(--chosen);
 }
 .who button em {
   font-style: normal;
@@ -2039,7 +2073,7 @@ textarea.json {
   padding: 7px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #100e0d;
+  background: var(--field);
   color: var(--ink);
 }
 
@@ -2085,7 +2119,7 @@ textarea.json {
   justify-content: space-between;
 }
 .sku-list li button.unnamed .qty {
-  background: #3a3020;
+  background: var(--chosen);
   color: var(--warn);
 }
 
@@ -2115,7 +2149,7 @@ textarea.json {
   color: var(--muted);
 }
 .money-tiles .good b {
-  color: #9fd08f;
+  color: var(--ok-ink);
 }
 .money-tiles .bad b {
   color: var(--bad);
@@ -2245,7 +2279,7 @@ textarea.json {
   gap: 8px;
   padding: 6px 10px;
   border-radius: 8px;
-  background: #241f1d;
+  background: var(--well);
 }
 .uncosted .qty {
   min-width: 22px;
@@ -2297,7 +2331,7 @@ textarea.json {
 
 button.chosen {
   border-color: var(--accent);
-  background: #2a211b;
+  background: var(--chosen);
   color: var(--ink);
   font-weight: 600;
 }
@@ -2316,7 +2350,7 @@ button.chosen:hover {
   width: 150px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #12100f;
+  background: var(--bg);
   color: var(--ink);
 }
 .kit-find:focus {
@@ -2338,7 +2372,7 @@ button.chosen:hover {
   padding: 12px 16px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #12100f;
+  background: var(--bg);
   color: var(--ink);
 }
 .sku-lookup input:focus {
@@ -2348,7 +2382,7 @@ button.chosen:hover {
 
 /* A shelf row that cannot be worked out until somebody says how big a packet is. */
 .ask-pack {
-  background: #2a211b;
+  background: var(--chosen);
 }
 .ask-pack label {
   display: inline-flex;
@@ -2362,7 +2396,7 @@ button.chosen:hover {
   padding: 5px 8px;
   border: 1px solid var(--warn);
   border-radius: 6px;
-  background: #100e0d;
+  background: var(--field);
   color: var(--ink);
   font: inherit;
   text-align: center;
@@ -2406,7 +2440,7 @@ button.chosen:hover {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #221d1b;
+  background: var(--well);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   font-size: 13px;
   text-align: left;
@@ -2491,7 +2525,7 @@ button.chosen:hover {
   padding: 4px 6px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #100e0d;
+  background: var(--field);
   color: var(--ink);
 }
 
@@ -2540,20 +2574,4 @@ button.chosen:hover {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-}
-:root[data-theme="light"] .drop,
-:root[data-theme="light"] .sku-image img {
-  background: var(--panel);
-}
-/* On a light ground the "chosen" fill has to lighten, not darken, or the label disappears. */
-:root[data-theme="light"] button.chosen,
-:root[data-theme="light"] .rail li button.current,
-:root[data-theme="light"] .who button.chosen,
-:root[data-theme="light"] .who-packed {
-  background: #fdeee2;
-}
-:root[data-theme="light"] .warnpill,
-:root[data-theme="light"] .ask-pack,
-:root[data-theme="light"] .bad-row {
-  background: #fdf4e6;
 }
