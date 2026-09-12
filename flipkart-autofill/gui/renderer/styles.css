@@ -2656,3 +2656,20 @@ h3 > button.tiny {
 .gap-groups .kv {
   margin: 4px 0 10px 1.4em;
 }
+
+/* A flag that is about a WRONG colour, not a spelling — the one that ships the wrong product. */
+.warnpill.bad {
+  border-color: var(--bad-line);
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+/* The colour a matched row already carries — shown instead of an "+ colour" nobody needs. */
+.has-colour {
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  white-space: nowrap;
+}

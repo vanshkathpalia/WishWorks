@@ -207,6 +207,13 @@ function Settlements({ kit }: { kit: KitRow }) {
   );
 }
 
+/** The colour a row's name carries, if any — the same words the engine treats as a shade. */
+const COLOUR_WORD =
+  /^(red|blue|green|pink|purple|black|white|golden|gold|silver|rose|rosegold|orange|yellow|peach|maroon|burgundy|grey|gray|dark|light|mint|teal|multicolou?r)$/i;
+
+const colourOf = (material: string): string =>
+  material.split(/\s+/).filter((w) => COLOUR_WORD.test(w)).join(" ");
+
 export function Inventory({ n }: { n: number }) {
   const [prompt, setPrompt] = useState("");
   const [editing, setEditing] = useState(false);
@@ -259,6 +266,13 @@ export function Inventory({ n }: { n: number }) {
   /** Unit prices for THIS kit only, `category|material` -> rupees as typed. */
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [priceNote, setPriceNote] = useState<string | null>(null);
+  /**
+   * Does this group have colours at all?
+   *
+   * Read off the list rather than declared: a category where nothing is named by a shade — tape,
+   * adhesive, packaging, the pump — is one where offering `+ colour` on every line is clutter for
+   * a control nobody will ever press.
+   */
   /** The line index whose *add to the price list* form is open, and what has been typed into it. */
   const [adding, setAdding] = useState<number | null>(null);
   /** True while the add form is asking for a brand-new group name rather than offering the list. */
@@ -427,6 +441,18 @@ export function Inventory({ n }: { n: number }) {
     for (const m of materials) groups.set(m.category, [...(groups.get(m.category) ?? []), m]);
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [materials]);
+
+  /**
+   * Groups where colour is actually an axis — read off the list, not declared.
+   *
+   * A category in which nothing is named by a shade (tape, adhesive, packaging, the pump) is one
+   * where offering `+ colour` on every line is clutter for a control nobody will press.
+   */
+  const coloured = useMemo(
+    () => new Set(materials.filter((m) => colourOf(m.material)).map((m) => m.category)),
+    [materials],
+  );
+  const hasColours = (category: string) => coloured.has(category);
 
   /** Both routes land here, so a pasted reply and a saved file can never behave differently. */
   function took(r: Awaited<ReturnType<typeof window.ww.costPasted>>) {
@@ -1166,13 +1192,30 @@ export function Inventory({ n }: { n: number }) {
                           </span>
                         ) : (
                           <>
-                            <button
-                              className="tiny"
-                              title="Add another colour of this \u2014 a new row, nothing renamed"
-                              onClick={() => setAddingColour({ line: i, text: "", kind: "colour" })}
-                            >
-                              + colour
-                            </button>
+                            {/**
+                              * **Show the colour it PICKED; offer `+` only when it picked none.**
+                              * Vansh, 2026-09-12: *"instead of that + sign I want that colour to
+                              * come that it is picking up — and if no colour it is picking then only
+                              * this + sign should come, so that I know what colour already exists
+                              * and what needs to be."*
+                              *
+                              * And the `+` is hidden entirely where colour is not an axis at all:
+                              * arch tape and a pump have no shade, so a control offering one is
+                              * clutter on every line that will never use it. The test is the
+                              * CATEGORY — if nothing in this group is named by a colour, this
+                              * product is not either.
+                              */}
+                            {colourOf(l.match.material) ? (
+                              <span className="has-colour">{colourOf(l.match.material)}</span>
+                            ) : hasColours(l.match.category) ? (
+                              <button
+                                className="tiny"
+                                title="No colour on this row — add one as a new row, nothing renamed"
+                                onClick={() => setAddingColour({ line: i, text: "", kind: "colour" })}
+                              >
+                                + colour
+                              </button>
+                            ) : null}
                             <button
                               className="tiny"
                               title="Add another size of this \u2014 a new row, priced on its own"
@@ -1238,7 +1281,23 @@ export function Inventory({ n }: { n: number }) {
                       byCategory={byCategory}
                       onPick={(k) => setOverrides((o) => ({ ...o, [i]: k }))}
                     />
-                    {l.flagged && <span className="warnpill">check</span>}
+                    {/**
+                      * **The reason, not a percentage.** `check — 80%` reads identically whether
+                      * the difference is a spelling or whether BLUE is being offered for PURPLE.
+                      * Vansh: *"there was no flagging for no colour exists or anything."* There
+                      * was a flag; it just never said which kind of wrong it was.
+                      */}
+                    {l.flagged && (
+                      <span className={l.why === "wrong" ? "warnpill bad" : "warnpill"}>
+                        {l.why === "wrong"
+                          ? `this is ${l.match?.material.split(" ")[0].toLowerCase()}, yours says ${l.item.split(" ")[0].toLowerCase()}`
+                          : l.why === "missing"
+                            ? "we stock no such colour or size"
+                            : l.why === "narrow"
+                              ? "this row names a shade yours did not"
+                              : "check the spelling"}
+                      </span>
+                    )}
                     {l.match && l.paise === null && <span className="warnpill">no price set</span>}
                     {/**
                       * **Offered on EVERY line, matched or not** — and that is the fix for the

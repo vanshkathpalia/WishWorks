@@ -828,6 +828,26 @@
       "paise": null
     },
     {
+      "category": "Foil Balloon",
+      "material": "pink Heart Foil",
+      "paise": 150
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "yellow Star Foil",
+      "paise": 150
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Red Heart Foil big",
+      "paise": null
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Red Heart Foil small",
+      "paise": null
+    },
+    {
       "category": "Banner",
       "material": "6 Month Birthday Banner",
       "paise": 1000,

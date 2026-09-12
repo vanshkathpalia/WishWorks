@@ -116,6 +116,8 @@ export interface CostedLine extends KitLine {
   score: number;
   /** True when it was priced but is worth checking against the picture. */
   flagged: boolean;
+  /** WHY, when the disagreement is about a colour or a size. See `whyFlagged`. */
+  why: "wrong" | "missing" | "narrow" | null;
   /** Set when a human picked this row; it is never re-scored. */
   overridden: boolean;
   /** The best few rows, so the dropdown opens on the likely answers. */
@@ -794,6 +796,33 @@ export function narrowing(name: string, m: Material): boolean {
   return tokens(m.material).some((w) => QUALIFIER.test(w) && !asked.some((a) => sameWord(a, w)));
 }
 
+/**
+ * WHY a line is worth a glance, in the words that make it actionable.
+ *
+ * Vansh, 2026-09-12: *"there was no flagging for no colour exists or anything — or no size exists."*
+ * There was a flag, and it said `check this — 80%`, which reads identically whether the difference
+ * is a spelling or whether **blue is being offered for purple**. A percentage is a measure of
+ * similarity, not a description of the disagreement.
+ *
+ * Three different things, and only the first two are about colour or size:
+ *   - `wrong`  — both name one and they are NOT the same. `Purple Star Foil` -> `Blue Star Foil`.
+ *                The most dangerous, because the row looks right and is a different product.
+ *   - `missing`— the reading names one and the row does not. `Silver Heart Foil` -> `Heart Foil`:
+ *                either we do not stock that shade, or this row is the generic one.
+ *   - `narrow` — the row names one and the reading does not, the case `narrowing` already caps.
+ *   - `null`   — nothing to do with colour; the names simply differ in spelling.
+ */
+export function whyFlagged(name: string, m: Material): "wrong" | "missing" | "narrow" | null {
+  const asked = tokens(name).filter((w) => QUALIFIER.test(w));
+  const has = tokens(m.material).filter((w) => QUALIFIER.test(w));
+  const shared = (a: string[], b: string[]) => a.some((x) => b.some((y) => sameWord(x, y)));
+
+  if (asked.length > 0 && has.length > 0 && !shared(asked, has)) return "wrong";
+  if (asked.length > 0 && !asked.every((w) => has.some((h) => sameWord(w, h)))) return "missing";
+  if (has.length > 0 && !has.every((w) => asked.some((a) => sameWord(a, w)))) return "narrow";
+  return null;
+}
+
 export const SURE = 0.85;
 /** Priced but flagged at or above this; below it, left unpriced. */
 export const FLOOR = 0.6;
@@ -802,6 +831,19 @@ export function candidates(name: string, materials: Material[], top = 5): Candid
   return materials
     .map((material) => {
       const raw = score(name, material);
+      /**
+       * **A DIFFERENT colour is a different product, and is refused outright.**
+       *
+       * Vansh, 2026-09-12, shown `Purple Star Foil -> Blue Star Foil` at 67%: *"that is a wrong
+       * pick — and even if it is not, I didn't know what you are subtracting."* Both are named,
+       * they disagree, and there is no reading under which blue is purple. Flagging it was not
+       * enough: a flagged line is still priced, still costed into the kit, and still comes off the
+       * shelf as BLUE. Scoring it zero makes it *nothing on the list*, which asks him.
+       *
+       * Only when BOTH sides name one. A reading with no colour still matches a coloured row (and
+       * is capped below), because the sheet leaving it out is not a claim about the shade.
+       */
+      if (whyFlagged(name, material) === "wrong") return { material, score: 0 };
       // Capped here rather than inside `score` so the CAP is a fact about the pair, not a change
       // to how names are compared. It only ever lowers, and only across the SURE line — the row
       // stays the best answer, it just stops being a silent one.
@@ -984,6 +1026,7 @@ export function costKit(
       match,
       score: s,
       flagged: !overridden && !wasDecided && match !== null && (s < SURE || tied),
+      why: match === null || overridden || wasDecided ? null : whyFlagged(line.item, match),
       overridden,
       choices,
       /** Set when this line's unit price came from the kit rather than the price list. */

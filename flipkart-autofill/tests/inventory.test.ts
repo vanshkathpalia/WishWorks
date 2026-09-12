@@ -593,6 +593,45 @@ describe("the two pack sizes are not the same fact", () => {
   });
 });
 
+/**
+ * **A flag has to say which kind of wrong it is.** Vansh, 2026-09-12: *"there was no flagging for
+ * no colour exists or anything."* There was a flag — it said `check this — 80%`, which reads the
+ * same whether the difference is a spelling or whether BLUE is being offered for PURPLE.
+ */
+describe("why a line is flagged", () => {
+  const real = () => loadMaterials(path.join(import.meta.dirname, "..", "categories"));
+  const why = (item: string) => costKit([{ item, qty: 1 }], real()).lines[0];
+
+  /**
+   * **A different colour is REFUSED, not flagged.** It was flagged first, and Vansh was right that
+   * that is not enough: *"that is a wrong pick — and even if it is not, I didn't know what you are
+   * subtracting."* A flagged line is still priced, still costed into the kit, and still comes off
+   * the shelf as the wrong colour. Nothing on the list asks him instead.
+   */
+  it("refuses a different colour outright, rather than offering blue for purple", () => {
+    const l = why("Purple Star Foil");
+    expect(l.match).toBeNull();
+    // And the refusal is specific: the same name WITH a colour we stock still matches exactly.
+    expect(why("Blue Star Foil").match?.material).toBe("Blue Star Foil");
+  });
+
+  it("says when we stock no such colour, rather than calling it a spelling", () => {
+    expect(why("Silver Heart Foil").why).toBe("missing");
+    expect(why("Golden Fringes Big").why).toBe("missing");
+  });
+
+  it("says when the ROW names a shade the reading did not", () => {
+    expect(why("Heart Foil Small").why).toBe("narrow");
+  });
+
+  it("leaves a plain spelling difference unqualified, and an exact match unflagged", () => {
+    expect(why("Shubh Annaprasan Banner").why).toBeNull();
+    const exact = why("Red Heart Foil");
+    expect(exact.flagged).toBe(false);
+    expect(exact.why).toBeNull();
+  });
+});
+
 describe("the shipped price list", () => {
   it("reads materials.json, and an absent one is empty rather than a crash", () => {
     const dir = tmp();
