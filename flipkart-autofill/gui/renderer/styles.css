@@ -11,6 +11,34 @@
   --warn: #e8b33a;
   --bad: #e2664f;
   font-family: ui-sans-serif, system-ui, "Segoe UI", -apple-system, sans-serif;
+
+  /**
+   * **The one line that fixes every white box.** Vansh, 2026-09-12: *"this white colour is feeling
+   * irritating to me."* A date picker, a checkbox, a scrollbar and a dropdown's option list are
+   * drawn by the OS, not by this stylesheet — so they came out light on a dark panel however many
+   * selectors were written at them. `color-scheme` is how a page TELLS the platform which way round
+   * it is, and every native control follows it at once.
+   */
+  color-scheme: dark;
+}
+
+/**
+ * Daylight. Same eight tokens, different values — nothing else in this file changes.
+ *
+ * Kept as an override on `:root` rather than a media query, because the switch is a decision
+ * somebody makes (`data-theme` on `<html>`, remembered in `localStorage`), not a fact about the
+ * time of day. The warm greys stay warm: this is still a balloon shop.
+ */
+:root[data-theme="light"] {
+  --bg: #faf7f4;
+  --panel: #ffffff;
+  --line: #e2dbd3;
+  --ink: #241f1c;
+  --muted: #6f635a;
+  --accent: #c2560c;
+  --warn: #9a6b06;
+  --bad: #b23b22;
+  color-scheme: light;
 }
 
 * {
@@ -1267,6 +1295,14 @@ label.inline input[type="radio"] {
 
 /* Number inputs were unstyled, so they rendered as a tiny white box with the value invisible
    against it — the margin field looked empty on a dark theme. */
+input[type="date"] {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
 input[type="number"],
 input[type="text"] {
   width: 5.5em;
@@ -2495,4 +2531,29 @@ button.chosen:hover {
   height: 15px;
   accent-color: var(--accent);
   margin: 0;
+}
+
+
+/* The theme switch, at the foot of the rail beside Settings. */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+:root[data-theme="light"] .drop,
+:root[data-theme="light"] .sku-image img {
+  background: var(--panel);
+}
+/* On a light ground the "chosen" fill has to lighten, not darken, or the label disappears. */
+:root[data-theme="light"] button.chosen,
+:root[data-theme="light"] .rail li button.current,
+:root[data-theme="light"] .who button.chosen,
+:root[data-theme="light"] .who-packed {
+  background: #fdeee2;
+}
+:root[data-theme="light"] .warnpill,
+:root[data-theme="light"] .ask-pack,
+:root[data-theme="light"] .bad-row {
+  background: #fdf4e6;
 }

@@ -239,6 +239,44 @@ function Accounts() {
   );
 }
 
+/**
+ * Dark or daylight, remembered.
+ *
+ * Vansh, 2026-09-12: *"we don't have dark and light mode option in our app."* It is eight CSS
+ * tokens and an attribute on `<html>` — the rest of the stylesheet never learns which one is on.
+ *
+ * **`localStorage`, not `settings.json`.** A theme is a fact about this screen on this machine, not
+ * about the account or the data; putting it in settings would sync a personal preference between
+ * two people sharing a Drive folder. It is also the one piece of state that must be applied before
+ * the first paint, and an IPC round trip cannot be.
+ */
+function ThemeToggle() {
+  const [light, setLight] = useState(() => {
+    try {
+      return localStorage.getItem("ww-theme") === "light";
+    } catch {
+      return false; // a browser with storage blocked still gets a working app, just always dark
+    }
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (light) root.setAttribute("data-theme", "light");
+    else root.removeAttribute("data-theme");
+    try {
+      localStorage.setItem("ww-theme", light ? "light" : "dark");
+    } catch {
+      /* not remembering it is survivable; not applying it is not */
+    }
+  }, [light]);
+
+  return (
+    <button className="theme-toggle" onClick={() => setLight((v) => !v)}>
+      {light ? "🌙" : "☀️"} {light ? "Dark" : "Daylight"}
+    </button>
+  );
+}
+
 function Settings({ close }: { close: () => void }) {
   const [folders, setFolders] = useState<Record<string, string>>({});
   const [workspace, setWorkspace] = useState("");
@@ -491,6 +529,7 @@ function App() {
               crosses tabs, which is the whole reason it is down here and not in the list. */}
           <button onClick={() => setStep(5)}>Log in to Flipkart</button>
           <button onClick={() => setSettings(true)}>Settings</button>
+          <ThemeToggle />
         </div>
       </nav>
 
