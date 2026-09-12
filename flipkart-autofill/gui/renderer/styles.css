@@ -2602,3 +2602,46 @@ button.chosen:hover {
   flex: 1;
   font-size: 13px;
 }
+
+/* A folded group — the browser's own disclosure, styled to look like the heading it replaces. */
+.inv-group > summary,
+.tally-group > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.inv-group > summary::-webkit-details-marker,
+.tally-group > summary::-webkit-details-marker {
+  display: none;
+}
+/* The triangle, drawn by us so it turns with the fold in both themes. */
+.inv-group > summary::before,
+.tally-group > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--muted);
+  transition: transform 0.12s;
+}
+.inv-group[open] > summary::before,
+.tally-group[open] > summary::before {
+  transform: rotate(90deg);
+}
+.tally-group > summary {
+  margin: 22px 0 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.tally-group > summary small {
+  display: block;
+  margin-left: 1em;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12.5px;
+}
+h3 > button.tiny {
+  margin-left: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}

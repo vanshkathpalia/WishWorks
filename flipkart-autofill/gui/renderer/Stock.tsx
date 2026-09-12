@@ -415,11 +415,17 @@ export function Stock({ n }: { n: number }) {
                 && !(r.unitsDiffer && r.agreesInPieces === null)),
             },
           ].filter((g) => g.rows.length > 0).map((g) => (
-            <div key={g.title} className="tally-group">
-              <h3>
+            /**
+              * **Folded unless it needs you.** Vansh: *"all listings are opening everywhere, there
+              * should be a toggle at each step that opens any sort of lists."* Eighty rows in four
+              * open groups is the wall this screen exists to replace — so only *needs a decision*
+              * starts open, and the rest say how many they hold and wait to be asked.
+              */
+            <details key={g.title} className="tally-group" open={g.title === "Needs a decision"}>
+              <summary>
                 {g.title}
                 <small>{g.rows.length} · {g.why}</small>
-              </h3>
+              </summary>
               <table className="rows inv-table">
                 <thead>
                   <tr>
@@ -488,7 +494,7 @@ export function Stock({ n }: { n: number }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </details>
           ))}
           {shown.length === 0 && (
             <p className="muted">
@@ -529,7 +535,19 @@ export function Stock({ n }: { n: number }) {
         </>
       )}
 
-      <h3>On the shelf</h3>
+      {/**
+        * **Recount, on demand.** The shelf is derived from two things that change elsewhere — the
+        * deliveries here, and the packing on the orders screen — and this panel only ever read them
+        * when it was opened. Vansh, 2026-09-12: *"there is a latency at what's left thing, add a
+        * refresh button that recalculates the present manifest vs the stuff we have at inventory."*
+        * Tick a manifest off, come back, press this.
+        */}
+      <h3>
+        On the shelf
+        <button className="tiny" onClick={loadStock} title="Recount against the manifests as they stand now">
+          recount
+        </button>
+      </h3>
       {stock === null ? (
         <p className="muted">Working it out…</p>
       ) : stock.onHand.length === 0 ? (

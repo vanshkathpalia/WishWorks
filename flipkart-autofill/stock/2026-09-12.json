@@ -1,0 +1,141 @@
+{
+  "date": "2026-09-12",
+  "claimedNote": "1 pkt heart foil\n1 pkt golden balloon\n2 pkt red balloon\n2 pkt annaprashan kit with props\n1 pkt red fringes\n2 pkt arch tape\n2 pkt glue tape\n1 pkt annaprashan banner\n1 pkt dark blue balloon\n1 pkt blue balloon\n1 pkt white balloon\n1 pkt silver confetti balloon\n100 pcs silver moon foil\n1 pkt silver star foil\n1 pkt silver fringes\n1 pkt blue welcome baby foil\n1 pkt balloon pump\n2 pkt golden fringes\n5 pkt hbd banner",
+  "countedNote": "1 pkt heart foil\n1 pkt golden balloon\n2 pkt red balloon\n2 pkt annaprashan kit with props\n1 pkt red fringes\n2 pkt arch tape\n2 pkt glue tape\n1 pkt annaprashan banner\n1 pkt dark blue balloon\n1 pkt blue balloon\n1 pkt white balloon\n1 pkt silver confetti balloon\n100 pcs silver moon foil\n1 pkt silver star foil\n1 pkt silver fringes\n1 pkt blue welcome baby foil\n1 pkt balloon pump\n2 pkt golden fringes\n5 pkt hbd banner",
+  "picks": {},
+  "lines": [
+    {
+      "key": "Banner|Annaprashan Banner",
+      "name": "annaprashan banner",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Themed Set|Annaprashan Kit With Props",
+      "name": "annaprashan kit with props",
+      "qty": 2,
+      "unit": "pkt",
+      "claimed": 2
+    },
+    {
+      "key": "Adhesive|Arch Tape",
+      "name": "arch tape",
+      "qty": 2,
+      "unit": "pkt",
+      "claimed": 2
+    },
+    {
+      "key": "Equipment|Balloon Pump",
+      "name": "balloon pump",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Balloon|Blue Balloon",
+      "name": "blue balloon",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Foil Balloon|Blue Welcome Baby Foil",
+      "name": "blue welcome baby foil",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Balloon|Dark Blue Balloon",
+      "name": "dark blue balloon",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Adhesive|Glue Tape",
+      "name": "glue tape",
+      "qty": 2,
+      "unit": "pkt",
+      "claimed": 2
+    },
+    {
+      "key": "Balloon|Golden Balloon",
+      "name": "golden balloon",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Fringes|Golden Fringes",
+      "name": "golden fringes",
+      "qty": 2,
+      "unit": "pkt",
+      "claimed": 2
+    },
+    {
+      "key": "Banner|HBD Banner",
+      "name": "hbd banner",
+      "qty": 5,
+      "unit": "pkt",
+      "claimed": 5
+    },
+    {
+      "key": "Foil Balloon|Heart Foil",
+      "name": "heart foil",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Balloon|Red Balloon",
+      "name": "red balloon",
+      "qty": 2,
+      "unit": "pkt",
+      "claimed": 2
+    },
+    {
+      "key": "Fringes|Red Fringes",
+      "name": "red fringes",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Balloon|Silver Confetti Balloon",
+      "name": "silver confetti balloon",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Fringes|Silver Fringes",
+      "name": "silver fringes",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Foil Balloon|Silver Moon Foil",
+      "name": "silver moon foil",
+      "qty": 100,
+      "unit": "pcs",
+      "claimed": 100
+    },
+    {
+      "key": "Foil Balloon|Silver Star Foil",
+      "name": "silver star foil",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    },
+    {
+      "key": "Balloon|White Balloon",
+      "name": "white balloon",
+      "qty": 1,
+      "unit": "pkt",
+      "claimed": 1
+    }
+  ]
+}

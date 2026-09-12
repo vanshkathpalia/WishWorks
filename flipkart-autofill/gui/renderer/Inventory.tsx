@@ -920,10 +920,26 @@ export function Inventory({ n }: { n: number }) {
                 <>
                   {/* Grouped the same way the ready folder is, so "all the GTBs together" means
                       the same thing on this screen and on disk. */}
+                  {/**
+                    * **One group at a time.** Vansh: *"each can be toggled too under a big parent
+                    * show/hide toggle."* Twenty-six kits over nine codes is a wall when every one is
+                    * open, and the code you want is one you already know — so the group is a
+                    * `<details>`, which is a fold the browser already has: no state, no chevron of
+                    * our own, and it keeps working when the list is searched.
+                    *
+                    * Open by default only when there are few enough to read at a glance, or when a
+                    * search is narrowing them — a fold that hides the one result you asked for is
+                    * worse than no fold.
+                    */}
                   {groups.map((g) => (
-                    <div key={g.prefix} className="inv-group">
-                      <div className="inv-group-head">
+                    <details
+                      key={g.prefix}
+                      className="inv-group"
+                      open={groups.length <= 3 || find.trim() !== ""}
+                    >
+                      <summary className="inv-group-head">
                         <b>{g.prefix || "no code"}</b>
+                        <span className="muted">{g.kits.length}</span>
                         {g.next ? (
                           <span className="muted">
                             next free: <b>{g.next}</b>
@@ -937,7 +953,7 @@ export function Inventory({ n }: { n: number }) {
                             newest listing: <b>{g.newest}</b>
                           </span>
                         )}
-                      </div>
+                      </summary>
                       <div className="picks inv-saved">
                         {/* Delete lives HERE rather than beside the open kit, because a wrong kit
                             is usually one you can see in this list and do not want to open first —
@@ -980,7 +996,7 @@ export function Inventory({ n }: { n: number }) {
                           <span className="muted">no kit costed under this code yet</span>
                         )}
                       </div>
-                    </div>
+                    </details>
                   ))}
                   <p className="muted">
                     <b>next free</b> is one past the highest number anything on this machine uses —

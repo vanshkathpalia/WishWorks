@@ -126,6 +126,10 @@ function SkuImage({ sku, qty, tick }: { sku: string; qty: number; tick: React.Re
   return (
     <div className="sku-pictures">
       <div className="picks">
+        {/* The tick goes FIRST. Vansh, 2026-09-12: *"the packed button at orders manifest and image
+            session is at the right side, I want it on the left."* It is the one control on this row
+            pressed every single time, and it was sitting past two that are pressed occasionally. */}
+        {tick}
         <button className={position === 2 ? "chosen" : ""} onClick={() => setPosition(2)}>
           What is in the packet
         </button>
@@ -135,9 +139,6 @@ function SkuImage({ sku, qty, tick }: { sku: string; qty: number; tick: React.Re
         <button onClick={() => void add()}>
           {file ? "Replace this picture…" : "Add a picture…"}
         </button>
-        {/* The tick sits at the end of this row on Vansh's call — it used to be a panel of its own
-            above the picture, pushing the one thing the packer needs to see off the screen. */}
-        {tick}
       </div>
 
       {file === undefined ? (
