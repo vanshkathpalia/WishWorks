@@ -32,8 +32,7 @@
     {
       "name": "pump",
       "whenAnyOf": [
-        "Balloon Pump",
-        "Petti Pump"
+        "Balloon Pump"
       ],
       "lengthCm": 22.86,
       "breadthCm": 20.32,

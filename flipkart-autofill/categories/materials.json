@@ -533,7 +533,7 @@
     {
       "category": "Foil Balloon",
       "material": "Silver Moon Foil Big",
-      "paise": null,
+      "paise": 1000,
       "aka": [
         "silver moon big"
       ],
@@ -664,7 +664,7 @@
     {
       "category": "Foil Balloon",
       "material": "Golden Love Foil Big",
-      "paise": null,
+      "paise": 1000,
       "packOf": 100
     },
     {
@@ -723,7 +723,7 @@
     {
       "category": "Foil Balloon",
       "material": "Baby Foil Small",
-      "paise": null,
+      "paise": 700,
       "_note": "`bacha` is bachcha, a child. Distinct from the plain `Baby Foil` (Rs4) — which of the three sizes that one is has not been established.",
       "aka": [
         "bacha smoll foil"
@@ -732,7 +732,7 @@
     {
       "category": "Foil Balloon",
       "material": "Baby Foil Big",
-      "paise": null,
+      "paise": 1200,
       "_note": "Was matching `Heart Foil Big` at 67% before this row existed — a confident wrong answer, which is the failure mode a missing row causes.",
       "aka": [
         "bacha foil big"
@@ -741,18 +741,18 @@
     {
       "category": "Foil Balloon",
       "material": "Just Married Foil",
-      "paise": null
+      "paise": 3500
     },
     {
       "category": "Foil Balloon",
       "material": "Haldi Ceremony Foil",
-      "paise": null,
+      "paise": 3500,
       "_note": "The FOIL. `Haldi Banner` (Rs12) is a different product and is untouched."
     },
     {
       "category": "Foil Balloon",
       "material": "Golden Annaprashan Foil",
-      "paise": null,
+      "paise": 3500,
       "aka": [
         "annprashan gold foil",
         "golden anp foil"
@@ -761,7 +761,7 @@
     {
       "category": "Foil Balloon",
       "material": "Golden Welcome Foil",
-      "paise": null,
+      "paise": 3500,
       "_note": "FLAG: `welcome foil golden` could be Welcome Baby or Welcome Home, both of which already exist as foils (Rs35 / Rs38). Listed on its own rather than folded into either. Confirm which, or whether it is a third product.",
       "aka": [
         "welcome foil golden"
@@ -771,7 +771,7 @@
     {
       "category": "Foil Balloon",
       "material": "Golden Baby Shower Foil",
-      "paise": null,
+      "paise": 3500,
       "_note": "Was matching `Baby Foil` at 67%.",
       "aka": [
         "baby shower golden foil"
@@ -931,7 +931,7 @@
     {
       "category": "Banner",
       "material": "Emoji Banner",
-      "paise": null,
+      "paise": 1200,
       "aka": [
         "emogi banner"
       ],
@@ -964,7 +964,7 @@
     {
       "category": "Banner",
       "material": "Glitter HBD Bunting, All Colours",
-      "paise": null,
+      "paise": 1200,
       "_note": "`gletar` read as glitter. `HBD Bunting` (Rs12) is the plain one and stays.",
       "aka": [
         "All colors gletar hbd bunting",
@@ -976,7 +976,7 @@
     {
       "category": "Banner",
       "material": "Glitter Bunting",
-      "paise": null,
+      "paise": 1200,
       "_note": "FLAG: the note says `gletar bunting old`. `old` could mean old stock, an older design, or a different product. Entered as its own row rather than guessed into the row above.",
       "aka": [
         "gletar bunting old"
@@ -997,7 +997,7 @@
     {
       "category": "Banner",
       "material": "Blue Welcome Baby Banner",
-      "paise": null,
+      "paise": 1200,
       "aka": [
         "welcome baby blue banner",
         "blue wb banner",
@@ -1008,7 +1008,7 @@
     {
       "category": "Banner",
       "material": "Pink Half Birthday Banner",
-      "paise": null,
+      "paise": 1200,
       "_note": "FLAG: half birthday and six months are the same occasion, so this may be the existing `6 Month Birthday Banner` (Rs10) in pink. Kept separate — merging two products that only LOOK alike is the mistake to avoid.",
       "aka": [
         "half birthday banner pink"
@@ -1018,7 +1018,7 @@
     {
       "category": "Banner",
       "material": "Blue Half Birthday Banner",
-      "paise": null,
+      "paise": 1200,
       "aka": [
         "half hbd banner blue",
         "half happy birthday banner blue"
@@ -1028,7 +1028,7 @@
     {
       "category": "Banner",
       "material": "Rose Gold Peanut Banner",
-      "paise": null,
+      "paise": 1200,
       "_note": "FLAG, the least confident row here: `Peanut` is not a party theme I can place, and it is spelt the same on both of his lines so it is probably not a slip. Possibly a baby-shower `little peanut` banner. Please say what this is.",
       "aka": [
         "Peanut banner rose gold"
@@ -1038,7 +1038,7 @@
     {
       "category": "Banner",
       "material": "Golden Peanut Banner",
-      "paise": null,
+      "paise": 1200,
       "aka": [
         "Peanut banner golden"
       ],
@@ -1047,7 +1047,7 @@
     {
       "category": "Themed Set",
       "material": "Annaprashan Kit With Props, English",
-      "paise": null,
+      "paise": 2500,
       "_note": "Vansh: *\"english aannprashna — is it talking about annaprasan anp kit 25 rs one? diff eng and hindi we have.\"* So this is the ENGLISH version of `Annaprashan Kit With Props` (Rs25), not a banner. **That Rs25 row is left exactly as it is** — it carries no language, and labelling it Hindi is Vansh's call, not a guess to make here. Once he says, that row gets `, Hindi` and this one gets his price.",
       "aka": [
         "english aannprashna",
@@ -1059,7 +1059,7 @@
     {
       "category": "Banner",
       "material": "Golden BTB Bunting",
-      "paise": null,
+      "paise": 1200,
       "_note": "`brtb` read as BTB, Bride To Be — `BTB Sash` already uses that code. Confirm.",
       "aka": [
         "brtb bunting golden",
@@ -1071,7 +1071,7 @@
     {
       "category": "Banner",
       "material": "Rose Gold BTB Bunting",
-      "paise": null,
+      "paise": 1200,
       "aka": [
         "brtb bunting rosegold",
         "rose gold bride to be bunting",
@@ -1263,7 +1263,7 @@
     {
       "category": "Themed Set",
       "material": "Mario Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "mariyo 5 pcs set"
       ],
@@ -1324,7 +1324,7 @@
     {
       "category": "Themed Set",
       "material": "Welcome Home Golden Set, 100 pcs",
-      "paise": null,
+      "paise": 3500,
       "aka": [
         "Welcome home golden 100 pcs ok"
       ],
@@ -1334,7 +1334,7 @@
     {
       "category": "Themed Set",
       "material": "Hello Kitty Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "_note": "The 5-piece set. `Kitty Foil` (Rs15) is a single foil and is untouched.",
       "aka": [
         "kitty five pcs set"
@@ -1345,7 +1345,7 @@
     {
       "category": "Themed Set",
       "material": "Boss Baby Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "boss baby five pcs set"
       ],
@@ -1355,7 +1355,7 @@
     {
       "category": "Themed Set",
       "material": "Spiderman Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "spiderman five pcs set"
       ],
@@ -1365,7 +1365,7 @@
     {
       "category": "Themed Set",
       "material": "Unicorn Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "_note": "The 5-piece set. `Unicorn` (Rs5) is a single and stays.",
       "aka": [
         "unicorn five pcs set"
@@ -1376,7 +1376,7 @@
     {
       "category": "Themed Set",
       "material": "Minnie Mouse Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "_note": "`Mini mouse` read as Minnie, and listed separately from Mickey below — the note has both, one line apart, so they are two products.",
       "aka": [
         "Mini mouse five pcs set"
@@ -1387,7 +1387,7 @@
     {
       "category": "Themed Set",
       "material": "Mickey Mouse Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "Micky mouse five pcs set"
       ],
@@ -1397,7 +1397,7 @@
     {
       "category": "Themed Set",
       "material": "Rainbow Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "renbow five pcs set"
       ],
@@ -1407,7 +1407,7 @@
     {
       "category": "Themed Set",
       "material": "Barbie Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "barbie five pcs set"
       ],
@@ -1417,7 +1417,7 @@
     {
       "category": "Themed Set",
       "material": "Masha Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "_note": "FLAG: `Masha Set, Card Packed` (Rs38) already exists. Card-packed and a 5-pc set may be the same goods in different packing, or two products. Kept apart until Vansh says.",
       "aka": [
         "masa five pcs set"
@@ -1439,7 +1439,7 @@
     {
       "category": "Themed Set",
       "material": "Pink First Birthday Set, 5 pcs",
-      "paise": null,
+      "paise": 4000,
       "aka": [
         "first birthday five pcs set pink foil"
       ],
@@ -1502,7 +1502,7 @@
     {
       "category": "Decoration",
       "material": "LED String Light, 10 m",
-      "paise": 1900,
+      "paise": 2000,
       "aka": [
         "led 10 mtr",
         "10 mtr led"
@@ -1556,7 +1556,7 @@
     {
       "category": "Decoration",
       "material": "LED String Light, 15 m",
-      "paise": null,
+      "paise": 3000,
       "size": "15m",
       "_note": "Vansh: *\"i think it is 15 mtr one if the supplier is saying — our inventory can lie.\"* Before this row it matched the 10 m at full confidence: a missing row does not read as missing, it reads as the nearest wrong answer.",
       "aka": [
@@ -1595,7 +1595,7 @@
     {
       "category": "Sash",
       "material": "BTB Sash",
-      "paise": null,
+      "paise": 900,
       "sellsAs": "Bride To Be Sash",
       "aka": [
         "bride to be sash"
@@ -1615,7 +1615,7 @@
     {
       "category": "Sash",
       "material": "HBD Sash",
-      "paise": null,
+      "paise": 900,
       "sellsAs": "Happy Birthday Sash",
       "aka": [
         "happy birthday sash"
@@ -1656,16 +1656,11 @@
     {
       "category": "Equipment",
       "material": "Balloon Pump",
-      "paise": 1400,
+      "paise": 1500,
       "aka": [
+        "petti pump",
         "pump"
       ],
-      "packOf": 200
-    },
-    {
-      "category": "Equipment",
-      "material": "Petti Pump",
-      "paise": null,
       "packOf": 200
     },
     {
