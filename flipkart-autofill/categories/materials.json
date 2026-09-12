@@ -13,12 +13,14 @@
       "paise": 80,
       "aka": [
         "BLACK BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Blue Balloon",
-      "paise": 80
+      "paise": 80,
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -26,7 +28,8 @@
       "paise": 80,
       "aka": [
         "BLUE Dark Balloon"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -34,7 +37,8 @@
       "paise": 80,
       "aka": [
         "BLUE MATTALIC 741"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -43,7 +47,8 @@
       "aka": [
         "BLUE PASTEL BALLOONS"
       ],
-      "size": "10\""
+      "size": "10\"",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -51,7 +56,8 @@
       "paise": 80,
       "aka": [
         "BREANDY BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -59,12 +65,14 @@
       "paise": 80,
       "aka": [
         "BURGENDY BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Chrome Balloon",
-      "paise": 150
+      "paise": 150,
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -72,7 +80,8 @@
       "paise": 200,
       "aka": [
         "CONFETI Blue BALLOONS"
-      ]
+      ],
+      "packOf": 100
     },
     {
       "category": "Balloon",
@@ -80,7 +89,8 @@
       "paise": 200,
       "aka": [
         "CONFETI GOLDEN BALLOONS"
-      ]
+      ],
+      "packOf": 100
     },
     {
       "category": "Balloon",
@@ -88,7 +98,8 @@
       "paise": 200,
       "aka": [
         "CONFETI PINK BALLOONS"
-      ]
+      ],
+      "packOf": 100
     },
     {
       "category": "Balloon",
@@ -96,7 +107,8 @@
       "paise": 200,
       "aka": [
         "CONFETI SILVER BALLOONS"
-      ]
+      ],
+      "packOf": 100
     },
     {
       "category": "Balloon",
@@ -104,7 +116,8 @@
       "paise": 200,
       "aka": [
         "CONFETI Rose gold BALLOONS"
-      ]
+      ],
+      "packOf": 100
     },
     {
       "category": "Balloon",
@@ -112,7 +125,8 @@
       "paise": 80,
       "aka": [
         "DARK PINK BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -120,7 +134,8 @@
       "paise": 150,
       "aka": [
         "Emogi Balloon"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -129,12 +144,14 @@
       "aka": [
         "GOLDEN BALLOONS"
       ],
-      "size": "10\""
+      "size": "10\"",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Golden Metallic Balloon",
-      "paise": 80
+      "paise": 80,
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -142,7 +159,8 @@
       "paise": 80,
       "aka": [
         "GREEN BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -150,17 +168,20 @@
       "paise": 80,
       "aka": [
         "GREEN PASTEL BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Grey Balloon",
-      "paise": 80
+      "paise": 80,
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Heart Shape Balloon",
-      "paise": 150
+      "paise": 150,
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -168,7 +189,8 @@
       "paise": 80,
       "aka": [
         "Maroon"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -176,7 +198,8 @@
       "paise": 80,
       "aka": [
         "PEACH COLOR BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -184,13 +207,15 @@
       "paise": 80,
       "aka": [
         "PINK BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Dark Pink Pastel Balloon",
       "paise": 80,
-      "size": "10\""
+      "size": "10\"",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -198,7 +223,8 @@
       "paise": 80,
       "aka": [
         "PURPLE (Dark) BALLOON"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -207,18 +233,21 @@
       "aka": [
         "PURPLE (LIGHT) BALLOON"
       ],
-      "size": "10\""
+      "size": "10\"",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Red Balloon",
       "paise": 80,
-      "size": "10\""
+      "size": "10\"",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Red Metallic Balloon",
-      "paise": 80
+      "paise": 80,
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -226,7 +255,8 @@
       "paise": 80,
       "aka": [
         "ROSE GOLD BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -235,7 +265,8 @@
       "aka": [
         "SILVER MATALIC BALLOONS",
         "Silver Metallic Balloon"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -243,7 +274,8 @@
       "paise": 80,
       "aka": [
         "WHITE MATTALIC BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -251,7 +283,8 @@
       "paise": 80,
       "aka": [
         "WHITE BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -259,7 +292,8 @@
       "paise": 80,
       "aka": [
         "WHITE PASTEL BALLOONS"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -268,7 +302,8 @@
       "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. Colour variant. The generic `Chrome Balloon` (Rs1.50) is left exactly as it was — it may turn out to be one of these four, but merging is Vansh's call, not mine.",
       "aka": [
         "silver chrome"
-      ]
+      ],
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -277,7 +312,8 @@
       "aka": [
         "golden chrome"
       ],
-      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
+      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. ",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -286,7 +322,8 @@
       "aka": [
         "Rosegold chrome"
       ],
-      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
+      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. ",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
@@ -295,28 +332,33 @@
       "aka": [
         "pink chrome"
       ],
-      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
+      "_note": "Price inherited from `Chrome Balloon` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. ",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Yellow Balloons",
       "paise": 80,
-      "size": "10\""
+      "size": "10\"",
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Pastel Mint",
-      "paise": 80
+      "paise": 80,
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Teal Balloon",
-      "paise": 80
+      "paise": 80,
+      "packOf": 1000
     },
     {
       "category": "Balloon",
       "material": "Assorted Multicolor Balloons",
-      "paise": 80
+      "paise": 80,
+      "packOf": 1000
     },
     {
       "category": "Foil Balloon",
@@ -440,7 +482,7 @@
       "material": "Heart Foil",
       "paise": 150,
       "size": "12\"",
-      "piecesPerPack": 50
+      "packOf": 50
     },
     {
       "category": "Foil Balloon",
@@ -510,7 +552,7 @@
         "Star Foil Blue",
         "blue star"
       ],
-      "piecesPerPack": 50
+      "packOf": 50
     },
     {
       "category": "Foil Balloon",
@@ -519,7 +561,7 @@
       "aka": [
         "Star Foil Golden"
       ],
-      "piecesPerPack": 50
+      "packOf": 50
     },
     {
       "category": "Foil Balloon",
@@ -528,7 +570,7 @@
       "aka": [
         "Star Foil pink"
       ],
-      "piecesPerPack": 50
+      "packOf": 50
     },
     {
       "category": "Foil Balloon",
@@ -545,7 +587,7 @@
       "aka": [
         "Star Foil Red"
       ],
-      "piecesPerPack": 50
+      "packOf": 50
     },
     {
       "category": "Foil Balloon",
@@ -554,7 +596,7 @@
       "aka": [
         "Star Foil Silver"
       ],
-      "piecesPerPack": 50
+      "packOf": 50
     },
     {
       "category": "Foil Balloon",
@@ -716,14 +758,14 @@
       "aka": [
         "red hart foil"
       ],
-      "piecesPerPack": 50
+      "packOf": 50
     },
     {
       "category": "Foil Balloon",
       "material": "Green Star Foil",
       "paise": 150,
       "_note": "Price inherited from `Silver Star Foil` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. Was matching `Blue Star Foil` at 80% — same product, wrong colour, and colours are the whole point of a star foil.",
-      "piecesPerPack": 50
+      "packOf": 50
     },
     {
       "category": "Foil Balloon",
@@ -754,7 +796,8 @@
     {
       "category": "Banner",
       "material": "6 Month Birthday Banner",
-      "paise": 1000
+      "paise": 1000,
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -764,7 +807,8 @@
         "Annaprasan banner",
         "anp banner"
       ],
-      "size": "6*4\""
+      "size": "6*4\"",
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -773,12 +817,14 @@
       "aka": [
         "Annaprasan banner kit",
         "anp banner kit"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
       "material": "Anniversary Banner",
-      "paise": 1200
+      "paise": 1200,
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -786,7 +832,8 @@
       "paise": 1200,
       "aka": [
         "BABY SHOWER BANTING"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -794,7 +841,8 @@
       "paise": 1200,
       "aka": [
         "haldi ceremony banner"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -804,7 +852,8 @@
         "happy birthday",
         "happy birthday banner"
       ],
-      "sellsAs": "Happy Birthday Banner"
+      "sellsAs": "Happy Birthday Banner",
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -815,7 +864,8 @@
         "happy birthday bunting",
         "happy birthday banner banting"
       ],
-      "sellsAs": "Happy Birthday Bunting Banner"
+      "sellsAs": "Happy Birthday Bunting Banner",
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -825,7 +875,8 @@
         "HBD banner blue",
         "blue happy birthday banner",
         "happy birthday banner blue"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -835,7 +886,8 @@
         "HBD banner white",
         "white happy birthday banner",
         "happy birthday banner white"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -845,7 +897,8 @@
         "HBD jungle banner",
         "jungle happy birthday banner",
         "happy birthday jungle banner"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -853,7 +906,8 @@
       "paise": null,
       "aka": [
         "emogi banner"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -864,7 +918,8 @@
         "ha banner black",
         "black ha banner",
         "happy anniversary banner black"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -875,7 +930,8 @@
         "red ha banner",
         "happy anniversary banner red"
       ],
-      "_note": "Price inherited from `Anniversary Banner` (Rs12.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. "
+      "_note": "Price inherited from `Anniversary Banner` (Rs12.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. ",
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -886,7 +942,8 @@
         "All colors gletar hbd bunting",
         "glitter happy birthday bunting all colours",
         "all colors gletar happy birthday bunting"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -895,7 +952,8 @@
       "_note": "FLAG: the note says `gletar bunting old`. `old` could mean old stock, an older design, or a different product. Entered as its own row rather than guessed into the row above.",
       "aka": [
         "gletar bunting old"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -905,7 +963,8 @@
         "welcome baby banner pink",
         "pink wb banner",
         "wb banner pink"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -915,7 +974,8 @@
         "welcome baby blue banner",
         "blue wb banner",
         "wb blue banner"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -924,7 +984,8 @@
       "_note": "FLAG: half birthday and six months are the same occasion, so this may be the existing `6 Month Birthday Banner` (Rs10) in pink. Kept separate — merging two products that only LOOK alike is the mistake to avoid.",
       "aka": [
         "half birthday banner pink"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -933,7 +994,8 @@
       "aka": [
         "half hbd banner blue",
         "half happy birthday banner blue"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -942,7 +1004,8 @@
       "_note": "FLAG, the least confident row here: `Peanut` is not a party theme I can place, and it is spelt the same on both of his lines so it is probably not a slip. Possibly a baby-shower `little peanut` banner. Please say what this is.",
       "aka": [
         "Peanut banner rose gold"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -950,7 +1013,8 @@
       "paise": null,
       "aka": [
         "Peanut banner golden"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Themed Set",
@@ -972,7 +1036,8 @@
         "brtb bunting golden",
         "golden bride to be bunting",
         "bride to be bunting golden"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
@@ -982,12 +1047,14 @@
         "brtb bunting rosegold",
         "rose gold bride to be bunting",
         "bride to be bunting rosegold"
-      ]
+      ],
+      "packOf": 10
     },
     {
       "category": "Banner",
       "material": "Happy Anniversary Golden benting",
-      "paise": 3500
+      "paise": 3500,
+      "packOf": 10
     },
     {
       "category": "Fringes",
@@ -1457,7 +1524,8 @@
       "sellsAs": "Bride To Be Sash",
       "aka": [
         "bride to be sash"
-      ]
+      ],
+      "packOf": 25
     },
     {
       "category": "Sash",
@@ -1466,7 +1534,8 @@
       "sellsAs": "Groom To Be Sash",
       "aka": [
         "groom to be sash"
-      ]
+      ],
+      "packOf": 25
     },
     {
       "category": "Sash",
@@ -1475,12 +1544,14 @@
       "sellsAs": "Happy Birthday Sash",
       "aka": [
         "happy birthday sash"
-      ]
+      ],
+      "packOf": 25
     },
     {
       "category": "Adhesive",
       "material": "Arch Tape",
-      "paise": 350
+      "paise": 350,
+      "packOf": 100
     },
     {
       "category": "Adhesive",
@@ -1488,7 +1559,8 @@
       "paise": 100,
       "aka": [
         "Glue dote stripe"
-      ]
+      ],
+      "packOf": 100
     },
     {
       "category": "Adhesive",
@@ -1497,7 +1569,8 @@
       "_note": "The roll of glue dots. `Glue Dot Strip` above is a DIFFERENT product at a third of the price, so only the name that says ROLL is listed here — a sheet that just says `glue dot` ties the two and gets flagged for a human, which is the correct answer to a genuinely ambiguous word.",
       "aka": [
         "Glue Dot Roll"
-      ]
+      ],
+      "packOf": 100
     },
     {
       "category": "Adhesive",

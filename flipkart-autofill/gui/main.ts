@@ -1006,9 +1006,15 @@ ipcMain.handle("stock", async () => {
   const from = stock.firstDelivery(deliveries);
   const materials = loadMaterials();
   const names = new Map(materials.map((m) => [`${m.category}|${m.material}`, m.material]));
-  // Pieces in a packet, off the price list — the one place that number is already written down.
+  /**
+   * Pieces in a SUPPLIER packet — `packOf`, never `piecesPerPack`.
+   *
+   * `piecesPerPack` answers what `paise` buys and belongs to costing; this answers what arrives in
+   * a packet and belongs to the shelf. Reading the pricing one here would net a delivery of five
+   * packets against a set price and silently mis-state the stock.
+   */
   const perPack = new Map(
-    materials.filter((m) => m.piecesPerPack).map((m) => [`${m.category}|${m.material}`, m.piecesPerPack!]),
+    materials.filter((m) => m.packOf).map((m) => [`${m.category}|${m.material}`, m.packOf!]),
   );
 
   const used = new Map<string, { pieces: number; perWeek: number }>();

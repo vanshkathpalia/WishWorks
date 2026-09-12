@@ -562,6 +562,37 @@ describe("another colour of a material", () => {
   });
 });
 
+/**
+ * **Two different pack sizes, and mixing them costs money.**
+ *
+ * `piecesPerPack` is a PRICING fact — how many pieces `paise` buys, so `Animal Set, 5 pcs` at ₹24
+ * is 5. `packOf` is a DELIVERY fact — how many arrive in a supplier's packet, so a balloon is 1000
+ * although `paise` is 80 for one. On 2026-09-12 Vansh's delivery numbers went into the pricing
+ * field and a 20-balloon kit came to ₹0.80 instead of ₹16.00. This is the test that would have
+ * caught it in the engine rather than three files downstream.
+ */
+describe("the two pack sizes are not the same fact", () => {
+  const balloon = { category: "Balloon", material: "White Balloon", paise: 80, packOf: 1000 };
+  const set = { category: "Themed Set", material: "Animal Set, 5 pcs", paise: 2400, piecesPerPack: 5 };
+
+  it("prices a per-piece material by the piece, however big its delivery packet is", () => {
+    const kit = costKit([{ item: "White Balloon", qty: 20 }], [balloon]);
+    expect(kit.lines[0].packs).toBe(20);      // 20 balloons bought, not one packet of 1000
+    expect(kit.totalPaise).toBe(1600);        // ₹16.00
+  });
+
+  it("still prices a SET by the pack, which is what piecesPerPack is for", () => {
+    const kit = costKit([{ item: "Animal Set, 5 pcs", qty: 5 }], [set]);
+    expect(kit.lines[0].packs).toBe(1);       // five pieces is one set
+    expect(kit.totalPaise).toBe(2400);
+  });
+
+  it("never lets a delivery packet reach the costing", () => {
+    const withBoth = { ...balloon, packOf: 1000 };
+    expect(costKit([{ item: "White Balloon", qty: 20 }], [withBoth]).totalPaise).toBe(1600);
+  });
+});
+
 describe("the shipped price list", () => {
   it("reads materials.json, and an absent one is empty rather than a crash", () => {
     const dir = tmp();

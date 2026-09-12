@@ -66,6 +66,23 @@ export interface Material {
    */
   piecesPerPack?: number;
   /**
+   * How many pieces arrive in one packet **from the supplier**.
+   *
+   * **This is not `piecesPerPack`, and the difference is which question it answers.**
+   * `piecesPerPack` is about PRICE — how many pieces `paise` buys, so `Animal Set, 5 pcs` at ₹24.00
+   * is 5. This is about DELIVERY — how many pieces are in a packet when it arrives, so a balloon is
+   * 1000 even though `paise` is 80 for one of them.
+   *
+   * They coincide for a set and diverge for anything sold by the piece, which is most of the list.
+   * Putting Vansh's delivery numbers into `piecesPerPack` was tried on 2026-09-12 and the costing
+   * tests caught it inside a minute: a 20-balloon kit came to **₹0.80 instead of ₹16.00**, because
+   * costing read 1000 as *this ₹0.80 buys a thousand* and charged for one packet.
+   *
+   * Only `onHand` reads this — it is the bridge between a note written in packets and kit lines
+   * written in pieces, and it says nothing about what anything costs.
+   */
+  packOf?: number;
+  /**
    * Earlier names for the same material, which still match.
    *
    * The 2026-08-07 clean-up renamed 76 of these rows. The partner's inventory pictures and every
