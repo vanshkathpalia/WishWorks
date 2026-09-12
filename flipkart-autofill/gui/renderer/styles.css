@@ -2478,3 +2478,21 @@ button.chosen:hover {
 .add-colour input {
   border-color: var(--accent);
 }
+
+/* A row ticked off the batch — still visible, plainly not going in. */
+.add-missing li.left-out {
+  opacity: 0.45;
+}
+.add-missing li.left-out .lid {
+  text-decoration: line-through;
+}
+.add-missing .take-it {
+  display: flex;
+  align-items: center;
+}
+.add-missing .take-it input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  margin: 0;
+}

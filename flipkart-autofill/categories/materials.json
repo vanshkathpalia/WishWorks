@@ -1519,12 +1519,12 @@
       "packOf": 10
     },
     {
-      "category": "Decoration",
+      "category": "Net",
       "material": "Green Net",
       "paise": 1400
     },
     {
-      "category": "Decoration",
+      "category": "Net",
       "material": "Mehndi Colour Net",
       "paise": 1400,
       "aka": [
@@ -1532,13 +1532,13 @@
       ]
     },
     {
-      "category": "Decoration",
+      "category": "Net",
       "material": "White Net",
       "paise": 1400,
       "size": "3*6"
     },
     {
-      "category": "Decoration",
+      "category": "Net",
       "material": "Yellow Net",
       "paise": 1400
     },

@@ -66,6 +66,19 @@ export function Stock({ n }: { n: number }) {
   /** Which group each not-on-the-list name would go into, keyed by the wording it was written in. */
   const [newGroups, setNewGroups] = useState<Record<string, string>>({});
   const [addingAll, setAddingAll] = useState(false);
+  /**
+   * Names ticked OFF the batch — the ones not to add.
+   *
+   * Vansh, 2026-09-12: *"here I should have the option to unselect what we are actually going to
+   * send to the inventory… there could be any reason to not send it, but we should have the
+   * freedom is the point."* His case was a line that turned out to be a ring foil already added
+   * under another name, but the reason does not matter: an all-or-nothing batch is one you stop
+   * using the first time it contains something you do not want.
+   *
+   * Held as the EXCLUSIONS rather than the selections, so a name that appears after a re-tally is
+   * included by default — the common case stays one click.
+   */
+  const [skip, setSkip] = useState<Record<string, boolean>>({});
 
   /**
    * Put every unmatched line on the price list in one go.
@@ -83,7 +96,7 @@ export function Stock({ n }: { n: number }) {
    * orange and counts as uncosted — a real material nobody has priced, never a free one.
    */
   async function addAllMissing() {
-    const missing = (rows ?? []).filter((r) => r.key === null);
+    const missing = (rows ?? []).filter((r) => r.key === null && !skip[r.name]);
     if (missing.length === 0) return;
     if (!window.confirm(
       `Add ${missing.length} material${missing.length === 1 ? "" : "s"} to the price list?\n\n` +
@@ -299,7 +312,14 @@ export function Stock({ n }: { n: number }) {
               </p>
               <ul>
                 {unlisted.map((r) => (
-                  <li key={r.name}>
+                  <li key={r.name} className={skip[r.name] ? "left-out" : ""}>
+                    <label className="take-it" title="Leave this one off the list">
+                      <input
+                        type="checkbox"
+                        checked={!skip[r.name]}
+                        onChange={(e) => setSkip({ ...skip, [r.name]: !e.target.checked })}
+                      />
+                    </label>
                     <span className="lid">{r.name}</span>
                     <select
                       value={newGroups[r.name] ?? guessGroup(r)}
@@ -313,9 +333,21 @@ export function Stock({ n }: { n: number }) {
                   </li>
                 ))}
               </ul>
-              <button className="go" disabled={addingAll} onClick={() => void addAllMissing()}>
-                {addingAll ? "Adding…" : "Add them all to the price list"}
+              <button
+                className="go"
+                disabled={addingAll || unlisted.every((r) => skip[r.name])}
+                onClick={() => void addAllMissing()}
+              >
+                {addingAll
+                  ? "Adding…"
+                  : `Add ${unlisted.filter((r) => !skip[r.name]).length} to the price list`}
               </button>
+              {unlisted.some((r) => skip[r.name]) && (
+                <span className="muted">
+                  {unlisted.filter((r) => skip[r.name]).length} left off — they stay unmatched, which
+                  is a state the tally already shows.
+                </span>
+              )}
             </div>
           )}
 
