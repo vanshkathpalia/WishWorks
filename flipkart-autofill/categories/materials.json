@@ -439,7 +439,8 @@
       "category": "Foil Balloon",
       "material": "Heart Foil",
       "paise": 150,
-      "size": "12\""
+      "size": "12\"",
+      "piecesPerPack": 50
     },
     {
       "category": "Foil Balloon",
@@ -508,7 +509,8 @@
       "aka": [
         "Star Foil Blue",
         "blue star"
-      ]
+      ],
+      "piecesPerPack": 50
     },
     {
       "category": "Foil Balloon",
@@ -516,7 +518,8 @@
       "paise": 150,
       "aka": [
         "Star Foil Golden"
-      ]
+      ],
+      "piecesPerPack": 50
     },
     {
       "category": "Foil Balloon",
@@ -524,7 +527,8 @@
       "paise": 150,
       "aka": [
         "Star Foil pink"
-      ]
+      ],
+      "piecesPerPack": 50
     },
     {
       "category": "Foil Balloon",
@@ -540,7 +544,8 @@
       "paise": 150,
       "aka": [
         "Star Foil Red"
-      ]
+      ],
+      "piecesPerPack": 50
     },
     {
       "category": "Foil Balloon",
@@ -548,7 +553,8 @@
       "paise": 150,
       "aka": [
         "Star Foil Silver"
-      ]
+      ],
+      "piecesPerPack": 50
     },
     {
       "category": "Foil Balloon",
@@ -709,13 +715,15 @@
       "_note": "Price inherited from `Heart Foil` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. `hart` read as heart. The uncoloured `Heart Foil` 12\" (Rs1.50) stays.",
       "aka": [
         "red hart foil"
-      ]
+      ],
+      "piecesPerPack": 50
     },
     {
       "category": "Foil Balloon",
       "material": "Green Star Foil",
       "paise": 150,
-      "_note": "Price inherited from `Silver Star Foil` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. Was matching `Blue Star Foil` at 80% — same product, wrong colour, and colours are the whole point of a star foil."
+      "_note": "Price inherited from `Silver Star Foil` (Rs1.50) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. Was matching `Blue Star Foil` at 80% — same product, wrong colour, and colours are the whole point of a star foil.",
+      "piecesPerPack": 50
     },
     {
       "category": "Foil Balloon",

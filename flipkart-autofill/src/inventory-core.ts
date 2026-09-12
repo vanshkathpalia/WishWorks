@@ -530,19 +530,59 @@ export function addColour(
   dir = CATEGORIES_DIR,
   editsFile = PRICE_EDITS_FILE,
 ): { materials: Material[]; name: string } {
+  return addVariant(key, colour, "colour", dir, editsFile);
+}
+
+/**
+ * Another SIZE of a material already on the list — `Heart Foil` → `Heart Foil Big`.
+ *
+ * **It is not the same operation as a colour, and the difference is the money.** Vansh,
+ * 2026-09-12: *"foil has a variant of size big/small just like colour, we should have choice here
+ * too — rates are obviously different here (rate variation was not the case with colour)."* His own
+ * list proves it: `Heart Foil` ₹1.50 against `Heart Foil Big` ₹10.00, `Pink Star Foil` ₹1.50
+ * against `Pink Star Foil Medium` ₹10.00 — five to seven times over.
+ *
+ * So the price is NOT carried across, and neither is the pack size: a bigger foil comes fewer to a
+ * packet. Both land blank, which the list already models as *a real material nobody has priced* —
+ * shown in orange, counted as uncosted, never treated as free. Carrying them would be the more
+ * helpful-looking thing and would quietly bill a ₹10 foil at ₹1.50.
+ *
+ * The word goes on the END, because that is where this list already puts it.
+ */
+export function addSize(
+  key: string,
+  size: string,
+  dir = CATEGORIES_DIR,
+  editsFile = PRICE_EDITS_FILE,
+): { materials: Material[]; name: string } {
+  return addVariant(key, size, "size", dir, editsFile);
+}
+
+function addVariant(
+  key: string,
+  word: string,
+  kind: "colour" | "size",
+  dir: string,
+  editsFile: string,
+): { materials: Material[]; name: string } {
   const from = loadMaterials(dir, editsFile).find((m) => materialKey(m) === key);
   if (!from) throw new Error(`No material called "${key.split("|")[1] ?? key}" in the price list.`);
-  const word = colour.trim();
-  if (word === "") throw new Error("Which colour? The name needs it.");
+  const w = word.trim();
+  if (w === "") throw new Error(kind === "colour" ? "Which colour? The name needs it." : "Which size?");
 
-  const name = `${word} ${baseName(from.material)}`.replace(/\s+/g, " ").trim();
+  const name = (kind === "colour" ? `${w} ${baseName(from.material)}` : `${from.material} ${w}`)
+    .replace(/\s+/g, " ")
+    .trim();
+
   const materials = addMaterial(
     {
       category: from.category,
       material: name,
-      paise: from.paise,
-      ...(from.size ? { size: from.size } : {}),
-      ...(from.piecesPerPack ? { piecesPerPack: from.piecesPerPack } : {}),
+      // A colour costs what its siblings cost; a size does not, and guessing is how a ₹10 foil
+      // gets billed at ₹1.50.
+      paise: kind === "colour" ? from.paise : null,
+      ...(kind === "colour" && from.size ? { size: from.size } : {}),
+      ...(kind === "colour" && from.piecesPerPack ? { piecesPerPack: from.piecesPerPack } : {}),
     },
     dir,
     editsFile,

@@ -264,7 +264,8 @@ export function Inventory({ n }: { n: number }) {
   /** True while the add form is asking for a brand-new group name rather than offering the list. */
   const [newCategory, setNewCategory] = useState(false);
   /** The line whose material is having another colour added, and the colour being typed. */
-  const [addingColour, setAddingColour] = useState<{ line: number; text: string } | null>(null);
+  const [addingColour, setAddingColour] =
+    useState<{ line: number; text: string; kind: "colour" | "size" } | null>(null);
   const [draft, setDraft] = useState({ name: "", category: "", price: "" });
   /** Counts corrected by hand, by line index. The reading itself is never edited. */
   const [counts, setCounts] = useState<Record<number, number>>({});
@@ -671,11 +672,13 @@ export function Inventory({ n }: { n: number }) {
    * — so two colours of one product cannot drift apart on the facts that are not about colour.
    * Only the colour word is typed.
    */
-  async function addColour(from: Material, colour: string) {
+  async function addVariant(from: Material, word: string, kind: "colour" | "size") {
     // The ENGINE composes the name. It owns what counts as a colour word (the matcher uses the
     // same list to decide when a shade is being claimed), and this screen must not carry a second
     // copy of that — nor import the engine, which would pull `node:fs` into the browser bundle.
-    const r = await window.ww.addColour(key(from), colour.trim());
+    const r = kind === "colour"
+      ? await window.ww.addColour(key(from), word.trim())
+      : await window.ww.addSize(key(from), word.trim());
     if (!r.ok) {
       setPriceNote(r.message);
       return;
@@ -1120,26 +1123,43 @@ export function Inventory({ n }: { n: number }) {
                               type="text"
                               autoFocus
                               className="size-box"
-                              placeholder="which colour?"
+                              placeholder={addingColour.kind === "colour" ? "which colour?" : "big, small, 15 m\u2026"}
                               value={addingColour.text}
-                              onChange={(e) => setAddingColour({ line: i, text: e.target.value })}
+                              onChange={(e) =>
+                                setAddingColour({ line: i, text: e.target.value, kind: addingColour.kind })
+                              }
                               onKeyDown={(e) => {
                                 if (e.key === "Escape") setAddingColour(null);
                                 if (e.key === "Enter" && addingColour.text.trim() !== "") {
-                                  void addColour(l.match!, addingColour.text);
+                                  void addVariant(l.match!, addingColour.text, addingColour.kind);
                                 }
                               }}
                             />
-                            <small className="muted">the same price, size and pack — a new row</small>
+                            {/* The difference between the two is the money, so it is said here
+                                rather than discovered on a bill. */}
+                            <small className="muted">
+                              {addingColour.kind === "colour"
+                                ? "same price, size and pack \u2014 a new row"
+                                : "NO price carried: a bigger one costs more"}
+                            </small>
                           </span>
                         ) : (
-                          <button
-                            className="tiny"
-                            title="Add another colour of this — a new row, nothing renamed"
-                            onClick={() => setAddingColour({ line: i, text: "" })}
-                          >
-                            + colour
-                          </button>
+                          <>
+                            <button
+                              className="tiny"
+                              title="Add another colour of this \u2014 a new row, nothing renamed"
+                              onClick={() => setAddingColour({ line: i, text: "", kind: "colour" })}
+                            >
+                              + colour
+                            </button>
+                            <button
+                              className="tiny"
+                              title="Add another size of this \u2014 a new row, priced on its own"
+                              onClick={() => setAddingColour({ line: i, text: "", kind: "size" })}
+                            >
+                              + size
+                            </button>
+                          </>
                         )}
                         <input
                           type="text"

@@ -518,6 +518,13 @@ export interface WwApi {
    * Group, price, size and pieces-per-packet are carried across; only the colour word is given.
    */
   addColour(key: string, colour: string): Promise<Attempt<Material[]>>;
+  /**
+   * Another SIZE of a material already on the list — `Heart Foil` → `Heart Foil Big`.
+   *
+   * Unlike a colour, the price and pack size are NOT carried: a bigger one costs several times
+   * more (₹1.50 against ₹10.00 on this list) and comes fewer to a packet.
+   */
+  addSize(key: string, size: string): Promise<Attempt<Material[]>>;
   addMaterial(row: {
     category: string; material: string; paise: number | null;
     /** Carried over when a row is built from a sibling — see `baseName`. */

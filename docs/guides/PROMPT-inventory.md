@@ -57,3 +57,21 @@ Rules:
 - Ignore anything that is not an item: headers, totals, "items included", general notes about
   size, prices, and the SKU line itself.
 - `qty` is a whole number, never a range and never text.
+
+BEFORE YOU ANSWER, read your own `item` values back and check this one thing:
+
+**These are stocked in several colours, so a name for one of them with no colour in it is not
+finished.** The number is how many shades of it we actually hold:
+
+    balloon 17 · fringes 7 · star foil 6 · confetti balloon 5 · chrome balloon 4
+    pastel balloon 4 · metallic balloon 3 · net 3 · happy anniversary foil 3
+    moon foil 2 · crown foil 2 · number foil 2 · welcome baby foil 2
+    HBD banner 2 · welcome baby banner 2 · half birthday banner 2
+    happy anniversary banner 2 · peanut banner 2 · BTB bunting 2
+
+For every line of yours that names one of those, ask: does the name say WHICH colour? If the sheet
+or its picture gives it and you left it out, put it in. If neither gives it, leave the name alone —
+say nothing rather than pick one. A missing colour is a question a person answers in ten seconds;
+a wrong one is priced, packed and shipped before anybody notices.
+
+The assembly aids are the exception and need no colour: tape, glue dots, hooks, pump, straw, thread.

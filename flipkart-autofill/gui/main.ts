@@ -614,6 +614,23 @@ ipcMain.handle(
   },
 );
 
+/** Another SIZE — price and pack size deliberately left blank, because size moves both. */
+ipcMain.handle(
+  "addSize",
+  async (_e, key: string, size: string): Promise<Attempt<unknown>> => {
+    try {
+      const { materials, name } = (await inventoryEngine()).addSize(key, size);
+      return {
+        ok: true,
+        result: materials,
+        note: `${name} added with NO price — a bigger one costs more, so type what it costs.`,
+      };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
+  },
+);
+
 ipcMain.handle(
   "addMaterial",
   async (

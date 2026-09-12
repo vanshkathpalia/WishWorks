@@ -71,6 +71,7 @@ const api: WwApi = {
   ) =>
     ipcRenderer.invoke("editMaterial", key, patch),
   addColour: (key: string, colour: string) => ipcRenderer.invoke("addColour", key, colour),
+  addSize: (key: string, size: string) => ipcRenderer.invoke("addSize", key, size),
   addMaterial: (row: {
     category: string; material: string; paise: number | null;
     size?: string; piecesPerPack?: number;
