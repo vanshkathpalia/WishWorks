@@ -154,7 +154,11 @@ export interface TallyRow {
    *
    * It is its own state and not a `mismatch`, because the two need opposite actions: a mismatch
    * means somebody is short, and this means somebody should say how many are in a packet. When
-   * the price list knows (`piecesPerPack`), `agreesInPieces` settles it outright.
+   * the price list knows the packet (`packOf`), `agreesInPieces` settles it outright and the row
+   * stops being a question at all — Vansh, 2026-09-12: *"I mentioned pkt and supplier did pcs, so
+   * there was an unnecessary mismatch… the intelligence for what is finally going to the delivery
+   * inventory store is fair."* Two packets of ribbon against his supplier's 1000 pieces IS the
+   * same delivery, and nobody should be asked about it.
    */
   unitsDiffer: boolean;
   /**
@@ -220,7 +224,10 @@ export function tally(
   for (const l of counted) add(l, "counted");
 
   const perPack = new Map(
-    materials.filter((m) => m.piecesPerPack).map((m) => [materialKey(m), m.piecesPerPack!]),
+    // `packOf`, not `piecesPerPack`: this compares two DELIVERY notes, and the pricing pack size
+    // answers a different question. Reading the wrong one left every pkt-against-pcs pair
+    // unanswerable for the 163 rows whose delivery packet we do know.
+    materials.filter((m) => m.packOf).map((m) => [materialKey(m), m.packOf!]),
   );
 
   return [...rows.values()]

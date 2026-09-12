@@ -146,6 +146,46 @@ const NO_UNITS = `5 green peanut banner
 5 - 6 month banner blue
 5 for green frings`;
 
+/**
+ * **Packets against pieces is arithmetic, not a question** — when the packet size is known.
+ *
+ * Vansh, 2026-09-12: *"I mentioned pkt and supplier did pcs, so there was an unnecessary
+ * mismatch… here we should have understandable intelligence of the computer by their own — but ya
+ * I guess flagging should be done too."* Both halves are the test: it settles what it can, and it
+ * still flags what it cannot.
+ *
+ * It reads `packOf` — what arrives in a supplier packet — and NOT `piecesPerPack`, which is what
+ * `paise` buys. Reading the pricing field here is a bug this file shipped with for a day.
+ */
+describe("a note in packets against a note in pieces", () => {
+  const ribbon: Material[] = [
+    { category: "Decoration", material: "Ribbon", paise: 100, packOf: 500 },
+  ];
+  const one = (his: string, mine: string) => tally(readNote(his), readNote(mine), ribbon)[0];
+
+  it("settles it silently when the two agree once converted", () => {
+    const r = one("1000 pcs ribbon", "2 pkt ribbon");
+    expect(r.unitsDiffer).toBe(true);
+    expect(r.agreesInPieces).toBe(true);
+    // The whole point: it is NOT reported as short, and it is not a question either.
+    expect(r.mismatch).toBe(false);
+  });
+
+  it("still reports a real difference, converted", () => {
+    const r = one("500 pcs ribbon", "2 pkt ribbon");
+    expect(r.agreesInPieces).toBe(false);
+    expect(r.mismatch).toBe(true);
+  });
+
+  it("asks when nothing knows the packet size, rather than guessing either way", () => {
+    const unknown: Material[] = [{ category: "Decoration", material: "Ribbon", paise: 100 }];
+    const r = tally(readNote("1000 pcs ribbon"), readNote("2 pkt ribbon"), unknown)[0];
+    expect(r.unitsDiffer).toBe(true);
+    expect(r.agreesInPieces).toBeNull();
+    expect(r.mismatch).toBe(false);
+  });
+});
+
 describe("what is left on the shelf", () => {
   const FOIL = "Foil|Groom To Be Foil Balloon";
   const delivery = (date: string, qty: number, unit = "pkt"): Delivery => ({
