@@ -109,7 +109,7 @@ button {
   padding: 8px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #262120;
+  background: var(--btn);
   color: var(--ink);
   cursor: pointer;
 }
