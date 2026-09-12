@@ -2645,3 +2645,13 @@ h3 > button.tiny {
   text-transform: none;
   letter-spacing: 0;
 }
+
+/* The unpriced rows, under their category rather than repeating it on every line. */
+.gap-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gap-groups .kv {
+  margin: 4px 0 10px 1.4em;
+}

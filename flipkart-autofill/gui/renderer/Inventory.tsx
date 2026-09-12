@@ -1896,15 +1896,40 @@ export function Inventory({ n }: { n: number }) {
             <b>{gaps.noSize.length}</b> have no size. Any kit containing one of the priceless ones
             costs less than it really does, and says so.
           </p>
+          {/**
+            * **By category, each folded.** Vansh, 2026-09-12: *"here too we should have a toggle
+            * for each of the category — you better know what item is under category."* Forty-three
+            * unpriced rows in one flat list is a scroll; the same rows under nine headings with
+            * counts is a worklist, and you price a family at a time because that is how the
+            * supplier quotes them.
+            *
+            * The category is dropped from each row once it is the heading — repeating it on every
+            * line was what made the flat list hard to scan in the first place.
+            */}
           {showGaps && (
-            <ul className="kv">
-              {gaps.noPrice.map((m) => (
-                <li key={key(m)}>
-                  <b>{m.category}</b>
-                  <span>{m.material}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="gap-groups">
+              {[...gaps.noPrice.reduce((m, x) => {
+                if (!m.has(x.category)) m.set(x.category, [] as Material[]);
+                m.get(x.category)!.push(x);
+                return m;
+              }, new Map<string, Material[]>())]
+                .sort((a, b) => b[1].length - a[1].length)
+                .map(([category, rows]) => (
+                  <details key={category} className="inv-group" open={rows.length <= 4}>
+                    <summary className="inv-group-head">
+                      <b>{category}</b>
+                      <span className="muted">{rows.length} with no price</span>
+                    </summary>
+                    <ul className="kv">
+                      {rows.map((m) => (
+                        <li key={key(m)}>
+                          <span>{m.material}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ))}
+            </div>
           )}
         </div>
       )}
