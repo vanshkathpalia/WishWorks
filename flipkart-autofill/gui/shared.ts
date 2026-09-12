@@ -512,7 +512,17 @@ export interface WwApi {
   ): Promise<Attempt<Material[]>>;
 
   /** Add a material the list has never had. Refused in a packaged app, same as the price above. */
-  addMaterial(row: { category: string; material: string; paise: number | null }): Promise<Attempt<Material[]>>;
+  /**
+   * Another colour of a material already on the list — a new row beside it, never a rename.
+   *
+   * Group, price, size and pieces-per-packet are carried across; only the colour word is given.
+   */
+  addColour(key: string, colour: string): Promise<Attempt<Material[]>>;
+  addMaterial(row: {
+    category: string; material: string; paise: number | null;
+    /** Carried over when a row is built from a sibling — see `baseName`. */
+    size?: string; piecesPerPack?: number;
+  }): Promise<Attempt<Material[]>>;
 
   /**
    * The posted parcel for a kit — size, weight, volumetric weight, and the two forms Flipkart

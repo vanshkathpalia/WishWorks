@@ -230,10 +230,11 @@
     },
     {
       "category": "Balloon",
-      "material": "Silver Metallic Balloon",
+      "material": "Silver Balloon",
       "paise": 80,
       "aka": [
-        "SILVER MATALIC BALLOONS"
+        "SILVER MATALIC BALLOONS",
+        "Silver Metallic Balloon"
       ]
     },
     {
@@ -313,6 +314,11 @@
       "paise": 80
     },
     {
+      "category": "Balloon",
+      "material": "Assorted Multicolor Balloons",
+      "paise": 80
+    },
+    {
       "category": "Foil Balloon",
       "material": "First Birthday Boy Foil",
       "paise": 200,
@@ -346,7 +352,7 @@
     {
       "category": "Foil Balloon",
       "material": "Baby Girl Foil",
-      "paise": null,
+      "paise": 700,
       "aka": [
         "Bally Girl"
       ]
@@ -733,6 +739,11 @@
       "paise": 1000
     },
     {
+      "category": "Foil Balloon",
+      "material": "Pink Babies Feet Foil",
+      "paise": 600
+    },
+    {
       "category": "Banner",
       "material": "6 Month Birthday Banner",
       "paise": 1000
@@ -881,7 +892,7 @@
     {
       "category": "Banner",
       "material": "Pink Welcome Baby Banner",
-      "paise": null,
+      "paise": 1200,
       "aka": [
         "welcome baby banner pink",
         "pink wb banner",
@@ -1315,6 +1326,16 @@
       "category": "Themed Set",
       "material": "Masha Foil Balloon",
       "paise": 4000
+    },
+    {
+      "category": "Themed Set",
+      "material": "Boss baby theme",
+      "paise": 3800
+    },
+    {
+      "category": "Themed Set",
+      "material": "Animal Foil Balloons",
+      "paise": 3800
     },
     {
       "category": "Decoration",

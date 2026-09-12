@@ -452,7 +452,7 @@ export function editMaterial(
  * not a thing to do in a hurry through a small form.
  */
 export function addMaterial(
-  row: { category: string; material: string; paise: number | null; size?: string },
+  row: { category: string; material: string; paise: number | null; size?: string; piecesPerPack?: number },
   dir = CATEGORIES_DIR,
   editsFile = PRICE_EDITS_FILE,
 ): Material[] {
@@ -478,7 +478,13 @@ export function addMaterial(
     );
   }
 
-  const added: Material = { category, material, paise: row.paise, ...(row.size ? { size: row.size } : {}) };
+  const added: Material = {
+    category, material, paise: row.paise,
+    ...(row.size ? { size: row.size } : {}),
+    // Carried from the row this one was built from: a colour does not change how many come in a
+    // packet, and re-typing it is how two colours of one product end up disagreeing about it.
+    ...(row.piecesPerPack ? { piecesPerPack: row.piecesPerPack } : {}),
+  };
 
   if (canWrite(file)) {
     // The new row goes in beside its own category — the list is read by people and that grouping
@@ -500,6 +506,48 @@ export function addMaterial(
     );
   }
   return loadMaterials(dir, editsFile);
+}
+
+/**
+ * Add another colour of a material that is already on the list.
+ *
+ * **The point is that it is not a rename.** Vansh, 2026-09-12: *"I don't want rename to happen —
+ * you have not still given me the colour option with balloon, fringes and all the other stuff, so
+ * I did that."* Renaming a row to name a shade is what orphans kits and takes the generic name out
+ * of circulation; this leaves the original exactly as it is and puts a sibling beside it.
+ *
+ * **Every colour being its own row is what makes the order book work.** The shelf, the weeks of
+ * cover and the reorder flag are all per row, so per colour comes free — but only if the colours
+ * exist as rows. *"Some colours sell more than others and our order book should be able to check
+ * precisely."*
+ *
+ * Everything that is not about colour is carried across — group, price, size, pieces per packet —
+ * so two colours of one product cannot drift apart on the facts they share.
+ */
+export function addColour(
+  key: string,
+  colour: string,
+  dir = CATEGORIES_DIR,
+  editsFile = PRICE_EDITS_FILE,
+): { materials: Material[]; name: string } {
+  const from = loadMaterials(dir, editsFile).find((m) => materialKey(m) === key);
+  if (!from) throw new Error(`No material called "${key.split("|")[1] ?? key}" in the price list.`);
+  const word = colour.trim();
+  if (word === "") throw new Error("Which colour? The name needs it.");
+
+  const name = `${word} ${baseName(from.material)}`.replace(/\s+/g, " ").trim();
+  const materials = addMaterial(
+    {
+      category: from.category,
+      material: name,
+      paise: from.paise,
+      ...(from.size ? { size: from.size } : {}),
+      ...(from.piecesPerPack ? { piecesPerPack: from.piecesPerPack } : {}),
+    },
+    dir,
+    editsFile,
+  );
+  return { materials, name };
 }
 
 /**
@@ -647,8 +695,29 @@ function scoreName(name: string, against: string, category = ""): number {
  * The scoring is not changed — a narrowing is still a good match and still gets priced. What
  * changes is that it can no longer be SILENT: see `narrowing` below.
  */
+const COLOUR =
+  /^(red|blue|green|pink|purple|black|white|golden|gold|silver|rose|rosegold|orange|yellow|peach|maroon|burgundy|grey|gray|multicolor|multicolour|dark|light)$/i;
+
 const QUALIFIER =
-  /^(dark|light|big|large|small|medium|mini|jumbo|pastel|metallic|chrome|matte|glitter|red|blue|green|pink|purple|black|white|golden|gold|silver|rose|rosegold|orange|yellow|peach|maroon|burgundy|grey|gray|multicolor|multicolour)$/i;
+  new RegExp(`^(big|large|small|medium|mini|jumbo|pastel|metallic|chrome|matte|glitter|${COLOUR.source.slice(2, -2)})$`, "i");
+
+/**
+ * A material's name with its colour taken off the front — `Dark Pink Pastel Balloon` → `Pastel
+ * Balloon`, so another colour of the same product can be built from it.
+ *
+ * **This exists so that adding a colour is never a RENAME.** Vansh, 2026-09-12: *"I don't want
+ * rename to happen — you have not still given me the colour option with balloon, fringes and all
+ * the other stuff, so I did that."* He was right: renaming was the only door open, and it is the
+ * one that orphans kits and swallows the generic name. Only leading colour words come off, and
+ * only while the rest still names a thing — `Red Balloon` gives back `Balloon`, `Red` alone gives
+ * back `Red`, because a colour with nothing after it is the product.
+ */
+export function baseName(material: string): string {
+  const words = material.trim().split(/\s+/);
+  let i = 0;
+  while (i < words.length - 1 && COLOUR.test(words[i])) i++;
+  return words.slice(i).join(" ");
+}
 
 /**
  * The row says something about the product that the name being matched never claimed.

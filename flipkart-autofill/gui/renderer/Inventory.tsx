@@ -263,6 +263,8 @@ export function Inventory({ n }: { n: number }) {
   const [adding, setAdding] = useState<number | null>(null);
   /** True while the add form is asking for a brand-new group name rather than offering the list. */
   const [newCategory, setNewCategory] = useState(false);
+  /** The line whose material is having another colour added, and the colour being typed. */
+  const [addingColour, setAddingColour] = useState<{ line: number; text: string } | null>(null);
   const [draft, setDraft] = useState({ name: "", category: "", price: "" });
   /** Counts corrected by hand, by line index. The reading itself is never edited. */
   const [counts, setCounts] = useState<Record<number, number>>({});
@@ -649,6 +651,39 @@ export function Inventory({ n }: { n: number }) {
       `${materialKey.split("|")[1]} is under ${category.trim()} now. Every kit that uses it ` +
       `followed automatically.`,
     );
+    setTimeout(() => setPriceNote(null), 8000);
+  }
+
+  /**
+   * Add another COLOUR of a material — the thing that was missing, and the reason renames happened.
+   *
+   * Vansh, 2026-09-12: *"I don't want rename to happen — you have not still given me the colour
+   * option with balloon, fringes and all the other stuff, so I did that… our inventory needs to
+   * have colour, otherwise supplier delivery would be difficult, because some colours sell more
+   * than others and our order book should be able to check precisely."*
+   *
+   * **Every colour is its own row, which is what makes the order book work at all**: the shelf,
+   * the weeks-of-cover and the reorder flag are all per row, so per colour comes free — but only
+   * if the colours exist as rows. Renaming one to name a shade does the opposite: it leaves every
+   * kit pointing at the new shade and takes the generic name out of circulation.
+   *
+   * The new row is built FROM this one — same group, same price, same size, same pieces per packet
+   * — so two colours of one product cannot drift apart on the facts that are not about colour.
+   * Only the colour word is typed.
+   */
+  async function addColour(from: Material, colour: string) {
+    // The ENGINE composes the name. It owns what counts as a colour word (the matcher uses the
+    // same list to decide when a shade is being claimed), and this screen must not carry a second
+    // copy of that — nor import the engine, which would pull `node:fs` into the browser bundle.
+    const r = await window.ww.addColour(key(from), colour.trim());
+    if (!r.ok) {
+      setPriceNote(r.message);
+      return;
+    }
+    setMaterials(r.result);
+    void window.ww.materialGaps().then(setGaps);
+    setAddingColour(null);
+    setPriceNote(r.note ?? "Added. Nothing was renamed.");
     setTimeout(() => setPriceNote(null), 8000);
   }
 
@@ -1077,6 +1112,35 @@ export function Inventory({ n }: { n: number }) {
                             <option key={category} value={category}>{category}</option>
                           ))}
                         </select>
+                        {/* Beside the name it is built from, because that is the row you are
+                            looking at when you notice the colour is missing. */}
+                        {addingColour?.line === i ? (
+                          <span className="add-colour">
+                            <input
+                              type="text"
+                              autoFocus
+                              className="size-box"
+                              placeholder="which colour?"
+                              value={addingColour.text}
+                              onChange={(e) => setAddingColour({ line: i, text: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setAddingColour(null);
+                                if (e.key === "Enter" && addingColour.text.trim() !== "") {
+                                  void addColour(l.match!, addingColour.text);
+                                }
+                              }}
+                            />
+                            <small className="muted">the same price, size and pack — a new row</small>
+                          </span>
+                        ) : (
+                          <button
+                            className="tiny"
+                            title="Add another colour of this — a new row, nothing renamed"
+                            onClick={() => setAddingColour({ line: i, text: "" })}
+                          >
+                            + colour
+                          </button>
+                        )}
                         <input
                           type="text"
                           className="size-box"

@@ -600,9 +600,26 @@ async function followTheKey(oldKey: string, patch: { material?: string; category
 }
 
 /** Add a material the list has never had. Writable everywhere now, same as `editMaterial`. */
+/** Another colour of a row already on the list — a sibling, never a rename. See `addColour`. */
+ipcMain.handle(
+  "addColour",
+  async (_e, key: string, colour: string): Promise<Attempt<unknown>> => {
+    try {
+      const { materials, name } = (await inventoryEngine()).addColour(key, colour);
+      await followTheKey(key, {}); // no-op unless a future caller renames; kept for symmetry
+      return { ok: true, result: materials, note: `${name} added beside it. Nothing was renamed.` };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
+  },
+);
+
 ipcMain.handle(
   "addMaterial",
-  async (_e, row: { category: string; material: string; paise: number | null }): Promise<Attempt<unknown>> => {
+  async (
+    _e,
+    row: { category: string; material: string; paise: number | null; size?: string; piecesPerPack?: number },
+  ): Promise<Attempt<unknown>> => {
     try {
       return { ok: true, result: (await inventoryEngine()).addMaterial(row) };
     } catch (e) {

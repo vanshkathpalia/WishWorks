@@ -2468,3 +2468,13 @@ button.chosen:hover {
   font-size: 11.5px;
   color: var(--warn);
 }
+
+/* Adding another colour of a material, inline on the row it is built from. */
+.add-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.add-colour input {
+  border-color: var(--accent);
+}

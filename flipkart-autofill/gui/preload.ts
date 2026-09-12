@@ -70,7 +70,11 @@ const api: WwApi = {
     },
   ) =>
     ipcRenderer.invoke("editMaterial", key, patch),
-  addMaterial: (row: { category: string; material: string; paise: number | null }) =>
+  addColour: (key: string, colour: string) => ipcRenderer.invoke("addColour", key, colour),
+  addMaterial: (row: {
+    category: string; material: string; paise: number | null;
+    size?: string; piecesPerPack?: number;
+  }) =>
     ipcRenderer.invoke("addMaterial", row),
   parcelFor: (lines: KitLine[], chosen: Record<string, number | undefined>) =>
     ipcRenderer.invoke("parcelFor", lines, chosen),

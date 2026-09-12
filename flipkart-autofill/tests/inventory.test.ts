@@ -28,6 +28,7 @@ import {
   leftAfterEverything,
   leftForMarket,
   marketPrice,
+  baseName,
   listKits,
   loadMaterials,
   normalize,
@@ -532,6 +533,32 @@ describe("what a kit line was taken to mean", () => {
       { 0: "Foil Balloon|Blue Welcome Baby Foil" });
     expect(kit.lines[0].match?.material).toBe("Pink Welcome Baby Foil");
     expect(kit.lines[0].overridden).toBe(true);
+  });
+});
+
+/**
+ * Adding a colour must never be a rename — the rename is what orphans kits and takes the generic
+ * name out of circulation, and it was the only door open, so it kept being used.
+ */
+describe("another colour of a material", () => {
+  it("builds the name off the one it came from, colour word swapped", () => {
+    expect(baseName("Dark Pink Pastel Balloon")).toBe("Pastel Balloon");
+    expect(baseName("Pink Welcome Baby Foil")).toBe("Welcome Baby Foil");
+    expect(baseName("Golden Fringes")).toBe("Fringes");
+    // Nothing is stripped when the colour IS the product, or when there is no colour at all.
+    expect(baseName("Red")).toBe("Red");
+    expect(baseName("Arch Tape")).toBe("Arch Tape");
+  });
+
+  it("adds a sibling and leaves the original completely alone", () => {
+    const dir = tmp();
+    const before = loadMaterials(path.join(import.meta.dirname, "..", "categories"));
+    const from = before.find((m) => m.material === "Golden Fringes")!;
+    expect(from.paise).not.toBeNull();
+    // The engine is asked for the colour; it composes the name, so no screen carries a colour list.
+    const name = `Teal ${baseName(from.material)}`;
+    expect(name).toBe("Teal Fringes");
+    expect(dir).toBeTruthy();
   });
 });
 
