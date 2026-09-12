@@ -132,17 +132,48 @@ function RangePick({ which, setWhich, typedFrom, typedTo, setFrom, setTo }: Retu
 function Ads({ today, onSaved }: { today: string; onSaved: () => void }) {
   const [day, setDay] = useState(today);
   const [ads, setAds] = useState<AdSpend>({});
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<string | null>(null);
 
-  useEffect(() => void window.ww.ads().then(setAds, () => setAds({})), []);
+  const reload = useCallback(() => {
+    void window.ww.ads().then(setAds, () => setAds({}));
+  }, []);
+  useEffect(reload, [reload]);
 
-  const save = (market: string, typed: string) => {
-    const paise = Math.round(Number(typed || 0) * 100);
-    if (paise === (ads[day]?.[market] ?? 0)) return;
-    void window.ww.setAds(day, market, paise).then((a) => {
-      setAds(a);
-      onSaved();
-    });
-  };
+  /**
+   * **Controlled boxes and one Save, not blur.** Vansh, 2026-09-12: *"I have the ads and boost
+   * button but never am I able to enter in it."*
+   *
+   * The old strip read its value from `ads` as a `defaultValue` — but `ads` arrives from disk one
+   * tick AFTER the boxes mount, and an uncontrolled input never looks at its default again. So it
+   * showed empty for a day that had a figure, and saving on blur then compared the typed number
+   * against a map that might be stale. Two silent failure modes stacked on the one control on this
+   * screen that CANNOT be derived from anything else — if this does not take, the number exists
+   * nowhere.
+   *
+   * What is stored for the chosen day is printed beside the boxes, so *did it take?* is answered on
+   * screen rather than by reloading the app.
+   */
+  const stored = (market: string) => ads[day]?.[market];
+  const box = (market: string) => typed[`${market}|${day}`] ?? (stored(market) === undefined ? "" : String(stored(market)! / 100));
+  const dirty = ["meesho", "flipkart"].some((m) => {
+    const t = typed[`${m}|${day}`];
+    return t !== undefined && Math.round(Number(t || 0) * 100) !== (stored(m) ?? 0);
+  });
+
+  async function saveBoth() {
+    for (const market of ["meesho", "flipkart"]) {
+      const t = typed[`${market}|${day}`];
+      if (t === undefined) continue;
+      const paise = Math.round(Number(t || 0) * 100);
+      if (paise === (stored(market) ?? 0)) continue;
+      setAds(await window.ww.setAds(day, market, paise));
+    }
+    setTyped({});
+    setSaved(day);
+    onSaved();
+    setTimeout(() => setSaved(null), 4000);
+  }
 
   return (
     <div className="ads-strip">
@@ -153,23 +184,30 @@ function Ads({ today, onSaved }: { today: string; onSaved: () => void }) {
       {["meesho", "flipkart"].map((market) => (
         <label key={market}>
           {market === "meesho" ? "Meesho ₹" : "Flipkart ₹"}
-          {/* Keyed by the day, so changing the date reloads the boxes rather than leaving the
-              previous day's figures sitting there looking like this day's. */}
           <input
-            key={`${market}-${day}`}
             type="number"
             min={0}
             step="1"
             placeholder="0"
-            defaultValue={ads[day]?.[market] ? (ads[day][market] / 100).toString() : ""}
-            onBlur={(e) => save(market, e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            value={box(market)}
+            onChange={(e) => setTyped({ ...typed, [`${market}|${day}`]: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && void saveBoth()}
           />
         </label>
       ))}
+      <button className="go" disabled={!dirty} onClick={() => void saveBoth()}>
+        Save
+      </button>
+      {/* What is on disk for this day, so the question "did it take?" is answered here. */}
       <small className="muted">
-        Read it off the marketplace&apos;s own Ads screen — it is the only cost here that nothing
-        else knows.
+        {saved === day
+          ? "Saved."
+          : stored("meesho") === undefined && stored("flipkart") === undefined
+            ? "Nothing recorded for this day yet. Read it off the marketplace's own Ads screen — it is the only cost here that nothing else knows."
+            : `Recorded: ${["meesho", "flipkart"]
+                .filter((m) => stored(m) !== undefined)
+                .map((m) => `${shopName(m)} ${rupees(stored(m)!)}`)
+                .join(" · ")}`}
       </small>
     </div>
   );
