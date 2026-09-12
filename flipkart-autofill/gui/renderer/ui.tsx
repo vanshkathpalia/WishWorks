@@ -79,6 +79,46 @@ export function CopyButton({ text, label = "Copy", disabled }: { text: string; l
 }
 
 /** Newest first, because the listing being worked on is always the one written last. */
+/**
+ * A `<details>` that REMEMBERS being opened.
+ *
+ * Passing `open` straight to `<details>` looks right and is not: it is a controlled prop, so React
+ * writes it back on every render — open a group, do anything that re-renders the screen (pick a
+ * material, save a delivery, re-tally) and every group you opened snaps shut. Vansh, 2026-09-12:
+ * *"will it appear like this only always?"* — yes, it would have.
+ *
+ * So the default decides the FIRST state and the person decides after that. Kept per id for the
+ * life of the screen, which is the right span: a fold is a reading position, not a setting, and
+ * nobody wants yesterday's open groups restored.
+ */
+export function Fold({
+  id,
+  open,
+  className,
+  summary,
+  children,
+}: {
+  id: string;
+  /** Where it starts, the first time this id is seen. */
+  open: boolean;
+  className?: string;
+  summary: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [shown, setShown] = useState<boolean | null>(null);
+  return (
+    <details
+      className={className}
+      open={shown ?? open}
+      onToggle={(e) => setShown((e.currentTarget as HTMLDetailsElement).open)}
+      key={id}
+    >
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  );
+}
+
 export function ListingPicker({
   value,
   onChange,

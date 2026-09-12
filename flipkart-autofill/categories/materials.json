@@ -390,7 +390,8 @@
       "aka": [
         "Bally Boy"
       ],
-      "packOf": 100
+      "packOf": 100,
+      "size": "12\""
     },
     {
       "category": "Foil Balloon",
@@ -820,6 +821,11 @@
       "category": "Foil Balloon",
       "material": "Pink Babies Feet Foil",
       "paise": 600
+    },
+    {
+      "category": "Foil Balloon",
+      "material": "Baby Boy Foil small",
+      "paise": null
     },
     {
       "category": "Banner",

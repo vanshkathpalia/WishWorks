@@ -22,7 +22,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Box, CostedLine, Kit, KitLine, KitRow, Listing, Material, Parcel, SavedKit } from "../shared.js";
 import { skuNumbers, skuPrefix } from "../shared.js";
-import { CopyButton, fileUrl, MaterialPicker } from "./ui.js";
+import { CopyButton, fileUrl, Fold, MaterialPicker } from "./ui.js";
 import { PromptEditor } from "./PromptEditor.js";
 
 const rupees = (paise: number) => `₹${(paise / 100).toFixed(2).replace(/\.00$/, "")}`;
@@ -932,12 +932,15 @@ export function Inventory({ n }: { n: number }) {
                     * worse than no fold.
                     */}
                   {groups.map((g) => (
-                    <details
+                    <Fold
                       key={g.prefix}
+                      /* A live search re-keys the fold, so narrowing re-opens the groups even
+                         after they have been closed by hand — which is what a search is for. */
+                      id={`kits:${g.prefix}:${find.trim() === "" ? "" : "find"}`}
                       className="inv-group"
                       open={groups.length <= 3 || find.trim() !== ""}
-                    >
-                      <summary className="inv-group-head">
+                      summary={
+                        <span className="inv-group-head">
                         <b>{g.prefix || "no code"}</b>
                         <span className="muted">{g.kits.length}</span>
                         {g.next ? (
@@ -953,7 +956,9 @@ export function Inventory({ n }: { n: number }) {
                             newest listing: <b>{g.newest}</b>
                           </span>
                         )}
-                      </summary>
+                        </span>
+                      }
+                    >
                       <div className="picks inv-saved">
                         {/* Delete lives HERE rather than beside the open kit, because a wrong kit
                             is usually one you can see in this list and do not want to open first —
@@ -996,7 +1001,7 @@ export function Inventory({ n }: { n: number }) {
                           <span className="muted">no kit costed under this code yet</span>
                         )}
                       </div>
-                    </details>
+                    </Fold>
                   ))}
                   <p className="muted">
                     <b>next free</b> is one past the highest number anything on this machine uses —
@@ -1915,11 +1920,18 @@ export function Inventory({ n }: { n: number }) {
               }, new Map<string, Material[]>())]
                 .sort((a, b) => b[1].length - a[1].length)
                 .map(([category, rows]) => (
-                  <details key={category} className="inv-group" open={rows.length <= 4}>
-                    <summary className="inv-group-head">
-                      <b>{category}</b>
-                      <span className="muted">{rows.length} with no price</span>
-                    </summary>
+                  <Fold
+                    key={category}
+                    id={`gaps:${category}`}
+                    className="inv-group"
+                    open={rows.length <= 4}
+                    summary={
+                      <span className="inv-group-head">
+                        <b>{category}</b>
+                        <span className="muted">{rows.length} with no price</span>
+                      </span>
+                    }
+                  >
                     <ul className="kv">
                       {rows.map((m) => (
                         <li key={key(m)}>
@@ -1927,7 +1939,7 @@ export function Inventory({ n }: { n: number }) {
                         </li>
                       ))}
                     </ul>
-                  </details>
+                  </Fold>
                 ))}
             </div>
           )}

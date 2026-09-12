@@ -20,7 +20,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Delivery, OnHand, TallyRow } from "../shared.js";
-import { MaterialPicker } from "./ui.js";
+import { Fold, MaterialPicker } from "./ui.js";
 
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -421,11 +421,18 @@ export function Stock({ n }: { n: number }) {
               * open groups is the wall this screen exists to replace — so only *needs a decision*
               * starts open, and the rest say how many they hold and wait to be asked.
               */
-            <details key={g.title} className="tally-group" open={g.title === "Needs a decision"}>
-              <summary>
-                {g.title}
-                <small>{g.rows.length} · {g.why}</small>
-              </summary>
+            <Fold
+              key={g.title}
+              id={g.title}
+              className="tally-group"
+              open={g.title === "Needs a decision"}
+              summary={
+                <>
+                  {g.title}
+                  <small>{g.rows.length} · {g.why}</small>
+                </>
+              }
+            >
               <table className="rows inv-table">
                 <thead>
                   <tr>
@@ -494,7 +501,7 @@ export function Stock({ n }: { n: number }) {
                   ))}
                 </tbody>
               </table>
-            </details>
+            </Fold>
           ))}
           {shown.length === 0 && (
             <p className="muted">

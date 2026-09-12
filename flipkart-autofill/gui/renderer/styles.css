@@ -2606,6 +2606,7 @@ button.chosen:hover {
 /* A folded group — the browser's own disclosure, styled to look like the heading it replaces. */
 .inv-group > summary,
 .tally-group > summary {
+  display: block;
   cursor: pointer;
   list-style: none;
 }
