@@ -119,6 +119,26 @@ export function Stock({ n }: { n: number }) {
     run(); // re-tally, so what just landed shows as matched
   }
 
+  /**
+   * Delete a whole saved delivery.
+   *
+   * Vansh, 2026-09-12: *"do I have the freedom to delete some of the whole delivery later on,
+   * because my testing plan requires it."* It asks first, with both things it moves named: the
+   * quantities, and — when it is the earliest one — the DAY USAGE IS COUNTED FROM, which changes
+   * what every material shows as used, not only the ones on that note.
+   */
+  async function dropDelivery(date: string, earliest: boolean) {
+    const also = earliest
+      ? "\n\nIt is the earliest one on record, so packing will be counted from the next delivery " +
+        "instead — that changes what EVERY material shows as used, not just these."
+      : "";
+    if (!window.confirm(`Delete the delivery of ${date}?\n\nIts quantities come straight off the shelf.${also}`)) {
+      return;
+    }
+    await window.ww.removeDelivery(date);
+    loadStock();
+  }
+
   const loadStock = useCallback(() => {
     void window.ww.stock().then(setStock, (e: Error) => setError(e.message));
   }, []);
@@ -484,6 +504,28 @@ export function Stock({ n }: { n: number }) {
             </button>
             {saved !== null && <span className="muted">Saved {saved}. It is in the stock below.</span>}
           </div>
+        </>
+      )}
+
+      {/* Every delivery saved, newest first — the record the shelf is built from, and the only
+          way back out of one saved against the wrong date or tallied twice. */}
+      {stock !== null && stock.deliveries.length > 0 && (
+        <>
+          <h3>Deliveries saved</h3>
+          <ul className="delivery-list">
+            {stock.deliveries.map((dv) => (
+              <li key={dv.date}>
+                <span className="lid">{dv.date}</span>
+                <span className="muted">
+                  {dv.lines.length} material{dv.lines.length === 1 ? "" : "s"}
+                  {dv.date === stock.from && " · usage is counted from this one"}
+                </span>
+                <button className="drop-one" onClick={() => void dropDelivery(dv.date, dv.date === stock.from)}>
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
         </>
       )}
 

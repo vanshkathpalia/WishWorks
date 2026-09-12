@@ -2575,3 +2575,30 @@ button.chosen:hover {
   gap: 8px;
   font-size: 13px;
 }
+
+/* Every delivery saved — the record the shelf is built from, and the way back out of one. */
+.delivery-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.delivery-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.delivery-list li .lid {
+  font-variant-numeric: tabular-nums;
+}
+.delivery-list li .muted {
+  flex: 1;
+  font-size: 13px;
+}

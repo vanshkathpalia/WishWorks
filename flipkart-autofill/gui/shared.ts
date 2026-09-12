@@ -623,6 +623,14 @@ export interface WwApi {
   /** Remember a pick against the wording it was made for; null forgets it. */
   setAlias(name: string, key: string | null): Promise<Record<string, string>>;
   saveDelivery(d: Delivery): Promise<boolean>;
+  /**
+   * Take a saved delivery off the record.
+   *
+   * The shelf moves with it, because on-hand is deliveries minus packing and no level is
+   * stored. Deleting the EARLIEST one moves more than its own quantities: usage is counted
+   * from the first delivery on record, so the window the packing is measured over changes.
+   */
+  removeDelivery(date: string): Promise<boolean>;
   stock(): Promise<{
     deliveries: Delivery[];
     /** The first delivery on record — the day usage starts counting from. */

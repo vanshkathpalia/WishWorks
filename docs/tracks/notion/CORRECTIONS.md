@@ -2466,3 +2466,26 @@ appeared only on lines matching nothing. A wrong match and a missing match are t
 is not the thing I mean* — and offering the fix for only one of them left renaming the wrongly
 matched row as the only move, which is what merged two products into one. **An escape hatch that is
 only reachable from the empty state is not an escape hatch.**
+
+
+## C-079 — An edit helper that empties a file when the edit fails
+**2026-09-12 · Class: Process · Caught by: the next command · Cost: seconds, because it was committed · Status: Fixed**
+
+**What happened.** A throwaway edit script used the obvious shape:
+
+    open(path, "w").write(edit(open(path).read(), old, new))
+
+Python evaluates `open(path, "w")` first, which **truncates the file immediately**. When `edit()`
+then raised — the anchor text had changed — `preload.ts` was left at zero bytes.
+
+**Why it was survivable.** It was committed, so `git checkout` put it back before anything else ran,
+and `git status` showed exactly one unexpected file. That is the whole argument for committing after
+each change rather than at the end of a session: the blast radius of a bad edit is everything since
+the last commit.
+
+**The fix.** `patch()` reads, edits, and only then opens for writing — so a failing edit raises
+before the file is touched at all. The loop form was the real trap: the first iteration threw, and
+without the assert firing later I might not have looked at that file again.
+
+**The lesson.** *A tool that writes files should compute the whole result before it opens one.*
+Truncate-then-write is safe only when nothing between the two can fail, and something always can.

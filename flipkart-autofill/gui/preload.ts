@@ -109,6 +109,7 @@ const api: WwApi = {
     ipcRenderer.invoke("tallyNotes", claimedNote, countedNote),
   setAlias: (name: string, key: string | null) => ipcRenderer.invoke("setAlias", name, key),
   saveDelivery: (d: unknown) => ipcRenderer.invoke("saveDelivery", d),
+  removeDelivery: (date: string) => ipcRenderer.invoke("removeDelivery", date),
   stock: () => ipcRenderer.invoke("stock"),
   ads: () => ipcRenderer.invoke("ads"),
   setAds: (on: string, market: string, paise: number) => ipcRenderer.invoke("setAds", on, market, paise),

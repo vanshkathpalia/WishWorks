@@ -985,6 +985,18 @@ ipcMain.handle("setAlias", async (_e, name: string, key: string | null) => {
   return aliases;
 });
 
+/**
+ * Take a saved delivery off the record.
+ *
+ * The shelf moves the moment it goes, because on-hand is deliveries minus packing and no level is
+ * stored. Deleting the EARLIEST one moves more than its own quantities — usage is counted from the
+ * first delivery on record, so the window the packing is measured over changes with it.
+ */
+ipcMain.handle("removeDelivery", async (_e, date: string) => {
+  await (await stockEngine()).removeDelivery(date);
+  return true;
+});
+
 ipcMain.handle("saveDelivery", async (_e, d: unknown) => {
   await (await stockEngine()).writeDelivery(d as never);
   return true;
