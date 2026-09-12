@@ -442,19 +442,29 @@ export function Inventory({ n }: { n: number }) {
    * Vansh, 2026-09-12: *"I want our inventory SKU making and inventory delivery to work side by
    * side… I am going to plan some listings for products that don't even exist in my inventory yet,
    * and I want you to flag what doesn't exist."* Costing a kit and knowing whether the shop has
-   * the parts were two screens, so a kit could be priced, listed and sold on a material nobody
-   * has. An id absent from this map is on no delivery note at all, which is a different sentence
-   * from nought left — and both are said, because they have different answers.
+   * the parts were two screens, so a kit could be priced, listed and sold on a material nobody has.
    *
-   * Read once when the panel opens. The shelf moves when a manifest is ticked on another tab, and
-   * a stale *none left* is a nudge to go and look rather than a number anything is computed from —
+   * **Three states, and only two of them are worth saying.** A material with a shelf row and
+   * nothing left is *none left* — arithmetic on a note that exists. A material on no note that the
+   * packing has nonetheless eaten is one he owns and has never tallied: the honest pill there is
+   * NOTHING, because *not in stock* would be a lie and the fix is a delivery note, not a purchase.
+   * What is left — no note, never packed — is a kit built on something the app has never once seen,
+   * and that is the only one worth stopping him on.
+   *
+   * Read once when the panel opens. The shelf moves when a manifest is ticked on another tab, and a
+   * stale *none left* is a nudge to go and look rather than a number anything is computed from —
    * the Stock tab's own recount is where the live figure lives.
    */
-  const [shelf, setShelf] = useState<Map<string, number> | null>(null);
+  const [shelf, setShelf] = useState<{ left: Map<string, number>; untried: Set<string> } | null>(null);
   useEffect(() => {
     void window.ww
       .stock()
-      .then((s) => setShelf(new Map(s.onHand.map((r) => [r.key, r.needsPackSize ? NaN : r.left]))))
+      .then((s) =>
+        setShelf({
+          left: new Map(s.onHand.map((r) => [r.key, r.needsPackSize ? NaN : r.left])),
+          untried: new Set(s.nextCall.filter((l) => l.why === "untried").map((l) => l.key)),
+        }),
+      )
       .catch(() => setShelf(null)); // no shelf yet is not an error on this screen
   }, []);
 
@@ -1322,16 +1332,15 @@ export function Inventory({ n }: { n: number }) {
                     )}
                     {l.match && l.paise === null && <span className="warnpill">no price set</span>}
                     {/**
-                      * **On no delivery note** is not **none left**, and saying the wrong one sends
-                      * him ordering something off his own shelf. The first is a gap in the records
-                      * — with few notes saved it covers plenty he has in the room — and the second
-                      * is arithmetic on a note that exists. Both end up on the Stock tab's next
-                      * supplier call; this is only so he sees it while the kit is still a plan.
+                      * **Check you have this** is said only when the app has never seen the
+                      * material arrive AND never seen it packed — see `shelf` above. A material he
+                      * has plainly used but never tallied gets no pill at all: *not in stock* would
+                      * be false, and the fix for it is a delivery note rather than a purchase.
                       */}
                     {l.match && shelf !== null && (
-                      !shelf.has(key(l.match)) ? (
-                        <span className="warnpill">on no delivery note</span>
-                      ) : shelf.get(key(l.match))! <= 0 ? (
+                      shelf.untried.has(key(l.match)) ? (
+                        <span className="warnpill">check you have this</span>
+                      ) : (shelf.left.get(key(l.match)) ?? 1) <= 0 ? (
                         <span className="warnpill bad">none left</span>
                       ) : null
                     )}

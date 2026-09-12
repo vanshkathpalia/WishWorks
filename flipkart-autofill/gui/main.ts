@@ -1041,8 +1041,18 @@ ipcMain.handle("stock", async () => {
    * enough that one busy Saturday does not become the rate.
    */
   const recent = new Map<string, number>();
+  /**
+   * Every material the packing has EVER eaten, over every ledger there has ever been.
+   *
+   * Deliberately not the shelf's window: the question it answers is *has he ever bought this*, and
+   * a material packed for a year and last used before the first delivery note is still one he owns.
+   */
+  const everPacked = new Map<string, { name: string; pieces: number }>();
+  const ledgers = await orders.listLedgers();
+  for (const b of orders.howItSells(ledgers, kits, "2000-01-01", today).burn) {
+    if (b.pieces > 0) everPacked.set(b.key, { name: b.name, pieces: b.pieces });
+  }
   if (from !== null) {
-    const ledgers = await orders.listLedgers();
     const { burn } = orders.howItSells(ledgers, kits, from, today);
     for (const b of burn) used.set(b.key, { pieces: b.pieces, perWeek: b.piecesPerWeek });
     const since = new Date(Date.now() - 28 * 864e5).toISOString().slice(0, 10);
@@ -1055,7 +1065,8 @@ ipcMain.handle("stock", async () => {
     from,
     onHand,
     reorderWeeks: stock.REORDER_WEEKS,
-    nextCall: stock.nextCall(onHand, kits, recent, perPack),
+    nextCall: stock.nextCall(onHand, kits, recent, perPack, new Set(everPacked.keys())),
+    untallied: stock.untallied(onHand, everPacked),
     coverWeeks: stock.COVER_WEEKS,
     thin: stock.THIN,
     aliases: await readAliases(),

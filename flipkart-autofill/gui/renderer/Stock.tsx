@@ -85,13 +85,13 @@ function remembered<T>(name: string, fallback: T): T {
  */
 function NextCall({
   call,
-  notes,
+  untallied,
   coverWeeks,
   thin,
 }: {
   call: CallLine[];
-  /** How many delivery notes are on record — the caveat under the second list depends on it. */
-  notes: number;
+  /** Materials the packing has eaten that no note accounts for — a records gap, never an order. */
+  untallied: { key: string; name: string; pieces: number }[];
   coverWeeks: number;
   thin: number;
 }) {
@@ -110,8 +110,8 @@ function NextCall({
     }
   }, [skip, qty]);
 
-  const low = call.filter((l) => l.why !== "not-on-a-note");
-  const gap = call.filter((l) => l.why === "not-on-a-note");
+  const low = call.filter((l) => l.why !== "untried");
+  const gap = call.filter((l) => l.why === "untried");
   const on = (l: CallLine) => !skip.includes(l.key);
   const toggle = (k: string) =>
     setSkip((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
@@ -238,19 +238,45 @@ function NextCall({
         </Fold>
       )}
 
+      {/**
+        * **The records gap, kept well away from the order.** He owns every one of these — something
+        * was packed out of it — so a supplier call containing them buys a second set of the shelf.
+        * Vansh saw this coming: *"maybe it will automatically fix when I upload the delivery match
+        * for previous deliveries I had got."* It does, and this is the list that empties.
+        */}
+      {untallied.length > 0 && (
+        <Fold id="call-untallied" summary={`Used but never tallied in — ${untallied.length}`} open={false}>
+          <p className="muted">
+            Your packing has used these, so you have them — but no delivery note on record accounts
+            for a single one, so the shelf cannot count them. <strong>They are not an order.</strong>{" "}
+            Paste your earlier delivery notes at the top of this tab, with their real dates, and each
+            one moves onto the shelf and out of this list.
+          </p>
+          <ul className="delivery-list">
+            {untallied.map((u) => (
+              <li key={u.key}>
+                <span className="lid">{u.name}</span>
+                <span className="muted">{u.pieces} pcs packed, none accounted for</span>
+              </li>
+            ))}
+          </ul>
+        </Fold>
+      )}
+
       {gap.length > 0 && (
-        <Fold id="call-gap" summary={`On a kit, on no delivery note — ${gap.length}`} open={false}>
+        <Fold id="call-gap" summary={`For kits you have never packed — ${gap.length}`} open={false}>
           {/**
-           * **The caveat is the feature.** This says nothing about what is in the room, only about
-           * what has been tallied, and with one note saved that is most of the price list. Written
-           * as *not on a note* rather than *you have none* on purpose — the first is true and the
-           * second would send him ordering things off his own shelf.
+           * **What this list is, stated exactly.** Not *you have none of these* — with few notes
+           * saved nothing here can know that, and a list read that way sends him buying a second
+           * set of his own shelf. What is true of every row: a costed kit needs it, no note carries
+           * it, and nothing has ever been packed out of it. That is the question he asked — *"I am
+           * going to plan some listings for products that don't even exist in my inventory yet"* —
+           * and the honest instruction is to CHECK, not to order.
            */}
           <p className="muted">
-            These are on a costed kit but on none of the {notes} delivery note{notes === 1 ? "" : "s"}{" "}
-            saved so far. {notes < 3 && "With so few notes saved that will include plenty you already have — "}
-            tick the ones you actually need. Nothing can be worked out about the quantity, so every
-            one is one packet until you change it.
+            Every one of these belongs to a kit that has never gone out, and no delivery note
+            carries it. Check you have them before you list those kits. Nothing can be worked out
+            about the quantity, so each is one packet until you change it.
           </p>
           <table className="rows inv-table">
             <thead>
@@ -296,6 +322,7 @@ export function Stock({ n }: { n: number }) {
     {
       deliveries: Delivery[]; from: string | null; onHand: OnHand[]; reorderWeeks: number;
       nextCall: CallLine[]; coverWeeks: number; thin: number;
+      untallied: { key: string; name: string; pieces: number }[];
     } | null
   >(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -783,7 +810,7 @@ export function Stock({ n }: { n: number }) {
       {stock !== null && (
         <NextCall
           call={stock.nextCall}
-          notes={stock.deliveries.length}
+          untallied={stock.untallied}
           coverWeeks={stock.coverWeeks}
           thin={stock.thin}
         />

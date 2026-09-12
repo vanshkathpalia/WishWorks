@@ -1,29 +1,36 @@
 # *Not on a note* is not *none in the room*
 
-The supplier-call list has to name materials a costed kit is built on that no delivery note
-carries — that is the half Vansh asked for by name, so a listing cannot be planned on something the
-shop has none of.
+The supplier-call list has to name materials a costed kit is built on that the shop may not have —
+so a listing cannot be planned on something that does not exist yet. Vansh asked for it by name.
 
-The first run said `never-delivered` and produced **83 rows out of ~100 materials**. It was not
-wrong: one delivery note was on record, saved that morning, covering 19 materials. Everything else
-genuinely appeared on no note. But `never-delivered` reads as *you have none of this*, and acting on
-83 such rows means ordering a second set of things already sitting on the shelf — a worse outcome
-than not having the feature.
+The first run flagged everything on a kit that no delivery note carried: **83 rows out of ~100
+materials**. Not wrong — one note was on record, saved that morning, covering 19 materials. But
+`never-delivered` reads as *you have none of this*, and acting on 83 such rows means ordering a
+second set of what is already on the shelf. A flag that is wrong eighty times out of eighty-three is
+worse than no flag.
 
-The flag is a statement about **the records**, not about **the room**, and the two only converge
-once the records are complete. So:
+The fix was not better wording. It was finding a **second signal that does not depend on the notes
+at all**: whether the packing has ever eaten the material. Something packed is something he owns,
+whatever the records say. That splits the 83 cleanly in two, and the halves want opposite actions:
 
-- the reason is `not-on-a-note`, not `never-delivered` — the name carries the limit;
-- the panel says *on none of the N delivery notes saved so far*, and when N is small it adds that
-  this will include plenty he already has;
-- that list is folded shut and carries no computed quantity, because nothing can be derived about a
-  material with no history — every line is one packet until he changes it;
-- the list with real arithmetic behind it (a rate, a shelf, a quantity) is a **separate** list, open
-  by default, so two rows worth acting on are not buried under eighty that need reading.
+- **21 used but never tallied in** — provably owned. A gap in the RECORDS. Putting these on a
+  supplier call buys the shelf twice. They get their own list that says *not an order*, and the fix
+  named on it is pasting the older delivery notes. Vansh had already worked this out: *"maybe it
+  will automatically fix when I upload the delivery match for previous deliveries I had got."*
+- **62 for kits that have never gone out** — no note, and never packed by anything. This is the
+  question he actually asked: materials belonging to listings he is planning. Even here the honest
+  instruction is *check you have these*, never *order these*, because one note still cannot prove
+  absence.
 
-The general shape: when a derived flag depends on how complete the input is, the flag has to say so
-in its own name and in its own wording. A count of 83 is not a bug to suppress — it is the true
-state of the records, and the fix is to describe it accurately rather than to hide it or to trust it.
+Two lessons, and the second is the one that generalises.
 
-Same family as `docs/learning/5-closed-is-not-untested.md`: two different states that leave an
-identical trace, and picking the alarming reading of the two does real damage.
+**Reframing beat filtering.** Once the owned half was removed, the remainder was not a shorter
+version of the same wrong list — it was a different list, with a different name and a different
+verb. The original framing had been wrong, not merely noisy.
+
+**When a derived flag depends on how complete the input is, look for an input that is already
+complete.** The delivery notes were one month old; the parcel ledger went back a year. The answer
+was sitting in a file the feature was not reading.
+
+Same family as `docs/learning/5-closed-is-not-untested.md`: two states leaving an identical trace,
+and picking the alarming reading of the two does real damage.

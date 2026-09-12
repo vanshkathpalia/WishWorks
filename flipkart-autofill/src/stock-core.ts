@@ -484,19 +484,24 @@ export interface CallLine {
   name: string;
   /**
    * Why it is on the call. They are not degrees of the same thing:
-   * - `not-on-a-note` — a kit is built on it and **no delivery note on record carries it**. The
-   *   one that blocks a listing rather than a parcel, and the reason this list exists at all.
+   * - `untried` — a costed kit is built on it, **no delivery note carries it, and nothing has ever
+   *   been packed out of it**. The one that blocks a listing rather than a parcel, and the reason
+   *   this list exists at all: *"I am going to plan some listings for products that don't even
+   *   exist in my inventory yet — flag what doesn't exist so I can add it to the next call."*
    *
-   *   **It is a statement about the records, not about the shelf**, and the difference matters
-   *   while there are few notes: on 2026-09-12, with one note saved, 83 of the ~100 materials the
-   *   67 kits use came out this way — nearly all of them things he has in the room and has never
-   *   tallied. Anything showing this has to say *not on a note* and never *you have none*.
+   *   **It says the kit is untried, not that the shelf is empty**, and the difference is the whole
+   *   care taken here. With one note on record, 83 of the ~100 materials the 67 kits use were on no
+   *   note; 21 of those had provably been packed, so he owns them and had simply never tallied one
+   *   in. Those are a gap in the RECORDS and are not an order — they come back from `untallied()`
+   *   instead. What is left is materials belonging to kits that have never gone out, which is
+   *   exactly the thing he asked to see before listing them. Even so it cannot claim he has none:
+   *   the honest sentence is *check you have these*, and the quantity stays his.
    * - `out` — the shelf is at or below zero.
    * - `soon` — it runs out inside the lead time (`REORDER_WEEKS`).
    * - `thin` — under 30% of what came in is left. Catches what the rate cannot: something that has
    *   never been packed has no weeks-left to be low, and would otherwise never flag.
    */
-  why: "not-on-a-note" | "out" | "soon" | "thin";
+  why: "untried" | "out" | "soon" | "thin";
   /** Pieces on the shelf. Null when the note was in packets and nobody knows the pack size. */
   left: number | null;
   /** Pieces a week, the rate this quantity was worked out at — the HIGHER of the two below. */
@@ -549,6 +554,14 @@ export function nextCall(
   recent: Map<string, number> = new Map(),
   /** Pieces in one supplier packet, per key — needed for materials that have no shelf row yet. */
   packSizes: Map<string, number> = new Map(),
+  /**
+   * Materials the packing has EVER consumed, over every ledger — not the shelf's window.
+   *
+   * The one thing that can tell *he has never bought this* from *he has never written it down*, and
+   * without it the list is unusable: 21 of the 83 it first produced were materials he had packed
+   * dozens of times and simply never tallied in. A material the packing has eaten is one he owns.
+   */
+  everPacked: Set<string> = new Set(),
   coverWeeks = COVER_WEEKS,
 ): CallLine[] {
   const forSkus = new Map<string, string[]>();
@@ -606,16 +619,16 @@ export function nextCall(
     });
   }
 
-  // The gap: on a kit, never on a delivery note. Nothing about it can be derived — there is no
-  // rate, no shelf, no last order — so it asks for one packet and says the quantity is his.
+  // On a kit, on no note, and never packed out of. Nothing about it can be derived — no rate, no
+  // shelf, no last order — so it asks for one packet and says the quantity is his.
   const onShelf = new Set(shelf.map((r) => r.key));
   for (const [id, skus] of forSkus) {
-    if (onShelf.has(id)) continue;
+    if (onShelf.has(id) || everPacked.has(id)) continue;
     const per = packSizes.get(id) ?? null;
     lines.push({
       key: id,
       name: named.get(id) ?? id,
-      why: "not-on-a-note",
+      why: "untried",
       left: null,
       perWeek: 0,
       lifetimePerWeek: 0,
@@ -630,11 +643,34 @@ export function nextCall(
     });
   }
 
-  const RANK = { "not-on-a-note": 0, out: 1, soon: 2, thin: 3 };
+  const RANK = { untried: 0, out: 1, soon: 2, thin: 3 };
   return lines.sort(
     (a, b) =>
       RANK[a.why] - RANK[b.why]
       || (a.weeksLeft ?? Infinity) - (b.weeksLeft ?? Infinity)
       || a.name.localeCompare(b.name),
   );
+}
+
+/**
+ * Materials the packing has eaten that no delivery note accounts for.
+ *
+ * **A gap in the records, never an order.** He owns these — something was packed out of them — so
+ * putting them on a supplier call would buy a second set of what is already on the shelf. What they
+ * actually mean is that the shelf figure for them is missing rather than wrong, and the fix is his
+ * older delivery notes, not a phone call: *"maybe it will automatically fix when I upload the
+ * delivery match for previous deliveries I had got."* It will, and this is the list that shrinks.
+ *
+ * Kept apart from `nextCall` for the reason the two lists are apart on screen — a thing to buy and
+ * a thing to write down are different jobs, and merging them makes both untrustworthy.
+ */
+export function untallied(
+  shelf: OnHand[],
+  everPacked: Map<string, { name: string; pieces: number }>,
+): { key: string; name: string; pieces: number }[] {
+  const onShelf = new Set(shelf.map((r) => r.key));
+  return [...everPacked]
+    .filter(([id]) => !onShelf.has(id))
+    .map(([id, v]) => ({ key: id, name: v.name, pieces: v.pieces }))
+    .sort((a, b) => b.pieces - a.pieces);
 }

@@ -203,7 +203,7 @@ export interface OnHand {
 export interface CallLine {
   key: string;
   name: string;
-  why: "not-on-a-note" | "out" | "soon" | "thin";
+  why: "untried" | "out" | "soon" | "thin";
   left: number | null;
   /** The rate the quantity was worked out at — the higher of the two below. */
   perWeek: number;
@@ -666,6 +666,11 @@ export interface WwApi {
     reorderWeeks: number;
     /** The next order to place with the supplier, worked out — see `nextCall` in `stock-core`. */
     nextCall: CallLine[];
+    /**
+     * Materials the packing has eaten that no delivery note accounts for — a gap in the RECORDS,
+     * never an order. They shrink to nothing as older notes are saved.
+     */
+    untallied: { key: string; name: string; pieces: number }[];
     /** Weeks of stock one call is meant to buy, and the "under 30%" threshold, for the wording. */
     coverWeeks: number;
     thin: number;

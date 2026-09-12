@@ -17,7 +17,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  readNote, tally, onHand, firstDelivery, nextCall,
+  readNote, tally, onHand, firstDelivery, nextCall, untallied,
   type Delivery, type OnHand,
 } from "../src/stock-core.js";
 import type { Material } from "../src/inventory-core.js";
@@ -351,11 +351,38 @@ describe("the next supplier call", () => {
   it("puts a material a new kit needs but no delivery ever carried at the top, named by SKU", () => {
     const kits = [{ sku: "ANP021", materials: [{ key: "Foil|Purple Star Foil", name: "Purple Star Foil", pieces: 4 }] }];
     const lines = nextCall([row({ key: "Foil|Heart Foil" })], kits, new Map(), new Map([["Foil|Purple Star Foil", 50]]));
-    expect(lines[0].why).toBe("not-on-a-note");
+    expect(lines[0].why).toBe("untried");
     expect(lines[0].name).toBe("Purple Star Foil");
     expect(lines[0].forSkus).toEqual(["ANP021"]);
     expect(lines[0].packs).toBe(1); // nothing can be derived; one packet, and `guess` says so
     expect(lines[0].guess).toBe(true);
+  });
+
+  /**
+   * **The correction that made the list usable.** It first flagged everything on a kit that no
+   * delivery note carried, and on Vansh's data that was 83 of ~100 materials — 21 of which his
+   * packing had provably eaten. Ordering those buys a second set of his own shelf.
+   */
+  it("leaves out a material the packing has eaten, however few notes carry it", () => {
+    const kits = [
+      { sku: "ANP021", materials: [{ key: "Foil|New Foil", name: "New Foil", pieces: 4 }] },
+      { sku: "ANP003", materials: [{ key: "Foil|Old Foil", name: "Old Foil", pieces: 2 }] },
+    ];
+    const lines = nextCall([], kits, new Map(), new Map(), new Set(["Foil|Old Foil"]));
+    // Old Foil is on no note either, but it has been packed — so he has it, and it is not an order.
+    expect(lines.map((l) => l.name)).toEqual(["New Foil"]);
+    expect(lines[0].why).toBe("untried");
+  });
+
+  it("lists what the packing ate that no note accounts for — a records gap, not an order", () => {
+    const shelf = [row({ key: "Foil|Heart Foil" })];
+    const eaten = new Map([
+      ["Foil|Heart Foil", { name: "Heart Foil", pieces: 16 }], // on a note; nothing to say
+      ["Balloon|Gold Balloon", { name: "Gold Balloon", pieces: 75 }],
+      ["Foil|Star Foil", { name: "Star Foil", pieces: 3 }],
+    ]);
+    // Most-used first: the biggest hole in the records is the one worth closing.
+    expect(untallied(shelf, eaten).map((u) => u.name)).toEqual(["Gold Balloon", "Star Foil"]);
   });
 
   it("says nothing at all about a row whose pack size nobody knows", () => {
