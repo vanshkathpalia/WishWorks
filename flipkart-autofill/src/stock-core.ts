@@ -463,3 +463,178 @@ export function onHand(
 /** The earliest delivery on record — the day usage starts counting from. `null` when there are none. */
 export const firstDelivery = (deliveries: Delivery[]): string | null =>
   deliveries.length === 0 ? null : deliveries.map((d) => d.date).sort()[0];
+
+/**
+ * Weeks of stock one supplier call is meant to buy.
+ *
+ * `REORDER_WEEKS` says WHEN to ring; this says HOW MUCH to ask for, and they are different
+ * questions. Ordering exactly the two weeks that triggered the flag means ringing again the
+ * fortnight after — so the quantity is the flag's two weeks, plus about a month of packing.
+ *
+ * ponytail: one number for the whole shelf. Per-material order cycles are a column on the
+ * material, the day something actually needs a different one.
+ */
+export const COVER_WEEKS = 6;
+
+/** Less than this much of what came in is still on the shelf — the "under 30%" rule. */
+export const THIN = 0.3;
+
+export interface CallLine {
+  key: string;
+  name: string;
+  /**
+   * Why it is on the call. They are not degrees of the same thing:
+   * - `not-on-a-note` — a kit is built on it and **no delivery note on record carries it**. The
+   *   one that blocks a listing rather than a parcel, and the reason this list exists at all.
+   *
+   *   **It is a statement about the records, not about the shelf**, and the difference matters
+   *   while there are few notes: on 2026-09-12, with one note saved, 83 of the ~100 materials the
+   *   67 kits use came out this way — nearly all of them things he has in the room and has never
+   *   tallied. Anything showing this has to say *not on a note* and never *you have none*.
+   * - `out` — the shelf is at or below zero.
+   * - `soon` — it runs out inside the lead time (`REORDER_WEEKS`).
+   * - `thin` — under 30% of what came in is left. Catches what the rate cannot: something that has
+   *   never been packed has no weeks-left to be low, and would otherwise never flag.
+   */
+  why: "not-on-a-note" | "out" | "soon" | "thin";
+  /** Pieces on the shelf. Null when the note was in packets and nobody knows the pack size. */
+  left: number | null;
+  /** Pieces a week, the rate this quantity was worked out at — the HIGHER of the two below. */
+  perWeek: number;
+  /** Pieces a week since the first delivery, and over the recent window. Both, because he asked for both. */
+  lifetimePerWeek: number;
+  recentPerWeek: number;
+  weeksLeft: number | null;
+  perPack: number | null;
+  /** Pieces to order. */
+  pieces: number;
+  /** The same thing in supplier packets — what actually gets said on the phone. Null: bought singly. */
+  packs: number | null;
+  /** True when nothing can be derived and the quantity is a placeholder for him to set. */
+  guess: boolean;
+  /** Which kits need it. The answer to "what breaks if this does not come". */
+  forSkus: string[];
+  needsPackSize: boolean;
+}
+
+/**
+ * The next order to place with the supplier: what to ask for, and how much of it.
+ *
+ * Vansh, 2026-09-12: *"you will maintain the next call order list I send to my supplier — the
+ * stuff you think is under 30% and should be ordered more, and how much, based on the order trends
+ * you see recently and on the basis of all the history trends… also these new SKU listings have
+ * undelivered products, those should be in the maintained order call too."*
+ *
+ * **Three things join here that were each already computed and never met.** The shelf knows what is
+ * left and how fast it goes; the kits know what they are made of; and the gap between them — a
+ * material a costed kit needs that no delivery has ever carried — was visible on neither screen.
+ * That gap is the whole point of the new-listing half of the request: a kit can be priced, listed
+ * and sold before anyone notices the shelf has none of it.
+ *
+ * **The rate is the higher of recent and lifetime, not an average.** Under-ordering costs a week of
+ * stockout because the supplier takes one; over-ordering costs cash on balloons that do not expire.
+ * When a thing has picked up lately, recent is the truth; when it sells in bursts, lifetime is.
+ * Taking the larger is the cheap side of being wrong, and both are on the line so the screen can
+ * show its working.
+ *
+ * **A row whose pack size nobody knows gets no quantity at all**, for the same reason `onHand`
+ * refuses to net packets against pieces: a figure nobody can defend is worse than a blank, because
+ * a blank asks and a figure asserts.
+ */
+export function nextCall(
+  shelf: OnHand[],
+  /** Every costed kit and what it is made of — `listKits(dir, materials)`. */
+  kits: { sku: string; materials?: { key: string; name: string; pieces: number }[] }[],
+  /** Pieces a week over the recent window, per material key. Absent falls back to the lifetime rate. */
+  recent: Map<string, number> = new Map(),
+  /** Pieces in one supplier packet, per key — needed for materials that have no shelf row yet. */
+  packSizes: Map<string, number> = new Map(),
+  coverWeeks = COVER_WEEKS,
+): CallLine[] {
+  const forSkus = new Map<string, string[]>();
+  const named = new Map<string, string>();
+  for (const k of kits) {
+    for (const m of k.materials ?? []) {
+      forSkus.set(m.key, [...(forSkus.get(m.key) ?? []), k.sku]);
+      named.set(m.key, m.name);
+    }
+  }
+
+  const lines: CallLine[] = [];
+  for (const r of shelf) {
+    if (r.needsPackSize) continue; // nothing can be worked out on it; the shelf already asks
+    const lifetime = r.perWeek;
+    const recentRate = recent.get(r.key) ?? 0;
+    const rate = Math.max(lifetime, recentRate);
+    const thin = r.received > 0 && r.left / r.received < THIN;
+    /**
+     * Cover is re-worked at the BLENDED rate, not read off the shelf row.
+     *
+     * `OnHand.order` is computed from the lifetime rate alone, so a material that has only sped up
+     * lately would sit unflagged until the average caught up — which is the whole reason the recent
+     * window is passed in. A test caught this: 40 left, 10 a week for ever, 30 a week now. The
+     * shelf says four weeks of cover and nothing to do; there is a fortnight, and the supplier
+     * takes one.
+     */
+    const weeksLeft = rate > 0 ? Math.round((r.left / rate) * 10) / 10 : r.weeksLeft;
+    const why: CallLine["why"] | null =
+      r.left <= 0 ? "out"
+      : weeksLeft !== null && weeksLeft <= REORDER_WEEKS ? "soon"
+      : thin ? "thin"
+      : null;
+    if (why === null) continue;
+
+    // Enough to reach the cover target, never less than nothing. A material with no rate at all
+    // (flagged only for being thin) gets back what it started with — the last order was somebody's
+    // considered number, and repeating it beats inventing one.
+    const pieces = Math.max(0, rate > 0 ? Math.ceil(rate * coverWeeks - r.left) : r.received);
+    lines.push({
+      key: r.key,
+      name: r.name,
+      why,
+      left: r.left,
+      perWeek: rate,
+      lifetimePerWeek: lifetime,
+      recentPerWeek: recentRate,
+      weeksLeft,
+      perPack: r.perPack,
+      pieces,
+      packs: r.perPack === null ? null : Math.ceil(pieces / r.perPack),
+      guess: rate === 0,
+      forSkus: [...new Set(forSkus.get(r.key) ?? [])].sort(),
+      needsPackSize: false,
+    });
+  }
+
+  // The gap: on a kit, never on a delivery note. Nothing about it can be derived — there is no
+  // rate, no shelf, no last order — so it asks for one packet and says the quantity is his.
+  const onShelf = new Set(shelf.map((r) => r.key));
+  for (const [id, skus] of forSkus) {
+    if (onShelf.has(id)) continue;
+    const per = packSizes.get(id) ?? null;
+    lines.push({
+      key: id,
+      name: named.get(id) ?? id,
+      why: "not-on-a-note",
+      left: null,
+      perWeek: 0,
+      lifetimePerWeek: 0,
+      recentPerWeek: 0,
+      weeksLeft: null,
+      perPack: per,
+      pieces: per ?? 1,
+      packs: per === null ? null : 1,
+      guess: true,
+      forSkus: [...new Set(skus)].sort(),
+      needsPackSize: false,
+    });
+  }
+
+  const RANK = { "not-on-a-note": 0, out: 1, soon: 2, thin: 3 };
+  return lines.sort(
+    (a, b) =>
+      RANK[a.why] - RANK[b.why]
+      || (a.weeksLeft ?? Infinity) - (b.weeksLeft ?? Infinity)
+      || a.name.localeCompare(b.name),
+  );
+}

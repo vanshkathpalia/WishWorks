@@ -19,7 +19,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { Delivery, OnHand, TallyRow } from "../shared.js";
+import type { CallLine, Delivery, OnHand, TallyRow } from "../shared.js";
 import { Fold, MaterialPicker } from "./ui.js";
 
 const iso = (d: Date) =>
@@ -50,6 +50,241 @@ function Band({ row }: { row: TallyRow }) {
  */
 const guessGroup = (r: TallyRow): string => r.choices[0]?.material.category ?? "";
 
+/**
+ * A value kept in the browser across restarts — the ticks and typed quantities on the supplier call.
+ *
+ * Deliberately NOT a file in the account's folder: a line ticked off is a decision about this one
+ * call, not a fact about the business, and the list itself is re-derived from the shelf every time
+ * so there is nothing here that can go stale into a wrong number.
+ */
+function remembered<T>(name: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(name);
+    return raw === null ? fallback : (JSON.parse(raw) as T);
+  } catch {
+    return fallback; // storage off, or something else wrote junk under this name
+  }
+}
+
+/**
+ * The next order to place with the supplier — the whole point of keeping a shelf at all.
+ *
+ * Vansh, 2026-09-12: *"you will maintain the next call order list I send to my supplier — the stuff
+ * you think is under 30% and should be ordered more, and how much… also these new SKU listings have
+ * undelivered products, those should be in the maintained order call too."*
+ *
+ * **Two lists, not one, because they are answers to different questions.** The top half is arithmetic
+ * — a rate, a shelf, and a quantity that follows from them. The bottom half is a gap in the records:
+ * a material a costed kit is built on that no delivery note carries. Merging them would put a
+ * confident number next to a thing nobody has ever counted.
+ *
+ * **Nothing here is stored.** The list is re-derived from the shelf and the kits every time, so it
+ * cannot go stale the way a saved shopping list does. What IS remembered is only his edits on top —
+ * lines he ticked off and quantities he overrode — in the browser, per material, because a decision
+ * to skip something is about THIS call and not a fact about the business.
+ */
+function NextCall({
+  call,
+  notes,
+  coverWeeks,
+  thin,
+}: {
+  call: CallLine[];
+  /** How many delivery notes are on record — the caveat under the second list depends on it. */
+  notes: number;
+  coverWeeks: number;
+  thin: number;
+}) {
+  /** Material keys ticked OFF this call. Kept in the browser: it is about this call, not the shelf. */
+  const [skip, setSkip] = useState<string[]>(() => remembered<string[]>("ww.call.skip", []));
+  /** His own quantity, in whatever unit the line is counted in, overriding the worked-out one. */
+  const [qty, setQty] = useState<Record<string, string>>(() => remembered<Record<string, string>>("ww.call.qty", {}));
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("ww.call.skip", JSON.stringify(skip));
+      localStorage.setItem("ww.call.qty", JSON.stringify(qty));
+    } catch {
+      // A browser with storage off loses the ticks on reload and nothing else. Not worth a warning.
+    }
+  }, [skip, qty]);
+
+  const low = call.filter((l) => l.why !== "not-on-a-note");
+  const gap = call.filter((l) => l.why === "not-on-a-note");
+  const on = (l: CallLine) => !skip.includes(l.key);
+  const toggle = (k: string) =>
+    setSkip((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
+
+  /** What he actually asks for: his number if he typed one, the worked-out one otherwise. */
+  const asking = (l: CallLine) => {
+    const typed = Number(qty[l.key]);
+    const n = qty[l.key] !== undefined && qty[l.key] !== "" && !Number.isNaN(typed) ? typed : (l.packs ?? l.pieces);
+    return { n, unit: l.packs !== null ? "pkt" : "pcs" };
+  };
+
+  /**
+   * The order as plain text, ready to paste into WhatsApp.
+   *
+   * Built here rather than in the engine because the engine cannot see the two things that make
+   * this HIS order: the lines he ticked off, and the quantities he changed. A list that can only be
+   * screenshotted is not an order.
+   */
+  const text = () =>
+    call
+      .filter(on)
+      .map((l, i) => {
+        const { n, unit } = asking(l);
+        return `${i + 1}. ${l.name} — ${n} ${unit}`;
+      })
+      .join("\n");
+
+  async function copy() {
+    await navigator.clipboard.writeText(text());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  }
+
+  const Qty = ({ l }: { l: CallLine }) => {
+    const { n, unit } = asking(l);
+    return (
+      <span className="ask">
+        <input
+          type="number"
+          min={0}
+          value={qty[l.key] ?? String(n)}
+          onChange={(e) => setQty({ ...qty, [l.key]: e.target.value })}
+        />
+        {unit}
+        {/* Both units, always: a packet is what he orders and a piece is what the shelf is in,
+            and the whole class of bug this panel sits on top of is the two being confused. */}
+        {l.packs !== null && l.perPack !== null && (
+          <small className="muted"> = {n * l.perPack} pcs</small>
+        )}
+      </span>
+    );
+  };
+
+  if (call.length === 0) {
+    return (
+      <>
+        <h3>Next supplier call</h3>
+        <p className="muted">
+          Nothing to order. Everything on the shelf has more than {coverWeeks} weeks of cover at the
+          rate it is going, and every material your kits use is on a delivery note.
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h3>
+        Next supplier call
+        <button className="tiny" onClick={() => void copy()} title="Copy the list to send on WhatsApp">
+          {copied ? "copied" : "copy the list"}
+        </button>
+      </h3>
+
+      {low.length > 0 && (
+        <Fold id="call-low" summary={`Running out — ${low.filter(on).length} of ${low.length} on the call`} open>
+          <p className="muted">
+            Enough to last about {coverWeeks} weeks, worked out at the faster of the recent rate and
+            the rate since the first note. Anything under {Math.round(thin * 100)}% of what came in is
+            here too, even if it is going slowly.
+          </p>
+          <table className="rows inv-table">
+            <thead>
+              <tr>
+                <th>Send</th>
+                <th>Material</th>
+                <th>Left</th>
+                <th>Going at</th>
+                <th>Lasts</th>
+                <th>Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              {low.map((l) => (
+                <tr key={l.key} className={on(l) ? "" : "off"}>
+                  <td>
+                    <input type="checkbox" checked={on(l)} onChange={() => toggle(l.key)} />
+                  </td>
+                  <td>
+                    {l.name}
+                    {l.why === "out" && <span className="pill bad">out</span>}
+                    {l.why === "thin" && <span className="pill warn">under {Math.round(thin * 100)}%</span>}
+                  </td>
+                  <td className="num">{l.left} pcs</td>
+                  <td className="num">
+                    {l.perWeek > 0 ? `${l.perWeek}/wk` : <span className="muted">never packed</span>}
+                    {/* The working, because the number chose itself between two rates. */}
+                    {l.perWeek > 0 && l.recentPerWeek !== l.lifetimePerWeek && (
+                      <small className="muted">
+                        {" "}
+                        recent {l.recentPerWeek}, all {l.lifetimePerWeek}
+                      </small>
+                    )}
+                  </td>
+                  <td className="num">{l.weeksLeft === null ? "—" : `${l.weeksLeft} wk`}</td>
+                  <td>
+                    <Qty l={l} />
+                    {l.guess && <span className="pill warn">your call</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Fold>
+      )}
+
+      {gap.length > 0 && (
+        <Fold id="call-gap" summary={`On a kit, on no delivery note — ${gap.length}`} open={false}>
+          {/**
+           * **The caveat is the feature.** This says nothing about what is in the room, only about
+           * what has been tallied, and with one note saved that is most of the price list. Written
+           * as *not on a note* rather than *you have none* on purpose — the first is true and the
+           * second would send him ordering things off his own shelf.
+           */}
+          <p className="muted">
+            These are on a costed kit but on none of the {notes} delivery note{notes === 1 ? "" : "s"}{" "}
+            saved so far. {notes < 3 && "With so few notes saved that will include plenty you already have — "}
+            tick the ones you actually need. Nothing can be worked out about the quantity, so every
+            one is one packet until you change it.
+          </p>
+          <table className="rows inv-table">
+            <thead>
+              <tr>
+                <th>Send</th>
+                <th>Material</th>
+                <th>Needed by</th>
+                <th>Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gap.map((l) => (
+                <tr key={l.key} className={on(l) ? "" : "off"}>
+                  <td>
+                    <input type="checkbox" checked={on(l)} onChange={() => toggle(l.key)} />
+                  </td>
+                  <td>{l.name}</td>
+                  <td className="muted">
+                    {l.forSkus.slice(0, 3).join(", ")}
+                    {l.forSkus.length > 3 && ` +${l.forSkus.length - 3} more`}
+                  </td>
+                  <td>
+                    <Qty l={l} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Fold>
+      )}
+    </>
+  );
+}
+
 export function Stock({ n }: { n: number }) {
   const [date, setDate] = useState(iso(new Date()));
   const [claimedNote, setClaimedNote] = useState("");
@@ -58,7 +293,10 @@ export function Stock({ n }: { n: number }) {
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
   const [edits, setEdits] = useState<Record<string, number>>({});
   const [stock, setStock] = useState<
-    { deliveries: Delivery[]; from: string | null; onHand: OnHand[]; reorderWeeks: number } | null
+    {
+      deliveries: Delivery[]; from: string | null; onHand: OnHand[]; reorderWeeks: number;
+      nextCall: CallLine[]; coverWeeks: number; thin: number;
+    } | null
   >(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [find, setFind] = useState("");
@@ -540,6 +778,15 @@ export function Stock({ n }: { n: number }) {
             ))}
           </ul>
         </>
+      )}
+
+      {stock !== null && (
+        <NextCall
+          call={stock.nextCall}
+          notes={stock.deliveries.length}
+          coverWeeks={stock.coverWeeks}
+          thin={stock.thin}
+        />
       )}
 
       {/**

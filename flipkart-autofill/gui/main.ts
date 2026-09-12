@@ -1029,17 +1029,35 @@ ipcMain.handle("stock", async () => {
     materials.filter((m) => m.packOf).map((m) => [`${m.category}|${m.material}`, m.packOf!]),
   );
 
+  const kits = listKits(KITS_DIR, materials);
+  const today = new Date().toISOString().slice(0, 10);
   const used = new Map<string, { pieces: number; perWeek: number }>();
+  /**
+   * The RECENT rate, over its own shorter window — the second half of *"based on the order trends
+   * you see recently and on the basis of all the history trends"*.
+   *
+   * `used` is measured from the first delivery, which is the whole history; a material that has
+   * doubled this month is invisible in it. Four weeks is short enough to show a change and long
+   * enough that one busy Saturday does not become the rate.
+   */
+  const recent = new Map<string, number>();
   if (from !== null) {
-    const today = new Date().toISOString().slice(0, 10);
-    const { burn } = orders.howItSells(await orders.listLedgers(), listKits(KITS_DIR, materials), from, today);
+    const ledgers = await orders.listLedgers();
+    const { burn } = orders.howItSells(ledgers, kits, from, today);
     for (const b of burn) used.set(b.key, { pieces: b.pieces, perWeek: b.piecesPerWeek });
+    const since = new Date(Date.now() - 28 * 864e5).toISOString().slice(0, 10);
+    const fresh = orders.howItSells(ledgers, kits, since > from ? since : from, today);
+    for (const b of fresh.burn) recent.set(b.key, b.piecesPerWeek);
   }
+  const onHand = stock.onHand(deliveries, used, names, perPack);
   return {
     deliveries,
     from,
-    onHand: stock.onHand(deliveries, used, names, perPack),
+    onHand,
     reorderWeeks: stock.REORDER_WEEKS,
+    nextCall: stock.nextCall(onHand, kits, recent, perPack),
+    coverWeeks: stock.COVER_WEEKS,
+    thin: stock.THIN,
     aliases: await readAliases(),
   };
 });

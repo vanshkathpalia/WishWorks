@@ -2673,3 +2673,27 @@ h3 > button.tiny {
   color: var(--muted);
   white-space: nowrap;
 }
+
+/* ------------------------------------------------------- the next supplier call */
+
+/* A line ticked off the call: still readable, plainly not going. */
+.rows tr.off > td {
+  opacity: 0.45;
+}
+
+/* The quantity he will actually ask for — editable, with both units beside it. */
+.ask {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+}
+.ask input {
+  width: 68px;
+  text-align: right;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--well);
+  color: var(--ink);
+}

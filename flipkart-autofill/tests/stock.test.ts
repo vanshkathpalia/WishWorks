@@ -16,7 +16,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readNote, tally, onHand, firstDelivery, type Delivery } from "../src/stock-core.js";
+import {
+  readNote, tally, onHand, firstDelivery, nextCall,
+  type Delivery, type OnHand,
+} from "../src/stock-core.js";
 import type { Material } from "../src/inventory-core.js";
 
 /** Vansh's supplier, 19 Aug 2026 — verbatim, misspellings and all. */
@@ -301,4 +304,63 @@ describe("what is left on the shelf", () => {
     expect(firstDelivery([delivery("2026-08-26", 1), delivery("2026-08-19", 1)])).toBe("2026-08-19");
     expect(firstDelivery([])).toBeNull();
   });
+});
+
+describe("the next supplier call", () => {
+  const row = (r: Partial<OnHand> & { key: string }): OnHand => ({
+    name: r.key.split("|")[1] ?? r.key,
+    received: 100, used: 0, left: 100, perPack: 50, unit: "pkt",
+    perWeek: 0, weeksLeft: null, order: false, needsPackSize: false,
+    ...r,
+  });
+
+  it("asks for enough to reach the cover target, in packets", () => {
+    // 20 pieces a week, 40 left: 6 weeks of cover is 120, so 80 more — two packets of 50.
+    const [l] = nextCall([row({ key: "Foil|Heart Foil", left: 40, perWeek: 20, weeksLeft: 2, order: true })], []);
+    expect(l.why).toBe("soon");
+    expect(l.pieces).toBe(80);
+    expect(l.packs).toBe(2);
+  });
+
+  it("orders on the HIGHER of the recent and lifetime rates, not an average", () => {
+    const shelf = [row({ key: "Foil|Heart Foil", left: 40, perWeek: 10, weeksLeft: 4, order: false })];
+    const [l] = nextCall(shelf, [], new Map([["Foil|Heart Foil", 30]]));
+    // Lifetime alone says 10/wk and nothing to do; recently it has been going at 30.
+    expect(l.perWeek).toBe(30);
+    expect(l.lifetimePerWeek).toBe(10);
+    expect(l.pieces).toBe(140);
+  });
+
+  it("catches a thin shelf the rate cannot — never packed, so no weeks-left to be low", () => {
+    const [l] = nextCall([row({ key: "Tape|Arch Tape", received: 100, left: 20, perWeek: 0 })], []);
+    expect(l.why).toBe("thin");
+    // No rate to project, so it asks for what last came in rather than inventing a number.
+    expect(l.pieces).toBe(100);
+    expect(l.guess).toBe(true);
+  });
+
+  it("leaves a healthy shelf off the call entirely", () => {
+    expect(nextCall([row({ key: "Foil|Heart Foil", left: 90, perWeek: 1, weeksLeft: 90 })], [])).toEqual([]);
+  });
+
+  /**
+   * **The half this was built for.** A kit can be costed, listed and sold before anyone notices no
+   * delivery has ever carried one of its materials — it is on neither screen, because the shelf
+   * only knows what arrived and the kit only knows what it needs.
+   */
+  it("puts a material a new kit needs but no delivery ever carried at the top, named by SKU", () => {
+    const kits = [{ sku: "ANP021", materials: [{ key: "Foil|Purple Star Foil", name: "Purple Star Foil", pieces: 4 }] }];
+    const lines = nextCall([row({ key: "Foil|Heart Foil" })], kits, new Map(), new Map([["Foil|Purple Star Foil", 50]]));
+    expect(lines[0].why).toBe("not-on-a-note");
+    expect(lines[0].name).toBe("Purple Star Foil");
+    expect(lines[0].forSkus).toEqual(["ANP021"]);
+    expect(lines[0].packs).toBe(1); // nothing can be derived; one packet, and `guess` says so
+    expect(lines[0].guess).toBe(true);
+  });
+
+  it("says nothing at all about a row whose pack size nobody knows", () => {
+    const shelf = [row({ key: "Foil|Heart Foil", left: -200, perPack: null, needsPackSize: true })];
+    expect(nextCall(shelf, [])).toEqual([]);
+  });
+
 });

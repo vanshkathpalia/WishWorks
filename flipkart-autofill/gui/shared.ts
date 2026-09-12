@@ -194,6 +194,32 @@ export interface OnHand {
   needsPackSize: boolean;
 }
 
+/**
+ * One line of the next supplier order: what to ask for, how much, and why it is on the list.
+ *
+ * `packs` is what gets said on the phone and `pieces` is what the shelf is netted in; a material
+ * bought singly has no packet figure at all rather than a made-up one.
+ */
+export interface CallLine {
+  key: string;
+  name: string;
+  why: "not-on-a-note" | "out" | "soon" | "thin";
+  left: number | null;
+  /** The rate the quantity was worked out at — the higher of the two below. */
+  perWeek: number;
+  lifetimePerWeek: number;
+  recentPerWeek: number;
+  weeksLeft: number | null;
+  perPack: number | null;
+  pieces: number;
+  packs: number | null;
+  /** Nothing could be derived; the quantity is a placeholder for him to set. */
+  guess: boolean;
+  /** Which kits need it. */
+  forSkus: string[];
+  needsPackSize: boolean;
+}
+
 /** Ads and boost, in paise, per day per marketplace: `{ "2026-08-21": { meesho: 45000 } }`. */
 export type AdSpend = Record<string, Record<string, number>>;
 
@@ -638,6 +664,11 @@ export interface WwApi {
     onHand: OnHand[];
     /** Weeks of cover below which a material is flagged to reorder. */
     reorderWeeks: number;
+    /** The next order to place with the supplier, worked out — see `nextCall` in `stock-core`. */
+    nextCall: CallLine[];
+    /** Weeks of stock one call is meant to buy, and the "under 30%" threshold, for the wording. */
+    coverWeeks: number;
+    thin: number;
     aliases: Record<string, string>;
   }>;
   /** Ads and boost spend, in paise, per day per marketplace. */

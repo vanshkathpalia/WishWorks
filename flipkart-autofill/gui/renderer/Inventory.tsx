@@ -436,6 +436,28 @@ export function Inventory({ n }: { n: number }) {
       });
   }, [find, saved, listings]);
 
+  /**
+   * What the shelf holds, beside the kit being costed — material id → pieces left.
+   *
+   * Vansh, 2026-09-12: *"I want our inventory SKU making and inventory delivery to work side by
+   * side… I am going to plan some listings for products that don't even exist in my inventory yet,
+   * and I want you to flag what doesn't exist."* Costing a kit and knowing whether the shop has
+   * the parts were two screens, so a kit could be priced, listed and sold on a material nobody
+   * has. An id absent from this map is on no delivery note at all, which is a different sentence
+   * from nought left — and both are said, because they have different answers.
+   *
+   * Read once when the panel opens. The shelf moves when a manifest is ticked on another tab, and
+   * a stale *none left* is a nudge to go and look rather than a number anything is computed from —
+   * the Stock tab's own recount is where the live figure lives.
+   */
+  const [shelf, setShelf] = useState<Map<string, number> | null>(null);
+  useEffect(() => {
+    void window.ww
+      .stock()
+      .then((s) => setShelf(new Map(s.onHand.map((r) => [r.key, r.needsPackSize ? NaN : r.left]))))
+      .catch(() => setShelf(null)); // no shelf yet is not an error on this screen
+  }, []);
+
   const byCategory = useMemo(() => {
     const groups = new Map<string, Material[]>();
     for (const m of materials) groups.set(m.category, [...(groups.get(m.category) ?? []), m]);
@@ -1299,6 +1321,20 @@ export function Inventory({ n }: { n: number }) {
                       </span>
                     )}
                     {l.match && l.paise === null && <span className="warnpill">no price set</span>}
+                    {/**
+                      * **On no delivery note** is not **none left**, and saying the wrong one sends
+                      * him ordering something off his own shelf. The first is a gap in the records
+                      * — with few notes saved it covers plenty he has in the room — and the second
+                      * is arithmetic on a note that exists. Both end up on the Stock tab's next
+                      * supplier call; this is only so he sees it while the kit is still a plan.
+                      */}
+                    {l.match && shelf !== null && (
+                      !shelf.has(key(l.match)) ? (
+                        <span className="warnpill">on no delivery note</span>
+                      ) : shelf.get(key(l.match))! <= 0 ? (
+                        <span className="warnpill bad">none left</span>
+                      ) : null
+                    )}
                     {/**
                       * **Offered on EVERY line, matched or not** — and that is the fix for the
                       * worst hour of 2026-09-04. It used to appear only when a line matched
