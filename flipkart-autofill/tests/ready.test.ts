@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { LIMBO, planTidy, themeOf } from "../src/ready-core.js";
+import { LIMBO, applyTidy, planTidy, themeOf } from "../src/ready-core.js";
 
 describe("reading a theme off a filename", () => {
   it("takes the letters before the first separator", () => {
@@ -63,5 +63,30 @@ describe("tidying wishworks-ready", () => {
 
   it("leaves a theme that is already where it belongs alone", () => {
     expect(planTidy({ looseFiles: [], folders: ["ANP", "HBD"], subThemes }).moves).toEqual([]);
+  });
+});
+
+describe("carrying out a tidy", () => {
+  const plan = {
+    moves: [
+      { from: "a.jpg", to: "ANP/a.jpg", why: "" },
+      { from: "b.jpg", to: "ANP/b.jpg", why: "" },
+    ],
+    stuck: [],
+    clashes: [],
+  };
+
+  it("moves what it can and refuses what would overwrite", async () => {
+    // The destination appeared AFTER the plan was made — a download finishing, a second run, the
+    // other Finder window. Planning checked; this checks again, because the cost is a lost photo.
+    const moved: string[] = [];
+    const r = await applyTidy("/root", plan, {
+      exists: async (p) => p === "/root/ANP/b.jpg",
+      mkdir: async () => {},
+      move: async (from) => void moved.push(from),
+    });
+    expect(moved).toEqual(["/root/a.jpg"]);
+    expect(r.done.map((m) => m.from)).toEqual(["a.jpg"]);
+    expect(r.refused.map((m) => m.from)).toEqual(["b.jpg"]);
   });
 });

@@ -140,3 +140,106 @@ export async function generateImage(
   // The last new one, when a prompt yields several: ChatGPT appends, so later is newer.
   return { file: await saveFrom(page, fresh[fresh.length - 1], to), seconds, timedOut: !finished };
 }
+
+// ---------------------------------------------------------------- the whole set, in one chat
+
+/** One prompt in the run, and whether a picture is expected back from it. */
+export interface Step {
+  /** The prompt file, e.g. `PROMPT-main-image.md`. */
+  prompt: string;
+  /**
+   * Which numbered image this produces, or null when the step makes no picture.
+   *
+   * `PROMPT-read-pack.md` is the null one and it is not optional: it says *"in TEXT ONLY (do NOT
+   * make an image)"* and its answer — the item list with counts and colours — is what the three
+   * image prompts after it are written against. Skipping it does not save a step, it produces
+   * three pictures of a kit nobody described.
+   */
+  image: number | null;
+}
+
+/**
+ * The standard run: read the pack, then the hero, the contents sheet, the same with sizes.
+ *
+ * The order is `docs/guides/`'s and `CLAUDE.md`'s, not a new one — and the numbering matches what
+ * the rest of the tool already means by 1, 2 and 3.
+ */
+export const STANDARD_RUN: Step[] = [
+  { prompt: "PROMPT-read-pack.md", image: null },
+  { prompt: "PROMPT-main-image.md", image: 1 },
+  { prompt: "PROMPT-infographic.md", image: 2 },
+  { prompt: "PROMPT-infographic-sizes.md", image: 3 },
+];
+
+export interface RunResult {
+  prompt: string;
+  /** Where the image landed, null for a text step or when none arrived. */
+  file: string | null;
+  seconds: number;
+  timedOut: boolean;
+  /** Set when a step that should have produced a picture did not. */
+  missing: boolean;
+}
+
+/**
+ * Run a set of prompts in ONE chat, saving each image as it arrives.
+ *
+ * **One chat, on purpose.** Each prompt refers to what came before — the hero is "the DISPLAYED
+ * items" from the pack the first step read, and the sizes sheet is the same items again. A fresh
+ * chat per prompt throws away the thing the next prompt is about. It is also why the images have
+ * to be told apart by *what is new*: by the third prompt the page holds the upload and two earlier
+ * pictures.
+ *
+ * **A failed step does not end the run.** Four prompts is several minutes of somebody else's
+ * compute; if the infographic times out, the sizes sheet is still worth having and the one that
+ * failed is reported rather than thrown. The tab is left open either way, because the fix is
+ * usually to look at what ChatGPT actually said.
+ */
+export async function runImageChat(
+  page: Page,
+  opts: {
+    /** The contents-sheet photo the first prompt reads. Uploaded once, at the start. */
+    contentsPhoto?: string;
+    steps: Step[];
+    /** Reads a prompt file by name — the app and the CLI find them differently. */
+    readPrompt: (name: string) => Promise<string>;
+    /** Where image `n` should be written. */
+    fileFor: (n: number) => string;
+    onStep?: (r: RunResult) => void;
+    timeoutMs?: number;
+  },
+): Promise<RunResult[]> {
+  const out: RunResult[] = [];
+
+  if (opts.contentsPhoto) {
+    // The hidden input, never the paperclip: that opens an OS dialog, which is outside the page.
+    await page.locator("input[type=file]").first().setInputFiles(opts.contentsPhoto, { timeout: 30_000 });
+    await page.waitForTimeout(3000);
+  }
+
+  for (const step of opts.steps) {
+    const text = await opts.readPrompt(step.prompt);
+    const started = Date.now();
+
+    if (step.image === null) {
+      await sendPrompt(page, text);
+      const ok = await waitUntilIdle(page, { timeoutMs: opts.timeoutMs ?? 240_000 });
+      const r = {
+        prompt: step.prompt,
+        file: null,
+        seconds: Math.round((Date.now() - started) / 1000),
+        timedOut: !ok,
+        missing: false,
+      };
+      out.push(r);
+      opts.onStep?.(r);
+      continue;
+    }
+
+    const got = await generateImage(page, text, opts.fileFor(step.image), { timeoutMs: opts.timeoutMs });
+    const r = { prompt: step.prompt, ...got, missing: got.file === null };
+    out.push(r);
+    opts.onStep?.(r);
+  }
+  return out;
+}

@@ -28,6 +28,11 @@
 > `products/<ID>.json`, so nothing downstream would read one. It duplicates the banned-words,
 > brand-collision and buyer-word rules rather than referencing them, for the same reason
 > `PROMPT-product.md` does: each file has to survive select-all-copy alone (WW-081).
+> **`PROMPT-clean-image.md`** is the newest and belongs to the LATCH flow, not this one: a photo
+> taken off somebody else's Flipkart listing carries their watermark, badges and price stickers,
+> and Meesho's bulk template rejects a primary image with text, a logo or a price on it. It strips
+> what was added ON TOP and changes nothing about the product — wording printed on a banner or a
+> foil balloon is the product and stays.
 > `docs/image-playbook.md` is the *reasoning* behind them, not a thing to copy from.
 > `docs/guides/SHIPPING-COST.md` — Meesho's shipping fee is set by the main image, but **fourteen
 > tests found no way to steer it. Closed, don't re-run.** Two rules survive: read the shipping

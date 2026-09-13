@@ -116,3 +116,35 @@ export function planTidy(input: {
 
   return { moves, stuck, clashes };
 }
+
+/**
+ * Carry out a plan. Returns what it actually did, which is not always what was asked.
+ *
+ * **Refuses to overwrite, every time, even though `planTidy` already checked.** The check there is
+ * against a listing taken moments earlier; this one is against the filesystem at the instant of the
+ * move. Between the two a file can appear — a download finishing, the other Finder window, a second
+ * run. The cost of being wrong is a product photo gone, so it is worth asking twice.
+ */
+export async function applyTidy(
+  root: string,
+  plan: TidyPlan,
+  fs: {
+    exists: (p: string) => Promise<boolean>;
+    mkdir: (p: string) => Promise<void>;
+    move: (from: string, to: string) => Promise<void>;
+  },
+): Promise<{ done: Move[]; refused: Move[] }> {
+  const done: Move[] = [];
+  const refused: Move[] = [];
+  for (const m of plan.moves) {
+    const to = `${root}/${m.to}`;
+    if (await fs.exists(to)) {
+      refused.push(m);
+      continue;
+    }
+    await fs.mkdir(to.slice(0, to.lastIndexOf("/")));
+    await fs.move(`${root}/${m.from}`, to);
+    done.push(m);
+  }
+  return { done, refused };
+}
