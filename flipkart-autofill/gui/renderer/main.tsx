@@ -15,6 +15,7 @@ import { createRoot } from "react-dom/client";
 import { Convert } from "./Convert.js";
 import { Images } from "./Images.js";
 import { Inventory } from "./Inventory.js";
+import { Latch } from "./Latch.js";
 import { Orders } from "./Orders.js";
 import { Money, Packers, Returns, Sells } from "./Money.js";
 import { Stock } from "./Stock.js";
@@ -62,6 +63,7 @@ const STEPS = [
   { name: "Came back", does: "Mark an RTO or return, or delete a cancelled order" },
   { name: "How it sells", does: "Return rates by courier and SKU, slow movers, materials used" },
   { name: "Raw stock", does: "Tally a delivery against the supplier's note, and what is left" },
+  { name: "Latch on", does: "Drop a rival's label pack, see what we can still list against" },
 ];
 
 /**
@@ -80,6 +82,7 @@ const SECTIONS = [
   { tab: "Orders", steps: [8, 9, 10, 11, 12, 13], numbered: false },
   { tab: "Listing", steps: [0, 1, 2, 3, 4, 5, 6], numbered: true },
   { tab: "Costing", steps: [7], numbered: false },
+  { tab: "Latch", steps: [14], numbered: false },
 ];
 
 function Panel({ step }: { step: number }) {
@@ -116,6 +119,8 @@ function Panel({ step }: { step: number }) {
       return <Sells n={0} />;
     case 13:
       return <Stock n={0} />;
+    case 14:
+      return <Latch n={0} />;
     default:
       return null;
   }

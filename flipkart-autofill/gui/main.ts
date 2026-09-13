@@ -18,7 +18,7 @@
  * shared.ts and nothing else.
  */
 
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, net, protocol, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rename, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -236,6 +236,9 @@ process.env.WW_ORDERS_DIR ??= ORDERS_DIR;
 // Deliveries sit beside the packing, for the reason the rates and packers do: both are records of
 // something that happened in the real world on a date, and both belong on the synced drive.
 const STOCK_DIR = path.join(path.dirname(ORDERS_DIR), "stock");
+// The latch record sits beside them for the same reason: it is what happened on a date, not
+// machine state, and next month's label pack is only useful if this month's is still there.
+process.env.WW_LATCH_DIR ??= path.join(path.dirname(ORDERS_DIR), "latch");
 process.env.WW_STOCK_DIR ??= STOCK_DIR;
 
 /**
@@ -364,6 +367,8 @@ ipcMain.handle("pick", async (e, step: StepId, mode: "folder" | "files"): Promis
         ? undefined
         : step === "orders"
           ? [{ name: "Manifest or orders export", extensions: ["pdf", "csv"] }]
+          : step === "labels"
+            ? [{ name: "Flipkart label pack", extensions: ["pdf"] }]
           : step === "orders-report"
             // Whatever the marketplace exports. Nothing here reads their columns — the ids are
             // found in the text — so the list is about what they hand out, not what we parse.
@@ -896,6 +901,237 @@ ipcMain.handle("addManifest", async (_e, file: string): Promise<Attempt<unknown>
 });
 
 ipcMain.handle("orders", () => ordersView());
+
+// ---------------------------------------------------------------- latching
+
+const latchEngine = () => import("../src/latch-core.js");
+
+/**
+ * Read a label pack into the latch list.
+ *
+ * The same pack twice changes nothing and next month's adds only what is new — the SKU is the
+ * identity, so an FSN already found and a latch already done both survive a re-read.
+ */
+ipcMain.handle("addLabels", async (_e, file: string): Promise<Attempt<unknown>> => {
+  const { readLabels, readLatches, writeLatches, mergeLabels } = await latchEngine();
+  let items;
+  try {
+    items = readLabels([file]);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+  if (items.length === 0) {
+    return { ok: false, message: `No SKUs found in ${path.basename(file)} — is that a Flipkart label pack?` };
+  }
+  const { book, added } = mergeLabels(await readLatches(), items, path.basename(file));
+  await writeLatches(book);
+  return {
+    ok: true,
+    result: book,
+    note:
+      `${items.length} product${items.length === 1 ? "" : "s"} in ${path.basename(file)}` +
+      `, ${added} of them new. Check them against Flipkart to see which can still be latched.`,
+  };
+});
+
+ipcMain.handle("latches", async () => (await latchEngine()).readLatches());
+
+/**
+ * Sweep a search term for latchable products, for up to `minutes`.
+ *
+ * The stop flag is a module-level boolean rather than anything cleverer because there is exactly
+ * one sweep at a time — it drives the one Chrome session, so a second would be fighting it for the
+ * same tab.
+ */
+let stopSweep = false;
+ipcMain.handle("stopCrawl", () => void (stopSweep = true));
+
+/**
+ * Read a list somebody sent us back in.
+ *
+ * The receiving end of `shareLatches`. Nothing is checked here: the products land as "not checked
+ * yet" and the ordinary Check button asks Flipkart about them **on this machine's account**, which
+ * is the entire point — the sender's answers were about the sender's account.
+ */
+ipcMain.handle("importShared", async (_e, text: string): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, parseSharedList, mergeShared } = await latchEngine();
+  const items = parseSharedList(text ?? "");
+  if (items.length === 0) {
+    return {
+      ok: false,
+      message: "No products in that. Paste the whole message — each line needs its [FSN] code.",
+    };
+  }
+  const { book, added } = mergeShared(await readLatches(), items);
+  await writeLatches(book);
+  return {
+    ok: true,
+    result: book,
+    note:
+      `${items.length} product${items.length === 1 ? "" : "s"} read, ${added} new to you. ` +
+      `Now press Check — their answers were about their account, not yours.`,
+  };
+});
+
+/** The latchable list as a message for a partner, put straight on the clipboard. */
+ipcMain.handle("shareLatches", async (_e, pack: string | null): Promise<string> => {
+  const { readLatches, shareText } = await latchEngine();
+  const text = shareText(await readLatches(), pack, 220_00);
+  clipboard.writeText(text);
+  return text;
+});
+ipcMain.handle("crawlSearch", async (e, term: string, minutes: number): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, crawlSearch, mergeFound } = await latchEngine();
+  const { newTab } = await import("../src/browser-core.js");
+  if (!term.trim()) return { ok: false, message: "Type something to search for." };
+
+  const book = await readLatches();
+  stopSweep = false;
+  let page;
+  try {
+    page = await newTab();
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+
+  const found = await crawlSearch(page, term.trim(), {
+    until: Date.now() + Math.max(1, minutes) * 60_000,
+    // Products already judged are skipped, so a second sweep of the same term is spent on what is
+    // NEW rather than on re-confirming a hundred things we checked yesterday.
+    known: new Set(book.rows.map((r) => r.fsn).filter((f): f is string => !!f)),
+    stopped: () => stopSweep,
+    onFound: (f, seen) => e.sender.send("crawlRow", { seen, found: f }),
+  });
+  await page.close().catch(() => {});
+
+  const merged = mergeFound(book, found, term.trim());
+  await writeLatches(merged.book);
+  const canLatch = found.filter((f) => f.state === "form").length;
+  return {
+    ok: true,
+    result: merged.book,
+    note:
+      `Looked at ${found.length} product${found.length === 1 ? "" : "s"} for "${term.trim()}" — ` +
+      `${canLatch} can be latched, ${found.filter((f) => f.state === "selling").length} you already sell, ` +
+      `${found.filter((f) => f.state === "approval").length} need approval.`,
+  };
+});
+
+/**
+ * Ask Flipkart where each product stands, through ONE reused tab.
+ *
+ * Only rows that have never been checked, by default — the answer costs about fifteen seconds a
+ * product and does not change on its own. `all` re-asks everything, which is what a month later
+ * or a rejected approval calls for.
+ */
+ipcMain.handle("checkLatches", async (e, all: boolean): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, resolveProduct } = await latchEngine();
+  const { newTab } = await import("../src/browser-core.js");
+  const book = await readLatches();
+  const rows = book.rows;
+  const todo = rows.filter((r) => all || r.state === "unknown");
+  if (todo.length === 0) return { ok: true, result: book, note: "Everything has been checked already." };
+
+  let page;
+  try {
+    page = await newTab();
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  let done = 0;
+  for (const row of todo) {
+    const next = await resolveProduct(page, row).catch(() => ({ ...row, state: "stuck" as const }));
+    const at = rows.findIndex((r) => r.sku === row.sku);
+    rows[at] = next;
+    done++;
+    e.sender.send("latchRow", { done, of: todo.length, row: next });
+    // Written every time, not at the end: a check of forty products is minutes long, and closing
+    // the window halfway through must not throw away the thirty answers already paid for.
+    await writeLatches(book);
+  }
+  await page.close().catch(() => {});
+  return { ok: true, result: book, note: `Checked ${done} product${done === 1 ? "" : "s"} against Flipkart.` };
+});
+
+/**
+ * Open a filled latch form for every product that can still be latched. One button, one tab each.
+ *
+ * Nothing is saved and no tab is closed — the SKU is still Vansh's to type, and he asked for the
+ * tabs to stay open so he can do them in his own order.
+ */
+ipcMain.handle("latchNew", async (e, withCosting: boolean): Promise<Attempt<unknown>> => {
+  const {
+    readLatches, writeLatches, latchValues, openLatchForm, startSellingUrl, todayStamp,
+    galleryImages, saveImage, imageFor, askChatGpt,
+  } = await latchEngine();
+  const { newTab } = await import("../src/browser-core.js");
+  const book = await readLatches();
+  const rows = book.rows;
+  const todo = rows.filter((r) => r.state === "form" && r.fsn);
+  if (todo.length === 0) return { ok: false, message: "Nothing is waiting to be latched." };
+
+  const values = latchValues({ MRP: "999", "Your selling price": "220" });
+  const prompt = withCosting
+    ? await (await promptsEngine()).readPrompt(promptDirs(), "PROMPT-inventory.md").then((p) => p.text, () => null)
+    : null;
+  // ONE tab for every product page, reused. The pictures are fetched and the tab moves on, so the
+  // windows left open are the ones with work in them: a latch form and its costing chat.
+  const shelf = prompt ? await newTab() : null;
+  let opened = 0;
+  let costing = 0;
+  /** Set once ChatGPT says it is signed out. Asking forty times over would open forty dead tabs. */
+  let loggedOut = false;
+
+  for (const row of todo) {
+    const tab = await newTab();
+    await tab.goto(startSellingUrl(row.fsn!), { waitUntil: "domcontentloaded" }).catch(() => {});
+    const state = await openLatchForm(tab, values).catch(() => "stuck" as const);
+    const at = rows.findIndex((r) => r.sku === row.sku);
+    // A tab that opened is a latch STARTED, so the day is recorded now rather than on save —
+    // nothing here can see the save, and a form filled and abandoned is still worth knowing about.
+    rows[at] = { ...rows[at], state, checkedOn: todayStamp(), ...(state === "form" ? { latchedOn: todayStamp() } : {}) };
+    if (state === "form") opened++;
+
+    /**
+     * The contents picture, and a ChatGPT tab already holding it.
+     *
+     * **The SECOND gallery photo**, because on a party kit that is the contents laid out — which
+     * is what the costing prompt reads. A listing with only one photo gets no chat rather than the
+     * styled shot, which would cost a kit from a picture that does not show its contents.
+     */
+    if (shelf && prompt && state === "form" && row.url && !loggedOut) {
+      try {
+        await shelf.goto(row.url, { waitUntil: "domcontentloaded" });
+        await shelf.waitForTimeout(6000);
+        const gallery = await galleryImages(shelf);
+        if (gallery.length > 1) {
+          const file = await saveImage(shelf, gallery[1], imageFor(row.sku));
+          const chat = await newTab();
+          const answer = await askChatGpt(chat, file, prompt);
+          if (answer === "login") loggedOut = true;
+          if (answer === "ready") costing++;
+        }
+      } catch {
+        // A picture is a nice-to-have beside the latch itself; never let it lose the form.
+      }
+    }
+
+    e.sender.send("latchRow", { done: opened, of: todo.length, row: rows[at] });
+    await writeLatches(book);
+  }
+  await shelf?.close().catch(() => {});
+  return {
+    ok: true,
+    result: book,
+    note:
+      `${opened} form${opened === 1 ? "" : "s"} open in Chrome, everything filled but the SKU. ` +
+      (costing ? `${costing} costing chat${costing === 1 ? "" : "s"} ready to send. ` : "") +
+      (loggedOut
+        ? "ChatGPT is signed out — log in once in that tab and the session sticks, like Flipkart's. "
+        : "") +
+      `Type your SKU in each and save it. Nothing was closed.`,
+  };
+});
 
 /** Where each packer's rate per packet is kept — beside the days it is paid on, not in settings. */
 const RATES_FILE = () => path.join(ORDERS_DIR, "rates.json");

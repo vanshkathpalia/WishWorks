@@ -2697,3 +2697,55 @@ h3 > button.tiny {
   background: var(--well);
   color: var(--ink);
 }
+
+/* ---------------------------------------------------------------- Latch on
+   Four states in one list, so the state is the heading and a row only carries what differs:
+   whose SKU it is, how often it shipped, and what it actually is. */
+.latch-actions { margin: 12px 0 4px; }
+.latch-group { margin-top: 22px; }
+.latch-group h2 { font-size: 15px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+.latch-group h2 .count {
+  font-weight: 500; font-size: 12px; padding: 1px 7px; border-radius: 10px;
+  background: var(--chip, #eceff3); color: var(--muted, #5a6472);
+}
+.latch-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.latch-table td { padding: 5px 8px; border-top: 1px solid var(--line, #e6e9ee); vertical-align: top; }
+.latch-table .sku { font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+.latch-table .seen { color: var(--muted, #5a6472); white-space: nowrap; text-align: right; }
+.latch-table .when { color: var(--muted, #5a6472); white-space: nowrap; text-align: right; }
+/* The candidates behind a refusal. They are the whole point of the "more than one fits" group —
+   without them the row says only that we gave up. */
+.latch-table .near { margin: 4px 0 0; padding-left: 16px; color: var(--muted, #5a6472); }
+.latch-table .near code { font-size: 12px; }
+
+/* The costing switch sits with the button it modifies, not in a settings screen: it is a decision
+   about THIS run — whether ChatGPT is signed in today — not about how the app behaves. */
+.latch-costing { font-size: 12px; color: var(--muted, #5a6472); display: inline-flex; align-items: center; }
+
+/* The packs that have been read, newest first — the first thing under the drop zone, because
+   "what came in on the 9th" is how Vansh thinks about a pack, and the date is what he has. */
+.latch-packs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 2px; }
+.latch-packs button { font-size: 12px; padding: 4px 10px; }
+.latch-packs button.on { outline: 2px solid var(--accent, #2a55e5); }
+.latch-packs .file { color: var(--muted, #5a6472); max-width: 220px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
+.latch-packs .count { opacity: .7; }
+
+/* The sweep sits with the drop zone: two ways of getting the same list, so one row of controls. */
+.latch-sweep { display: flex; gap: 8px; align-items: center; margin: 10px 0 2px; flex-wrap: wrap; }
+.latch-sweep input[type=text] { flex: 1 1 320px; min-width: 220px; }
+.latch-sweep input[type=number] { width: 60px; }
+.latch-sweep label { font-size: 12px; color: var(--muted, #5a6472); }
+.latch-table .price { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+/* Dearer than the seller already on that listing. WARN, not BAD — being pricier is worth seeing
+   before you commit, but it does not decide anything: a shared catalog page is also won on
+   ratings, delivery promise and who holds the buy box, and Vansh sells above other sellers often
+   enough to say so. The colour flags it; the person judges it. */
+.latch-table .price .dearer { color: var(--warn, #b8860b); }
+.latch-table .price .cheaper { color: var(--good, #1e8e5a); }
+
+/* Folded away by default: receiving a list is the rarer half, and an always-open textarea would
+   sit between the drop zone and the work every single day for the sake of an occasional paste. */
+.latch-import { margin: 10px 0 2px; font-size: 12px; }
+.latch-import summary { cursor: pointer; color: var(--muted, #5a6472); }
+.latch-import textarea { width: 100%; margin: 8px 0 6px; font-family: inherit; font-size: 12px; }

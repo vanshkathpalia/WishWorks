@@ -119,6 +119,12 @@ need it. P0 UI = CLI (`npm run …`); the GUI pivot above replaces it with Elect
 - Non-obvious decisions → short `docs/learning/<n>-slug.md` note with the change.
 - File-top summary comment on every code file.
 - Git: show staged files + full commit message, wait for approval, then commit directly.
+  **Commit as each feature lands, not at the end of a session.** Vansh, 2026-09-13, after a
+  session that built six features and committed none: *"i hope you have commited on every new
+  feature adding yet."* If approval for one commit never comes because the next instruction has
+  already arrived, ASK before starting the next feature — do not keep building on an uncommitted
+  pile. C-049 is the reason: the blast radius of a bad edit is everything since the last commit.
+  Work that adds a whole subsystem goes on its own branch.
   **Never add a Co-Authored-By/AI line.** **Short subject line, then one `-` bullet per thing
   fixed or added.** No paragraphs, no rationale essays — that belongs in `TICKET_STATUS.md`.
 - **Tickets live in the repo, never in Notion from here.** The Notion MCP on this Claude

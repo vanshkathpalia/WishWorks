@@ -32,3 +32,8 @@ inventory/
 # reasoning as inventory/ above, and in development this folder IS the app's workspace. The one
 # manifest that IS committed is tests/fixtures/meesho-manifest.pdf, which the parser is tested on.
 orders/
+
+# The latch record: which of another seller's products we have checked, what Flipkart said, and
+# their prices. Business data like orders/ and products/ above — and the images/ folder under it
+# holds other sellers' product photos, fetched to read a kit's contents off. Never the repo's.
+latch/

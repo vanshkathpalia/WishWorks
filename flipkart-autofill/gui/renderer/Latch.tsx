@@ -1,0 +1,346 @@
+/**
+ * Latch.tsx — turn a rival's label pack into the list of their products we can still list against.
+ *
+ * **The shape of the screen is the shape of the answer.** Drop a Flipkart label pack in; it
+ * becomes a list of their products, best-seller first. Ask Flipkart where each one stands, and
+ * most come back *already selling* — which is the useful half, because it is work not to do. What
+ * is left under "New" is the actual job, and one button opens a filled form for every one of them.
+ *
+ * Nothing here saves a listing. Every form lands with the SKU blank, because the SKU on their
+ * label is theirs; only Vansh knows which of his it should be.
+ */
+
+import { useEffect, useState } from "react";
+import type { LabelPack, LatchBook, LatchRecord } from "../shared.js";
+
+/**
+ * `₹190` — paise back to something a person reads.
+ *
+ * A copy of the engine's `rupees`, and deliberately so: importing the VALUE from `latch-core.ts`
+ * pulls `node:fs` into a browser bundle and the build fails. Four lines duplicated is the price of
+ * that boundary, and it is the second time this file has had to learn it.
+ */
+const rupees = (paise: number): string => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
+
+/**
+ * The headings, and the order they appear in. Presentation, so it lives here — and NOT in
+ * `latch-core.ts`: the renderer is a browser bundle, and importing a value from the engine drags
+ * `node:fs` and `node:child_process` in with it. Types cross that line (they are erased); values
+ * do not. The build fails loudly rather than shipping a broken bundle, which is how this was found.
+ *
+ * "New" is first because it is the only group that is work. "Already selling" is the one most rows
+ * land in, and it is below the fold on purpose: it is a reason to do nothing.
+ */
+const GROUPS = [
+  { state: "form", label: "New — ready to latch" },
+  { state: "unknown", label: "Not checked yet" },
+  { state: "selling", label: "Already selling" },
+  { state: "approval", label: "Needs approval for that vertical" },
+  { state: "ambiguous", label: "More than one listing fits — pick one" },
+  { state: "none", label: "Couldn't find it on Flipkart" },
+  { state: "stuck", label: "Flipkart didn't answer" },
+] as const;
+
+/**
+ * What we list at, in paise — the 220 the latch form is filled with.
+ *
+ * Here so the screen can say how we compare; it is NOT the source of the figure, which is the
+ * `latchNew` handler's. **This is the first thing to change when the price stops being one number
+ * for every product** — the margin work Vansh described sets it per kit, from its costing.
+ */
+const OURS = 220_00;
+
+/** How far a check or a latch run has got. Null when nothing is running. */
+type Progress = { done: number; of: number; sku: string } | null;
+
+export function Latch({ n }: { n: number }) {
+  const [book, setBook] = useState<LatchBook>({ packs: [], rows: [] });
+  /**
+   * Which pack is being looked at, by filename, or null for everything at once.
+   *
+   * **A pack filters the view; it never becomes a separate list.** What we know about a product —
+   * that it is already selling, the day it was latched — belongs to the product and is true no
+   * matter which pack reminded us of it, so there is one set of rows and this decides which of
+   * them are on screen.
+   */
+  const [pack, setPack] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"" | "reading" | "checking" | "latching" | "sweeping">("");
+  const [progress, setProgress] = useState<Progress>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+  /**
+   * Also open a costing chat per product. On by default because it is the reason the second photo
+   * is worth fetching at all — but a switch, because it is the half that depends on ChatGPT's
+   * markup and on being signed in, and a latch run should never wait on either.
+   */
+  const [costing, setCosting] = useState(true);
+  const [term, setTerm] = useState("party decoration");
+  const [minutes, setMinutes] = useState(60);
+  /** What the sweep is up to. Its own state because it reports per product, not per batch. */
+  const [swept, setSwept] = useState<{ seen: number; title: string; can: number } | null>(null);
+  /** A list a partner sent, pasted straight back in. Empty until somebody uses it. */
+  const [shared, setShared] = useState("");
+
+  useEffect(() => void window.ww.latches().then(setBook), []);
+  useEffect(
+    () => window.ww.onLatchRow((p) => setProgress({ done: p.done, of: p.of, sku: p.row.sku })),
+    [],
+  );
+  useEffect(
+    () =>
+      window.ww.onCrawlRow((p) =>
+        setSwept((was) => ({
+          seen: p.seen,
+          title: p.found.title,
+          can: (was?.can ?? 0) + (p.found.state === "form" ? 1 : 0),
+        })),
+      ),
+    [],
+  );
+
+  /** Every call here returns the WHOLE list, so the screen never recomputes what the engine knows. */
+  async function run(what: typeof busy, call: () => Promise<{ ok: boolean } & Record<string, unknown>>) {
+    setBusy(what);
+    setError(null);
+    setNote(null);
+    setProgress(null);
+    try {
+      const r = await call();
+      if (!r.ok) setError(r.message as string);
+      else {
+        setBook(r.result as LatchBook);
+        if (r.note) setNote(r.note as string);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy("");
+    setProgress(null);
+  }
+
+  const chosen: LabelPack | null = book.packs.find((p) => p.file === pack) ?? null;
+  const rows = chosen ? book.rows.filter((r) => chosen.skus.includes(r.sku)) : book.rows;
+  const unchecked = rows.filter((r) => r.state === "unknown").length;
+  const ready = rows.filter((r) => r.state === "form" && r.fsn).length;
+
+  return (
+    <section className="panel latch">
+      <header>
+        <h1>{n ? `${n}. ` : ""}Latch on</h1>
+        <p>
+          Drop another seller&apos;s Flipkart label pack in. Every label carries their SKU and the
+          catalog title it sold under, so a pack is their bestseller list — and latching is putting
+          our own offer on the same catalog entry. Drop the same pack twice or next month&apos;s
+          beside it; only what is genuinely new is added.
+        </p>
+      </header>
+
+      <div
+        className={`drop small ${over ? "over" : ""} ${busy === "reading" ? "busy" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          const paths = [...e.dataTransfer.files].map((f) => window.ww.pathForFile(f)).filter(Boolean);
+          if (paths.length) void run("reading", () => window.ww.addLabels(paths[0]));
+          else setError("Couldn't read that. Use the button instead.");
+        }}
+      >
+        <strong>{busy === "reading" ? "Reading it…" : "Drop the label pack (.pdf)"}</strong>
+        <div className="picks">
+          <button
+            disabled={!!busy}
+            onClick={() =>
+              void window.ww
+                .pick("labels", "files")
+                .then((f) => {
+                  if (f.length) void run("reading", () => window.ww.addLabels(f[0]));
+                })
+            }
+          >
+            Choose a label pack…
+          </button>
+        </div>
+      </div>
+
+      {book.packs.length > 0 && (
+        <div className="latch-packs">
+          <button className={pack === null ? "on" : ""} onClick={() => setPack(null)}>
+            Everything <span className="count">{book.rows.length}</span>
+          </button>
+          {book.packs.map((p) => (
+            <button key={p.file} className={pack === p.file ? "on" : ""} onClick={() => setPack(p.file)}>
+              {p.addedOn} <span className="file">{p.file}</span> <span className="count">{p.skus.length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Sweeping a search finds products nobody handed us. Same question, same three answers —
+          only the source of the list is different, which is why it lives beside the drop zone
+          rather than on a screen of its own. */}
+      <div className="latch-sweep">
+        <input
+          type="text"
+          value={term}
+          disabled={!!busy}
+          placeholder="…or sweep Flipkart's own search — party decoration, birthday balloons…"
+          onChange={(e) => setTerm(e.target.value)}
+        />
+        <label>
+          for{" "}
+          <input
+            type="number"
+            min={1}
+            max={180}
+            value={minutes}
+            disabled={!!busy}
+            onChange={(e) => setMinutes(Number(e.target.value) || 1)}
+          />{" "}
+          min
+        </label>
+        <button
+          disabled={!!busy || !term.trim()}
+          onClick={() => {
+            setSwept(null);
+            void run("sweeping", () => window.ww.crawlSearch(term, minutes));
+          }}
+        >
+          Sweep
+        </button>
+        {busy === "sweeping" && <button onClick={() => void window.ww.stopCrawl()}>Stop</button>}
+      </div>
+
+      {/* The receiving end of "Copy for a partner". Someone pastes the WhatsApp message here and
+          it becomes work on THIS account — the sender's can-latch answers were about theirs. */}
+      <details className="latch-import">
+        <summary>Paste a list somebody sent you</summary>
+        <textarea
+          rows={4}
+          value={shared}
+          disabled={!!busy}
+          placeholder="Paste the whole message — it finds the products by the [FSN] codes in it."
+          onChange={(e) => setShared(e.target.value)}
+        />
+        <button
+          disabled={!!busy || !shared.trim()}
+          onClick={() => {
+            void run("reading", () => window.ww.importShared(shared)).then(() => setShared(""));
+          }}
+        >
+          Read this list
+        </button>
+      </details>
+
+      {swept && (
+        <p className="allgood">
+          {swept.seen} looked at, <strong>{swept.can} can be latched</strong> — {swept.title.slice(0, 70)}
+        </p>
+      )}
+
+      {rows.length > 0 && (
+        <div className="picks latch-actions">
+          <button disabled={!!busy || unchecked === 0} onClick={() => void run("checking", () => window.ww.checkLatches(false))}>
+            {unchecked ? `Check ${unchecked} against Flipkart` : "Nothing new to check"}
+          </button>
+          <button disabled={!!busy} onClick={() => void run("checking", () => window.ww.checkLatches(true))}>
+            Re-check all {rows.length}
+          </button>
+          {/* The one button that does the job. Disabled rather than hidden when there is nothing
+              waiting, so "none are ready" reads differently from "this screen has no such button". */}
+          <button className="primary" disabled={!!busy || ready === 0} onClick={() => void run("latching", () => window.ww.latchNew(costing))}>
+            {ready ? `Latch all ${ready} new` : "Nothing ready to latch"}
+          </button>
+          {/* One button per thing a person actually does with this list: do it, or tell somebody
+              about it. The share follows whichever pack is selected, so "what came in today" is
+              one click from a message. */}
+          {/* Follows whichever chip is selected, which IS the three lists Vansh asked for:
+              Everything, today's sweep, today's label pack. Enabled whenever there is anything at
+              all — the message carries every state now, not only what we can latch. */}
+          <button
+            disabled={!!busy || rows.length === 0}
+            onClick={() =>
+              void window.ww.shareLatches(pack).then((t) =>
+                setNote(`Copied — ${t.split("\n")[0]} Paste it to your partner.`),
+              )
+            }
+          >
+            Copy {chosen ? "this list" : "everything"} for a partner
+          </button>
+          <label className="latch-costing">
+            <input type="checkbox" checked={costing} disabled={!!busy} onChange={(e) => setCosting(e.target.checked)} />
+            {" "}…and open a costing chat with the contents photo
+          </label>
+        </div>
+      )}
+
+      {progress && (
+        <p className="allgood">
+          {busy === "latching" ? "Opening" : "Checking"} {progress.done} of {progress.of} — {progress.sku}
+        </p>
+      )}
+      {error && <p className="error">{error}</p>}
+      {note && <p className="allgood">{note}</p>}
+
+      {GROUPS.map(({ state, label }) => {
+        const mine = rows.filter((r) => r.state === state);
+        if (mine.length === 0) return null;
+        return (
+          <div key={state} className="latch-group">
+            <h2>
+              {label} <span className="count">{mine.length}</span>
+            </h2>
+            <table className="latch-table">
+              <tbody>
+                {mine.map((r) => (
+                  <tr key={r.sku}>
+                    {/* Their SKU, not ours — it is the row's name, and it is why the form is left
+                        one field short rather than filled in with it. */}
+                    <td className="sku">{r.sku}</td>
+                    <td className="seen" title={`${r.seen} label${r.seen === 1 ? "" : "s"} in the pack`}>
+                      ×{r.seen}
+                    </td>
+                    <td className="title">
+                      {r.title ?? r.description}
+                      {r.near?.length ? (
+                        <ul className="near">
+                          {r.near.map((c) => (
+                            <li key={c.fsn}>
+                              <code>{c.fsn}</code> {c.title}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </td>
+                    {/* Theirs against ours. The GAP is the number worth showing, not two prices to
+                        subtract by eye. Being dearer is FLAGGED, never acted on: it is one input
+                        among ratings, delivery and the buy box, and plenty of listings sell above
+                        the seller beside them. Nothing is skipped or rejected on this number. */}
+                    <td className="price">
+                      {r.listed ? (
+                        <>
+                          {rupees(r.listed.pricePaise)}
+                          <span className={r.listed.pricePaise < OURS ? "dearer" : "cheaper"}>
+                            {r.listed.pricePaise < OURS
+                              ? ` we're +${rupees(OURS - r.listed.pricePaise)}`
+                              : ` we're −${rupees(r.listed.pricePaise - OURS)}`}
+                          </span>
+                        </>
+                      ) : null}
+                    </td>
+                    <td className="when">{r.latchedOn ? `latched ${r.latchedOn}` : (r.checkedOn ?? "")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </section>
+  );
+}

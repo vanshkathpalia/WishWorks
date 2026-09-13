@@ -343,3 +343,52 @@ the prefix on a product ID pre-fills its shared fields across both marketplaces.
 **Note on Notion:** the board has **never been built.** `NOTION_BOARD_SEED.md` is the spec to
 paste into a Notion-connected Claude when Vansh wants it, and was rewritten 2026-07-26 to match
 this file. Nothing in this repo writes to Notion.
+
+
+---
+
+## WW-180 / WW-181 — `npm run latch`: latch a competitor's label pack onto our own account
+
+**Done, 2026-09-13, branch `latch-autofill`.** Driven against the live PartyDreams account.
+
+```
+npm run latch -- ~/Downloads/invoice_labels_*.pdf [--batch=10] [--skip=0] [--mrp=999] [--price=220]
+```
+
+**What it is for.** A rival seller's label pack is the only machine-readable list of what they
+actually ship — 86 labels, 39 products, sorted by how often each one appears, which is a rough
+bestseller ranking. Latching is listing our own offer against a catalog entry they created, so
+this turns their pack into our work list. Each batch leaves ten tabs open, each on the latch form
+with everything filled except the SKU.
+
+**The finding that shaped it (WW-180).** The plan was to drive Flipkart's *Seller Lens* extension:
+search flipkart.com, open the product, click **Latch on** in the panel that pops up. Reading the
+extension instead — it was already unpacked in Vansh's Chrome — showed the button does one thing,
+`openNewTab(getStartSellingURL(fsn))`, against a fixed template. **So the latch is a URL**, the FSN
+is the `pid=` in any flipkart.com product URL, and the extension, the consumer login and the
+shadow-DOM panel all left the design. See `docs/learning/18`.
+
+**What it fills, and what it does not.** Everything on the form except `Seller SKU ID` — MRP 999
+and selling price 220 per Vansh's instruction (both flags), and the rest from
+`categories/balloon-decoration.pricing.defaults.json`, the SAME file the 66-field bot reads, so
+HSN/Tax Code/PartyDreams-as-packer cannot drift between the two tools. The SKU is left blank
+because the one on the label is the other seller's. **Nothing is saved and no tab is ever closed.**
+
+**It refuses rather than guesses.** A label truncates the catalog title, so the right listing is
+the one whose title *starts with* it. Highest-score-wins was measured against the real pack and
+would have latched a ZYRIC kit onto a Magic Balloons one. Where two listings both fit — the label
+cut off the word that told them apart — both are printed for Vansh to pick and no tab opens.
+
+**Business impact.** The three states it reports are the actual answer for each product:
+*already selling* (no work), *needs approval for that vertical*, or a filled form one field short.
+Of the products sampled from the top of the pack, most came back already-sold — so the value is
+as much in not re-doing them as in the ones it opens.
+
+**Open, and the next thing worth doing here:** the ambiguity refusal fires on exactly the products
+Vansh has NOT latched yet (`FKUL017` Fundots has four variants sharing one truncated title). One
+tab per candidate instead of a refusal would suit that case and is a small change.
+
+**Not built, deliberately:** no Windows support — the PDF half shells out to poppler's
+`pdftotext`, because a Flipkart label is Qt-generated with subsetted CID fonts that the zlib reader
+in `orders-core.ts` cannot touch. Latching is Vansh's own job on his own Mac. If it ever has to
+ship in the .exe, that is when the ToUnicode reader gets written.

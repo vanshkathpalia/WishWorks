@@ -256,3 +256,15 @@ export async function saveListing(
   }
   return clickSave(await activePage(session.context));
 }
+
+/**
+ * A fresh tab in the one live session, opening Chrome first if it is not up yet.
+ *
+ * The latch screen needs several tabs at once and must not start a SECOND Chrome to get them:
+ * `ensureProfileFree()` kills whatever already holds the profile, so a second launch would close
+ * the first — taking the login, and any half-filled form, with it.
+ */
+export async function newTab(): Promise<Page> {
+  if (!session) session = await openBrowser();
+  return session.context.newPage();
+}

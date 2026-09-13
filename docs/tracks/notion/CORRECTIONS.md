@@ -2489,3 +2489,63 @@ without the assert firing later I might not have looked at that file again.
 
 **The lesson.** *A tool that writes files should compute the whole result before it opens one.*
 Truncate-then-write is safe only when nothing between the two can fail, and something always can.
+
+
+---
+
+## C-050 — A union selector picked a wrapper, and three clear answers were reported as failures
+
+**What happened.** The first live run of `npm run latch` reported every tab as *"NO start selling
+on this one"*. Two separate mistakes wearing the same symptom.
+
+**The first was mine.** The button was matched as
+`a.startSelling, a:has-text('START SELLING')`. `:has-text` matches **ancestors** as well, so
+`.first()` returned some wrapper element higher up the page and every click timed out against a
+thing that was never the button. The class alone, `a.startSelling`, is unambiguous. *A union
+selector with a text clause is a selector that can match a container.*
+
+**The second was worse, because it looked like the first.** Once the click worked, two products
+still failed — and they were not failures. Flipkart uses the SAME `startSelling` class for three
+different answers, distinguished only by what sits beside it:
+
+| class | text | meaning |
+|---|---|---|
+| `startSelling listingsModalLink` | START SELLING | latchable |
+| `disabled startSelling` | ALREADY SELLING | this account already has it |
+| `applyForApprovalLink startSelling` | APPLY FOR APPROVAL | not approved for that vertical |
+
+Waiting for the form after clicking meant both of the last two came back as *"could not open the
+form"*. **Half a label pack is products we already sell, and saying so IS the useful output** — it
+was being reported as a bug in the tool instead.
+
+**The lesson.** *When a page answers three ways through one element, find the thing that differs
+before writing the one case you expected.* The first version had been driven against exactly one
+product, which happened to be the one latchable state, and that read as "it works".
+
+**Also caught, by reading the live dropdowns rather than trusting the file:**
+`balloon-decoration.pricing.defaults.json` says `Procurement type: Express` and Flipkart's option
+is lowercase `express`. An exact-label `selectOption` leaves a REQUIRED field silently unset, which
+looks like the bot skipping it. Option matching is case-insensitive now.
+
+
+---
+
+## C-051 — A price gap is a flag, not a verdict
+
+**What happened.** The latch screen showed the competitor's price against ours and painted us RED
+when we were dearer, with a comment saying *"that listing will not sell"*. Vansh, 2026-09-13:
+*"that is not nec. in real life — so don't just reject or skip it, just flag it."*
+
+**Why it was wrong.** Nothing in the code ever skipped a product on price — but the colour and the
+wording asserted a conclusion the tool is not entitled to. A shared catalog page is also won on
+ratings, delivery promise and who holds the buy box, and WishWorks sells above the seller beside it
+often enough that "dearer" is simply not the same as "dead".
+
+**The fix.** Red became WARN, the comments say *flagged, never acted on*, and the partner message
+spells it out: *"DEARER = worth a look, not a no."* The number still shows, in the place it was
+already shown — because the complaint was never that the check is useless.
+
+**The lesson, and it is the second time this shape has come up** (see C-036, "closed is not
+untested"): *a tool may show the operator a number; it may not conclude on their behalf.* Vansh
+knows things about his market that no figure on this screen encodes, and a UI that reads as a
+verdict quietly trains him to stop looking.

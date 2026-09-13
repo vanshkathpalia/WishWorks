@@ -100,6 +100,24 @@ const api: WwApi = {
 
   addManifest: (file: string) => ipcRenderer.invoke("addManifest", file),
   orders: () => ipcRenderer.invoke("orders"),
+  addLabels: (file: string) => ipcRenderer.invoke("addLabels", file),
+  latches: () => ipcRenderer.invoke("latches"),
+  crawlSearch: (term: string, minutes: number) => ipcRenderer.invoke("crawlSearch", term, minutes),
+  stopCrawl: () => ipcRenderer.invoke("stopCrawl"),
+  shareLatches: (pack: string | null) => ipcRenderer.invoke("shareLatches", pack),
+  importShared: (text: string) => ipcRenderer.invoke("importShared", text),
+  onCrawlRow: (cb) => {
+    const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
+    ipcRenderer.on("crawlRow", handler);
+    return () => void ipcRenderer.off("crawlRow", handler);
+  },
+  checkLatches: (all: boolean) => ipcRenderer.invoke("checkLatches", all),
+  latchNew: (withCosting: boolean) => ipcRenderer.invoke("latchNew", withCosting),
+  onLatchRow: (cb) => {
+    const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
+    ipcRenderer.on("latchRow", handler);
+    return () => void ipcRenderer.off("latchRow", handler);
+  },
   money: (from: string, to: string, market?: string) => ipcRenderer.invoke("money", from, to, market),
   rates: () => ipcRenderer.invoke("rates"),
   setRate: (name: string, paise: number) => ipcRenderer.invoke("setRate", name, paise),

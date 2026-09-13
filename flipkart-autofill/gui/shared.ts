@@ -25,6 +25,8 @@ import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js";
+import type { Found, LatchBook, LatchRecord } from "../src/latch-core.js";
+export type { Found, LabelPack, LatchBook, Listed, LatchRecord } from "../src/latch-core.js";
 
 /**
  * Everything the packing screen draws, as one answer from the engine.
@@ -375,7 +377,7 @@ export type StepId =
   // Three on the orders screen, because they open on different things and accept different files:
   // the manifest is a PDF out of the browser's downloads, a product picture is an image, and a
   // returns report is whatever the marketplace exports — CSV, Excel or PDF.
-  | "orders" | "orders-image" | "orders-report";
+  | "orders" | "orders-image" | "orders-report" | "labels";
 
 /**
  * The tag clean-up, which belongs on this step because the engine does it here: cropping and
@@ -627,6 +629,57 @@ export interface WwApi {
    * decide, since "6 then 10" and "6 plus 4" look identical and need opposite answers.
    */
   addManifest(file: string): Promise<Attempt<OrdersView>>;
+
+  /**
+   * Read a Flipkart label pack into the latch list.
+   *
+   * Safe to drop the same pack twice, or next month's beside it: the other seller's SKU is the
+   * identity of a row, so an FSN already found and a latch already done both survive a re-read.
+   */
+  addLabels(file: string): Promise<Attempt<LatchBook>>;
+  /** Everything read out of every label pack so far, best-seller first. */
+  latches(): Promise<LatchBook>;
+  /**
+   * Sweep Flipkart's own search for latchable products, for up to `minutes`.
+   *
+   * The way to find products nobody handed us. Costs one page load each, because the catalog card
+   * answers already-selling / needs-approval / latchable without a click.
+   */
+  crawlSearch(term: string, minutes: number): Promise<Attempt<LatchBook>>;
+  /** Stop the running sweep between products. */
+  stopCrawl(): Promise<void>;
+  /**
+   * Put the latchable list on the clipboard as a message for a partner, and hand it back.
+   *
+   * `pack` narrows it to one label pack or one sweep; null is everything on file. Only products
+   * that can actually be latched are in it — a partner does not need the ones we already sell.
+   */
+  shareLatches(pack: string | null): Promise<string>;
+  /**
+   * Read a shared list back in, so a partner can run the same latch flow on HIS account.
+   *
+   * Products are matched on the `[FSN]` codes in the message and land unchecked — the sender's
+   * can-latch / already-selling answers were about the sender's account and mean nothing here.
+   */
+  importShared(text: string): Promise<Attempt<LatchBook>>;
+  /** Each product as the sweep judges it, so the screen fills while it runs. */
+  onCrawlRow(cb: (p: { seen: number; found: Found }) => void): () => void;
+  /**
+   * Ask Flipkart where each product stands — already selling, needs approval, or latchable.
+   *
+   * Unchecked rows only unless `all`. One reused tab, about fifteen seconds a product, and the
+   * file is written after every one so closing the window mid-check keeps what it learnt.
+   */
+  checkLatches(all: boolean): Promise<Attempt<LatchBook>>;
+  /**
+   * Open a filled latch form for every product that can still be latched. Saves nothing.
+   *
+   * `withCosting` also fetches each listing's SECOND photo — the contents shot — and opens a
+   * ChatGPT tab holding it with the costing prompt typed in, unsent.
+   */
+  latchNew(withCosting: boolean): Promise<Attempt<LatchBook>>;
+  /** Progress while a check or a latch run is going. */
+  onLatchRow(cb: (p: { done: number; of: number; row: LatchRecord }) => void): () => void;
   /** The whole packing screen: what is left, today's tally, this month's packets. */
   orders(): Promise<OrdersView>;
   /**
