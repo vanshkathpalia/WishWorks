@@ -1311,6 +1311,34 @@ ipcMain.handle("checkLatches", async (e, all: boolean): Promise<Attempt<unknown>
  * tabs to stay open so he can do them in his own order.
  */
 /**
+ * Every SKU already in use, from the three places they live.
+ *
+ * Costed kits, the Flipkart 66-field files and the Meesho description files — a product can exist
+ * in any one of them without the others yet, so all three count as "taken". Missing one would hand
+ * a live SKU out twice, and the second listing would quietly inherit the first one's costing.
+ */
+async function skusInUse(): Promise<string[]> {
+  const inv = await inventoryEngine();
+  const out = new Set<string>();
+  try {
+    for (const k of inv.listKits(KITS_DIR)) if (k.sku) out.add(k.sku);
+  } catch {
+    /* no kits folder yet */
+  }
+  for (const dir of [PRODUCTS_DIR, META_DIR]) {
+    try {
+      for (const f of await readdir(dir)) {
+        if (!f.endsWith(".json") || f.startsWith("EXAMPLE")) continue;
+        out.add(path.basename(f, ".json").replace(/^image-meta-/, ""));
+      }
+    } catch {
+      /* folder may not exist on a fresh machine */
+    }
+  }
+  return [...out];
+}
+
+/**
  * Fill a latch form for each of these products. Saves nothing, closes nothing.
  *
  * Takes an explicit list rather than working one out, because it serves two callers that choose
@@ -1327,6 +1355,7 @@ async function latchThese(
     readLatches, writeLatches, latchValues, openLatchForm, startSellingUrl, todayStamp,
     galleryImages, saveImage, imageFor, askChatGpt,
   } = await latchEngine();
+  const { nextSku } = await import("../src/sku-core.js");
   const { newTab, chatTab } = await import("../src/browser-core.js");
   const book = await readLatches();
   const rows = book.rows;
@@ -1337,6 +1366,11 @@ async function latchThese(
   if (todo.length === 0) return { ok: false, message: "Nothing is waiting to be latched." };
 
   const values = latchValues({ MRP: "999", "Your selling price": "220" });
+  /**
+   * SKUs handed out as we go, so ten annaprashan kits in one batch get ten different numbers.
+   * Seeded with everything already on disk; each one assigned is added before the next is chosen.
+   */
+  const taken = await skusInUse().catch(() => [] as string[]);
   const prompt = withCosting
     ? await (await promptsEngine()).readPrompt(promptDirs(), "PROMPT-inventory.md").then((p) => p.text, () => null)
     : null;
@@ -1351,11 +1385,25 @@ async function latchThese(
   for (const row of todo) {
     const tab = await newTab();
     await tab.goto(startSellingUrl(row.fsn!), { waitUntil: "domcontentloaded" }).catch(() => {});
-    const state = await openLatchForm(tab, values).catch(() => "stuck" as const);
+    /**
+     * Our own SKU, worked out from the catalog title.
+     *
+     * Null when the title names no line we sell — and then the field is left EMPTY, exactly as it
+     * was before this existed. A blank asks; a wrong SKU files the listing under another product's
+     * costing and says nothing.
+     */
+    const mine = nextSku(row.title ?? row.description, taken);
+    if (mine) taken.push(mine);
+    const state = await openLatchForm(tab, values, mine ?? undefined).catch(() => "stuck" as const);
     const at = rows.findIndex((r) => r.sku === row.sku);
     // A tab that opened is a latch STARTED, so the day is recorded now rather than on save —
     // nothing here can see the save, and a form filled and abandoned is still worth knowing about.
-    rows[at] = { ...rows[at], state, checkedOn: todayStamp(), ...(state === "form" ? { latchedOn: todayStamp() } : {}) };
+    rows[at] = {
+      ...rows[at],
+      state,
+      checkedOn: todayStamp(),
+      ...(state === "form" ? { latchedOn: todayStamp(), ...(mine ? { ourSku: mine } : {}) } : {}),
+    };
     if (state === "form") opened++;
 
     /**

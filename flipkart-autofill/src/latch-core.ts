@@ -290,7 +290,12 @@ export function cardState(className: string): TabState {
  * matches ancestors too, so `.first()` picked a wrapper higher up the page and every click timed
  * out against an element that was never the button.
  */
-export async function openLatchForm(tab: Page, values: Map<string, string>): Promise<TabState> {
+export async function openLatchForm(
+  tab: Page,
+  values: Map<string, string>,
+  /** Our SKU for this product, when the title said which line it is. Left blank when it did not. */
+  ourSku?: string,
+): Promise<TabState> {
   try {
     await tab.waitForSelector("a.startSelling", { timeout: 30_000 });
     const state = cardState((await tab.locator("a.startSelling").first().getAttribute("class")) ?? "");
@@ -300,8 +305,15 @@ export async function openLatchForm(tab: Page, values: Map<string, string>): Pro
     // The form is a modal: the URL never changes, so `sku_id` appearing is the only honest signal.
     await tab.waitForSelector("input[name=sku_id]", { timeout: 25_000 });
     await fillLatchForm(tab, values);
-    // Leave the cursor where the one hand-typed value goes. Focus is per tab, so it survives
-    // switching between them.
+    /**
+     * The SKU, when we could work one out — and the cursor left in it either way.
+     *
+     * This field was deliberately left empty for months: the SKU on the other seller's label is
+     * theirs, and only a human knew which of ours it should be. `nextSku` can now answer from the
+     * catalog title, but it answers **null** rather than guessing, and null still means a blank
+     * box with the cursor already in it.
+     */
+    if (ourSku) await tab.locator("input[name=sku_id]").fill(ourSku, { timeout: 10_000 }).catch(() => {});
     await tab.locator("input[name=sku_id]").focus().catch(() => {});
     return "form";
   } catch {
