@@ -64,3 +64,24 @@ describe("the four-prompt run", () => {
     expect(STANDARD_RUN.filter((s) => s.image === null)).toHaveLength(1);
   });
 });
+
+/**
+ * A prompt that stops to ask is not a prompt that failed.
+ *
+ * `PROMPT-infographic-sizes.md` works in two steps: a size table, then *"stop… wait. Do not draw
+ * anything until I have confirmed"*. On the first real run that came back in 27 seconds with no
+ * image and was reported as NO IMAGE — a false failure on entirely correct behaviour. A tool that
+ * reads a question as a fault teaches you to ignore its faults.
+ */
+describe("the step that waits for an answer", () => {
+  it("marks the sizes sheet as one that asks", () => {
+    const sizes = STANDARD_RUN.find((s) => s.prompt === "PROMPT-infographic-sizes.md")!;
+    expect(sizes.waits).toBe(true);
+  });
+
+  it("is the only one that does", () => {
+    // The hero and the counts infographic draw straight away. If another prompt ever starts asking,
+    // this test is where it gets noticed rather than being silently called a failure.
+    expect(STANDARD_RUN.filter((s) => s.waits)).toHaveLength(1);
+  });
+});

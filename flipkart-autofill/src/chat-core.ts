@@ -156,6 +156,18 @@ export interface Step {
    * three pictures of a kit nobody described.
    */
   image: number | null;
+  /**
+   * This prompt deliberately stops and asks a question. The run pauses; it has not failed.
+   *
+   * `PROMPT-infographic-sizes.md` is the one: *"Then stop… wait. Do not draw anything until I have
+   * confirmed the table. STEP 2 — after I confirm, generate the image."* Only Vansh knows what size
+   * foil balloons he actually packs, so the prompt asks before drawing anything.
+   *
+   * **Without this flag the run calls that a failure** — it did, on the first real run: 27 seconds,
+   * no image, reported as NO IMAGE when ChatGPT had done exactly the right thing and was waiting.
+   * A tool that reads a question as a fault teaches you to ignore its faults.
+   */
+  waits?: boolean;
 }
 
 /**
@@ -168,7 +180,7 @@ export const STANDARD_RUN: Step[] = [
   { prompt: "PROMPT-read-pack.md", image: null },
   { prompt: "PROMPT-main-image.md", image: 1 },
   { prompt: "PROMPT-infographic.md", image: 2 },
-  { prompt: "PROMPT-infographic-sizes.md", image: 3 },
+  { prompt: "PROMPT-infographic-sizes.md", image: 3, waits: true },
 ];
 
 export interface RunResult {
@@ -179,6 +191,8 @@ export interface RunResult {
   timedOut: boolean;
   /** Set when a step that should have produced a picture did not. */
   missing: boolean;
+  /** Set when the prompt stopped to ask something. Not a failure — the chat is waiting for you. */
+  awaiting?: boolean;
 }
 
 /**
@@ -237,9 +251,14 @@ export async function runImageChat(
     }
 
     const got = await generateImage(page, text, opts.fileFor(step.image), { timeoutMs: opts.timeoutMs });
-    const r = { prompt: step.prompt, ...got, missing: got.file === null };
+    // A step that ASKS produces no image on purpose. Calling that missing is how a tool teaches
+    // you to ignore it.
+    const awaiting = step.waits === true && got.file === null;
+    const r = { prompt: step.prompt, ...got, missing: got.file === null && !awaiting, awaiting };
     out.push(r);
     opts.onStep?.(r);
+    // Nothing after a question can be answered until it is. Stop, and leave the tab open.
+    if (awaiting) break;
   }
   return out;
 }

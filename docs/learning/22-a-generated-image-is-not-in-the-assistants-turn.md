@@ -26,3 +26,29 @@ the third was slow, and the tab stays open for a human to look at.
 **Still to build on this:** the four-prompt sequence itself (`PROMPT-read-pack` → `PROMPT-main-image`
 → `PROMPT-infographic` → `PROMPT-infographic-sizes`), and where the results land —
 `wishworks-ready/<THEME>/` under the naming rule in `ready-core.ts`.
+
+
+## The first real four-prompt run, and the false failure in it
+
+Run against a real contents sheet, 2026-09-13:
+
+```
+PROMPT-read-pack.md           36s  (text step)
+PROMPT-main-image.md          48s  saved 1.png   2,268,996 bytes
+PROMPT-infographic.md         63s  saved 2.png   1,618,825 bytes
+PROMPT-infographic-sizes.md   27s  NO IMAGE
+```
+
+**The fourth was not a failure, and calling it one was the bug.** `PROMPT-infographic-sizes.md`
+works in two steps by design — line 55: *"Then stop. List the rows I still have to answer and wait.
+Do not draw anything until I have confirmed the table. STEP 2 — after I confirm, generate the
+image."* Only Vansh knows what size foil balloons he actually packs, so it asks. ChatGPT did exactly
+that, in 27 seconds, and the runner reported NO IMAGE.
+
+`Step.waits` now marks it, and a waiting step ends the run with the tab open and a message saying
+what is being asked. **A tool that reads a question as a fault teaches you to ignore its faults** —
+which is the same lesson as C-051 and `docs/learning/7-a-warning-is-a-request-for-a-decision.md`,
+arriving from a third direction.
+
+**The timings are the other useful output:** 27–63 seconds a step, about three minutes a product.
+That is what makes "ask which one goes next" the right shape rather than a queue of ten.
