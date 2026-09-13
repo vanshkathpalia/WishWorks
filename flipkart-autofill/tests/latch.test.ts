@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -702,5 +702,35 @@ describe("reviewing a batch before listing it", () => {
       ],
     };
     expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["B"]);
+  });
+});
+
+/**
+ * **The latch flow never submits a listing.** Vansh, 2026-09-13: *"but yet not submit the latch
+ * listing — i will still verify it."*
+ *
+ * Every field is filled, including the SKU, and then it stops: a human reads the form and presses
+ * Save. That is not a missing feature, it is the feature — a latch puts a live product on the
+ * account, and the one thing this tool must never do is put one there unseen.
+ *
+ * Asserted against the SOURCE, which is unusual and deliberate. The behaviour being protected is
+ * the ABSENCE of a call, and absence is what a normal test cannot observe: a test that drives the
+ * form and checks nothing saved passes just as happily when the save silently failed. One day
+ * somebody will reach for `clickSave` to "finish the job"; this is what tells them not to.
+ */
+describe("the latch flow stops before Save", () => {
+  const source = readFileSync(new URL("../src/latch-core.ts", import.meta.url), "utf8");
+
+  it("never calls the thing that presses Flipkart's Save", () => {
+    expect(source).not.toMatch(/\bclickSave\b/);
+  });
+
+  it("never presses Enter on a Flipkart page", () => {
+    // `chat-core` presses Enter to send a ChatGPT prompt. Nothing in the latch path may.
+    expect(source).not.toMatch(/keyboard\.press\(\s*["'`]Enter/);
+  });
+
+  it("never clicks a submit control", () => {
+    expect(source).not.toMatch(/type=submit|\[type="submit"\]/);
   });
 });
