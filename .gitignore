@@ -49,6 +49,12 @@ dist/
 /flipkart-autofill/*.xlsx
 /flipkart-autofill/*.xls
 
+# Meesho's own blank bulk-upload template is the exception: it is THEIR document, holds no price,
+# no GSTIN and no order of ours, and `docs/tracks/notion/MEESHO-FROM-LATCH.md` works from it. It
+# survives the rule above only because it is already tracked, and a rule that depends on that is a
+# trap — re-add it once and it silently vanishes. Named here so it stays for the right reason.
+!Party-Items-*-EXTERNAL-MeeshoTemplate*.xlsx
+
 # And by name as well, so one dropped in a subfolder is still caught.
 Orders_*.csv
 **/*payment*.csv
