@@ -25,8 +25,8 @@ import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js";
-import type { Approval, Found, LatchBook, LatchRecord, Listed, Pending } from "../src/latch-core.js";
-export type { Approval, Found, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
+import type { Approval, Found, ImageJob, LatchBook, LatchRecord, Listed, Pending } from "../src/latch-core.js";
+export type { Approval, Found, ImageJob, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
 
 /**
  * Everything the packing screen draws, as one answer from the engine.
@@ -679,6 +679,23 @@ export interface WwApi {
       blocking: { material: string; skus: string[] }[];
     }>
   >;
+  /**
+   * Which latched products could have their listing images made, and what blocks the rest.
+   *
+   * Blocked ones are IN the list with their reason, not filtered out: a product missing its
+   * contents photo is one download from ready, and hiding it means nobody notices.
+   */
+  imageQueue(): Promise<Attempt<ImageJob[]>>;
+  /**
+   * Make the listing images for one product — four prompts, one chat, three pictures.
+   *
+   * One at a time on purpose: each run is minutes of compute and produces work a person then
+   * checks. Ten queued would be thirty images arriving with nobody having looked at the first.
+   */
+  runImages(sku: string): Promise<Attempt<unknown>>;
+  /** Each prompt as it finishes, so a four-minute run shows its working. */
+  onImageStep(cb: (p: { sku: string; prompt: string; file: string | null; seconds: number; missing: boolean }) => void): () => void;
+
   /** Every brand approval request on the account, off Flipkart's Track Approval page. */
   approvals(): Promise<Attempt<Approval[]>>;
   /**

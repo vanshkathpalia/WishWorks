@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import type { LabelPack, LatchBook, LatchRecord, Pending } from "../shared.js";
+import type { ImageJob, LabelPack, LatchBook, LatchRecord, Pending } from "../shared.js";
 
 /**
  * `₹190` — paise back to something a person reads.
@@ -91,10 +91,21 @@ export function Latch({ n }: { n: number }) {
   /** Live listings we cannot pack, and the materials doing it. Loaded with the pending list. */
   const [pause, setPause] = useState<Pending[]>([]);
   const [blocking, setBlocking] = useState<{ material: string; skus: string[] }[]>([]);
+  /** Latched products that could have their images made. Loaded on demand — it reads the disk. */
+  const [jobs, setJobs] = useState<ImageJob[] | null>(null);
+  /** Which product's run is going, and what step it is on. */
+  const [running, setRunning] = useState<{ sku: string; step: string } | null>(null);
 
   useEffect(() => void window.ww.latches().then(setBook), []);
   useEffect(
     () => window.ww.onLatchRow((p) => setProgress({ done: p.done, of: p.of, sku: p.row.sku })),
+    [],
+  );
+  useEffect(
+    () =>
+      window.ww.onImageStep((p) =>
+        setRunning({ sku: p.sku, step: `${p.prompt}${p.file ? " ✓" : p.missing ? " — nothing came back" : ""}` }),
+      ),
     [],
   );
   useEffect(
@@ -346,6 +357,17 @@ export function Latch({ n }: { n: number }) {
           <button
             disabled={!!busy}
             onClick={() =>
+              void window.ww.imageQueue().then((r) => {
+                if (!r.ok) return setError(r.message);
+                setJobs(r.result);
+              })
+            }
+          >
+            Which can have images made?
+          </button>
+          <button
+            disabled={!!busy}
+            onClick={() =>
               void window.ww.latchPending().then((r) => {
                 if (!r.ok) return setError(r.message);
                 setPending(r.result.rows);
@@ -376,6 +398,51 @@ export function Latch({ n }: { n: number }) {
       {/* The buffer. A latch takes a minute; its costing waits on a photo, a ChatGPT reply and a
           person checking it — days later. Without this list what falls through is silent: a live
           listing sitting at the default ₹220 that nobody ever went back to. */}
+      {/* **Ask, do not queue.** Each run is four prompts, minutes of compute, and three pictures a
+          person then checks — so this lists what COULD go and Vansh picks one. Blocked products
+          stay on the list with their reason, because a missing contents photo is one download from
+          ready and filtering it out is how it stays missing for ever. */}
+      {jobs && (
+        <div className="latch-group">
+          <h2>
+            Ready for their listing images <span className="count">{jobs.filter((j) => !j.blockedBy.length).length}</span>
+          </h2>
+          {running && (
+            <p className="allgood">
+              {running.sku}: {running.step}
+            </p>
+          )}
+          <table className="latch-table">
+            <tbody>
+              {jobs.map((j) => (
+                <tr key={j.sku} className={j.blockedBy.length ? "blocked" : ""}>
+                  <td className="sku">{j.ourSku || "—"}</td>
+                  <td className="title">{j.title}</td>
+                  <td className="why">
+                    {j.blockedBy.length ? j.blockedBy.join("; ") : j.have ? `${j.have} already there` : ""}
+                  </td>
+                  <td className="when">
+                    <button
+                      disabled={!!busy || !!j.blockedBy.length || !!running}
+                      onClick={() => {
+                        setRunning({ sku: j.ourSku, step: "starting…" });
+                        void window.ww.runImages(j.sku).then((r) => {
+                          setRunning(null);
+                          if (!r.ok) setError(r.message);
+                          else setNote(r.note ?? null);
+                        });
+                      }}
+                    >
+                      {j.have ? "Make them again" : "Make the images"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* **Pause these before the next order arrives.** A paused listing costs the sales it would
           have made; an order taken and cancelled costs account health, which cannot be bought back.
           Above the price queue on purpose — this is the only list here with a deadline set by

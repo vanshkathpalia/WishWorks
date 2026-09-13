@@ -20,7 +20,7 @@
 
 import { app, BrowserWindow, clipboard, dialog, ipcMain, net, protocol, shell } from "electron";
 import { readFile, writeFile, mkdir, readdir, rename, rm, copyFile, stat } from "node:fs/promises";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { filePathFromUrl } from "./shared.js";
@@ -1221,6 +1221,87 @@ ipcMain.handle("sweepApproved", async (e, minutes: number): Promise<Attempt<unkn
     note:
       `Swept ${brands.length} approved brand${brands.length === 1 ? "" : "s"} — ` +
       `${total} product${total === 1 ? "" : "s"} looked at, ${canLatch} can be latched now.`,
+  };
+});
+
+
+/**
+ * Which latched products could have their listing images made, and what is stopping the rest.
+ *
+ * Reads the disk for two things the book does not know: whether the contents photo was ever
+ * downloaded, and how many images already sit in `1-raw`. Both are the difference between a run
+ * that works and four prompts spent finding out it could not.
+ */
+ipcMain.handle("imageQueue", async (): Promise<Attempt<unknown>> => {
+  const { readLatches, imageJobs, imageFor } = await latchEngine();
+  const book = await readLatches();
+  const rows = imageJobs(book, {
+    photoFor: (sku) => {
+      const f = imageFor(sku);
+      return existsSync(f) ? f : null;
+    },
+    haveFor: (ourSku) => {
+      try {
+        return readdirSync(path.join(IMAGES_DIR, "1-raw", ourSku)).filter((n) => !n.startsWith(".")).length;
+      } catch {
+        return 0;
+      }
+    },
+  });
+  return { ok: true, result: rows };
+});
+
+/**
+ * Make the listing images for ONE product: four prompts, one chat, three pictures.
+ *
+ * One at a time on purpose. Each run is minutes of somebody else's compute and produces work a
+ * person then looks at; queueing ten would mean thirty images arriving together with nobody having
+ * checked the first. Vansh asked to be ASKED which one goes next, and this is the call that answers
+ * that question one product at a time.
+ */
+ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> => {
+  const { readLatches, imageJobs, imageFor } = await latchEngine();
+  const { runImageChat, STANDARD_RUN } = await import("../src/chat-core.js");
+  const { rawFileFor } = await import("../src/sku-core.js");
+  const { chatTab } = await import("../src/browser-core.js");
+
+  const book = await readLatches();
+  const job = imageJobs(book, {
+    photoFor: (s) => {
+      const f = imageFor(s);
+      return existsSync(f) ? f : null;
+    },
+    haveFor: () => 0,
+  }).find((j) => j.sku === sku);
+  if (!job) return { ok: false, message: "That product is not in the list any more." };
+  if (job.blockedBy.length) return { ok: false, message: job.blockedBy.join("; ") };
+
+  const prompts = await promptsEngine();
+  let tab;
+  try {
+    tab = await chatTab();
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  await tab.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
+  await tab.waitForTimeout(6000);
+
+  const done = await runImageChat(tab, {
+    contentsPhoto: job.contentsPhoto ?? undefined,
+    steps: STANDARD_RUN,
+    readPrompt: async (name) => (await prompts.readPrompt(promptDirs(), name)).text,
+    fileFor: (n) => rawFileFor(IMAGES_DIR, job.ourSku, n),
+    onStep: (r) => e.sender.send("imageStep", { sku, ...r }),
+  });
+
+  const made = done.filter((d) => d.file).length;
+  const missed = done.filter((d) => d.missing).map((d) => d.prompt);
+  return {
+    ok: true,
+    result: done,
+    note:
+      `${job.ourSku}: ${made} image${made === 1 ? "" : "s"} in images/1-raw/${job.ourSku}/` +
+      (missed.length ? `. Nothing came back from ${missed.join(", ")} — the chat is still open.` : "."),
   };
 });
 

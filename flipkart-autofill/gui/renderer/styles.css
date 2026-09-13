@@ -2780,3 +2780,7 @@ h3 > button.tiny {
 
 /* Said while ten shopper tabs are up, because at that moment the app is not where the work is. */
 .batch-open { font-size: 12px; }
+
+/* A product that cannot run yet. Shown, not hidden: it is usually one download from ready, and a
+   row nobody can see is a job nobody finishes. */
+.latch-table tr.blocked { opacity: .55; }

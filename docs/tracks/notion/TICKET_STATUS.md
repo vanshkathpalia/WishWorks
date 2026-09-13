@@ -438,3 +438,32 @@ a component, so a fault in the JSX had nothing standing in its way. It lives bes
 because the engine tsconfig has no `jsx`, deliberately.
 
 **Open, and needs Vansh's decision:** the ChatGPT sign-in. See CORRECTIONS C-052.
+
+
+## WW-191 — The image run has a trigger, and it asks rather than queues
+
+**Done, 2026-09-13.** `chat-core.ts` could make listing images and nothing called it — an engine
+with no ignition, which Vansh spotted before I admitted it: *"but I want to know, where are we
+triggering it?"*
+
+**Which can have images made?** on the Latch tab now lists every latched product, with a button per
+row. One at a time, deliberately: a run is four prompts and several minutes of somebody else's
+compute, and it produces three pictures a person then has to look at. Ten queued would be thirty
+images arriving at once with nobody having checked the first. Vansh asked to be *asked* which goes
+next; this is that.
+
+**Blocked products stay on the list, with the reason.** *"no SKU of ours yet"*, *"no contents photo
+— it was never downloaded"*. Filtering them out is how a missing download stays missing: the row
+nobody can see is the job nobody finishes.
+
+**What a run does:** upload the contents photo -> `PROMPT-read-pack` (text, no picture) ->
+`PROMPT-main-image` -> 1.png -> `PROMPT-infographic` -> 2.png -> `PROMPT-infographic-sizes` ->
+3.png, all in one chat, into `images/1-raw/<ourSku>/` — the front of the pipeline that already
+exists. A step that times out is reported and the run carries on.
+
+**Also added:** `PROMPT-clean-image.md`, for photos taken off somebody else's listing. Strips
+watermark, brand name, price and offer badges; keeps wording printed on the product itself, because
+a banner that says HAPPY BIRTHDAY is the product, not an overlay. Meesho rejects a primary image
+with text or a logo on it, so this is what makes a borrowed photo usable rather than a nicety.
+
+**Next, in Vansh's order:** the meta + product JSON chat, then Meesho individual, then Meesho bulk.

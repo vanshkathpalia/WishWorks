@@ -20,7 +20,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, cardState, forMeesho, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  approvedBrands, blocking, cardState, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -776,5 +776,55 @@ describe("what is waiting to go on Meesho", () => {
     const after = markMeesho(book, ["ANP017"], "2026-09-14");
     expect(forMeesho(after).map((r) => r.ourSku)).toEqual(["ANP018"]);
     expect(after.rows.find((r) => r.ourSku === "ANP017")!.meeshoOn).toBe("2026-09-14");
+  });
+});
+
+/**
+ * Which latched products can have their images made. Four prompts is minutes of somebody else's
+ * compute, so the point is to find out what would fail BEFORE spending it — and to say why, rather
+ * than quietly dropping the row.
+ */
+describe("what qualifies for the image run", () => {
+  const row = (sku: string, extra: Partial<LatchRecord> = {}): LatchRecord => ({
+    sku, description: sku, seen: 0, fsn: `F${sku}`, title: `${sku} kit`,
+    state: "form", checkedOn: null, latchedOn: "2026-09-13", ourSku: `ANP${sku}`, ...extra,
+  });
+  const book: LatchBook = {
+    packs: [],
+    rows: [
+      row("001"),
+      row("002"),
+      row("003", { ourSku: undefined }),
+      row("004", { latchedOn: undefined }),
+    ],
+  };
+  const jobs = (photos: string[], have: Record<string, number> = {}) =>
+    imageJobs(book, {
+      photoFor: (s) => (photos.includes(s) ? `/latch/images/${s}.jpg` : null),
+      haveFor: (s) => have[s] ?? 0,
+    });
+
+  it("is only what we latched", () => {
+    expect(jobs(["001", "002", "004"]).some((j) => j.sku === "004")).toBe(false);
+  });
+
+  it("says why a product cannot run, instead of hiding it", () => {
+    // One download away from ready. Filtering it out means nobody notices the download never
+    // happened, and the product sits there for ever.
+    const all = jobs(["001"]);
+    expect(all.find((j) => j.sku === "002")!.blockedBy).toEqual([
+      "no contents photo — it was never downloaded",
+    ]);
+    expect(all.find((j) => j.sku === "003")!.blockedBy).toEqual(["no SKU of ours yet"]);
+  });
+
+  it("puts what can run first, and what has nothing yet before what is part done", () => {
+    const all = jobs(["001", "002"], { ANP001: 2 });
+    expect(all.map((j) => j.sku)).toEqual(["002", "001", "003"]);
+  });
+
+  it("reports what is already there, so a finished one is not re-run by accident", () => {
+    // Four prompts again, overwriting images somebody may already have corrected by hand.
+    expect(jobs(["001"], { ANP001: 3 }).find((j) => j.sku === "001")!.have).toBe(3);
   });
 });

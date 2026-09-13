@@ -1511,3 +1511,64 @@ export function markMeesho(book: LatchBook, skus: string[], on = todayStamp()): 
     rows: book.rows.map((r) => (r.ourSku && done.has(r.ourSku) ? { ...r, meeshoOn: on } : r)),
   };
 }
+
+// ---------------------------------------------------------------- what is ready for the image run
+
+/** A latched product, and whether anything stands between it and a set of listing images. */
+export interface ImageJob {
+  /** The rival's SKU — the row's id, and what the contents photo is filed under. */
+  sku: string;
+  /** Ours. Where the images will be written: `images/1-raw/<ourSku>/`. */
+  ourSku: string;
+  title: string;
+  /** Their contents photo, downloaded when we latched. The first prompt reads it. */
+  contentsPhoto: string | null;
+  /** Images already sitting in `1-raw` for this SKU. */
+  have: number;
+  /**
+   * Why it cannot run yet, empty when it can.
+   *
+   * **Listed rather than filtered out.** A product missing its contents photo is not noise — it is
+   * one download away from being ready, and hiding it means nobody ever notices the download never
+   * happened. The screen shows it greyed with the reason beside it.
+   */
+  blockedBy: string[];
+}
+
+/**
+ * Everything latched that could have its listing images made, worst-prepared last.
+ *
+ * The qualifying rules, and each is a thing that would otherwise fail three prompts deep:
+ *
+ *  - **Ours to name.** No `ourSku` means nowhere to put the images and no costing to price them.
+ *  - **A contents photo.** `PROMPT-read-pack.md` reads it, and the three image prompts are written
+ *    against its answer. Without it the run produces three pictures of a kit nobody described.
+ *  - **Not already done.** A SKU with images in `1-raw` is skipped unless asked for again —
+ *    re-running costs four prompts and overwrites work somebody may have already corrected.
+ */
+export function imageJobs(
+  book: LatchBook,
+  opts: {
+    /** Contents photo per rival SKU, from `imageFor`. Absent means it was never downloaded. */
+    photoFor: (sku: string) => string | null;
+    /** How many images `1-raw/<ourSku>/` already holds. */
+    haveFor: (ourSku: string) => number;
+  },
+): ImageJob[] {
+  return book.rows
+    .filter((r) => r.latchedOn)
+    .map((r) => {
+      const ourSku = r.ourSku ?? "";
+      const contentsPhoto = ourSku ? opts.photoFor(r.sku) : null;
+      const have = ourSku ? opts.haveFor(ourSku) : 0;
+      const blockedBy: string[] = [];
+      if (!ourSku) blockedBy.push("no SKU of ours yet");
+      else if (!contentsPhoto) blockedBy.push("no contents photo — it was never downloaded");
+      return { sku: r.sku, ourSku, title: r.title ?? r.description, contentsPhoto, have, blockedBy };
+    })
+    // Ready first, then blocked; within each, the ones with nothing yet before the ones part-done.
+    .sort(
+      (a, b) =>
+        a.blockedBy.length - b.blockedBy.length || a.have - b.have || a.ourSku.localeCompare(b.ourSku),
+    );
+}

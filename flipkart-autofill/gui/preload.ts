@@ -107,6 +107,13 @@ const api: WwApi = {
   shareLatches: (pack: string | null) => ipcRenderer.invoke("shareLatches", pack),
   importShared: (text: string) => ipcRenderer.invoke("importShared", text),
   latchPending: () => ipcRenderer.invoke("latchPending"),
+  imageQueue: () => ipcRenderer.invoke("imageQueue"),
+  runImages: (sku: string) => ipcRenderer.invoke("runImages", sku),
+  onImageStep: (cb) => {
+    const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
+    ipcRenderer.on("imageStep", handler);
+    return () => void ipcRenderer.off("imageStep", handler);
+  },
   approvals: () => ipcRenderer.invoke("approvals"),
   sweepApproved: (minutes: number) => ipcRenderer.invoke("sweepApproved", minutes),
   onCrawlRow: (cb) => {
