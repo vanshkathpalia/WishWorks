@@ -410,6 +410,16 @@ export interface LatchRecord {
   /** Set the day we opened a latch form for it, so a re-check that fails does not lose the fact. */
   latchedOn?: string;
   /**
+   * The day this product's Meesho listing was prepared. Absent until it is.
+   *
+   * **A latch is half the job.** The same product sells on both marketplaces, and the Flipkart side
+   * is the one with a catalog entry to attach to; Meesho has no API and no catalog, so it is a bulk
+   * sheet and an image upload, done in batches. This marks which of the latched products have been
+   * through that, so the batch is "everything since last time" rather than a list kept in somebody's
+   * head.
+   */
+  meeshoOn?: string;
+  /**
    * OUR SKU for this product — the one field of the latch form a person fills in.
    *
    * **This is the join to the costing**, and the only one available: a latch row is named by the
@@ -1468,4 +1478,36 @@ export function nextBatch(book: LatchBook, size: number, skip: Set<string> = new
   return book.rows
     .filter((r) => r.state === "form" && r.fsn && !r.latchedOn && !skip.has(r.fsn))
     .slice(0, Math.max(1, size));
+}
+
+
+// ---------------------------------------------------------------- the other marketplace
+
+/**
+ * Latched on Flipkart, not yet prepared for Meesho.
+ *
+ * Vansh, 2026-09-13: *"as soon as I submit any listing for latching done start selling, it should
+ * go in a list somewhere — this list will be later used for meesho listing."* This is that list.
+ *
+ * **Only products with our own SKU.** Everything the Meesho side needs is filed under it — the
+ * images in `images/1-raw/<SKU>/`, the costing, the price. A row without one is not ready to be
+ * prepared; it is a row waiting for somebody to say what it is.
+ *
+ * Oldest first, deliberately: the opposite of the price queue. There the question is *what is most
+ * dangerous*, here it is *what has been waiting longest*, because a product latched three weeks ago
+ * and never put on Meesho is three weeks of sales nobody took.
+ */
+export function forMeesho(book: LatchBook): LatchRecord[] {
+  return book.rows
+    .filter((r) => r.latchedOn && !r.meeshoOn && r.ourSku)
+    .sort((a, b) => a.latchedOn!.localeCompare(b.latchedOn!) || a.ourSku!.localeCompare(b.ourSku!));
+}
+
+/** Mark these as prepared for Meesho, so the next batch is what has happened since. */
+export function markMeesho(book: LatchBook, skus: string[], on = todayStamp()): LatchBook {
+  const done = new Set(skus);
+  return {
+    ...book,
+    rows: book.rows.map((r) => (r.ourSku && done.has(r.ourSku) ? { ...r, meeshoOn: on } : r)),
+  };
 }

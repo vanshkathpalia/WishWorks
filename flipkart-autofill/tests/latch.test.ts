@@ -20,10 +20,11 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, cardState, labelKey, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  approvedBrands, blocking, cardState, forMeesho, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
+  type LatchRecord,
 } from "../src/latch-core.js";
 
 const LABELS = `
@@ -732,5 +733,48 @@ describe("the latch flow stops before Save", () => {
 
   it("never clicks a submit control", () => {
     expect(source).not.toMatch(/type=submit|\[type="submit"\]/);
+  });
+});
+
+/**
+ * The Meesho queue. A latch is half the job: the same product sells on both marketplaces, and
+ * Meesho has no catalog to attach to — it is a bulk sheet and an image upload, done in batches.
+ * The failure this prevents is the quiet one: a product latched three weeks ago that nobody ever
+ * put on Meesho, which is three weeks of sales not taken and nothing on screen to say so.
+ */
+describe("what is waiting to go on Meesho", () => {
+  const row = (sku: string, latchedOn: string, extra: Partial<LatchRecord> = {}): LatchRecord => ({
+    sku: `R${sku}`, description: sku, seen: 0, fsn: `F${sku}`, title: sku,
+    state: "form", checkedOn: null, latchedOn, ourSku: sku, ...extra,
+  });
+
+  const book: LatchBook = {
+    packs: [],
+    rows: [
+      row("ANP018", "2026-09-13"),
+      row("ANP017", "2026-08-20"),
+      row("ANP016", "2026-09-01", { meeshoOn: "2026-09-02" }),
+      { ...row("ANP015", "2026-09-01"), ourSku: undefined },
+      { ...row("ANP014", "2026-09-01"), latchedOn: undefined },
+    ],
+  };
+
+  it("takes only what is latched, has our SKU, and is not done yet", () => {
+    expect(forMeesho(book).map((r) => r.ourSku)).toEqual(["ANP017", "ANP018"]);
+  });
+
+  it("puts the longest wait first, unlike the price queue", () => {
+    // Oldest first on purpose: here the question is what has been waiting, not what is riskiest.
+    expect(forMeesho(book)[0].ourSku).toBe("ANP017");
+  });
+
+  it("leaves out a row with no SKU of ours, which is not ready to prepare", () => {
+    expect(forMeesho(book).some((r) => r.title === "ANP015")).toBe(false);
+  });
+
+  it("marking a batch takes it out of the next one", () => {
+    const after = markMeesho(book, ["ANP017"], "2026-09-14");
+    expect(forMeesho(after).map((r) => r.ourSku)).toEqual(["ANP018"]);
+    expect(after.rows.find((r) => r.ourSku === "ANP017")!.meeshoOn).toBe("2026-09-14");
   });
 });
