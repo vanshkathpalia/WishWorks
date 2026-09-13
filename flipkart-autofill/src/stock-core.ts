@@ -674,3 +674,91 @@ export function untallied(
     .map(([id, v]) => ({ key: id, name: v.name, pieces: v.pieces }))
     .sort((a, b) => b.pieces - a.pieces);
 }
+
+
+// ---------------------------------------------------------------- ordering ahead of the trend
+
+/** One material to buy, and the arithmetic that says so. */
+export interface Need {
+  key: string;
+  name: string;
+  /** Pieces needed to cover the horizon. */
+  pieces: number;
+  /** The same in supplier packets, rounded UP. Null when the pack size is unknown. */
+  packs: number | null;
+  /** Pieces in one supplier packet, when known. */
+  perPack: number | null;
+  /**
+   * Which SKUs are asking for it, and how much each.
+   *
+   * **The working, kept rather than collapsed.** Vansh described the answer as arithmetic he does
+   * in his head — *"if each pkt of anp1 takes 4 pcs of heart and I get on avg 10 orders of anp1,
+   * then 4 x 10 x 15"* — and a number without that behind it is a number nobody can check. It is
+   * also the only way to see WHY a figure jumped: one SKU selling harder, not every SKU drifting.
+   */
+  from: { sku: string; perDay: number; perKit: number; pieces: number }[];
+}
+
+/**
+ * What to order to cover the next `horizonDays`, from what has actually been selling.
+ *
+ * **Per SKU, then per material — not straight from material burn.** `nextCall` already works out
+ * cover from how fast each material has been consumed, which is right for keeping the shelf topped
+ * up. This answers a different question: *at the rate these kits are selling, what do I need?* The
+ * difference shows the moment one SKU moves — a material burn rate averages that away, while this
+ * says which kit caused it and how much of the total it is.
+ *
+ * `sold` is parcels per SKU over `windowDays`, so the rate is measured rather than guessed. A
+ * longer window is steadier and slower to notice a change; the caller picks, because a fortnight of
+ * history and a quarter of it answer honestly different questions.
+ *
+ * Packets round UP, always. Half a packet cannot be ordered, and rounding down is how a kit runs
+ * one piece short.
+ */
+export function forecast(opts: {
+  /** SKU -> parcels shipped in the window. */
+  sold: Map<string, number>;
+  windowDays: number;
+  horizonDays: number;
+  /** Every costed kit and what ONE of it is made of — `listKits(dir, materials)`. */
+  kits: { sku: string; materials?: { key: string; name: string; pieces: number }[] }[];
+  /** Pieces in one supplier packet, per material key. */
+  packSizes?: Map<string, number>;
+}): Need[] {
+  const { sold, windowDays, horizonDays, kits, packSizes = new Map() } = opts;
+  if (windowDays <= 0 || horizonDays <= 0) return [];
+
+  const needs = new Map<string, Need>();
+  for (const kit of kits) {
+    const parcels = sold.get(kit.sku) ?? 0;
+    if (!parcels || !kit.materials?.length) continue;
+    const perDay = parcels / windowDays;
+
+    for (const m of kit.materials) {
+      if (!m.pieces) continue;
+      const pieces = perDay * horizonDays * m.pieces;
+      const row: Need = needs.get(m.key) ?? {
+        key: m.key,
+        name: m.name,
+        pieces: 0,
+        packs: null,
+        perPack: packSizes.get(m.key) ?? null,
+        from: [],
+      };
+      row.pieces += pieces;
+      row.from.push({ sku: kit.sku, perDay, perKit: m.pieces, pieces });
+      needs.set(m.key, row);
+    }
+  }
+
+  return [...needs.values()]
+    .map((n) => ({
+      ...n,
+      pieces: Math.ceil(n.pieces),
+      // Rounded up: half a packet cannot be ordered, and rounding down runs a kit one piece short.
+      packs: n.perPack ? Math.ceil(n.pieces / n.perPack) : null,
+      // Biggest contributor first, so "why is this number so high" is answered by the first line.
+      from: n.from.sort((a, b) => b.pieces - a.pieces).map((f) => ({ ...f, pieces: Math.ceil(f.pieces) })),
+    }))
+    .sort((a, b) => b.pieces - a.pieces || a.name.localeCompare(b.name));
+}

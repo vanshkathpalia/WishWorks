@@ -467,3 +467,22 @@ a banner that says HAPPY BIRTHDAY is the product, not an overlay. Meesho rejects
 with text or a logo on it, so this is what makes a borrowed photo usable rather than a nicety.
 
 **Next, in Vansh's order:** the meta + product JSON chat, then Meesho individual, then Meesho bulk.
+
+
+## WW-192 — How much to order for the next fortnight
+
+**Done, 2026-09-14.** `forecast()` reads parcels per SKU over a window, multiplies by what one kit
+is made of, and says what to buy for the next N days — **with the arithmetic shown per SKU**, which
+is how Vansh works it out by hand and the only way a figure can be checked or explained.
+
+Tested against his own worked example (4 hearts × 10 orders × 15 days = 600 pcs = 12 pkt) and run
+against the real ledgers: 71 parcels over 40 days, 62 of them September.
+
+It sits beside `nextCall` rather than replacing it — *what is running out* and *what will be needed*
+are different questions, and a material burn rate has already averaged away which kit is burning it.
+See `docs/learning/24`.
+
+**Not on screen yet.** The engine and its tests are in; the Stock tab does not show it.
+
+**Branch note:** `latch-autofill` was merged into `main` (fast-forward) and deleted. Everything from
+this session — latching, sweeps, approvals, the image run, the Meesho queue, this — is on `main`.
