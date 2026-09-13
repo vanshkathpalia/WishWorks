@@ -20,7 +20,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, pickProduct, readLatches, searchHistory, searchPage, shareText, weSell,
+  approvedBrands, cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -443,11 +443,12 @@ describe("keeping track of what has been hunted", () => {
 });
 
 /**
- * The buffer: what we latched but have not priced. The two halves of the job happen days apart —
- * the latch is a minute, the costing waits on a photo, a ChatGPT reply and a human checking it —
- * so anything that falls through here is a LIVE listing sitting at the default ₹220 forever.
+ * The buffer, and the order it comes in. A latched listing is LIVE — it can take an order tonight
+ * — so the list is sorted by what being caught out would COST, not by when it was latched. The
+ * failure that matters: a kit we cannot pack sitting below one that merely needs a price signed.
  */
 describe("what we latched but have not priced", () => {
+  const ok = { costed: true, confirmed: true, unmatched: 0, flagged: 0, lines: 5, short: [] };
   const book: LatchBook = {
     packs: [{ file: "labels.pdf", addedOn: "2026-09-13", skus: ["R1", "R2", "R3"] }],
     rows: [
@@ -462,26 +463,55 @@ describe("what we latched but have not priced", () => {
     ],
   };
 
-  it("drops the ones whose price somebody has signed off", () => {
-    const p = pendingPrices(book, new Set(["ANP001", "ANP002"]), new Set(["ANP001"]));
-    // Newest latch first, then by title — "Three" before "Two".
-    expect(p.map((r) => r.fsn)).toEqual(["F3", "F2"]);
+  it("puts a kit we cannot pack above everything else", () => {
+    // ANP002 is fully costed and signed off — and we have none of one of its materials. That
+    // outranks ANP001, which is merely uncosted, because only one of them ends in a cancellation.
+    const p = pendingPrices(book, new Map([
+      ["ANP002", { ...ok, short: ["Red Fringes"] }],
+    ]));
+    expect(p[0].ourSku).toBe("ANP002");
+    expect(p[0].reasons[0]).toContain("no stock of Red Fringes");
+    expect(p[0].risk).toBeGreaterThan(p[1].risk);
+  });
+
+  it("drops the ones that are costed, confirmed and in stock", () => {
+    const p = pendingPrices(book, new Map([["ANP001", ok], ["ANP002", ok]]));
+    expect(p.map((r) => r.fsn)).toEqual(["F3"]); // only the one with no SKU is left
+  });
+
+  it("keeps a confirmed kit in the list when we have none of its materials", () => {
+    // Signed off is not safe. The price is right and we still cannot pack it.
+    const p = pendingPrices(book, new Map([["ANP001", { ...ok, short: ["Gold Foil"] }], ["ANP002", ok]]));
+    expect(p.map((r) => r.ourSku)).toContain("ANP001");
   });
 
   it("says WHICH thing is missing, because each needs a different action", () => {
-    const p = pendingPrices(book, new Set(["ANP002"]), new Set());
-    // ANP001 is latched but has no costing at all; R3 has no SKU so we cannot even look one up.
+    const p = pendingPrices(book, new Map([["ANP002", { ...ok, confirmed: false }]]));
     expect(p.find((r) => r.fsn === "F1")!.why).toBe("none");
     expect(p.find((r) => r.fsn === "F2")!.why).toBe("unconfirmed");
     expect(p.find((r) => r.fsn === "F3")!.why).toBe("no-sku");
   });
 
+  it("scores a loose match by how much of the kit is guesswork", () => {
+    // "feroggi color balloon" matches "balloon" — a kit held together by those is a kit whose
+    // materials list is a guess, and a guess cannot be shopped from.
+    const few = riskOf({ ...ok, confirmed: false, flagged: 1, lines: 10 });
+    const most = riskOf({ ...ok, confirmed: false, flagged: 9, lines: 10 });
+    expect(most.risk).toBeGreaterThan(few.risk);
+    expect(most.reasons.some((r) => r.includes("9 of 10"))).toBe(true);
+  });
+
+  it("treats a line on no price row as a material we may never have bought", () => {
+    const r = riskOf({ ...ok, confirmed: false, unmatched: 2 });
+    expect(r.reasons.some((x) => x.includes("never bought"))).toBe(true);
+  });
+
   it("ignores products we never latched", () => {
-    expect(pendingPrices(book, new Set(), new Set()).some((r) => r.fsn === "F4")).toBe(false);
+    expect(pendingPrices(book, new Map()).some((r) => r.fsn === "F4")).toBe(false);
   });
 
   it("traces each one back to the pack it came from", () => {
-    expect(pendingPrices(book, new Set(), new Set())[0].from).toEqual(["labels.pdf"]);
+    expect(pendingPrices(book, new Map())[0].from).toEqual(["labels.pdf"]);
   });
 });
 

@@ -2759,3 +2759,11 @@ h3 > button.tiny {
 
 .latch-table .from { color: var(--muted, #5a6472); font-size: 11px; }
 .latch-table .why { color: var(--warn, #b8860b); white-space: nowrap; font-size: 12px; }
+
+/* The queue is sorted by what being caught out would cost, so the score is shown: an order nobody
+   can argue with is an order nobody trusts. Red at 50 — the exact weight of "a material this kit
+   needs is not in the room", which is the only entry here that ends in a cancelled order. */
+.latch-table .risk { font-variant-numeric: tabular-nums; text-align: right; width: 2.5em;
+  color: var(--muted, #5a6472); }
+.latch-table tr.urgent .risk { color: var(--bad, #e2664f); font-weight: 600; }
+.latch-table tr.urgent .title { font-weight: 500; }

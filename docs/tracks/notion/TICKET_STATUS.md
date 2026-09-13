@@ -392,3 +392,28 @@ tab per candidate instead of a refusal would suit that case and is a small chang
 `pdftotext`, because a Flipkart label is Qt-generated with subsetted CID fonts that the zlib reader
 in `orders-core.ts` cannot touch. Latching is Vansh's own job on his own Mac. If it ever has to
 ship in the .exe, that is when the ToUnicode reader gets written.
+
+
+## WW-186 — The latch queue is sorted by what would cost the most to get wrong
+
+**Done, 2026-09-13, branch `latch-autofill`.**
+
+Latching introduces products built on materials we may never have bought — which is exactly what
+the supplier-call work (WW-18x, on `main`) exists to catch. The two now meet: `latchPending` joins a
+latch row (named by the other seller's SKU) to its costing (named by ours) to the shelf, and scores
+each one. A kit whose materials are **not in the room** goes to the top, above anything that merely
+needs a price signed off, because that is the only entry on the list that ends in a cancelled order
+and a dinged account. See `docs/learning/20`.
+
+**Also in this branch:** brand approvals turned into listable products. Flipkart's own *Add
+Listings* button drops the brand and vertical on the first re-render and aims at our own drafts
+rather than the catalog, which is why Vansh could never find what he had just been approved for —
+recorded, not guessed. Replaced by sweeping each approved brand.
+
+**Two rails on every sweep, after a real hour was lost:** searching the approved brand `tigorik`
+returned 251 products and 146 "latchable" **Tata Tigor car covers**, Flipkart having fuzzy-matched
+the brand to a car model. Now the title must start with the brand AND the product must be something
+we sell (`weSell`). Both are pinned by tests using the actual car-cover titles.
+
+**Open:** the price updater (#4) still needs a live My Listings edit page. ChatGPT's costing hand-off
+is blocked on Google refusing OAuth inside an automated Chrome.

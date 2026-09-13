@@ -24,6 +24,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { filePathFromUrl } from "./shared.js";
+import type { KitHealth as LatchKitHealth } from "../src/latch-core.js";
 import type {
   Account, Attempt, CleanUp, ConvertResult, DefaultsTab, FolderKey, Row, StepId,
 } from "./shared.js";
@@ -980,6 +981,41 @@ ipcMain.handle("importShared", async (_e, text: string): Promise<Attempt<unknown
  * and reading them is free while the tabs are there. Nothing fails if they are closed — those rows
  * simply stay "SKU not known yet", which is a state the screen shows rather than an error.
  */
+/**
+ * Pieces left on the shelf, by material, for anything that can be answered honestly.
+ *
+ * The same arithmetic the Raw stock panel shows, reduced to the one question the latch queue asks:
+ * *is there any of this in the room?* Rows the note counted in packets with no known pack size are
+ * LEFT OUT rather than guessed at — `onHand` refuses to compute `left` for those, and a missing
+ * answer must not read as zero when the queue's whole job is to flag zeroes.
+ */
+async function shelfLeft(): Promise<Map<string, number>> {
+  const stock = await stockEngine();
+  const orders = await ordersEngine();
+  const { listKits, loadMaterials, KITS_DIR: KD } = await inventoryEngine();
+
+  const deliveries = await stock.listDeliveries();
+  const from = stock.firstDelivery(deliveries);
+  const materials = loadMaterials();
+  const names = new Map(materials.map((m) => [`${m.category}|${m.material}`, m.material]));
+  const perPack = new Map(
+    materials.filter((m) => m.packOf).map((m) => [`${m.category}|${m.material}`, m.packOf!]),
+  );
+  const used = new Map<string, { pieces: number; perWeek: number }>();
+  if (from !== null) {
+    const ledgers = await orders.listLedgers();
+    const day = new Date().toISOString().slice(0, 10);
+    for (const b of orders.howItSells(ledgers, listKits(KD, materials), from, day).burn) {
+      used.set(b.key, { pieces: b.pieces, perWeek: b.piecesPerWeek });
+    }
+  }
+  const out = new Map<string, number>();
+  for (const row of stock.onHand(deliveries, used, names, perPack)) {
+    if (!row.needsPackSize) out.set(row.key, row.left);
+  }
+  return out;
+}
+
 ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
   const { readLatches, writeLatches, readOurSkus, pendingPrices } = await latchEngine();
   const { openTabs } = await import("../src/browser-core.js");
@@ -996,16 +1032,47 @@ ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
   }
   if (picked) await writeLatches(book);
 
-  // The costings live in the OTHER engine, and this is the only place the two meet: a set of SKUs
-  // in, a list out. Keeping the join here rather than inside either engine is what stops the latch
-  // engine depending on the inventory one.
+  /**
+   * Where the three engines meet, and the only place they do.
+   *
+   * A latch row knows the other seller's SKU; a costing knows ours; the shelf knows materials.
+   * Joining them here keeps `latch-core` ignorant of kits and `inventory-core` ignorant of
+   * latching — each stays testable alone, and the join is one function with a name.
+   *
+   * **The shelf is why this is worth the trouble.** A latched listing is live and can take an
+   * order tonight; if its kit needs a material we have none of, the choice is a cancellation —
+   * which costs account health — or a scramble. That belongs at the top of the queue, above
+   * anything that merely needs a price signed off.
+   */
   const inv = await inventoryEngine();
-  const kits = inv.listKits(KITS_DIR).map((k) => inv.readKit(k.file));
-  const rows = pendingPrices(
-    book,
-    new Set(kits.map((k) => k.sku)),
-    new Set(kits.filter((k) => k.confirmedAt).map((k) => k.sku)),
-  );
+  const materials = inv.loadMaterials();
+  const kits = inv.listKits(KITS_DIR, materials);
+  const shelf = await shelfLeft().catch(() => new Map<string, number>());
+
+  const health = new Map<string, LatchKitHealth>();
+  for (const row of kits) {
+    const saved = inv.readKit(row.file);
+    const costed = inv.costKit(
+      saved.lines, materials, saved.overrides, saved.sku, saved.prices, saved.counts, saved.resolved,
+    );
+    health.set(row.sku, {
+      costed: true,
+      confirmed: !!saved.confirmedAt,
+      unmatched: costed.unmatched,
+      flagged: costed.flagged,
+      lines: costed.lines.length,
+      // None on the shelf, or never seen there at all. To somebody packing an order tonight those
+      // are the same fact: it is not in the room.
+      short: (row.materials ?? [])
+        .filter((m) => {
+          const on = shelf.get(m.key);
+          return on === undefined || on <= 0;
+        })
+        .map((m) => m.name),
+    });
+  }
+
+  const rows = pendingPrices(book, health);
   return {
     ok: true,
     result: { rows, book },

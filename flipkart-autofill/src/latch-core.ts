@@ -1139,6 +1139,24 @@ export async function readOurSkus(pages: Page[]): Promise<Record<string, string>
   return out;
 }
 
+/**
+ * What the costing of one of OUR SKUs looks like, as far as the queue needs to care.
+ *
+ * Passed in rather than read here, so this file never has to know about kits, materials or the
+ * shelf — the join between the three engines happens once, in the handler.
+ */
+export interface KitHealth {
+  costed: boolean;
+  confirmed: boolean;
+  /** Lines whose reading matched no material on the price list at all. */
+  unmatched: number;
+  /** Lines that matched, but loosely enough to be worth checking against the picture. */
+  flagged: number;
+  lines: number;
+  /** Materials this kit needs that the shelf says we have none of, or has never seen. */
+  short: string[];
+}
+
 /** A latched product whose price nobody has signed off yet. */
 export interface Pending {
   fsn: string;
@@ -1152,33 +1170,94 @@ export interface Pending {
   listed: Listed | null;
   /** `none` = no costing at all; `unconfirmed` = costed, but nobody has checked it. */
   why: "no-sku" | "none" | "unconfirmed";
+  /** How urgently this one needs a human, 0–100. The order of the list. */
+  risk: number;
+  /** Why it scored that, in words. A number nobody can read is a number nobody acts on. */
+  reasons: string[];
 }
 
 /**
- * Everything we have latched that is not yet priced with a price somebody stands behind.
+ * How urgent one latched-but-unpriced listing is.
+ *
+ * **The thing that makes this more than a to-do list: a latched listing is LIVE.** It can take an
+ * order tonight. Vansh, 2026-09-13: *"maybe we get orders for this, and maybe we don't have this
+ * at our inventory… accepting the order and then doing the cancellation downgrades our Flipkart
+ * account."* So the queue is not sorted by when it was latched — it is sorted by what it would
+ * cost to be caught out.
+ *
+ * The weights, worst first, and each is a different kind of trouble:
+ *
+ *  - **A material the shelf has none of (50).** The only failure here that cannot be fixed after
+ *    the order arrives. Everything else costs attention; this costs a cancellation.
+ *  - **No costing at all (30).** Live, and nobody has even looked at what it is made of.
+ *  - **A line matching nothing on the price list (25).** Usually a material we have never bought —
+ *    which is precisely what latching keeps introducing, and what the supplier call exists to
+ *    catch. Not knowing the price is the small half; not owning it is the large one.
+ *  - **Loose matches (up to 15, by share of the kit).** Vansh's own example: *"if we name like
+ *    feroggi color balloon then it's going to match for balloon."* A kit held together by loose
+ *    matches is a kit whose materials list is a guess, and a guess cannot be shopped from.
+ *  - **No SKU known (20).** Nothing can be checked at all until somebody says which kit it is.
+ *  - **Costed but unconfirmed (5).** The ordinary case, and the reason the list exists — but the
+ *    least dangerous thing on it.
+ *
+ * ponytail: hand-weighted, and deliberately. The alternative is a model nobody can argue with; a
+ * person needs to be able to say "a stockout is worth more than two loose matches" and change it.
+ */
+export function riskOf(health: KitHealth | null): { risk: number; reasons: string[] } {
+  const reasons: string[] = [];
+  let risk = 0;
+  if (!health) {
+    return { risk: 20, reasons: ["SKU not known — nothing can be checked yet"] };
+  }
+  if (health.short.length) {
+    risk += 50;
+    reasons.push(
+      `no stock of ${health.short.slice(0, 3).join(", ")}` +
+        (health.short.length > 3 ? ` and ${health.short.length - 3} more` : ""),
+    );
+  }
+  if (!health.costed) {
+    risk += 30;
+    reasons.push("no costing yet — live, and we do not know what it is made of");
+  }
+  if (health.unmatched) {
+    risk += 25;
+    reasons.push(`${health.unmatched} line${health.unmatched === 1 ? "" : "s"} on no price row — likely a material we have never bought`);
+  }
+  if (health.lines && health.flagged) {
+    const share = health.flagged / health.lines;
+    risk += Math.round(share * 15);
+    reasons.push(`${health.flagged} of ${health.lines} lines matched loosely — check them against the picture`);
+  }
+  if (health.costed && !health.confirmed) {
+    risk += 5;
+    reasons.push("costed, but nobody has signed the price off");
+  }
+  return { risk: Math.min(risk, 100), reasons };
+}
+
+/**
+ * Everything we have latched that is not yet priced with a price somebody stands behind,
+ * **worst first**.
  *
  * This is the buffer Vansh asked for, and it exists because the two halves of the job happen days
  * apart: the latch is a minute's work and the costing waits on a photo, a ChatGPT reply and a
  * human checking it. Without a list, what falls through is silent — a live listing at the default
- * ₹220 that nobody ever went back to.
+ * ₹220 that nobody ever went back to, possibly for a kit we cannot even pack.
  *
- * `confirmedSkus` is the set of OUR SKUs whose costing has been signed off, and `costedSkus` those
- * that have a costing at all. Passing them in rather than reading the kits here keeps this pure,
- * and keeps the latch engine from depending on the inventory engine.
+ * `health` is our own SKUs to what their costing looks like; a SKU absent from it has no costing.
  */
-export function pendingPrices(
-  book: LatchBook,
-  costedSkus: Set<string>,
-  confirmedSkus: Set<string>,
-): Pending[] {
+export function pendingPrices(book: LatchBook, health: Map<string, KitHealth>): Pending[] {
   const packsOf = (sku: string) => book.packs.filter((p) => p.skus.includes(sku)).map((p) => p.file);
   return book.rows
     .filter((r) => r.latchedOn)
     .map((r) => {
       const ourSku = r.ourSku ?? null;
+      const mine = ourSku ? (health.get(ourSku) ?? null) : null;
+      const { risk, reasons } = riskOf(ourSku ? (mine ?? { costed: false, confirmed: false, unmatched: 0, flagged: 0, lines: 0, short: [] }) : null);
       // Three different reasons, because they need three different actions: find the SKU, cost the
       // kit, or go and check a costing. One "not done" would hide which.
-      const why: Pending["why"] = !ourSku ? "no-sku" : costedSkus.has(ourSku) ? "unconfirmed" : "none";
+      const why: Pending["why"] = !ourSku ? "no-sku" : mine?.costed ? "unconfirmed" : "none";
       return {
         fsn: r.fsn ?? r.sku,
         title: r.title ?? r.description,
@@ -1187,10 +1266,14 @@ export function pendingPrices(
         latchedOn: r.latchedOn!,
         listed: r.listed ?? null,
         why,
+        risk,
+        reasons,
       };
     })
-    .filter((p) => !(p.ourSku && confirmedSkus.has(p.ourSku)))
-    .sort((a, b) => b.latchedOn.localeCompare(a.latchedOn) || a.title.localeCompare(b.title));
+    .filter((p) => !(p.ourSku && health.get(p.ourSku)?.confirmed && !health.get(p.ourSku)?.short.length))
+    // **Worst first, not newest first.** The whole point is that one of these can cost a
+    // cancellation and the rest cost attention.
+    .sort((a, b) => b.risk - a.risk || b.latchedOn.localeCompare(a.latchedOn) || a.title.localeCompare(b.title));
 }
 
 // ---------------------------------------------------------------- brands we have been approved for

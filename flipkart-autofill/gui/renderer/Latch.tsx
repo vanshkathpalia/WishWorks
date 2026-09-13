@@ -334,6 +334,10 @@ export function Latch({ n }: { n: number }) {
       {/* The buffer. A latch takes a minute; its costing waits on a photo, a ChatGPT reply and a
           person checking it — days later. Without this list what falls through is silent: a live
           listing sitting at the default ₹220 that nobody ever went back to. */}
+      {/* The buffer, worst first. A latch takes a minute; its costing waits on a photo, a
+          ChatGPT reply and a person checking it — days later. And the listing is LIVE the whole
+          time, so the one at the top is not the oldest, it is the one that would cost the most to
+          be caught out on: a kit whose materials are not in the room. */}
       {pending && (
         <div className="latch-group">
           <h2>
@@ -345,20 +349,23 @@ export function Latch({ n }: { n: number }) {
             <table className="latch-table">
               <tbody>
                 {pending.map((p) => (
-                  <tr key={p.fsn}>
+                  <tr key={p.fsn} className={p.risk >= 50 ? "urgent" : ""}>
+                    {/* The score, so the order is arguable rather than mysterious. Red from 50,
+                        which is exactly the weight of "we have none of a material it needs". */}
+                    <td className="risk" title={p.reasons.join("\n")}>
+                      {p.risk}
+                    </td>
                     <td className="sku">{p.ourSku ?? "—"}</td>
                     <td className="title">
                       {p.title}
                       <span className="from"> {p.from.join(", ")}</span>
-                    </td>
-                    {/* Each reason needs a different action, so it says which rather than
-                        "not done": find the SKU, cost the kit, or go and check a costing. */}
-                    <td className="why">
-                      {p.why === "no-sku"
-                        ? "SKU not known — open its tab, or type it"
-                        : p.why === "none"
-                          ? "no costing yet"
-                          : "costed, not checked"}
+                      {p.reasons.length > 0 && (
+                        <ul className="near">
+                          {p.reasons.map((r) => (
+                            <li key={r}>{r}</li>
+                          ))}
+                        </ul>
+                      )}
                     </td>
                     <td className="when">latched {p.latchedOn}</td>
                   </tr>
