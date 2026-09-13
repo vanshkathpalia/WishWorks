@@ -3,6 +3,10 @@ node_modules/
 # The tool's own Chrome profile — holds the live Flipkart seller session (cookies, Login
 # Data). Never commit this; anyone with the folder is logged in as us.
 profile/
+# And the ChatGPT window's own profile, which holds a LIVE ChatGPT session. The pattern above did
+# not match it — `profile/` is a directory name, `profile-chat` is a different one — so for an hour
+# this folder was tracked. A session cookie in git is a logged-in account in git.
+profile-chat/
 
 # Working images. The folders themselves are kept (via .gitkeep) so the pipeline has
 # somewhere to write on a fresh clone; their contents are yours, not the repo's.

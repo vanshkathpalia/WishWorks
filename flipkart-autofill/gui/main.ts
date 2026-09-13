@@ -1327,7 +1327,7 @@ async function latchThese(
     readLatches, writeLatches, latchValues, openLatchForm, startSellingUrl, todayStamp,
     galleryImages, saveImage, imageFor, askChatGpt,
   } = await latchEngine();
-  const { newTab } = await import("../src/browser-core.js");
+  const { newTab, chatTab } = await import("../src/browser-core.js");
   const book = await readLatches();
   const rows = book.rows;
   const todo = only
@@ -1372,7 +1372,7 @@ async function latchThese(
         const gallery = await galleryImages(shelf);
         if (gallery.length > 1) {
           const file = await saveImage(shelf, gallery[1], imageFor(row.sku));
-          const chat = await newTab();
+          const chat = await chatTab();
           const answer = await askChatGpt(chat, file, prompt);
           if (answer === "login") loggedOut = true;
           if (answer === "ready") costing++;

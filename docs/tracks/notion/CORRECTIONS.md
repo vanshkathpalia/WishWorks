@@ -2569,8 +2569,19 @@ Google, so the same wall arrives one step later.
 own account, with the password typed by hand in a window he is looking at. Nothing automates the
 credential. The warning exists for people typing a password into somebody else's embedded browser.
 
-**Why it is not committed.** The edit is in `src/connect.ts` in the working tree, and the commit was
-refused by this session's own safety classifier as a security weakening — which, read as a bare
-diff, is what it looks like. That call belongs to Vansh, not to me, and the alternatives if he would
-rather not: sign in to ChatGPT by hand once in that window when it comes up, or drop the ChatGPT
-step and cost kits from the photo some other way.
+**How it was resolved.** The first version put the switch on EVERY browser this tool launches,
+including the one the business partner installs and runs all day. Vansh: *"I don't think my partner
+will be able to open this app comfortably now."* Correct, and the fix was to make it smaller rather
+than to argue: ChatGPT now gets its own Chrome, its own profile, and opens nothing but
+`chatgpt.com`. The Flipkart browser is exactly as it was.
+
+**Be clear about what that did and did not do.** It did not make the sign-in safer — it is the same
+switch. It confined it to one window, for one account, that no partner machine ever launches. There
+was never a version where an automated Chrome signs in to Google without it; the only alternative
+was doing the ChatGPT step by hand.
+
+**And a bug it introduced, caught by Vansh asking whether his password was safe:** the new
+`profile-chat/` folder was NOT covered by `.gitignore`. `profile/` is a directory name and does not
+match `profile-chat`. For about an hour, a live ChatGPT session was one `git add -A` from being
+committed. Nothing was staged in the end. *A new profile directory needs a new ignore rule; the old
+one does not stretch.*

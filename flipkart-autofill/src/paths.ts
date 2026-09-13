@@ -72,3 +72,13 @@ export function showPath(file: string): string {
   const rel = path.relative(ROOT, file);
   return rel.startsWith("..") ? file : rel;
 }
+
+
+/**
+ * Chrome's profile for the ChatGPT window — separate from the Flipkart one, deliberately.
+ *
+ * Two accounts that have nothing to do with each other should not share a cookie jar, and the
+ * ChatGPT browser is launched with a switch the Flipkart one must not have (see `openChatBrowser`).
+ * Beside the main profile rather than inside it, so deleting either leaves the other alone.
+ */
+export const CHAT_PROFILE_DIR = process.env.WW_CHAT_PROFILE_DIR ?? `${PROFILE_DIR}-chat`;

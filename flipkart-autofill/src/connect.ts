@@ -23,7 +23,7 @@ import path from "node:path";
 // used to compute its own ROOT from import.meta.url — a second path convention in one codebase,
 // which is exactly what C-032 was about.
 export { PROFILE_DIR } from "./paths.js";
-import { PROFILE_DIR } from "./paths.js";
+import { CHAT_PROFILE_DIR, PROFILE_DIR } from "./paths.js";
 
 export interface Session {
   context: BrowserContext;
@@ -145,6 +145,52 @@ function friendlyLaunchError(e: unknown): Error {
   return e as Error;
 }
 
+/**
+ * A SECOND Chrome, for ChatGPT and nothing else.
+ *
+ * **Why it is separate.** Signing in to ChatGPT with a Google account fails inside an automated
+ * browser: Google reads `navigator.webdriver`, which CDP sets, and answers *"this browser or app
+ * may not be secure"*. One switch fixes it — and putting that switch on the Chrome that does
+ * Flipkart would mean the whole tool, including everything the business partner installs and runs,
+ * launching a browser told to stop admitting what it is, to buy one login it never uses.
+ *
+ * So the switch lives here, on a browser that only ever opens `chatgpt.com`, under its own profile.
+ * The Flipkart session is untouched and unaware. Vansh, 2026-09-13, on the global version:
+ * *"I don't think my partner will be able to open this app comfortably now."* He was right, and
+ * this is the version where that concern does not apply — nothing the partner does comes near it.
+ *
+ * Its own profile directory also means its own login, which is correct: the ChatGPT account and the
+ * Flipkart seller account have nothing to do with each other and should not share a cookie jar.
+ */
+export async function openChatBrowser(): Promise<Session> {
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(CHAT_PROFILE_DIR, {
+      channel: "chrome",
+      headless: false,
+      viewport: null,
+      args: [
+        "--no-first-run",
+        "--no-default-browser-check",
+        // The one line this whole separate browser exists to contain. See the note above.
+        "--disable-blink-features=AutomationControlled",
+      ],
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
+    });
+  } catch (e) {
+    throw friendlyLaunchError(e);
+  }
+  let closed = false;
+  const close = async () => {
+    if (closed) return;
+    closed = true;
+    await context.close().catch(() => {});
+  };
+  return { context, close };
+}
+
 export async function openBrowser(): Promise<Session> {
   ensureProfileFree();
   let context;
@@ -153,29 +199,14 @@ export async function openBrowser(): Promise<Session> {
       channel: "chrome", // your real Chrome — better session handling than bundled Chromium
       headless: false,
       viewport: null,
-      args: [
-        "--start-maximized",
-        "--no-first-run",
-        "--no-default-browser-check",
-        /**
-         * Stop Chrome announcing itself as automated.
-         *
-         * **Without this, Google refuses to sign you in.** Signing in to ChatGPT with a Google
-         * account lands on *"Couldn't sign you in — this browser or app may not be secure"*, which
-         * blocks the costing half of the latch flow: the contents photo and the kit JSON both come
-         * from ChatGPT, and there is no way in without the account.
-         *
-         * Measured, 2026-09-13: Playwright does not pass `--enable-automation`, but CDP sets
-         * `navigator.webdriver = true` and that is the flag Google reads. With this switch it
-         * reads `false` and the sign-in proceeds.
-         *
-         * This is not a way past a security control. It is Vansh's own Chrome, on Vansh's own
-         * machine, signing in to Vansh's own accounts; the check exists to warn people pasting
-         * their password into somebody else's embedded browser, which is not what this is. Nothing
-         * here touches the login itself — it is typed by hand, in a window he is looking at.
-         */
-        "--disable-blink-features=AutomationControlled",
-      ],
+      args: ["--start-maximized", "--no-first-run", "--no-default-browser-check"],
+      // **Deliberately NOT `--disable-blink-features=AutomationControlled`.** It was added on
+      // 2026-09-13 and taken straight back out. It does work: CDP sets `navigator.webdriver = true`
+      // and that is what Google reads before refusing a sign-in with *"this browser or app may not
+      // be secure"*, and the switch makes it read false. But it buys exactly one thing — signing in
+      // to ChatGPT with a Google account — and everything Flipkart has always worked without it.
+      // A line whose only description is "make the browser stop admitting what it is" is not worth
+      // carrying in a tool somebody else has to trust and install. See C-052 for the alternatives.
       // Do NOT let Playwright kill Chrome on Ctrl+C. Its default handler tears the browser
       // down before cookies are flushed, which is precisely how the saved login disappeared.
       // We install our own handlers below that close it gracefully instead. (Verified: with

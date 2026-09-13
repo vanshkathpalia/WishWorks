@@ -17,7 +17,9 @@
 
 import path from "node:path";
 import type { BrowserContext, Page } from "playwright";
-import { openBrowser, activePage, looksLoggedIn, APP_URL, type Session } from "./connect.js";
+import {
+  openBrowser, openChatBrowser, activePage, looksLoggedIn, APP_URL, type Session,
+} from "./connect.js";
 import { clickSave, extractFields, probeField } from "./fields.js";
 import { findById, whyNoMatch } from "./id.js";
 import { PRODUCTS_DIR } from "./paths.js";
@@ -273,4 +275,26 @@ export async function newTab(): Promise<Page> {
 /** Every tab currently open in the live session, for reading something back out of one. */
 export function openTabs(): Page[] {
   return session?.context.pages().filter((p) => !p.isClosed()) ?? [];
+}
+
+
+/**
+ * The ChatGPT window, opened on demand and kept for the session.
+ *
+ * A second browser rather than a second tab, because it is launched differently — see
+ * `openChatBrowser`. Held the same way the Flipkart one is: one per session, closed only when
+ * somebody says so, because a half-written costing chat is work.
+ */
+let chat: Session | null = null;
+
+export async function chatTab(): Promise<Page> {
+  if (!chat) chat = await openChatBrowser();
+  return chat.context.newPage();
+}
+
+/** Close the ChatGPT window gracefully, so its login is written to disk. Never automatic. */
+export async function closeChat(): Promise<void> {
+  const c = chat;
+  chat = null;
+  await c?.close().catch(() => {});
 }
