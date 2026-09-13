@@ -27,6 +27,33 @@ dist/
 # ---------------------------------------------------------------------------
 !*.json
 
+# ---------------------------------------------------------------------------
+# Marketplace exports, and any other data file dropped at the top level.
+#
+# `flipkart-autofill/.gitignore` already keeps orders/, inventory/, products/ and
+# latch/ out, and it is thorough — but a nested .gitignore cannot reach ABOVE its
+# own folder, and a report downloaded from Meesho lands wherever the browser put
+# it, which is usually right here. Three `Orders_*.csv` sat in a PUBLIC repo that
+# way: every sub-order number, packet id, delivery state, and the price each SKU
+# actually sold for — which beside categories/materials.json is the exact margin
+# on every listing.
+#
+# So the rule is positional, not by name: a spreadsheet at the root of this repo,
+# or of flipkart-autofill/, is data and never code. Fixtures live in
+# tests/fixtures/ and are unaffected, as is anything nested like categories/.
+# ---------------------------------------------------------------------------
+/*.csv
+/*.xlsx
+/*.xls
+/flipkart-autofill/*.csv
+/flipkart-autofill/*.xlsx
+/flipkart-autofill/*.xls
+
+# And by name as well, so one dropped in a subfolder is still caught.
+Orders_*.csv
+**/*payment*.csv
+**/*settlement*.csv
+
 # Local editor/agent state — machine-specific, not shared.
 .claude/settings.local.json
 

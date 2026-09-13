@@ -37,6 +37,13 @@ inventory/
 # manifest that IS committed is tests/fixtures/meesho-manifest.pdf, which the parser is tested on.
 orders/
 
+# Delivery notes: what the supplier said arrived, what Vansh counted, and the tally between them.
+# Business data of exactly the same class as inventory/ and orders/ above — it names his supplier's
+# quantities and, netted against the price list, what he pays for them. Not bundled into the
+# installer either (electron-builder.yml ships only docs/guides and categories/), so nothing outside
+# his own machine needs it.
+stock/
+
 # The latch record: which of another seller's products we have checked, what Flipkart said, and
 # their prices. Business data like orders/ and products/ above — and the images/ folder under it
 # holds other sellers' product photos, fetched to read a kit's contents off. Never the repo's.
