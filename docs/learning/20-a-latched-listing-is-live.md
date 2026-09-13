@@ -38,3 +38,30 @@ piece most likely to be wrong.
 **The shelf's silence is not a zero.** `onHand` refuses to compute `left` for a material counted in
 packets whose pack size nobody knows, and `shelfLeft` leaves those out rather than passing zero.
 A queue whose job is to flag zeroes must not invent them — see `docs/learning/16-a-blank-field-has-two-reasons.md`.
+
+
+## The addendum: pause, do not cancel
+
+**Vansh, 2026-09-13:** *"maybe add that in the next call directly — and also flag it, we should know
+what we have to pause before the delivery is given to us."*
+
+Two answers, and only one of them was new.
+
+**The supplier call already had it.** `nextCall` reads every costed kit, so a latched kit's
+materials are on the call the moment the kit is costed — `untried`, `out`, `soon` or `thin` as the
+case may be. Nothing needed adding. What it could NOT say is which of those lines is holding up a
+listing that is **already selling**: the difference between *order it this week* and *order it
+today, or take the listing down*. So the call marks those, and nothing else about it changed.
+Building a second list would have made both untrustworthy.
+
+**Pausing was new, and it is the point.** A paused listing costs the sales it would have made. An
+order taken and then cancelled costs account health, which cannot be bought back. So `toPause` is
+its own list, above the price queue on screen, because it is the only thing there whose deadline is
+set by somebody else — a buyer, tonight.
+
+`blocking()` groups it the other way round, by material, most-blocked first: one material holding
+four listings down is **one phone call**, and that is the shape the answer should arrive in.
+
+**`short` is carried as data, not parsed out of the reasons.** The reasons are sentences for a
+human; something ACTS on this one. Deciding to pause a listing by matching words in a sentence is
+how a pause silently stops happening the day somebody rewords it.

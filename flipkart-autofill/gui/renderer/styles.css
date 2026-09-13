@@ -2767,3 +2767,13 @@ h3 > button.tiny {
   color: var(--muted, #5a6472); }
 .latch-table tr.urgent .risk { color: var(--bad, #e2664f); font-weight: 600; }
 .latch-table tr.urgent .title { font-weight: 500; }
+
+/* The pause list sits above the price queue because it is the only thing on this screen whose
+   deadline is set by somebody else — a buyer, tonight. */
+.latch-group.pause h2 { color: var(--bad, #e2664f); }
+.latch-group.pause .why-pause { font-size: 12px; color: var(--muted, #5a6472); margin: 0 0 8px; }
+.latch-group.pause .blocking { font-size: 12px; margin: 8px 0 0; }
+
+/* A call line that is stopping something already selling. Every other line is "buy it soon";
+   this one is "buy it today, or take the listing down". */
+.blocks-live { color: var(--bad, #e2664f); font-weight: 500; }

@@ -83,6 +83,9 @@ export function Latch({ n }: { n: number }) {
   const [shared, setShared] = useState("");
   /** Latched but not yet priced. Loaded on demand — it reads the open Chrome tabs. */
   const [pending, setPending] = useState<Pending[] | null>(null);
+  /** Live listings we cannot pack, and the materials doing it. Loaded with the pending list. */
+  const [pause, setPause] = useState<Pending[]>([]);
+  const [blocking, setBlocking] = useState<{ material: string; skus: string[] }[]>([]);
 
   useEffect(() => void window.ww.latches().then(setBook), []);
   useEffect(
@@ -309,6 +312,8 @@ export function Latch({ n }: { n: number }) {
               void window.ww.latchPending().then((r) => {
                 if (!r.ok) return setError(r.message);
                 setPending(r.result.rows);
+                setPause(r.result.pause);
+                setBlocking(r.result.blocking);
                 setBook(r.result.book);
                 if (r.note) setNote(r.note);
               })
@@ -334,6 +339,44 @@ export function Latch({ n }: { n: number }) {
       {/* The buffer. A latch takes a minute; its costing waits on a photo, a ChatGPT reply and a
           person checking it — days later. Without this list what falls through is silent: a live
           listing sitting at the default ₹220 that nobody ever went back to. */}
+      {/* **Pause these before the next order arrives.** A paused listing costs the sales it would
+          have made; an order taken and cancelled costs account health, which cannot be bought back.
+          Above the price queue on purpose — this is the only list here with a deadline set by
+          somebody else's shopping. */}
+      {pause.length > 0 && (
+        <div className="latch-group pause">
+          <h2>
+            Pause these until the stock arrives <span className="count">{pause.length}</span>
+          </h2>
+          <p className="why-pause">
+            Live on Flipkart, and we have none of what they are made of. An order taken and then
+            cancelled costs the account; a paused listing costs only the sale.
+          </p>
+          <table className="latch-table">
+            <tbody>
+              {pause.map((p) => (
+                <tr key={p.fsn}>
+                  <td className="sku">{p.ourSku ?? "—"}</td>
+                  <td className="title">{p.title}</td>
+                  <td className="why">no {p.short.slice(0, 3).join(", ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {blocking.length > 0 && (
+            <p className="blocking">
+              One call fixes:{" "}
+              {blocking.map((b, i) => (
+                <span key={b.material}>
+                  {i > 0 && " · "}
+                  <strong>{b.material}</strong> ({b.skus.length})
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* The buffer, worst first. A latch takes a minute; its costing waits on a photo, a
           ChatGPT reply and a person checking it — days later. And the listing is LIVE the whole
           time, so the one at the top is not the oldest, it is the one that would cost the most to

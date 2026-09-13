@@ -1017,7 +1017,8 @@ async function shelfLeft(): Promise<Map<string, number>> {
 }
 
 ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
-  const { readLatches, writeLatches, readOurSkus, pendingPrices } = await latchEngine();
+  const { readLatches, writeLatches, readOurSkus, pendingPrices, toPause, blocking } =
+    await latchEngine();
   const { openTabs } = await import("../src/browser-core.js");
   const book = await readLatches();
 
@@ -1075,7 +1076,7 @@ ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
   const rows = pendingPrices(book, health);
   return {
     ok: true,
-    result: { rows, book },
+    result: { rows, book, pause: toPause(rows), blocking: blocking(rows) },
     note: picked ? `Picked up ${picked} SKU${picked === 1 ? "" : "s"} from the open tabs.` : undefined,
   };
 });
@@ -1486,6 +1487,23 @@ ipcMain.handle("stock", async () => {
     reorderWeeks: stock.REORDER_WEEKS,
     nextCall: stock.nextCall(onHand, kits, recent, perPack, new Set(everPacked.keys())),
     untallied: stock.untallied(onHand, everPacked),
+    /**
+     * Our SKUs that are LIVE on Flipkart because we latched them.
+     *
+     * The call already asks for everything a costed kit needs. What it could not say is which of
+     * those lines is holding up a listing that is already selling — *order it this week* versus
+     * *order it today, or pause the listing.* The screen marks those; nothing else changes.
+     */
+    liveSkus: await (async () => {
+      try {
+        const { readLatches } = await latchEngine();
+        return (await readLatches()).rows
+          .filter((r) => r.latchedOn && r.ourSku)
+          .map((r) => r.ourSku!);
+      } catch {
+        return [] as string[];
+      }
+    })(),
     coverWeeks: stock.COVER_WEEKS,
     thin: stock.THIN,
     aliases: await readAliases(),

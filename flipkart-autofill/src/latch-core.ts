@@ -1170,6 +1170,14 @@ export interface Pending {
   listed: Listed | null;
   /** `none` = no costing at all; `unconfirmed` = costed, but nobody has checked it. */
   why: "no-sku" | "none" | "unconfirmed";
+  /**
+   * Materials this kit needs that are not on the shelf.
+   *
+   * Carried as data, not folded into `reasons`, because something ACTS on it: a listing whose kit
+   * is short has to be paused, and deciding that by matching words in a sentence is how a pause
+   * silently stops happening the day the sentence is reworded.
+   */
+  short: string[];
   /** How urgently this one needs a human, 0–100. The order of the list. */
   risk: number;
   /** Why it scored that, in words. A number nobody can read is a number nobody acts on. */
@@ -1266,6 +1274,7 @@ export function pendingPrices(book: LatchBook, health: Map<string, KitHealth>): 
         latchedOn: r.latchedOn!,
         listed: r.listed ?? null,
         why,
+        short: mine?.short ?? [],
         risk,
         reasons,
       };
@@ -1343,3 +1352,42 @@ export async function readApprovals(page: Page): Promise<Approval[]> {
  */
 export const approvedBrands = (all: Approval[]): Approval[] =>
   all.filter((a) => /approved/i.test(a.status));
+
+
+/**
+ * Listings to take down until the delivery lands.
+ *
+ * **Pausing is the cheap way to be out of stock.** The alternative — letting a live listing take an
+ * order we cannot pack and cancelling it — costs account health on Flipkart, and Vansh named that
+ * as the thing to avoid: *"we should know what we have to pause before the delivery is given to
+ * us."* A paused listing costs nothing but the sales it would have made, and it comes back with one
+ * field the day the materials arrive.
+ *
+ * This is deliberately NOT the same list as "needs a price". A kit can be costed, signed off and
+ * priced exactly right and still be unpackable — and that one is the most dangerous listing on the
+ * account precisely because every other screen says it is finished.
+ */
+export function toPause(pending: Pending[]): Pending[] {
+  return pending.filter((p) => p.short.length > 0);
+}
+
+/**
+ * Which materials are holding live listings down, and which listings each one blocks.
+ *
+ * The supplier call already asks for these — `nextCall` reads every costed kit — but it cannot say
+ * that a line is blocking something ALREADY SELLING rather than a kit that is still an idea. That
+ * is the difference between ordering it this week and ordering it today, so it is worth saying.
+ */
+export function blocking(pending: Pending[]): { material: string; skus: string[] }[] {
+  const by = new Map<string, Set<string>>();
+  for (const p of toPause(pending)) {
+    for (const m of p.short) {
+      if (!by.has(m)) by.set(m, new Set());
+      by.get(m)!.add(p.ourSku ?? p.fsn);
+    }
+  }
+  return [...by]
+    .map(([material, skus]) => ({ material, skus: [...skus].sort() }))
+    // Most listings blocked first: one material holding four listings down is one phone call.
+    .sort((a, b) => b.skus.length - a.skus.length || a.material.localeCompare(b.material));
+}

@@ -669,7 +669,16 @@ export interface WwApi {
    * between a latch row (named by the other seller's SKU) and a costed kit (named by ours), and
    * nobody should have to type it a second time.
    */
-  latchPending(): Promise<Attempt<{ rows: Pending[]; book: LatchBook }>>;
+  latchPending(): Promise<
+    Attempt<{
+      rows: Pending[];
+      book: LatchBook;
+      /** Live listings we cannot currently pack — take these down before the next order lands. */
+      pause: Pending[];
+      /** Which material is holding which listings down, most-blocking first. */
+      blocking: { material: string; skus: string[] }[];
+    }>
+  >;
   /** Every brand approval request on the account, off Flipkart's Track Approval page. */
   approvals(): Promise<Attempt<Approval[]>>;
   /**
@@ -736,6 +745,14 @@ export interface WwApi {
     reorderWeeks: number;
     /** The next order to place with the supplier, worked out — see `nextCall` in `stock-core`. */
     nextCall: CallLine[];
+    /**
+     * Our SKUs that are LIVE on Flipkart because we latched them.
+     *
+     * The call already asks for everything a costed kit needs. What it could not say is which of
+     * those lines is holding up a listing that is already selling — *order it this week* versus
+     * *order it today, or pause the listing.*
+     */
+    liveSkus: string[];
     /**
      * Materials the packing has eaten that no delivery note accounts for — a gap in the RECORDS,
      * never an order. They shrink to nothing as older notes are saved.

@@ -88,8 +88,11 @@ function NextCall({
   untallied,
   coverWeeks,
   thin,
+  liveSkus,
 }: {
   call: CallLine[];
+  /** SKUs already selling on Flipkart, so a line can say it is blocking one. */
+  liveSkus?: string[];
   /** Materials the packing has eaten that no note accounts for — a records gap, never an order. */
   untallied: { key: string; name: string; pieces: number }[];
   coverWeeks: number;
@@ -112,6 +115,7 @@ function NextCall({
 
   const low = call.filter((l) => l.why !== "untried");
   const gap = call.filter((l) => l.why === "untried");
+  const live = new Set(liveSkus ?? []);
   const on = (l: CallLine) => !skip.includes(l.key);
   const toggle = (k: string) =>
     setSkip((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
@@ -297,6 +301,15 @@ function NextCall({
                   <td className="muted">
                     {l.forSkus.slice(0, 3).join(", ")}
                     {l.forSkus.length > 3 && ` +${l.forSkus.length - 3} more`}
+                    {/* A line every other row shares, except this one is stopping something that
+                        is already selling. That is the difference between ordering it this week
+                        and ordering it today or taking the listing down. */}
+                    {live.size > 0 && l.forSkus.some((s) => live.has(s)) && (
+                      <span className="blocks-live">
+                        {" "}
+                        · selling now
+                      </span>
+                    )}
                   </td>
                   <td>
                     <Qty l={l} />
@@ -323,6 +336,8 @@ export function Stock({ n }: { n: number }) {
       deliveries: Delivery[]; from: string | null; onHand: OnHand[]; reorderWeeks: number;
       nextCall: CallLine[]; coverWeeks: number; thin: number;
       untallied: { key: string; name: string; pieces: number }[];
+      /** SKUs live on Flipkart from a latch — a call line for one of these is urgent. */
+      liveSkus: string[];
     } | null
   >(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -810,6 +825,7 @@ export function Stock({ n }: { n: number }) {
       {stock !== null && (
         <NextCall
           call={stock.nextCall}
+          liveSkus={stock.liveSkus}
           untallied={stock.untallied}
           coverWeeks={stock.coverWeeks}
           thin={stock.thin}

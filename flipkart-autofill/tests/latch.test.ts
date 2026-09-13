@@ -20,7 +20,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, weSell,
+  approvedBrands, blocking, cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -604,5 +604,47 @@ describe("only hunting what we actually sell", () => {
     // One page load is the cost of a false yes. A product never opened is one never listed.
     expect(weSell("Some Brand Wedding Photo Booth Props Set of 20")).toBe(true);
     expect(weSell("Some Brand Haldi Ceremony Backdrop")).toBe(true);
+  });
+});
+
+/**
+ * Pausing. **A paused listing costs the sales it would have made; a cancelled order costs account
+ * health** — Flipkart's, which is the thing that cannot be bought back. So the list of what to take
+ * down before the van arrives is its own answer, and it is NOT the same list as "needs a price".
+ */
+describe("what to pause until the delivery lands", () => {
+  const base = {
+    fsn: "F", title: "T", ourSku: "ANP001", from: [], latchedOn: "2026-09-13",
+    listed: null, why: "unconfirmed" as const, risk: 0, reasons: [],
+  };
+
+  it("is exactly the ones short of a material", () => {
+    const p = toPause([
+      { ...base, fsn: "F1", ourSku: "A", short: ["Red Fringes"] },
+      { ...base, fsn: "F2", ourSku: "B", short: [] },
+    ]);
+    expect(p.map((r) => r.fsn)).toEqual(["F1"]);
+  });
+
+  it("includes a kit whose price is signed off — that one is the most dangerous", () => {
+    // Every other screen calls this listing finished. It is live, correctly priced, and unpackable.
+    const p = toPause([{ ...base, fsn: "F3", ourSku: "C", why: "unconfirmed", short: ["Gold Foil"] }]);
+    expect(p).toHaveLength(1);
+  });
+
+  it("groups by material, most listings blocked first — that is one phone call", () => {
+    const rows = [
+      { ...base, fsn: "F1", ourSku: "A", short: ["Gold Foil", "Red Fringes"] },
+      { ...base, fsn: "F2", ourSku: "B", short: ["Gold Foil"] },
+      { ...base, fsn: "F3", ourSku: "C", short: ["Gold Foil"] },
+    ];
+    expect(blocking(rows)).toEqual([
+      { material: "Gold Foil", skus: ["A", "B", "C"] },
+      { material: "Red Fringes", skus: ["A"] },
+    ]);
+  });
+
+  it("says nothing when everything can be packed", () => {
+    expect(blocking([{ ...base, short: [] }])).toEqual([]);
   });
 });
