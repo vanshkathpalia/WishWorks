@@ -2777,3 +2777,6 @@ h3 > button.tiny {
 /* A call line that is stopping something already selling. Every other line is "buy it soon";
    this one is "buy it today, or take the listing down". */
 .blocks-live { color: var(--bad, #e2664f); font-weight: 500; }
+
+/* Said while ten shopper tabs are up, because at that moment the app is not where the work is. */
+.batch-open { font-size: 12px; }

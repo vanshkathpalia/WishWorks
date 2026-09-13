@@ -20,7 +20,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, toPause, weSell,
+  approvedBrands, blocking, cardState, labelKey, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -646,5 +646,61 @@ describe("what to pause until the delivery lands", () => {
 
   it("says nothing when everything can be packed", () => {
     expect(blocking([{ ...base, short: [] }])).toEqual([]);
+  });
+});
+
+/**
+ * Look before latching. Sixty latchable products are not sixty worth selling, so a batch of ten is
+ * opened as shopper pages and CLOSING a tab is the "no". Two things must hold or the review is
+ * worse than useless: the user's own tabs must not count as approval, and a product he closed must
+ * not come back in the next ten.
+ */
+describe("reviewing a batch before listing it", () => {
+  const batch = ["F1", "F2", "F3"];
+
+  it("keeps only the ones still open, in the order they were shown", () => {
+    const open = [
+      "https://www.flipkart.com/some-kit/p/itm9?pid=F3&lid=L",
+      "https://www.flipkart.com/other-kit/p/itm1?pid=F1",
+    ];
+    expect(survivors(batch, open)).toEqual(["F1", "F3"]);
+  });
+
+  it("ignores every other tab in Chrome", () => {
+    // WhatsApp, the seller dashboard, a manifest, and someone else's product page. None of these
+    // is a decision about this batch.
+    const open = [
+      "https://web.whatsapp.com/",
+      "https://seller.flipkart.com/index.html#dashboard",
+      "https://www.flipkart.com/unrelated/p/itm2?pid=ZZZZZZZZZZZZZZZZ",
+      "about:blank",
+    ];
+    expect(survivors(batch, open)).toEqual([]);
+  });
+
+  it("counts a product once however many tabs show it", () => {
+    const open = ["https://www.flipkart.com/a/p/i?pid=F2", "https://www.flipkart.com/a/p/i?pid=F2&x=1"];
+    expect(survivors(batch, open)).toEqual(["F2"]);
+  });
+
+  it("offers ten at a time, skipping what was already turned down", () => {
+    const rows = ["A", "B", "C", "D"].map((f) => ({
+      sku: f, description: f, seen: 0, fsn: f, title: f, state: "form" as const, checkedOn: null,
+    }));
+    const book = { packs: [], rows };
+    expect(nextBatch(book, 2).map((r) => r.fsn)).toEqual(["A", "B"]);
+    expect(nextBatch(book, 2, new Set(["A"])).map((r) => r.fsn)).toEqual(["B", "C"]);
+  });
+
+  it("never offers something already latched", () => {
+    const book = {
+      packs: [],
+      rows: [
+        { sku: "A", description: "A", seen: 0, fsn: "A", title: "A", state: "form" as const,
+          checkedOn: null, latchedOn: "2026-09-13" },
+        { sku: "B", description: "B", seen: 0, fsn: "B", title: "B", state: "form" as const, checkedOn: null },
+      ],
+    };
+    expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["B"]);
   });
 });

@@ -64,7 +64,7 @@ export function Latch({ n }: { n: number }) {
    * them are on screen.
    */
   const [pack, setPack] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"" | "reading" | "checking" | "latching" | "sweeping">("");
+  const [busy, setBusy] = useState<"" | "reading" | "checking" | "latching" | "sweeping" | "showing">("");
   const [progress, setProgress] = useState<Progress>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +81,11 @@ export function Latch({ n }: { n: number }) {
   const [swept, setSwept] = useState<{ seen: number; title: string; can: number } | null>(null);
   /** A list a partner sent, pasted straight back in. Empty until somebody uses it. */
   const [shared, setShared] = useState("");
+  /**
+   * The batch under review, as it was opened. Non-empty means ten shopper tabs are up and the
+   * next press should be "latch the ones still open", not "show me ten more".
+   */
+  const [batch, setBatch] = useState<{ fsn: string; title: string }[]>([]);
   /** Latched but not yet priced. Loaded on demand — it reads the open Chrome tabs. */
   const [pending, setPending] = useState<Pending[] | null>(null);
   /** Live listings we cannot pack, and the materials doing it. Loaded with the pending list. */
@@ -271,6 +276,13 @@ export function Latch({ n }: { n: number }) {
         </button>
       </details>
 
+      {batch.length > 0 && (
+        <p className="allgood batch-open">
+          Looking at {batch.length}: close the tabs you do not want, then press{" "}
+          <strong>Latch the ones still open</strong>. Your other Chrome tabs are ignored.
+        </p>
+      )}
+
       {swept && (
         <p className="allgood">
           {swept.seen} looked at, <strong>{swept.can} can be latched</strong> — {swept.title.slice(0, 70)}
@@ -285,11 +297,36 @@ export function Latch({ n }: { n: number }) {
           <button disabled={!!busy} onClick={() => void run("checking", () => window.ww.checkLatches(true))}>
             Re-check all {rows.length}
           </button>
-          {/* The one button that does the job. Disabled rather than hidden when there is nothing
-              waiting, so "none are ready" reads differently from "this screen has no such button". */}
-          <button className="primary" disabled={!!busy || ready === 0} onClick={() => void run("latching", () => window.ww.latchNew(costing))}>
-            {ready ? `Latch all ${ready} new` : "Nothing ready to latch"}
-          </button>
+          {/* **Look, then latch.** Sixty latchable products are not sixty worth selling, and sixty
+              tabs is not a review. Ten shopper pages at a time — the page a buyer sees, not the
+              listing form — and whatever is still open when he presses the second button is what
+              gets listed. Closing a tab is the "no". */}
+          {batch.length === 0 ? (
+            <button
+              className="primary"
+              disabled={!!busy || ready === 0}
+              onClick={() =>
+                void window.ww.showBatch(10).then((r) => {
+                  if (!r.ok) return setError(r.message);
+                  setBatch(r.result.map((x) => ({ fsn: x.fsn, title: x.title })));
+                  setNote(r.note ?? null);
+                })
+              }
+            >
+              {ready ? `Show me the next 10 of ${ready}` : "Nothing ready to latch"}
+            </button>
+          ) : (
+            <button
+              className="primary"
+              disabled={!!busy}
+              onClick={() => {
+                setBatch([]);
+                void run("latching", () => window.ww.latchOpen(costing));
+              }}
+            >
+              Latch the ones still open
+            </button>
+          )}
           {/* One button per thing a person actually does with this list: do it, or tell somebody
               about it. The share follows whichever pack is selected, so "what came in today" is
               one click from a message. */}

@@ -25,7 +25,7 @@ import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js";
-import type { Approval, Found, LatchBook, LatchRecord, Pending } from "../src/latch-core.js";
+import type { Approval, Found, LatchBook, LatchRecord, Listed, Pending } from "../src/latch-core.js";
 export type { Approval, Found, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
 
 /**
@@ -704,6 +704,20 @@ export interface WwApi {
    * ChatGPT tab holding it with the costing prompt typed in, unsent.
    */
   latchNew(withCosting: boolean): Promise<Attempt<LatchBook>>;
+  /**
+   * Open the next `size` as ordinary SHOPPER pages, for a look before anything is listed.
+   *
+   * Not the latch form — the point is to see each product the way a buyer does and decide whether
+   * it is worth selling at all. Close the tabs you do not want, then call `latchOpen`.
+   */
+  showBatch(size: number): Promise<Attempt<{ fsn: string; title: string; listed: Listed | null }[]>>;
+  /**
+   * Latch whichever of that batch is still open in Chrome, and remember the rest as turned down.
+   *
+   * Only the batch's own products count: your other tabs mean nothing here, and a product you
+   * closed is not offered again.
+   */
+  latchOpen(withCosting: boolean): Promise<Attempt<LatchBook>>;
   /** Progress while a check or a latch run is going. */
   onLatchRow(cb: (p: { done: number; of: number; row: LatchRecord }) => void): () => void;
   /** The whole packing screen: what is left, today's tally, this month's packets. */

@@ -1391,3 +1391,43 @@ export function blocking(pending: Pending[]): { material: string; skus: string[]
     // Most listings blocked first: one material holding four listings down is one phone call.
     .sort((a, b) => b.skus.length - a.skus.length || a.material.localeCompare(b.material));
 }
+
+
+// ---------------------------------------------------------------- looking before latching
+
+/**
+ * Which of a batch's products are still open in Chrome.
+ *
+ * **The review step.** A sweep of "party decoration" turns up sixty-odd latchable products and
+ * they are not all worth selling — so a batch is opened as ordinary SHOPPER pages, the kind a
+ * buyer sees, and Vansh closes the tabs for the ones he does not want. What is left open is the
+ * answer. Vansh, 2026-09-13: *"if i didn't like any of them i will close that tab… and we have one
+ * more button that actually does that latch to only those who are open now."*
+ *
+ * **Only this batch counts.** Chrome has his own tabs open — WhatsApp, the seller dashboard, a
+ * manifest — and none of them mean anything here. The batch's own FSNs are the whole test: a tab
+ * is a survivor only if its URL carries a `pid` the batch put there. Everything else is somebody
+ * else's window and is left alone.
+ */
+export function survivors(batch: string[], urls: string[]): string[] {
+  const want = new Set(batch);
+  const open = new Set<string>();
+  for (const url of urls) {
+    const pid = /[?&]pid=([^&]+)/.exec(url)?.[1];
+    if (pid && want.has(pid)) open.add(pid);
+  }
+  // Kept in the batch's order, which is the order they were shown in and the order he read them.
+  return batch.filter((f) => open.has(f));
+}
+
+/**
+ * The next products worth showing, newest-found first, skipping anything already dealt with.
+ *
+ * Ten at a time because sixty tabs is not a review, it is a mess — and because a batch he can hold
+ * in his head is one he will actually judge.
+ */
+export function nextBatch(book: LatchBook, size: number, skip: Set<string> = new Set()): LatchRecord[] {
+  return book.rows
+    .filter((r) => r.state === "form" && r.fsn && !r.latchedOn && !skip.has(r.fsn))
+    .slice(0, Math.max(1, size));
+}

@@ -1081,6 +1081,73 @@ ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
   };
 });
 
+/**
+ * The batch currently under review: the FSNs whose shopper pages were opened for a look.
+ *
+ * Module-level because there is exactly one batch at a time — it is a person looking at ten tabs in
+ * one Chrome window, and a second batch would be fighting the first for the same window. Also
+ * `passed`: FSNs already shown and turned down, so "next ten" does not offer them again.
+ */
+let batch: string[] = [];
+const passed = new Set<string>();
+
+/**
+ * Open the next ten as ORDINARY shopper pages, for a look before anything is listed.
+ *
+ * Not the start-selling form: the point is to see the product the way a buyer does — photos,
+ * price, ratings — and decide whether it is worth selling at all. The form comes after, and only
+ * for the ones whose tab is still open.
+ */
+ipcMain.handle("showBatch", async (_e, size: number): Promise<Attempt<unknown>> => {
+  const { readLatches, nextBatch } = await latchEngine();
+  const { newTab } = await import("../src/browser-core.js");
+  const rows = nextBatch(await readLatches(), size || 10, passed);
+  if (rows.length === 0) {
+    return { ok: false, message: "Nothing left to look at — sweep for more, or read a label pack." };
+  }
+  for (const r of rows) {
+    const tab = await newTab();
+    // The product page, not the latch form. `r.url` is the real slug URL the search gave us —
+    // `flipkart.com/p/p?pid=<FSN>` answers 500, which is why the URL is stored at all.
+    await tab.goto(r.url ?? startSellingUrlFor(r), { waitUntil: "domcontentloaded" }).catch(() => {});
+  }
+  batch = rows.map((r) => r.fsn!);
+  return {
+    ok: true,
+    result: rows.map((r) => ({ fsn: r.fsn, title: r.title ?? r.description, listed: r.listed ?? null })),
+    note:
+      `${rows.length} open in Chrome. Close the tabs for the ones you do not want, then press ` +
+      `"Latch the ones still open".`,
+  };
+});
+
+/** `startSellingUrl` needs the engine; this keeps the call above readable when a row has no URL. */
+const startSellingUrlFor = (r: { fsn?: string | null }) =>
+  `https://seller.flipkart.com/index.html#dashboard/listings/product/na?fsn=${r.fsn}&sourceid=SELECTION_INSIGHTS_UI`;
+
+/**
+ * Latch whichever of the batch is still open, and remember the rest as turned down.
+ *
+ * The tabs are read BEFORE anything is opened, because latching opens tabs of its own and they
+ * would otherwise count themselves as survivors.
+ */
+ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unknown>> => {
+  const { survivors, readLatches } = await latchEngine();
+  const { openTabs } = await import("../src/browser-core.js");
+  if (batch.length === 0) {
+    return { ok: false, message: 'Nothing under review — press "Show me the next 10" first.' };
+  }
+  const keep = survivors(batch, openTabs().map((t) => t.url()));
+  // Shown and closed is a decision: do not offer them again when he asks for the next ten.
+  for (const fsn of batch) if (!keep.includes(fsn)) passed.add(fsn);
+  const reviewed = batch.length;
+  batch = [];
+  if (keep.length === 0) {
+    return { ok: true, result: await readLatches(), note: `All ${reviewed} closed — none latched. Ask for the next ten.` };
+  }
+  return latchThese(e, keep, withCosting, `${keep.length} of ${reviewed} kept.`);
+});
+
 /** Every approval request on the account, read off Flipkart's own Track Approval page. */
 ipcMain.handle("approvals", async (): Promise<Attempt<unknown>> => {
   const { readApprovals } = await latchEngine();
@@ -1243,7 +1310,19 @@ ipcMain.handle("checkLatches", async (e, all: boolean): Promise<Attempt<unknown>
  * Nothing is saved and no tab is closed — the SKU is still Vansh's to type, and he asked for the
  * tabs to stay open so he can do them in his own order.
  */
-ipcMain.handle("latchNew", async (e, withCosting: boolean): Promise<Attempt<unknown>> => {
+/**
+ * Fill a latch form for each of these products. Saves nothing, closes nothing.
+ *
+ * Takes an explicit list rather than working one out, because it serves two callers that choose
+ * differently: *latch everything new*, and *latch the ones whose tab is still open after I looked
+ * at them*. The choosing is the interesting part and it does not belong in here.
+ */
+async function latchThese(
+  e: Electron.IpcMainInvokeEvent,
+  only: string[] | null,
+  withCosting: boolean,
+  prefix = "",
+): Promise<Attempt<unknown>> {
   const {
     readLatches, writeLatches, latchValues, openLatchForm, startSellingUrl, todayStamp,
     galleryImages, saveImage, imageFor, askChatGpt,
@@ -1251,7 +1330,10 @@ ipcMain.handle("latchNew", async (e, withCosting: boolean): Promise<Attempt<unkn
   const { newTab } = await import("../src/browser-core.js");
   const book = await readLatches();
   const rows = book.rows;
-  const todo = rows.filter((r) => r.state === "form" && r.fsn);
+  const todo = only
+    ? // Kept in the order given, which is the order they were reviewed in.
+      only.map((f) => rows.find((r) => r.fsn === f)).filter((r): r is NonNullable<typeof r> => !!r)
+    : rows.filter((r) => r.state === "form" && r.fsn);
   if (todo.length === 0) return { ok: false, message: "Nothing is waiting to be latched." };
 
   const values = latchValues({ MRP: "999", "Your selling price": "220" });
@@ -1308,14 +1390,18 @@ ipcMain.handle("latchNew", async (e, withCosting: boolean): Promise<Attempt<unkn
     ok: true,
     result: book,
     note:
-      `${opened} form${opened === 1 ? "" : "s"} open in Chrome, everything filled but the SKU. ` +
+      `${prefix ? prefix + " " : ""}${opened} form${opened === 1 ? "" : "s"} open in Chrome, ` +
+      `everything filled but the SKU. ` +
       (costing ? `${costing} costing chat${costing === 1 ? "" : "s"} ready to send. ` : "") +
       (loggedOut
         ? "ChatGPT is signed out — log in once in that tab and the session sticks, like Flipkart's. "
         : "") +
       `Type your SKU in each and save it. Nothing was closed.`,
   };
-});
+}
+
+/** Latch everything that can be latched, without the look-first step. */
+ipcMain.handle("latchNew", (e, withCosting: boolean) => latchThese(e, null, withCosting));
 
 /** Where each packer's rate per packet is kept — beside the days it is paid on, not in settings. */
 const RATES_FILE = () => path.join(ORDERS_DIR, "rates.json");

@@ -417,3 +417,24 @@ we sell (`weSell`). Both are pinned by tests using the actual car-cover titles.
 
 **Open:** the price updater (#4) still needs a live My Listings edit page. ChatGPT's costing hand-off
 is blocked on Google refusing OAuth inside an automated Chrome.
+
+
+## WW-187 — Look at ten, latch what survives
+
+**Done, 2026-09-13.** A sweep of "party decoration" turned up **592 products, 53 latchable**, and
+"Latch all 53" was the wrong button: they are not all worth selling, and 53 tabs is not a review.
+
+The flow is now **Show me the next 10 of 53** -> ten ordinary SHOPPER pages open, the page a buyer
+sees rather than the listing form -> close the tabs for the ones you do not want -> **Latch the ones
+still open**. Closing a tab is the "no", and one that was closed is not offered again.
+
+**Only the batch counts.** Chrome has WhatsApp, the seller dashboard and a manifest open at the same
+time; a tab is a survivor only if its URL carries a `pid` this batch put there. Tested with exactly
+that mix.
+
+**A check this repo did not have:** `gui/renderer/Latch.test.tsx` renders the screen. The tab came
+up blank while typecheck, the renderer build and 494 engine tests all passed — nothing here rendered
+a component, so a fault in the JSX had nothing standing in its way. It lives beside the component
+because the engine tsconfig has no `jsx`, deliberately.
+
+**Open, and needs Vansh's decision:** the ChatGPT sign-in. See CORRECTIONS C-052.
