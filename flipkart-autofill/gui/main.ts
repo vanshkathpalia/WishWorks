@@ -1013,6 +1013,82 @@ ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
   };
 });
 
+/** Every approval request on the account, read off Flipkart's own Track Approval page. */
+ipcMain.handle("approvals", async (): Promise<Attempt<unknown>> => {
+  const { readApprovals } = await latchEngine();
+  const { newTab } = await import("../src/browser-core.js");
+  let page;
+  try {
+    page = await newTab();
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  const rows = await readApprovals(page).catch(() => []);
+  await page.close().catch(() => {});
+  return rows.length
+    ? { ok: true, result: rows }
+    : { ok: false, message: "No approval requests found — are you logged in to Flipkart?" };
+});
+
+/**
+ * Sweep every brand we have been approved for, so the approval turns into listable products.
+ *
+ * This is the answer to "one click for all the approved ones". Flipkart's own `Add Listings`
+ * button cannot do it — it drops the brand filter on the first re-render (see `approvedBrands`) —
+ * and the page it aims at is our own drafts rather than the catalog. What an approval unlocks is
+ * every catalog product of that brand, and those are reached by searching the brand name, which is
+ * the sweep that already exists.
+ *
+ * The clock is split evenly across the brands so twelve of them cannot spend the whole budget on
+ * the first.
+ */
+ipcMain.handle("sweepApproved", async (e, minutes: number): Promise<Attempt<unknown>> => {
+  const { readApprovals, approvedBrands, readLatches, writeLatches, crawlSearch, mergeFound } =
+    await latchEngine();
+  const { newTab } = await import("../src/browser-core.js");
+  stopSweep = false;
+  let page;
+  try {
+    page = await newTab();
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+
+  const brands = approvedBrands(await readApprovals(page).catch(() => []));
+  if (brands.length === 0) {
+    await page.close().catch(() => {});
+    return { ok: false, message: "Nothing is approved yet, or Flipkart did not answer." };
+  }
+
+  const each = (Math.max(1, minutes) * 60_000) / brands.length;
+  let book = await readLatches();
+  let total = 0;
+  let canLatch = 0;
+  for (const b of brands) {
+    if (stopSweep) break;
+    const found = await crawlSearch(page, b.brand, {
+      until: Date.now() + each,
+      known: new Set(book.rows.map((r) => r.fsn).filter((f): f is string => !!f)),
+      stopped: () => stopSweep,
+      onFound: (f, seen) => e.sender.send("crawlRow", { seen, found: f }),
+    });
+    book = mergeFound(book, found, b.brand).book;
+    // Written per brand, not at the end: twelve brands is a long run and a window closed halfway
+    // through must keep what it found.
+    await writeLatches(book);
+    total += found.length;
+    canLatch += found.filter((f) => f.state === "form").length;
+  }
+  await page.close().catch(() => {});
+  return {
+    ok: true,
+    result: book,
+    note:
+      `Swept ${brands.length} approved brand${brands.length === 1 ? "" : "s"} — ` +
+      `${total} product${total === 1 ? "" : "s"} looked at, ${canLatch} can be latched now.`,
+  };
+});
+
 /** The latchable list as a message for a partner, put straight on the clipboard. */
 ipcMain.handle("shareLatches", async (_e, pack: string | null): Promise<string> => {
   const { readLatches, shareText } = await latchEngine();

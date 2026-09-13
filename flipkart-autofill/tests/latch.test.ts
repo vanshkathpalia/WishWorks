@@ -20,7 +20,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseLabelText, parseListed, pendingPrices, pickProduct, readLatches, searchHistory, searchPage, shareText,
+  approvedBrands, cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, pickProduct, readLatches, searchHistory, searchPage, shareText, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -482,5 +482,97 @@ describe("what we latched but have not priced", () => {
 
   it("traces each one back to the pack it came from", () => {
     expect(pendingPrices(book, new Set(), new Set())[0].from).toEqual(["labels.pdf"]);
+  });
+});
+
+/**
+ * Reading the approvals table. The text below is the live page's own `innerText` with the account's
+ * rows in it. Anchoring on the nine-digit request id is the point: the table is styled-components
+ * divs whose classes change each deploy, and a pending row has one line fewer than an approved one.
+ */
+describe("brands we have been approved for", () => {
+  const PAGE = `Connect with Buyers
+Approval Requests
+Action Required
+0
+Pending
+0
+Approved
+12
+All Requests
+Request ID
+Brand
+Vertical
+Comments
+Updated At
+Status
+642434773
+tigorik
+Balloon
+-
+Sep 9, 2026 1:27 PM
+Approved
+Add Listings
+642427672
+Partymash
+Birthday Combo
+-
+Sep 9, 2026 11:54 AM
+Approved
+Add Listings
+639173165
+Maithili decors
+Decoration
+-
+Aug 28, 2026 11:31 AM
+Pending`;
+
+  it("reads a row without touching the markup", () => {
+    const rows = parseApprovals(PAGE);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toEqual({
+      id: "642434773", brand: "tigorik", vertical: "Balloon",
+      status: "Approved", updatedAt: "Sep 9, 2026 1:27 PM",
+    });
+  });
+
+  it("reads a pending row too, which has no Add Listings line", () => {
+    // Fields are counted FORWARD from the id for exactly this reason — the action column is last
+    // and is missing on a pending row, so counting backwards would shift every field.
+    expect(parseApprovals(PAGE)[2]).toMatchObject({ brand: "Maithili decors", status: "Pending" });
+  });
+
+  it("does not mistake the counts at the top of the page for rows", () => {
+    expect(parseApprovals(PAGE).some((r) => r.brand === "12")).toBe(false);
+  });
+
+  it("picks out only what we may actually list", () => {
+    expect(approvedBrands(parseApprovals(PAGE)).map((a) => a.brand)).toEqual(["tigorik", "Partymash"]);
+  });
+});
+
+/**
+ * The trade rail. A sweep runs unattended for an hour, so the thing that must not happen is it
+ * spending that hour on a category we do not sell — which is exactly what it did on 2026-09-13,
+ * returning 146 "latchable" Tata Tigor car covers from the approved brand `tigorik`.
+ */
+describe("only hunting what we actually sell", () => {
+  it("rejects the car covers that started this", () => {
+    expect(weSell("carphoenix Car Cover For Tata Tigor (Without Mirror Pockets)")).toBe(false);
+    expect(weSell("RKPSP 2 Ton Car Hydraulic Trolley Jack For Tigor Vehicle Jack")).toBe(false);
+    expect(weSell("RKPSP Waterproof/HD/Night Vision Reverse Assist Camera System")).toBe(false);
+  });
+
+  it("keeps what we do sell, from the same sweep", () => {
+    expect(weSell("tigorik Solid Happy Birthday Banner Decoration 51 pcs Balloon")).toBe(true);
+    expect(weSell("tigorik Royal Burgundy Bliss Birthday Arch")).toBe(true);
+    expect(weSell("Partyfox Annaprashan Decoration Kit - Pastel Balloons, Cutouts")).toBe(true);
+    expect(weSell("ZYOZIQUE Multicolor Rice Ceremony Decorations Items- Banner")).toBe(true);
+  });
+
+  it("is generous, because a false no loses a product forever", () => {
+    // One page load is the cost of a false yes. A product never opened is one never listed.
+    expect(weSell("Some Brand Wedding Photo Booth Props Set of 20")).toBe(true);
+    expect(weSell("Some Brand Haldi Ceremony Backdrop")).toBe(true);
   });
 });

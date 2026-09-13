@@ -25,8 +25,8 @@ import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js";
-import type { Found, LatchBook, LatchRecord, Pending } from "../src/latch-core.js";
-export type { Found, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
+import type { Approval, Found, LatchBook, LatchRecord, Pending } from "../src/latch-core.js";
+export type { Approval, Found, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
 
 /**
  * Everything the packing screen draws, as one answer from the engine.
@@ -670,6 +670,15 @@ export interface WwApi {
    * nobody should have to type it a second time.
    */
   latchPending(): Promise<Attempt<{ rows: Pending[]; book: LatchBook }>>;
+  /** Every brand approval request on the account, off Flipkart's Track Approval page. */
+  approvals(): Promise<Attempt<Approval[]>>;
+  /**
+   * Sweep every approved brand, turning each approval into products we can actually list.
+   *
+   * Flipkart's own "Add Listings" button cannot: it drops the brand filter on the first re-render,
+   * and aims at our drafts rather than the catalog. The brand name as a search term is the way in.
+   */
+  sweepApproved(minutes: number): Promise<Attempt<LatchBook>>;
   /** Each product as the sweep judges it, so the screen fills while it runs. */
   onCrawlRow(cb: (p: { seen: number; found: Found }) => void): () => void;
   /**

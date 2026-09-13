@@ -787,6 +787,36 @@ export const rupees = (paise: number): string => `₹${Math.round(paise / 100).t
 
 // ---------------------------------------------------------------- finding products nobody gave us
 
+/**
+ * The words that mean a product is in our trade.
+ *
+ * **This rail exists because of a real hour wasted.** Sweeping the approved brand `tigorik` on
+ * 2026-09-13 returned 251 products and 146 "latchable" — every one a **Tata Tigor car cover**,
+ * because Flipkart's search fuzzy-matched the brand name to a car model. Vansh: *"what the hell are
+ * we looking for bro… we should hunt for product latch for what we can actually sell."*
+ *
+ * The brand-prefix filter fixes that particular case. This does not depend on it: a brand can sell
+ * in two trades, a search can drift, and a sweep runs unattended for an hour. **Two independent
+ * rails, because the cost of a wrong one is an hour of looking and a listing on a car cover.**
+ *
+ * Deliberately generous — it decides only whether a product is worth OPENING, and a false yes
+ * costs one page load while a false no loses a product forever. Widen it rather than narrow it;
+ * if WishWorks ever sells something new, this is the list to add the word to.
+ */
+const SELLS = [
+  "balloon", "birthday", "decoration", "decor", "party", "anniversary", "banner", "bunting",
+  "confetti", "foil", "garland", "backdrop", "curtain", "topper", "bouquet", "arch", "streamer",
+  "baby shower", "annaprashan", "annaprasan", "rice ceremony", "haldi", "mehndi", "bachelorette",
+  "groom", "bride", "welcome home", "photo booth", "photobooth", "candle", "cutout", "props",
+  "wedding", "festive", "celebration", "theme", "combo kit", "gift wrap",
+];
+
+/** Is this something WishWorks actually sells? Title only — it is judged before the page is opened. */
+export function weSell(title: string): boolean {
+  const t = normalize(title);
+  return SELLS.some((w) => t.includes(w));
+}
+
 /** One page of Flipkart's search. Page 1 is the bare search URL; later ones take `&page=n`. */
 export const searchPage = (term: string, page: number): string =>
   page <= 1 ? searchUrl(term) : `${searchUrl(term)}&page=${page}`;
@@ -831,6 +861,17 @@ export async function crawlSearch(
     onFound?: (f: Found, seen: number) => void;
     /** True to stop early. The screen's cancel button. */
     stopped?: () => boolean;
+    /**
+     * Keep only products whose title STARTS with this brand.
+     *
+     * **Without it a brand sweep latches the wrong catalog entirely.** Measured, 2026-09-13:
+     * sweeping the approved brand `tigorik` returned 251 products and 146 "latchable" — every one
+     * of them a **Tata Tigor car cover**, because Flipkart's search fuzzy-matched the brand name
+     * to a car model. A product's own brand is the first word of its catalog title (`ZYRIC Solid
+     * Happy birthday…`, `Partyfox Birthday…`), so that prefix is what separates a brand's listings
+     * from everything the search *thought* we meant.
+     */
+    brand?: string;
   },
 ): Promise<Found[]> {
   const out: Found[] = [];
@@ -838,14 +879,24 @@ export async function crawlSearch(
   let seen = 0;
 
   for (let n = 1; Date.now() < opts.until && !opts.stopped?.(); n++) {
-    const results = (await searchProducts(page, searchPage(term, n))).filter((r) => !seenFsn.has(r.fsn));
-    // An empty page is the end of the results, not a hiccup: Flipkart serves the last page over
-    // and over rather than 404ing, so "nothing new here" is the only stop signal there is.
-    if (results.length === 0) break;
+    const want = opts.brand ? normalize(opts.brand) : null;
+    const fresh = (await searchProducts(page, searchPage(term, n))).filter((r) => !seenFsn.has(r.fsn));
+    // A page with nothing NEW on it is the end of the results — Flipkart serves the last page over
+    // and over rather than 404ing, so that is the only stop signal there is. Judged before the
+    // brand filter, because a page that is all other brands is still a page that moved forward.
+    if (fresh.length === 0) break;
+
+    // Two rails, and the trade one is not optional. A sweep runs unattended for an hour; the cost
+    // of getting this wrong is that hour, plus a live listing on somebody's car cover.
+    const results = (want ? fresh.filter((r) => normalize(r.title).startsWith(want)) : fresh).filter(
+      (r) => weSell(r.title),
+    );
+    // Everything on the page counts as seen, matched or not: a product rejected for being another
+    // brand must not be reconsidered on page after page.
+    for (const r of fresh) seenFsn.add(r.fsn);
 
     for (const r of results) {
       if (Date.now() >= opts.until || opts.stopped?.()) break;
-      seenFsn.add(r.fsn);
       seen++;
       await page.goto(startSellingUrl(r.fsn), { waitUntil: "domcontentloaded" }).catch(() => {});
       let state: TabState = "stuck";
@@ -1141,3 +1192,71 @@ export function pendingPrices(
     .filter((p) => !(p.ourSku && confirmedSkus.has(p.ourSku)))
     .sort((a, b) => b.latchedOn.localeCompare(a.latchedOn) || a.title.localeCompare(b.title));
 }
+
+// ---------------------------------------------------------------- brands we have been approved for
+
+/** One row of Track Approval Requests. */
+export interface Approval {
+  /** Flipkart's own request id — nine digits, and the only stable name a row has. */
+  id: string;
+  brand: string;
+  /** Flipkart's category word: `Balloon`, `Decoration`, `Birthday Combo`. */
+  vertical: string;
+  /** `Approved`, `Pending`, and whatever else Flipkart decides to print. Kept verbatim. */
+  status: string;
+  /** `Sep 9, 2026 1:27 PM`, as printed. Not parsed — nothing here does arithmetic on it. */
+  updatedAt: string;
+}
+
+/** The page that lists them. `requestState=ALL` so pending ones show beside the approved. */
+export const APPROVALS_URL =
+  "https://seller.flipkart.com/index.html#dashboard/listings/trackApprovalRequestsV2?requestState=ALL";
+
+/**
+ * Read the approvals table out of the page's text.
+ *
+ * **Anchored on the request id, not on the table's markup.** The id is nine digits on a line of its
+ * own and nothing else on that page looks like one, so the five cells after it are the row. Reading
+ * `tr`/`td` would be the obvious way and is the fragile one: this table is styled-components divs
+ * whose class names change with every deploy, and the cells collapse into a single string when you
+ * walk up the DOM looking for a row — measured, that is what the first attempt returned.
+ *
+ * A row with no `Add Listings` (one still pending) has one line fewer, which is exactly why the
+ * fields are counted FORWARD from the id and the action column is never read.
+ */
+export function parseApprovals(pageText: string): Approval[] {
+  const lines = pageText.split("\n").map((l) => l.trim()).filter(Boolean);
+  const out: Approval[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^\d{9}$/.test(lines[i])) continue;
+    const [brand, vertical, , updatedAt, status] = lines.slice(i + 1, i + 6);
+    if (!brand || !vertical || !status) continue;
+    out.push({ id: lines[i], brand, vertical, status, updatedAt: updatedAt ?? "" });
+  }
+  return out;
+}
+
+/** Every approval request on the account, as Flipkart currently reports it. */
+export async function readApprovals(page: Page): Promise<Approval[]> {
+  await page.goto(APPROVALS_URL, { waitUntil: "domcontentloaded" }).catch(() => {});
+  // The table arrives after the shell; there is no selector that is absent on an empty account,
+  // so this waits on time like the rest of the tool.
+  await page.waitForTimeout(11_000);
+  return parseApprovals(await page.evaluate(() => document.body.innerText));
+}
+
+/**
+ * The brands we may now list, that Flipkart's own button will not actually take us to.
+ *
+ * **Why this exists at all.** `Add Listings` on an approved row navigates to
+ * `#dashboard/listingsInProgress?vertical=…&brand=…&sourceid=TRACK_APPROVAL_PAGE` and the page
+ * immediately re-navigates to the same screen with a bare `filters={…}` — dropping the brand and
+ * the vertical. Recorded, 2026-09-13: that is why Vansh lands on an unfiltered list and cannot
+ * find the product he was just approved for. It is not a thing he is doing wrong.
+ *
+ * `listingsInProgress` is the wrong destination anyway: those are our own drafts, not the catalog.
+ * The thing an approval actually unlocks is *every catalog product of that brand*, and the way to
+ * those is the search we already sweep — so an approved brand becomes a search term.
+ */
+export const approvedBrands = (all: Approval[]): Approval[] =>
+  all.filter((a) => /approved/i.test(a.status));
