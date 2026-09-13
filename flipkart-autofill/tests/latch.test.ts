@@ -20,7 +20,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseLabelText, parseListed, pickProduct, readLatches, searchPage, shareText,
+  cardState, labelKey, latchValues, matchOption, mergeFound, mergeLabels, parseLabelText, parseListed, pendingPrices, pickProduct, readLatches, searchHistory, searchPage, shareText,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -325,7 +325,7 @@ describe("sweeping a search term", () => {
     expect(book.rows[0].sku).toBe("BLNH1");
     // A sweep is not a sales signal: nobody shipped this past us, so it must not claim they did.
     expect(book.rows[0].seen).toBe(0);
-    expect(book.packs[0].file).toBe("search: party decoration");
+    expect(book.packs[0].file).toBe("search: party decoration · 2026-09-13");
   });
 
   it("refreshes price and state, but never forgets a latch that happened", () => {
@@ -398,5 +398,89 @@ describe("telling a partner what we found", () => {
 
   it("says so plainly when there is nothing to send", () => {
     expect(shareText({ packs: [], rows: [] }, null, 220_00)).toBe("Nothing on file for everything on file.");
+  });
+});
+
+/**
+ * Packs, and the history of what has been hunted. Two failures matter here and both are quiet: a
+ * second hunt wiping out the first one's findings, and two hunts months apart collapsing into one
+ * so nobody can tell what was looked at when.
+ */
+describe("keeping track of what has been hunted", () => {
+  const found = (fsn: string) => ({ fsn, title: fsn, url: "u", listed: null, state: "form" as const });
+
+  it("continues a hunt rather than replacing it", () => {
+    // Vansh stops a sweep, or it runs out of clock, and runs it again the same day. The second
+    // pass must ADD to the first, not throw it away.
+    let book = mergeFound({ packs: [], rows: [] }, [found("A"), found("B")], "party decoration", "2026-09-13").book;
+    book = mergeFound(book, [found("C")], "party decoration", "2026-09-13").book;
+    expect(book.packs).toHaveLength(1);
+    expect(book.packs[0].skus.sort()).toEqual(["A", "B", "C"]);
+  });
+
+  it("keeps the same term on two days as two hunts", () => {
+    let book = mergeFound({ packs: [], rows: [] }, [found("A")], "party decoration", "2026-09-13").book;
+    book = mergeFound(book, [found("B")], "party decoration", "2026-11-01").book;
+    expect(book.packs.map((p) => p.file)).toEqual([
+      "search: party decoration · 2026-11-01",
+      "search: party decoration · 2026-09-13",
+    ]);
+  });
+
+  it("lists what has already been searched, newest first", () => {
+    let book = mergeFound({ packs: [], rows: [] }, [found("A")], "party decoration", "2026-09-13").book;
+    book = mergeFound(book, [found("B"), found("C")], "birthday balloons", "2026-11-01").book;
+    expect(searchHistory(book)).toEqual([
+      { term: "birthday balloons", on: "2026-11-01", found: 2 },
+      { term: "party decoration", on: "2026-09-13", found: 1 },
+    ]);
+  });
+
+  it("does not call a label pack a search", () => {
+    const book = mergeLabels({ packs: [], rows: [] }, [{ sku: "X", description: "x", labels: 1 }], "labels.pdf", "2026-09-13").book;
+    expect(searchHistory(book)).toEqual([]);
+  });
+});
+
+/**
+ * The buffer: what we latched but have not priced. The two halves of the job happen days apart —
+ * the latch is a minute, the costing waits on a photo, a ChatGPT reply and a human checking it —
+ * so anything that falls through here is a LIVE listing sitting at the default ₹220 forever.
+ */
+describe("what we latched but have not priced", () => {
+  const book: LatchBook = {
+    packs: [{ file: "labels.pdf", addedOn: "2026-09-13", skus: ["R1", "R2", "R3"] }],
+    rows: [
+      { sku: "R1", description: "One", seen: 1, fsn: "F1", title: "One", state: "form",
+        checkedOn: "2026-09-13", latchedOn: "2026-09-13", ourSku: "ANP001" },
+      { sku: "R2", description: "Two", seen: 1, fsn: "F2", title: "Two", state: "form",
+        checkedOn: "2026-09-13", latchedOn: "2026-09-13", ourSku: "ANP002" },
+      { sku: "R3", description: "Three", seen: 1, fsn: "F3", title: "Three", state: "form",
+        checkedOn: "2026-09-13", latchedOn: "2026-09-13" },
+      { sku: "R4", description: "Never latched", seen: 1, fsn: "F4", title: "Four", state: "form",
+        checkedOn: "2026-09-13" },
+    ],
+  };
+
+  it("drops the ones whose price somebody has signed off", () => {
+    const p = pendingPrices(book, new Set(["ANP001", "ANP002"]), new Set(["ANP001"]));
+    // Newest latch first, then by title — "Three" before "Two".
+    expect(p.map((r) => r.fsn)).toEqual(["F3", "F2"]);
+  });
+
+  it("says WHICH thing is missing, because each needs a different action", () => {
+    const p = pendingPrices(book, new Set(["ANP002"]), new Set());
+    // ANP001 is latched but has no costing at all; R3 has no SKU so we cannot even look one up.
+    expect(p.find((r) => r.fsn === "F1")!.why).toBe("none");
+    expect(p.find((r) => r.fsn === "F2")!.why).toBe("unconfirmed");
+    expect(p.find((r) => r.fsn === "F3")!.why).toBe("no-sku");
+  });
+
+  it("ignores products we never latched", () => {
+    expect(pendingPrices(book, new Set(), new Set()).some((r) => r.fsn === "F4")).toBe(false);
+  });
+
+  it("traces each one back to the pack it came from", () => {
+    expect(pendingPrices(book, new Set(), new Set())[0].from).toEqual(["labels.pdf"]);
   });
 });

@@ -106,6 +106,7 @@ const api: WwApi = {
   stopCrawl: () => ipcRenderer.invoke("stopCrawl"),
   shareLatches: (pack: string | null) => ipcRenderer.invoke("shareLatches", pack),
   importShared: (text: string) => ipcRenderer.invoke("importShared", text),
+  latchPending: () => ipcRenderer.invoke("latchPending"),
   onCrawlRow: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
     ipcRenderer.on("crawlRow", handler);

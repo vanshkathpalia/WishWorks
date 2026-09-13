@@ -246,6 +246,24 @@ export interface SavedKit {
    */
   parcel?: { lengthCm?: number; breadthCm?: number; heightCm?: number; grams?: number };
   savedAt: string;
+  /**
+   * The day a human looked at this costing and said the price is right. Absent until they do.
+   *
+   * **Saved is not confirmed, and the difference is the whole point.** A kit is saved the moment
+   * the AI's reading lands, which is exactly when it is least trustworthy — Vansh, 2026-09-13:
+   * *"we can't trust everything… sometimes it doesn't pick the exact thing which we are sending.
+   * So I have to look for that."* Without this field, a costing read off a photo and a costing a
+   * person has checked are the same thing on disk, and a listing gets priced off whichever.
+   *
+   * It is a DATE, not a flag, because it goes stale: material prices move, and a confirmation from
+   * March is worth less than one from last week. The screen can say how old it is; a boolean could
+   * only ever say yes.
+   *
+   * Editing a kit does not clear it automatically — that is a decision for whoever edits, and
+   * silently un-confirming work would be its own surprise. `confirmKit` sets it; nothing unsets it
+   * but a person.
+   */
+  confirmedAt?: string;
 }
 
 // ---------------------------------------------------------------- the price list
@@ -1295,4 +1313,24 @@ export function listKits(dir = KITS_DIR, materials?: Material[]): KitRow[] {
 
 export function readKit(file: string): SavedKit {
   return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+
+/**
+ * Mark a costing as checked by a human, or take that mark off again.
+ *
+ * Separate from `saveKit` on purpose: saving is what happens when the AI's reading arrives, and
+ * confirming is what happens when somebody has compared it against the picture. Folding the two
+ * together would mean every save claimed a review that never happened.
+ */
+export function confirmKit(kit: SavedKit, on: string | null): SavedKit {
+  const next = { ...kit };
+  if (on) next.confirmedAt = on;
+  else delete next.confirmedAt;
+  return next;
+}
+
+/** Kits whose price nobody has signed off yet — the queue the latch screen counts. */
+export function unconfirmed(kits: SavedKit[]): SavedKit[] {
+  return kits.filter((k) => !k.confirmedAt);
 }

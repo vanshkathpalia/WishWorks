@@ -973,6 +973,46 @@ ipcMain.handle("importShared", async (_e, text: string): Promise<Attempt<unknown
   };
 });
 
+/**
+ * Lift our own SKUs out of the latch tabs still open in Chrome, and say what is still unpriced.
+ *
+ * One call because they are one errand: the SKUs are what make the pending list possible at all,
+ * and reading them is free while the tabs are there. Nothing fails if they are closed — those rows
+ * simply stay "SKU not known yet", which is a state the screen shows rather than an error.
+ */
+ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, readOurSkus, pendingPrices } = await latchEngine();
+  const { openTabs } = await import("../src/browser-core.js");
+  const book = await readLatches();
+
+  const found = await readOurSkus(openTabs()).catch(() => ({}) as Record<string, string>);
+  let picked = 0;
+  for (const [fsn, sku] of Object.entries(found)) {
+    const row = book.rows.find((r) => r.fsn === fsn);
+    if (row && row.ourSku !== sku) {
+      row.ourSku = sku;
+      picked++;
+    }
+  }
+  if (picked) await writeLatches(book);
+
+  // The costings live in the OTHER engine, and this is the only place the two meet: a set of SKUs
+  // in, a list out. Keeping the join here rather than inside either engine is what stops the latch
+  // engine depending on the inventory one.
+  const inv = await inventoryEngine();
+  const kits = inv.listKits(KITS_DIR).map((k) => inv.readKit(k.file));
+  const rows = pendingPrices(
+    book,
+    new Set(kits.map((k) => k.sku)),
+    new Set(kits.filter((k) => k.confirmedAt).map((k) => k.sku)),
+  );
+  return {
+    ok: true,
+    result: { rows, book },
+    note: picked ? `Picked up ${picked} SKU${picked === 1 ? "" : "s"} from the open tabs.` : undefined,
+  };
+});
+
 /** The latchable list as a message for a partner, put straight on the clipboard. */
 ipcMain.handle("shareLatches", async (_e, pack: string | null): Promise<string> => {
   const { readLatches, shareText } = await latchEngine();

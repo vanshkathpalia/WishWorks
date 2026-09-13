@@ -2749,3 +2749,13 @@ h3 > button.tiny {
 .latch-import { margin: 10px 0 2px; font-size: 12px; }
 .latch-import summary { cursor: pointer; color: var(--muted, #5a6472); }
 .latch-import textarea { width: 100%; margin: 8px 0 6px; font-family: inherit; font-size: 12px; }
+
+/* What has already been hunted. Buttons, not text: the point of showing a past term is to be able
+   to run it again, and a term you have to retype is one you will not re-run. */
+.latch-history { font-size: 12px; color: var(--muted, #5a6472); margin: 6px 0 0; }
+.latch-history button.link { background: none; border: 0; padding: 0; font: inherit;
+  color: var(--accent, #2a55e5); cursor: pointer; text-decoration: underline; }
+.latch-history .when { opacity: .75; }
+
+.latch-table .from { color: var(--muted, #5a6472); font-size: 11px; }
+.latch-table .why { color: var(--warn, #b8860b); white-space: nowrap; font-size: 12px; }

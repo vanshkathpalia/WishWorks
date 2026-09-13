@@ -268,3 +268,9 @@ export async function newTab(): Promise<Page> {
   if (!session) session = await openBrowser();
   return session.context.newPage();
 }
+
+
+/** Every tab currently open in the live session, for reading something back out of one. */
+export function openTabs(): Page[] {
+  return session?.context.pages().filter((p) => !p.isClosed()) ?? [];
+}

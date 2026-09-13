@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import type { LabelPack, LatchBook, LatchRecord } from "../shared.js";
+import type { LabelPack, LatchBook, LatchRecord, Pending } from "../shared.js";
 
 /**
  * `₹190` — paise back to something a person reads.
@@ -81,6 +81,8 @@ export function Latch({ n }: { n: number }) {
   const [swept, setSwept] = useState<{ seen: number; title: string; can: number } | null>(null);
   /** A list a partner sent, pasted straight back in. Empty until somebody uses it. */
   const [shared, setShared] = useState("");
+  /** Latched but not yet priced. Loaded on demand — it reads the open Chrome tabs. */
+  const [pending, setPending] = useState<Pending[] | null>(null);
 
   useEffect(() => void window.ww.latches().then(setBook), []);
   useEffect(
@@ -118,6 +120,15 @@ export function Latch({ n }: { n: number }) {
     setBusy("");
     setProgress(null);
   }
+
+  /** Search terms already swept, newest first — derived, never stored twice. */
+  const hunts = book.packs
+    .filter((p) => p.file.startsWith("search: "))
+    .map((p) => {
+      const [term, on] = p.file.slice("search: ".length).split(" · ");
+      return { term, on: on ?? p.addedOn, found: p.skus.length };
+    })
+    .sort((a, b) => b.on.localeCompare(a.on) || a.term.localeCompare(b.term));
 
   const chosen: LabelPack | null = book.packs.find((p) => p.file === pack) ?? null;
   const rows = chosen ? book.rows.filter((r) => chosen.skus.includes(r.sku)) : book.rows;
@@ -216,6 +227,26 @@ export function Latch({ n }: { n: number }) {
         {busy === "sweeping" && <button onClick={() => void window.ww.stopCrawl()}>Stop</button>}
       </div>
 
+      {/* What has already been hunted, so the next term is chosen knowing it. Clicking one loads
+          it back into the box — running the same term again months later is a real thing to do,
+          because what Flipkart offers and what we already sell both move. */}
+      {hunts.length > 0 && (
+        <p className="latch-history">
+          Hunted already:{" "}
+          {hunts.map((h, i) => (
+            <span key={`${h.term}-${h.on}`}>
+              {i > 0 && " · "}
+              <button className="link" disabled={!!busy} onClick={() => setTerm(h.term)}>
+                {h.term}
+              </button>{" "}
+              <span className="when">
+                {h.on} ({h.found})
+              </span>
+            </span>
+          ))}
+        </p>
+      )}
+
       {/* The receiving end of "Copy for a partner". Someone pastes the WhatsApp message here and
           it becomes work on THIS account — the sender's can-latch answers were about theirs. */}
       <details className="latch-import">
@@ -272,6 +303,19 @@ export function Latch({ n }: { n: number }) {
           >
             Copy {chosen ? "this list" : "everything"} for a partner
           </button>
+          <button
+            disabled={!!busy}
+            onClick={() =>
+              void window.ww.latchPending().then((r) => {
+                if (!r.ok) return setError(r.message);
+                setPending(r.result.rows);
+                setBook(r.result.book);
+                if (r.note) setNote(r.note);
+              })
+            }
+          >
+            What still needs a price?
+          </button>
           <label className="latch-costing">
             <input type="checkbox" checked={costing} disabled={!!busy} onChange={(e) => setCosting(e.target.checked)} />
             {" "}…and open a costing chat with the contents photo
@@ -286,6 +330,44 @@ export function Latch({ n }: { n: number }) {
       )}
       {error && <p className="error">{error}</p>}
       {note && <p className="allgood">{note}</p>}
+
+      {/* The buffer. A latch takes a minute; its costing waits on a photo, a ChatGPT reply and a
+          person checking it — days later. Without this list what falls through is silent: a live
+          listing sitting at the default ₹220 that nobody ever went back to. */}
+      {pending && (
+        <div className="latch-group">
+          <h2>
+            Latched, still no confirmed price <span className="count">{pending.length}</span>
+          </h2>
+          {pending.length === 0 ? (
+            <p className="allgood">Everything we have latched has a price somebody has signed off.</p>
+          ) : (
+            <table className="latch-table">
+              <tbody>
+                {pending.map((p) => (
+                  <tr key={p.fsn}>
+                    <td className="sku">{p.ourSku ?? "—"}</td>
+                    <td className="title">
+                      {p.title}
+                      <span className="from"> {p.from.join(", ")}</span>
+                    </td>
+                    {/* Each reason needs a different action, so it says which rather than
+                        "not done": find the SKU, cost the kit, or go and check a costing. */}
+                    <td className="why">
+                      {p.why === "no-sku"
+                        ? "SKU not known — open its tab, or type it"
+                        : p.why === "none"
+                          ? "no costing yet"
+                          : "costed, not checked"}
+                    </td>
+                    <td className="when">latched {p.latchedOn}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {GROUPS.map(({ state, label }) => {
         const mine = rows.filter((r) => r.state === state);

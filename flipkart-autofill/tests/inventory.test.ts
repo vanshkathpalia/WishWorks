@@ -42,6 +42,9 @@ import {
   editMaterial,
   tokens,
   type Material,
+  confirmKit,
+  unconfirmed,
+  type SavedKit,
 } from "../src/inventory-core.js";
 
 const PRICES: Material[] = [
@@ -1079,5 +1082,38 @@ describe("what a sale actually leaves", () => {
       dir,
     );
     expect(listKits(dir)[0].left).toBeUndefined();
+  });
+});
+
+/**
+ * Confirming a costing. A kit is SAVED the moment the AI's reading lands, which is exactly when it
+ * is least trustworthy; confirming is a person saying they checked it against the picture. If the
+ * two were one thing on disk, every listing would be priced off an unreviewed reading and nothing
+ * would show which.
+ */
+describe("signing off a costing", () => {
+  const kit: SavedKit = {
+    sku: "ANP003", image: "", lines: [], overrides: {}, marginPercent: 30, savedAt: "2026-09-13",
+  };
+
+  it("is absent until somebody confirms", () => {
+    expect(kit.confirmedAt).toBeUndefined();
+    expect(unconfirmed([kit])).toHaveLength(1);
+  });
+
+  it("records the day, not a yes — a confirmation goes stale as prices move", () => {
+    const done = confirmKit(kit, "2026-09-13");
+    expect(done.confirmedAt).toBe("2026-09-13");
+    expect(unconfirmed([done])).toHaveLength(0);
+  });
+
+  it("can be taken back off", () => {
+    const again = confirmKit(confirmKit(kit, "2026-09-13"), null);
+    expect("confirmedAt" in again).toBe(false);
+    expect(unconfirmed([again])).toHaveLength(1);
+  });
+
+  it("leaves everything else on the kit alone", () => {
+    expect(confirmKit({ ...kit, flatPaise: 7500 }, "2026-09-13").flatPaise).toBe(7500);
   });
 });

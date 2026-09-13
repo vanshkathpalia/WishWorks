@@ -397,6 +397,15 @@ export interface LatchRecord {
   checkedOn: string | null;
   /** Set the day we opened a latch form for it, so a re-check that fails does not lose the fact. */
   latchedOn?: string;
+  /**
+   * OUR SKU for this product — the one field of the latch form a person fills in.
+   *
+   * **This is the join to the costing**, and the only one available: a latch row is named by the
+   * other seller's SKU or by an FSN, while a costed kit is named by ours, so without this nothing
+   * can say "the thing we latched on Tuesday still has no confirmed price". Nobody is asked to
+   * type it twice — `readOurSkus` lifts it out of the tab it was already typed into.
+   */
+  ourSku?: string;
   /** The candidates, when we refused to choose. Shown so a human can. */
   near?: (Result & { score: number })[];
 }
@@ -444,6 +453,33 @@ export async function writeLatches(book: LatchBook): Promise<void> {
 }
 
 /**
+ * Put a pack on the list, merging it with one of the same name rather than replacing it.
+ *
+ * **Union, not replace.** A second hunt on the same term the same day is a CONTINUATION — Vansh
+ * stopped the first one, or it ran out of clock — and replacing would throw away everything the
+ * first pass found. Re-reading the same label PDF is the same union with the same answer, since
+ * its SKUs have not changed.
+ *
+ * Different days are different packs, which is why a sweep is named with its date: *"we can run
+ * multiple hunt with same searches"* — party decoration in September and again in November are two
+ * hunts worth telling apart, because what Flipkart offers and what we already sell both move.
+ */
+function addPack(packs: LabelPack[], file: string, on: string, skus: string[]): LabelPack[] {
+  const prev = packs.find((p) => p.file === file);
+  const merged = {
+    file,
+    addedOn: prev && prev.addedOn > on ? prev.addedOn : on,
+    skus: [...new Set([...(prev?.skus ?? []), ...skus])],
+  };
+  return [merged, ...packs.filter((p) => p.file !== file)].sort(
+    (a, b) => b.addedOn.localeCompare(a.addedOn) || a.file.localeCompare(b.file),
+  );
+}
+
+/** What a sweep's pack is called. The date is IN the name so two hunts of one term stay apart. */
+export const sweepName = (term: string, on: string): string => `search: ${term} · ${on}`;
+
+/**
  * Fold a freshly-read label pack into what we already know.
  *
  * **Dropping the same pack twice must change nothing, and dropping next month's must add only
@@ -484,14 +520,7 @@ export function mergeLabels(
       if (prev.state === "none" || prev.state === "ambiguous") prev.state = "unknown";
     }
   }
-  // A pack re-read REPLACES its entry rather than adding a second one: the name is the identity,
-  // and the same file dropped twice is one pack, not two days' work.
-  const packs = file
-    ? [
-        { file, addedOn: on, skus: items.map((i) => i.sku) },
-        ...book.packs.filter((p) => p.file !== file),
-      ].sort((a, b) => b.addedOn.localeCompare(a.addedOn) || a.file.localeCompare(b.file))
-    : book.packs;
+  const packs = file ? addPack(book.packs, file, on, items.map((i) => i.sku)) : book.packs;
 
   return {
     book: { packs, rows: [...by.values()].sort((a, b) => b.seen - a.seen || a.sku.localeCompare(b.sku)) },
@@ -862,10 +891,7 @@ export function mergeFound(book: LatchBook, found: Found[], term: string, on = t
       checkedOn: on,
     });
   }
-  const packs = [
-    { file: `search: ${term}`, addedOn: on, skus: found.map((f) => f.fsn) },
-    ...book.packs.filter((p) => p.file !== `search: ${term}`),
-  ].sort((a, b) => b.addedOn.localeCompare(a.addedOn) || a.file.localeCompare(b.file));
+  const packs = addPack(book.packs, sweepName(term, on), on, found.map((f) => f.fsn));
 
   return {
     book: { packs, rows: [...by.values()].sort((a, b) => b.seen - a.seen || a.sku.localeCompare(b.sku)) },
@@ -1009,14 +1035,109 @@ export function mergeShared(book: LatchBook, items: { fsn: string; title: string
       checkedOn: null,
     });
   }
-  const file = `shared list ${on}`;
-  const packs = [
-    { file, addedOn: on, skus: items.map((i) => i.fsn) },
-    ...book.packs.filter((p) => p.file !== file),
-  ].sort((a, b) => b.addedOn.localeCompare(a.addedOn) || a.file.localeCompare(b.file));
+  const packs = addPack(book.packs, `shared list ${on}`, on, items.map((i) => i.fsn));
 
   return {
     book: { packs, rows: [...by.values()].sort((a, b) => b.seen - a.seen || a.sku.localeCompare(b.sku)) },
     added,
   };
+}
+
+
+/** Every search term ever swept, newest hunt first — what has already been looked at, and when. */
+export function searchHistory(book: LatchBook): { term: string; on: string; found: number }[] {
+  return book.packs
+    .filter((p) => p.file.startsWith("search: "))
+    .map((p) => {
+      const [term, on] = p.file.slice("search: ".length).split(" · ");
+      return { term, on: on ?? p.addedOn, found: p.skus.length };
+    })
+    .sort((a, b) => b.on.localeCompare(a.on) || a.term.localeCompare(b.term));
+}
+
+
+// ---------------------------------------------------------------- joining a latch to its costing
+
+/**
+ * Read back the SKUs a human typed into the latch tabs that are still open.
+ *
+ * **The SKU is the one thing this tool deliberately does not fill in**, which leaves it the one
+ * thing it does not know — and it is exactly the key the costing is filed under. Asking for it a
+ * second time in the app would be asking a person to retype something correct, which is how wrong
+ * data gets in. So it is lifted straight out of the form.
+ *
+ * Tabs are matched by the `fsn=` in their URL, not by their order: they are opened in one order
+ * and worked in another, and pairing by position would file a costing under the wrong product.
+ *
+ * A tab that has been closed is simply not read. Nothing here is a failure — it just means that
+ * one will have to be typed, or the tab reopened.
+ */
+export async function readOurSkus(pages: Page[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const page of pages) {
+    if (page.isClosed()) continue;
+    const fsn = /[?&]fsn=([^&]+)/.exec(page.url())?.[1];
+    if (!fsn) continue;
+    const sku = await page
+      .locator("input[name=sku_id]")
+      .first()
+      .inputValue({ timeout: 3000 })
+      .catch(() => "");
+    if (sku.trim()) out[decodeURIComponent(fsn)] = sku.trim();
+  }
+  return out;
+}
+
+/** A latched product whose price nobody has signed off yet. */
+export interface Pending {
+  fsn: string;
+  title: string;
+  /** Ours, once it is known. Null means we cannot even look the costing up yet. */
+  ourSku: string | null;
+  /** Which label pack or sweep it came from — how Vansh traces it back. */
+  from: string[];
+  latchedOn: string;
+  /** What the seller we latched from charges, for deciding where ours should land. */
+  listed: Listed | null;
+  /** `none` = no costing at all; `unconfirmed` = costed, but nobody has checked it. */
+  why: "no-sku" | "none" | "unconfirmed";
+}
+
+/**
+ * Everything we have latched that is not yet priced with a price somebody stands behind.
+ *
+ * This is the buffer Vansh asked for, and it exists because the two halves of the job happen days
+ * apart: the latch is a minute's work and the costing waits on a photo, a ChatGPT reply and a
+ * human checking it. Without a list, what falls through is silent — a live listing at the default
+ * ₹220 that nobody ever went back to.
+ *
+ * `confirmedSkus` is the set of OUR SKUs whose costing has been signed off, and `costedSkus` those
+ * that have a costing at all. Passing them in rather than reading the kits here keeps this pure,
+ * and keeps the latch engine from depending on the inventory engine.
+ */
+export function pendingPrices(
+  book: LatchBook,
+  costedSkus: Set<string>,
+  confirmedSkus: Set<string>,
+): Pending[] {
+  const packsOf = (sku: string) => book.packs.filter((p) => p.skus.includes(sku)).map((p) => p.file);
+  return book.rows
+    .filter((r) => r.latchedOn)
+    .map((r) => {
+      const ourSku = r.ourSku ?? null;
+      // Three different reasons, because they need three different actions: find the SKU, cost the
+      // kit, or go and check a costing. One "not done" would hide which.
+      const why: Pending["why"] = !ourSku ? "no-sku" : costedSkus.has(ourSku) ? "unconfirmed" : "none";
+      return {
+        fsn: r.fsn ?? r.sku,
+        title: r.title ?? r.description,
+        ourSku,
+        from: packsOf(r.sku),
+        latchedOn: r.latchedOn!,
+        listed: r.listed ?? null,
+        why,
+      };
+    })
+    .filter((p) => !(p.ourSku && confirmedSkus.has(p.ourSku)))
+    .sort((a, b) => b.latchedOn.localeCompare(a.latchedOn) || a.title.localeCompare(b.title));
 }

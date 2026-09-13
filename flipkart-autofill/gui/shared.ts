@@ -25,8 +25,8 @@ import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js";
-import type { Found, LatchBook, LatchRecord } from "../src/latch-core.js";
-export type { Found, LabelPack, LatchBook, Listed, LatchRecord } from "../src/latch-core.js";
+import type { Found, LatchBook, LatchRecord, Pending } from "../src/latch-core.js";
+export type { Found, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
 
 /**
  * Everything the packing screen draws, as one answer from the engine.
@@ -662,6 +662,14 @@ export interface WwApi {
    * can-latch / already-selling answers were about the sender's account and mean nothing here.
    */
   importShared(text: string): Promise<Attempt<LatchBook>>;
+  /**
+   * What we have latched that still has no price anybody stands behind.
+   *
+   * Also lifts our own SKUs out of any latch tabs still open in Chrome — that SKU is the only join
+   * between a latch row (named by the other seller's SKU) and a costed kit (named by ours), and
+   * nobody should have to type it a second time.
+   */
+  latchPending(): Promise<Attempt<{ rows: Pending[]; book: LatchBook }>>;
   /** Each product as the sweep judges it, so the screen fills while it runs. */
   onCrawlRow(cb: (p: { seen: number; found: Found }) => void): () => void;
   /**
