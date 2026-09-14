@@ -519,6 +519,14 @@ export function Stock({ n }: { n: number }) {
   /** Which proposed rules are ticked, by index. Nothing is ticked to begin with. */
   const [takeRule, setTakeRule] = useState<Record<number, boolean>>({});
   const [askingAi, setAskingAi] = useState(false);
+  /**
+   * Every word taught so far, so it can be SEEN and taken back.
+   *
+   * Without this the rules are invisible: a wrong one quietly re-reads every note from then on and
+   * there is nowhere to go and look. Loaded once — it is a small map and it only changes here.
+   */
+  const [words, setWords] = useState<Record<string, string>>({});
+  useEffect(() => void window.ww.learnedWords().then(setWords, () => {}), []);
 
   /**
    * A pick is remembered, the tally re-runs so the row leaves the worklist — and then the app asks
@@ -694,6 +702,37 @@ export function Stock({ n }: { n: number }) {
 
           {/* The batch offer. It counts every unmatched row, not the ones on screen: a filter is
               for looking, and adding only what is visible would quietly leave the rest out. */}
+          {/* **What it has been taught, and the way back out.**
+              A word rule is permanent and applies to every note from now on, so it has to be
+              visible and reversible. Folded away because it is right almost all the time — and open
+              in one click on the day it is not. */}
+          {Object.keys(words).length > 0 && (
+            <details className="taught">
+              <summary>
+                {Object.keys(words).length} word{Object.keys(words).length === 1 ? "" : "s"} it has
+                been taught
+              </summary>
+              <ul>
+                {Object.entries(words).map(([from, to]) => (
+                  <li key={from}>
+                    <b>{from}</b> means <b>{to}</b>{" "}
+                    <button
+                      className="link"
+                      onClick={() =>
+                        void window.ww.learnWord(from, null).then((w) => {
+                          setWords(w);
+                          run();
+                        })
+                      }
+                    >
+                      forget it
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
           {/* **Ask once, about the whole note.**
               A word learnt one pick at a time is slow when forty lines are strange. This sends our
               price list and his note to ChatGPT together — about 6 KB, once — and reads back word

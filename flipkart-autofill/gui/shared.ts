@@ -718,13 +718,7 @@ export interface WwApi {
    * file is written after every one so closing the window mid-check keeps what it learnt.
    */
   checkLatches(all: boolean): Promise<Attempt<LatchBook>>;
-  /**
-   * Open a filled latch form for every product that can still be latched. Saves nothing.
-   *
-   * `withCosting` also fetches each listing's SECOND photo — the contents shot — and opens a
-   * ChatGPT tab holding it with the costing prompt typed in, unsent.
-   */
-  latchNew(withCosting: boolean): Promise<Attempt<LatchBook>>;
+
   /**
    * Open the next `size` as ordinary SHOPPER pages, for a look before anything is listed.
    *

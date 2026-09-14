@@ -134,3 +134,33 @@ describe("applying what was ticked", () => {
     expect(materials.find((m) => m.material === "GTB Sash")!.aka).toBeUndefined();
   });
 });
+
+/**
+ * What the live model actually did, 2026-09-14 — the first real run, 11 KB of prompt in and 6 KB
+ * of reply back, 40 aliases proposed.
+ */
+describe("what came back from the real thing", () => {
+  const rows = [
+    { category: "Net", material: "White Net", paise: 100 },
+    { category: "Themed Set", material: "Car Theme Set of 5", paise: 100 },
+  ] as Material[];
+
+  it("refuses a row it invented", () => {
+    // It listed White, Yellow and Green Net — all real — and slipped in a fourth. This is the
+    // failure the check exists for, and it happened on the first run.
+    const r = reviewProposal(
+      { words: {}, aliases: [{ material: "Pink Net", says: "pink net" }], new: [], split: [], unsure: [] },
+      rows,
+    );
+    expect(r[0].blockedBy).toBe("no such row on the price list");
+  });
+
+  it("accepts a row it named with its category, which is how we showed it the list", () => {
+    // One of forty echoed `Decoration | Car Theme Set of 5`. A real row, read as an invention.
+    const r = reviewProposal(
+      { words: {}, aliases: [{ material: "Themed Set | Car Theme Set of 5", says: "car 5pcs set theme" }], new: [], split: [], unsure: [] },
+      rows,
+    );
+    expect(r[0]).toMatchObject({ to: "Car Theme Set of 5", blockedBy: "" });
+  });
+});

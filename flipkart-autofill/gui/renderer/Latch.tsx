@@ -95,6 +95,10 @@ export function Latch({ n }: { n: number }) {
   const [jobs, setJobs] = useState<ImageJob[] | null>(null);
   /** Which product's run is going, and what step it is on. */
   const [running, setRunning] = useState<{ sku: string; step: string } | null>(null);
+  /** Brand approvals on the account. Null until asked — it reads Flipkart. */
+  const [approvals, setApprovals] = useState<
+    { id: string; brand: string; vertical: string; status: string; updatedAt: string }[] | null
+  >(null);
 
   useEffect(() => void window.ww.latches().then(setBook), []);
   useEffect(
@@ -245,6 +249,52 @@ export function Latch({ n }: { n: number }) {
         </button>
         {busy === "sweeping" && <button onClick={() => void window.ww.stopCrawl()}>Stop</button>}
       </div>
+
+      {/* **What an approval actually unlocks.**
+          Flipkart's own "Add Listings" button on an approved row drops the brand and the vertical
+          on the first re-render, and aims at our own drafts rather than the catalog — which is why
+          Vansh could never find the product he had just been approved for. Sweeping the brand name
+          is the way in, and it is the same sweep as above with both rails on. */}
+      <div className="latch-sweep approved">
+        <button
+          disabled={!!busy}
+          onClick={() =>
+            void window.ww.approvals().then((r) => {
+              if (!r.ok) return setError(r.message);
+              setApprovals(r.result);
+            })
+          }
+        >
+          What am I approved for?
+        </button>
+        <button
+          disabled={!!busy}
+          onClick={() => {
+            setSwept(null);
+            void run("sweeping", () => window.ww.sweepApproved(minutes));
+          }}
+        >
+          Sweep every approved brand
+        </button>
+      </div>
+
+      {approvals && (
+        <p className="latch-history">
+          {approvals.filter((a) => /approved/i.test(a.status)).length} approved:{" "}
+          {approvals.map((a, i) => (
+            <span key={a.id}>
+              {i > 0 && " · "}
+              <button className="link" disabled={!!busy} onClick={() => setTerm(`${a.brand} ${a.vertical}`)}>
+                {a.brand}
+              </button>{" "}
+              <span className="when">
+                {a.vertical}
+                {/^approved$/i.test(a.status) ? "" : ` — ${a.status}`}
+              </span>
+            </span>
+          ))}
+        </p>
+      )}
 
       {/* What has already been hunted, so the next term is chosen knowing it. Clicking one loads
           it back into the box — running the same term again months later is a real thing to do,

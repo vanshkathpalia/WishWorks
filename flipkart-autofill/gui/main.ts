@@ -1529,8 +1529,10 @@ async function latchThese(
   };
 }
 
-/** Latch everything that can be latched, without the look-first step. */
-ipcMain.handle("latchNew", (e, withCosting: boolean) => latchThese(e, null, withCosting));
+// There is deliberately NO "latch everything" handler. It existed, and the look-first flow
+// replaced it: ten shopper pages, close what you do not want, latch what survives. A button that
+// lists sixty products unseen is the thing that flow exists to prevent, so the door is shut rather
+// than left ajar. `latchThese` still takes null for its own tests.
 
 /** Where each packer's rate per packet is kept — beside the days it is paid on, not in settings. */
 const RATES_FILE = () => path.join(ORDERS_DIR, "rates.json");

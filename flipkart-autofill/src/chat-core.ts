@@ -64,8 +64,29 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "https://chatgpt.com" });
   await page.evaluate((t) => navigator.clipboard.writeText(t), text);
   await page.keyboard.press("ControlOrMeta+V");
-  // The paste is asynchronous; sending before it lands sends half a prompt.
-  await page.waitForTimeout(1500);
+
+  /**
+   * **Wait for the text to actually be there, rather than guessing how long a paste takes.**
+   *
+   * A fixed 1.5s was fine for a 5 KB costing prompt and silently wrong for an 11 KB one: the
+   * supplier-words prompt carries the whole price list, the paste had not landed, and Enter fired
+   * on an EMPTY composer — so no message was sent and no chat was even created. It looked like the
+   * model had answered with nothing.
+   *
+   * Polled against the length instead. A tenth of the prompt is enough to know the paste is
+   * happening; ChatGPT renders the composer's text in chunks and waiting for the whole thing exactly
+   * is a race of its own.
+   */
+  // `text`, not `prompt` — `prompt` is a DOM global, so the wrong name TYPECHECKED and only
+  // failed at runtime, after the browser had opened.
+  const want = Math.min(text.trim().length, 200);
+  for (let i = 0; i < 40; i++) {
+    const got = (await composer.innerText().catch(() => "")).trim().length;
+    if (got >= want) break;
+    await page.waitForTimeout(500);
+  }
+  // A beat for the tail of a long paste to settle before the keystroke.
+  await page.waitForTimeout(800);
   await page.keyboard.press("Enter");
 }
 

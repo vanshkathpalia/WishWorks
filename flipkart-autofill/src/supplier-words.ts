@@ -133,11 +133,17 @@ export function reviewProposal(
     });
   }
   for (const a of p.aliases) {
-    const real = names.get(a.material.toLowerCase());
+    /**
+     * `Decoration | Car Theme Set of 5` — the list is SHOWN to the model in that shape, so it
+     * sometimes echoes it back. One of forty did on the first real run, and it read as an invented
+     * row when the row was perfectly real. Only the part after the last `|` names the material.
+     */
+    const said = a.material.includes("|") ? a.material.slice(a.material.lastIndexOf("|") + 1) : a.material;
+    const real = names.get(said.trim().toLowerCase());
     out.push({
       kind: "alias",
       from: a.says,
-      to: real ?? a.material,
+      to: real ?? said.trim(),
       blockedBy: real ? "" : "no such row on the price list",
     });
   }

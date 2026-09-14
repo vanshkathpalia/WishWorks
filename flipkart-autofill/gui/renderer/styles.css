@@ -2818,3 +2818,11 @@ h3 > button.tiny {
 .proposed li { margin: 2px 0; }
 .proposed ul.muted { color: var(--muted, #5a6472); }
 .proposed .why { color: var(--muted, #5a6472); }
+
+/* The taught words, and the way back out. A rule that cannot be seen is a rule that cannot be
+   undone, and this one applies to every future note. */
+.taught { font-size: 12px; margin: 8px 0; }
+.taught summary { cursor: pointer; color: var(--muted, #5a6472); }
+.taught ul { margin: 6px 0 0; padding-left: 18px; }
+.taught button.link { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--muted, #5a6472); text-decoration: underline; }
