@@ -262,3 +262,34 @@ export async function runImageChat(
   }
   return out;
 }
+
+/**
+ * What the assistant last said, as text.
+ *
+ * `[data-message-author-role=assistant]` DOES work for text — it was only the generated IMAGES that
+ * turned out to live outside the turn (see the file note). Read after `waitUntilIdle`, or it
+ * returns half a sentence that happens to parse.
+ */
+export async function lastReply(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const turns = [...document.querySelectorAll("[data-message-author-role=assistant]")];
+    return (turns[turns.length - 1]?.textContent ?? "").trim();
+  });
+}
+
+/**
+ * Ask one question in a fresh chat and hand back the answer.
+ *
+ * A NEW chat each time, unlike the image run: this question carries its own price list and its own
+ * note, and an earlier answer in the same thread would be context the model starts agreeing with
+ * rather than re-deriving.
+ */
+export async function askOnce(page: Page, prompt: string, timeoutMs = 300_000): Promise<string> {
+  await page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
+  await page.waitForTimeout(6000);
+  await sendPrompt(page, prompt);
+  await waitUntilIdle(page, { timeoutMs });
+  // The last chunk lands a beat after the stream ends.
+  await page.waitForTimeout(2500);
+  return lastReply(page);
+}

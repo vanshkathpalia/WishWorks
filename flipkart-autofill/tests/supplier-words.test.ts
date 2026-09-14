@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { buildPrompt, readProposal, reviewProposal } from "../src/supplier-words.js";
+import { applyProposal, buildPrompt, readProposal, reviewProposal } from "../src/supplier-words.js";
 import type { Material } from "../src/inventory-core.js";
 
 const materials: Material[] = [
@@ -80,5 +80,57 @@ describe("checking it against the real list", () => {
       { kt: "fringe" },
     );
     expect(r[0].replaces).toBe("fringe");
+  });
+});
+
+describe("applying what was ticked", () => {
+  const taught = { kt: "fringe" };
+
+  it("puts a word rule in the words file and an alias on its row", () => {
+    // Two kinds of fact, two homes. A word is about how the supplier talks; an alias is about one
+    // row of the price list and belongs beside its price.
+    const r = applyProposal(
+      [
+        { kind: "word", from: "jhalar", to: "fringe", blockedBy: "" },
+        { kind: "alias", from: "groom to be sesh", to: "GTB Sash", blockedBy: "" },
+      ],
+      materials,
+      taught,
+    );
+    expect(r.words).toEqual({ kt: "fringe", jhalar: "fringe" });
+    expect(r.materials.find((m) => m.material === "GTB Sash")!.aka).toEqual(["groom to be sesh"]);
+    expect(r.added).toBe(2);
+  });
+
+  it("applies nothing that was blocked", () => {
+    const r = applyProposal(
+      [{ kind: "alias", from: "x", to: "Purple Sash", blockedBy: "no such row on the price list" }],
+      materials,
+      taught,
+    );
+    expect(r.added).toBe(0);
+    expect(r.words).toEqual(taught);
+  });
+
+  it("does not add an alias the row already has, in any casing", () => {
+    // The price list refuses two rows claiming one name, so a duplicate alias would fail its own
+    // uniqueness check on the next load.
+    const withAka = materials.map((m) =>
+      m.material === "GTB Sash" ? { ...m, aka: ["Groom To Be Sesh"] } : m,
+    );
+    const r = applyProposal(
+      [{ kind: "alias", from: "groom to be sesh", to: "GTB Sash", blockedBy: "" }],
+      withAka,
+      taught,
+    );
+    expect(r.materials.find((m) => m.material === "GTB Sash")!.aka).toEqual(["Groom To Be Sesh"]);
+    expect(r.added).toBe(0);
+  });
+
+  it("leaves the original list untouched", () => {
+    // The caller writes the file; a function that mutated its input would corrupt the in-memory
+    // list of anything that had already loaded it.
+    applyProposal([{ kind: "alias", from: "x", to: "GTB Sash", blockedBy: "" }], materials, taught);
+    expect(materials.find((m) => m.material === "GTB Sash")!.aka).toBeUndefined();
   });
 });

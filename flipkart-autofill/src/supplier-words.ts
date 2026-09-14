@@ -147,3 +147,40 @@ export function reviewProposal(
 /** Load the instructions that ship with the app. */
 export const promptText = (guidesDir: string): string =>
   readFileSync(path.join(guidesDir, "PROMPT-supplier-words.md"), "utf8");
+
+/**
+ * Write the ticked rules where the matcher will read them.
+ *
+ * Two destinations because they are two different kinds of fact. A **word** is about how this
+ * supplier talks and lives in `words.json` beside the orders; an **alias** is about one row of the
+ * price list and lives on that row, next to its price and its pack size.
+ *
+ * Returns what to save rather than saving it, so the caller owns the files and this stays testable
+ * without a disk.
+ */
+export function applyProposal(
+  chosen: Review[],
+  materials: Material[],
+  taught: Record<string, string>,
+): { words: Record<string, string>; materials: Material[]; added: number } {
+  const words = { ...taught };
+  const rows = materials.map((m) => ({ ...m, aka: m.aka ? [...m.aka] : undefined }));
+  let added = 0;
+
+  for (const r of chosen) {
+    if (r.blockedBy) continue;
+    if (r.kind === "word") {
+      words[r.from] = r.to;
+      added++;
+      continue;
+    }
+    const row = rows.find((m) => m.material === r.to);
+    if (!row) continue;
+    const aka = row.aka ?? [];
+    // Already there, in any casing — adding it again would fail the price list's uniqueness check.
+    if (aka.some((a) => a.toLowerCase() === r.from.toLowerCase())) continue;
+    row.aka = [...aka, r.from];
+    added++;
+  }
+  return { words, materials: rows, added };
+}
