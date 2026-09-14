@@ -19,7 +19,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { CallLine, Delivery, OnHand, TallyRow } from "../shared.js";
+import type { CallLine, Delivery, Need, OnHand, TallyRow } from "../shared.js";
 import { Fold, MaterialPicker } from "./ui.js";
 
 const iso = (d: Date) =>
@@ -324,6 +324,63 @@ function NextCall({
   );
 }
 
+
+/**
+ * What the next fortnight will eat, at the rate these kits are selling.
+ *
+ * **Beside the supplier call, not inside it**, because it answers a different question. The call
+ * asks *what is running out* — netted against the shelf, and only as good as the delivery notes
+ * behind it. This asks *what will be needed*, from parcels and recipes alone, and therefore works
+ * on a machine that has never saved a note. On 2026-09-14 that was the difference between having a
+ * list for tomorrow's supplier call and not.
+ *
+ * The working is shown per SKU on purpose. A total cannot tell you whether a number rose because
+ * ONE kit started selling or because everything drifted, and those need opposite answers.
+ */
+function Forecast({ need, days, window }: { need: Need[]; days: number; window: number }) {
+  const [open, setOpen] = useState<string | null>(null);
+  if (need.length === 0) return null;
+
+  return (
+    <details className="panel-block forecast" open>
+      <summary>
+        <strong>What the next {days} days will need</strong>{" "}
+        <span className="count">{need.length}</span>
+      </summary>
+      <p className="muted small">
+        At the rate the last {window} days sold. <strong>This does not subtract what you already
+        have</strong> — it is what the fortnight will consume, not what is missing from the shelf.
+        Once delivery notes are saved, the call above nets it off and is the better list.
+      </p>
+      <table className="call-table">
+        <tbody>
+          {need.map((n) => (
+            <tr key={n.key}>
+              <td className="name">
+                <button className="link" onClick={() => setOpen(open === n.key ? null : n.key)}>
+                  {n.name}
+                </button>
+                {open === n.key && (
+                  <ul className="working">
+                    {n.from.map((f) => (
+                      <li key={f.sku}>
+                        {f.sku}: {f.perDay.toFixed(2)}/day × {f.perKit} per kit × {days} ={" "}
+                        {f.pieces} pcs
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </td>
+              <td className="num">{n.pieces} pcs</td>
+              <td className="num">{n.packs === null ? "— pkt" : `${n.packs} pkt`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}
+
 export function Stock({ n }: { n: number }) {
   const [date, setDate] = useState(iso(new Date()));
   const [claimedNote, setClaimedNote] = useState("");
@@ -338,6 +395,10 @@ export function Stock({ n }: { n: number }) {
       untallied: { key: string; name: string; pieces: number }[];
       /** SKUs live on Flipkart from a latch — a call line for one of these is urgent. */
       liveSkus: string[];
+      /** What the next fortnight will consume — gross, needing no delivery note. */
+      forecast: Need[];
+      forecastDays: number;
+      forecastWindow: number;
     } | null
   >(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -823,13 +884,19 @@ export function Stock({ n }: { n: number }) {
       )}
 
       {stock !== null && (
-        <NextCall
-          call={stock.nextCall}
-          liveSkus={stock.liveSkus}
-          untallied={stock.untallied}
-          coverWeeks={stock.coverWeeks}
-          thin={stock.thin}
-        />
+        <>
+          {/* The fortnight's requirement first, then the call. They answer different questions and
+              the first one works with no delivery notes at all, which is the state this machine is
+              actually in. */}
+          <Forecast need={stock.forecast} days={stock.forecastDays} window={stock.forecastWindow} />
+          <NextCall
+            call={stock.nextCall}
+            liveSkus={stock.liveSkus}
+            untallied={stock.untallied}
+            coverWeeks={stock.coverWeeks}
+            thin={stock.thin}
+          />
+        </>
       )}
 
       {/**

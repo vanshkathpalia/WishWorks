@@ -2784,3 +2784,13 @@ h3 > button.tiny {
 /* A product that cannot run yet. Shown, not hidden: it is usually one download from ready, and a
    row nobody can see is a job nobody finishes. */
 .latch-table tr.blocked { opacity: .55; }
+
+/* The fortnight's requirement, beside the supplier call. Each line opens to show its arithmetic —
+   a number with no working behind it is a number nobody can check, and the breakdown is the only
+   way to see that ONE kit caused a jump rather than everything drifting. */
+.forecast .working { margin: 4px 0 6px 0; padding-left: 16px; font-size: 11px;
+  color: var(--muted, #5a6472); }
+.forecast .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.forecast button.link { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--accent, #2a55e5); text-decoration: underline dotted; }
+.forecast .small { font-size: 12px; }

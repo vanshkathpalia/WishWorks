@@ -1644,6 +1644,16 @@ ipcMain.handle("saveDelivery", async (_e, d: unknown) => {
  * each kit's own material lines — rather than a second count kept here. It is measured from the
  * first delivery on record, because before that there was no stock figure for it to come off.
  */
+/**
+ * How far back the selling rate is measured, and how far forward it is projected.
+ *
+ * Four weeks back is long enough that one busy Saturday is not the rate and short enough to notice
+ * a change. A fortnight forward is the supplier's lead time plus a week of slack — Vansh, 2026-09-13:
+ * *"how much should I order for next 2 weeks."*
+ */
+const FORECAST_WINDOW_DAYS = 28;
+const FORECAST_HORIZON_DAYS = 14;
+
 ipcMain.handle("stock", async () => {
   const stock = await stockEngine();
   const orders = await ordersEngine();
@@ -1683,6 +1693,8 @@ ipcMain.handle("stock", async () => {
    * a material packed for a year and last used before the first delivery note is still one he owns.
    */
   const everPacked = new Map<string, { name: string; pieces: number }>();
+  // Read once, and OUTSIDE the `from !== null` guard: the forecast is built from these and must
+  // work on a machine that has never saved a delivery note.
   const ledgers = await orders.listLedgers();
   for (const b of orders.howItSells(ledgers, kits, "2000-01-01", today).burn) {
     if (b.pieces > 0) everPacked.set(b.key, { name: b.name, pieces: b.pieces });
@@ -1694,6 +1706,19 @@ ipcMain.handle("stock", async () => {
     const fresh = orders.howItSells(ledgers, kits, since > from ? since : from, today);
     for (const b of fresh.burn) recent.set(b.key, b.piecesPerWeek);
   }
+  /**
+   * Parcels per SKU over the window — the other half of the forecast, and the half that needs no
+   * delivery note. Counted off `firstSeen`, the day the parcel appeared on a manifest, because that
+   * is when the kit was actually sold; `packedOn` is when somebody got round to it.
+   */
+  const soldSince = new Date(Date.now() - FORECAST_WINDOW_DAYS * 864e5).toISOString().slice(0, 10);
+  const soldPerSku = new Map<string, number>();
+  for (const l of ledgers) {
+    for (const p of l.subOrders) {
+      if ((p.firstSeen ?? "") >= soldSince) soldPerSku.set(p.sku, (soldPerSku.get(p.sku) ?? 0) + p.qty);
+    }
+  }
+
   const onHand = stock.onHand(deliveries, used, names, perPack);
   return {
     deliveries,
@@ -1702,6 +1727,27 @@ ipcMain.handle("stock", async () => {
     reorderWeeks: stock.REORDER_WEEKS,
     nextCall: stock.nextCall(onHand, kits, recent, perPack, new Set(everPacked.keys())),
     untallied: stock.untallied(onHand, everPacked),
+    /**
+     * What the next fortnight will CONSUME, at the rate these kits are selling.
+     *
+     * **It needs no delivery note.** Parcels per SKU come from the ledgers and the recipe from the
+     * costed kits; the shelf is not in the sum at all. That matters on a day like 2026-09-14, when
+     * Vansh is calling his supplier tomorrow and has never uploaded a delivery: this list is
+     * available anyway.
+     *
+     * The price of that is on the screen, not hidden: it is a GROSS requirement. Nothing subtracts
+     * what is already on the shelf, so it can only over-order. `nextCall` is the one that nets off
+     * stock, and it is only as good as the notes behind it.
+     */
+    forecast: stock.forecast({
+      sold: soldPerSku,
+      windowDays: FORECAST_WINDOW_DAYS,
+      horizonDays: FORECAST_HORIZON_DAYS,
+      kits,
+      packSizes: perPack,
+    }),
+    forecastDays: FORECAST_HORIZON_DAYS,
+    forecastWindow: FORECAST_WINDOW_DAYS,
     /**
      * Our SKUs that are LIVE on Flipkart because we latched them.
      *

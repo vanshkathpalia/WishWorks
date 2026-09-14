@@ -25,6 +25,8 @@ import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js";
+import type { Need } from "../src/stock-core.js";
+export type { Need } from "../src/stock-core.js";
 import type { Approval, Found, ImageJob, LatchBook, LatchRecord, Listed, Pending } from "../src/latch-core.js";
 export type { Approval, Found, ImageJob, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
 
@@ -776,6 +778,17 @@ export interface WwApi {
     reorderWeeks: number;
     /** The next order to place with the supplier, worked out — see `nextCall` in `stock-core`. */
     nextCall: CallLine[];
+    /**
+     * What the next fortnight will CONSUME, at the rate these kits are selling.
+     *
+     * **Gross, deliberately.** Nothing subtracts what is already on the shelf — which is exactly
+     * why it works on a machine with no delivery notes saved, the state this one was in the night
+     * before a supplier call. `nextCall` is the netted list and the better one, once notes exist.
+     */
+    forecast: Need[];
+    /** Days ahead it projects, and days back the rate was measured over. */
+    forecastDays: number;
+    forecastWindow: number;
     /**
      * Our SKUs that are LIVE on Flipkart because we latched them.
      *
