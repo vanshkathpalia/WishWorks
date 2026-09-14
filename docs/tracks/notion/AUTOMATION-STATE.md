@@ -23,6 +23,11 @@ and not started.
 
 ## Built, not yet run against the real thing
 
+- **Chat renaming.** `renameChat` returns true when nothing threw, which is not the same as the chat
+  having been renamed — and it was reported as working on that basis. Checking it needs the sidebar
+  row for **that chat's own id** read back, not the top row, which is whatever is pinned. Vansh:
+  *"I didn't see any chat with those names."* Correct, and it is unproven until that check passes.
+
 - **Pause list** — live listings we cannot pack. Logic tested, never seen with real shortages.
 - **Meesho queue** (`forMeesho`) — no screen.
 - **`proposeWord` prompt** — wired, not exercised on a real pick.

@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { STANDARD_RUN, chatTitle, newImages } from "../src/chat-core.js";
+import { META_RUN, STANDARD_RUN, chatTitle, jsonFromReply, newImages, withInventory } from "../src/chat-core.js";
 
 const url = (id: string) => `https://chatgpt.com/backend-api/estuary/content?id=${id}&ts=1&p=fs&cid=1&sig=x`;
 
@@ -100,5 +100,36 @@ describe("what a chat is called", () => {
 
   it("names a delivery by its date, which is what a delivery has instead of a SKU", () => {
     expect(chatTitle("words", "2026-09-14")).toBe("delivery 2026-09-14");
+  });
+});
+
+describe("the meta + product chat", () => {
+  it("puts the kit where the prompt asks for it", () => {
+    const prompt = "INVENTORY:\n<PASTE THE INVENTORY HERE — the JSON from the Inventory panel>\n\nTHE LISTING ID…";
+    const kit = '{ "sku": "ANP004", "lines": [] }';
+    expect(withInventory(prompt, kit)).toBe(`INVENTORY:\n${kit}\n\nTHE LISTING ID…`);
+  });
+
+  it("keeps a $ in the kit literal", () => {
+    // String.replace reads `$&` in a replacement string as "the match" — an item called that would
+    // put the placeholder back into the prompt.
+    expect(withInventory("<PASTE THE INVENTORY HERE>", '{"item":"$& gift"}')).toBe('{"item":"$& gift"}');
+  });
+
+  it("refuses a prompt with no slot rather than sending one without the inventory", () => {
+    expect(() => withInventory("no slot here", "{}")).toThrow(/PASTE THE INVENTORY/);
+  });
+
+  it("reads JSON printed in a code block, label and button included", () => {
+    expect(jsonFromReply('jsonCopy code{\n  "values": { "MRP": "999" }\n}')).toEqual({ values: { MRP: "999" } });
+  });
+
+  it("says null for a reply that only links a file, never a guess", () => {
+    expect(jsonFromReply("Here is your file: image-meta-ANP004.json")).toBeNull();
+    expect(jsonFromReply("{ half a JSON")).toBeNull();
+  });
+
+  it("names each file the way the inbox files it", () => {
+    expect(META_RUN.map((s) => s.half)).toEqual(["image-meta", "products"]);
   });
 });

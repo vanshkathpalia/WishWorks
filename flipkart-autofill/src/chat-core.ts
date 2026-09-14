@@ -18,7 +18,7 @@
  */
 
 import type { Page } from "playwright";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /** Images ChatGPT serves from its own backend — generated ones and uploads both live here. */
@@ -100,6 +100,11 @@ export async function putInComposer(page: Page, text: string): Promise<void> {
   for (let i = 0; i < 40; i++) {
     got = (await composer.innerText().catch(() => "")).trim().length;
     if (got >= want) break;
+    // **A long paste becomes a file card, not text.** PROMPT-meta (27 KB) landed as "You are
+    // preparing ON.. — Show in text field" with the composer still empty, measured 2026-09-14; an
+    // 11 KB prompt did not. The button puts it back as text, which is what every caller expects.
+    const inline = page.getByText("Show in text field").last();
+    if (await inline.isVisible().catch(() => false)) await inline.click().catch(() => {});
     await page.waitForTimeout(500);
   }
   /**
@@ -306,6 +311,8 @@ export async function runImageChat(
     // Nothing after a question can be answered until it is. Stop, and leave the tab open.
     if (awaiting) break;
   }
+  // `title` was accepted and never used, so every image chat stayed "Generate Balloon Image".
+  if (opts.title) await renameChat(page, opts.title);
   return out;
 }
 
@@ -384,4 +391,137 @@ export async function renameChat(page: Page, title: string): Promise<boolean> {
  */
 export function chatTitle(what: "images" | "meta" | "costing" | "words", subject: string): string {
   return what === "words" ? `delivery ${subject}` : `${subject} — ${what}`;
+}
+
+// ---------------------------------------------------------------- the meta + product chat
+
+/** Where `PROMPT-meta.md` asks for the kit. The kit JSON goes here rather than as an upload. */
+const INVENTORY_SLOT = /^<PASTE THE INVENTORY HERE[^\n]*$/m;
+
+/**
+ * Put the kit's JSON where the prompt asks for it.
+ *
+ * **Throws when the slot is gone** rather than tacking the kit on somewhere: an edited prompt with
+ * no slot would otherwise send a meta request with no inventory, and the prompt's own rule — "if it
+ * is not in the INVENTORY, it does not exist" — would produce a listing of nothing.
+ */
+export function withInventory(prompt: string, kitJson: string): string {
+  if (!INVENTORY_SLOT.test(prompt)) throw new Error("PROMPT-meta.md has no <PASTE THE INVENTORY HERE> line any more");
+  return prompt.replace(INVENTORY_SLOT, () => kitJson.trim());
+}
+
+/**
+ * The JSON object in a reply that PRINTED it instead of attaching a file — which both prompts allow.
+ *
+ * First `{` to last `}`: a code block's text also carries its "json" label and "Copy code" button,
+ * and those sit outside the braces. Null when there is nothing that parses; never a guess.
+ */
+export function jsonFromReply(text: string): unknown | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save what the last reply handed back to `to`: the attached file if there is one, else the printed JSON.
+ *
+ * Saved under OUR name, never the one ChatGPT chose. The file is filed by the ID in its name, and
+ * the prompt already spends a paragraph begging the model not to tidy that ID.
+ */
+export async function saveReplyJson(page: Page, to: string): Promise<"file" | "text" | null> {
+  await mkdir(path.dirname(to), { recursive: true });
+  const link = page
+    .locator("[data-message-author-role=assistant]")
+    .last()
+    .locator('a[href^="sandbox:"], a:has-text(".json"), button:has-text(".json")')
+    .last();
+  if (await link.count().catch(() => 0)) {
+    try {
+      const [download] = await Promise.all([page.waitForEvent("download", { timeout: 30_000 }), link.click()]);
+      const part = `${to}.part`;
+      await download.saveAs(part);
+      JSON.parse(await readFile(part, "utf8")); // a download that is not JSON is not an answer
+      await rename(part, to);
+      return "file";
+    } catch {
+      // Fall through to the text: a link that would not download is still worth a look at the words.
+    }
+  }
+  const data = jsonFromReply(await lastReply(page));
+  if (data === null) return null;
+  await writeFile(to, JSON.stringify(data, null, 2) + "\n");
+  return "text";
+}
+
+/** The two prompts, in order, and which half of the listing each one produces. */
+export const META_RUN = [
+  { prompt: "PROMPT-meta.md", half: "image-meta" },
+  { prompt: "PROMPT-product.md", half: "products" },
+] as const;
+
+export interface MetaResult {
+  prompt: string;
+  /** The saved JSON, or null when neither a file nor printed JSON came back. */
+  file: string | null;
+  /** Whether it arrived as a download or had to be read off the page. */
+  via: "file" | "text" | null;
+  seconds: number;
+  timedOut: boolean;
+}
+
+/**
+ * Describe the finished images and fill the Flipkart fields: `PROMPT-meta` then `PROMPT-product`,
+ * in ONE chat.
+ *
+ * One chat because the second prompt reads the photos and inventory from the first (WW-081 split
+ * them only because a combined ANSWER was truncated). Files land in `saveDir` under their download
+ * names, so `importInbox(saveDir)` files them exactly as it files a hand download.
+ */
+export async function runMetaChat(
+  page: Page,
+  opts: {
+    /** The finished images, in listing order — IMAGE 1 is the hero. */
+    images: string[];
+    /** The kit, as saved by the Inventory panel. Its `sku` names both files. */
+    kit: { sku: string; json: string };
+    readPrompt: (name: string) => Promise<string>;
+    saveDir: string;
+    onStep?: (r: MetaResult) => void;
+    timeoutMs?: number;
+    title?: string;
+  },
+): Promise<MetaResult[]> {
+  // Both prompts read BEFORE anything is uploaded, so a broken prompt costs nothing.
+  const texts = await Promise.all(META_RUN.map((s) => opts.readPrompt(s.prompt)));
+  texts[0] = withInventory(texts[0], opts.kit.json);
+
+  await page.locator("input[type=file]").first().setInputFiles(opts.images, { timeout: 30_000 });
+  // Uploads have to finish before Enter, or the prompt goes out without its pictures.
+  await page.waitForTimeout(3000 + 2000 * opts.images.length);
+
+  const out: MetaResult[] = [];
+  for (const [i, step] of META_RUN.entries()) {
+    const started = Date.now();
+    await sendPrompt(page, texts[i]);
+    const finished = await waitUntilIdle(page, { timeoutMs: opts.timeoutMs ?? 300_000 });
+    await page.waitForTimeout(2500);
+    const file = path.join(opts.saveDir, `${step.half}-${opts.kit.sku}.json`);
+    const via = await saveReplyJson(page, file);
+    const r = {
+      prompt: step.prompt,
+      file: via ? file : null,
+      via,
+      seconds: Math.round((Date.now() - started) / 1000),
+      timedOut: !finished,
+    };
+    out.push(r);
+    opts.onStep?.(r);
+  }
+  if (opts.title) await renameChat(page, opts.title);
+  return out;
 }

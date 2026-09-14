@@ -1308,6 +1308,67 @@ ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> =>
   };
 });
 
+/**
+ * Write the listing text for ONE product: `PROMPT-meta` then `PROMPT-product`, in one chat, from
+ * the images `runImages` made and the kit the Inventory panel saved.
+ *
+ * Saved to a scratch folder and filed by `importInbox`, the same code that files a hand download —
+ * so the no-overwrite-with-older rule and the ID matching are the ones already trusted.
+ */
+ipcMain.handle("runMeta", async (e, sku: string): Promise<Attempt<unknown>> => {
+  const { readLatches, imageJobs } = await latchEngine();
+  const { runMetaChat, chatTitle } = await import("../src/chat-core.js");
+  const { findById } = await import("../src/id.js");
+  const { chatTab } = await import("../src/browser-core.js");
+
+  const job = imageJobs(await readLatches(), { photoFor: () => null, haveFor: () => 0 }).find((j) => j.sku === sku);
+  if (!job?.ourSku) return { ok: false, message: "That product has no SKU of ours yet." };
+
+  const rawDir = path.join(IMAGES_DIR, "1-raw", job.ourSku);
+  // 1.png, 2.png, 3.png, 4.png — numbered, because IMAGE 1 has to be the hero.
+  const images = readdirSync(rawDir)
+    .filter((n) => /^\d+\.(png|jpe?g|webp)$/i.test(n))
+    .sort((a, b) => parseInt(a) - parseInt(b))
+    .map((n) => path.join(rawDir, n));
+  if (images.length < 2) return { ok: false, message: `Make the images first — images/1-raw/${job.ourSku}/ has ${images.length}.` };
+  const kit = await findById(KITS_DIR, job.ourSku);
+  if (!kit) return { ok: false, message: `No kit saved for ${job.ourSku} — cost it in the Inventory panel first.` };
+
+  const prompts = await promptsEngine();
+  let tab;
+  try {
+    tab = await chatTab();
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  await tab.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
+  await tab.waitForTimeout(6000);
+
+  const saveDir = path.join(app.getPath("temp"), `ww-meta-${job.ourSku}`);
+  let done;
+  try {
+    done = await runMetaChat(tab, {
+      images,
+      kit: { sku: job.ourSku, json: await readFile(kit.file, "utf8") },
+      readPrompt: async (name) => (await prompts.readPrompt(promptDirs(), name)).text,
+      saveDir,
+      onStep: (r) => e.sender.send("imageStep", { sku, ...r, missing: !r.file }),
+      title: chatTitle("meta", job.ourSku),
+    });
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  const { imported } = await (await inboxEngine()).importInbox(saveDir, { move: true });
+  const missed = done.filter((d) => !d.file).map((d) => d.prompt);
+  return {
+    ok: true,
+    result: { done, imported },
+    note:
+      `${job.ourSku}: filed ${imported.map((i) => path.relative(WORKSPACE, i.to)).join(" and ") || "nothing"}` +
+      (missed.length ? `. Nothing readable came back from ${missed.join(", ")} — the chat is still open.` : "."),
+  };
+});
+
 /** The latchable list as a message for a partner, put straight on the clipboard. */
 ipcMain.handle("shareLatches", async (_e, pack: string | null): Promise<string> => {
   const { readLatches, shareText } = await latchEngine();

@@ -484,7 +484,22 @@ export function Latch({ n }: { n: number }) {
                       }}
                     >
                       {j.have ? "Make them again" : "Make the images"}
-                    </button>
+                    </button>{" "}
+                    {j.have >= 2 && (
+                      <button
+                        disabled={!!busy || !!running}
+                        onClick={() => {
+                          setRunning({ sku: j.ourSku, step: "writing the listing text…" });
+                          void window.ww.runMeta(j.sku).then((r) => {
+                            setRunning(null);
+                            if (!r.ok) setError(r.message);
+                            else setNote(r.note ?? null);
+                          });
+                        }}
+                      >
+                        Write the listing text
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

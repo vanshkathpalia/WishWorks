@@ -12,6 +12,10 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { loadMaterials } from "../src/inventory-core.js";
 import { forecast } from "../src/stock-core.js";
 
 const HEART = "balloon|Heart Foil";

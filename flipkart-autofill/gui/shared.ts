@@ -697,6 +697,8 @@ export interface WwApi {
    * checks. Ten queued would be thirty images arriving with nobody having looked at the first.
    */
   runImages(sku: string): Promise<Attempt<unknown>>;
+  /** Describe those images and fill the Flipkart fields — `PROMPT-meta` then `PROMPT-product`, one chat. */
+  runMeta(sku: string): Promise<Attempt<unknown>>;
   /** Each prompt as it finishes, so a four-minute run shows its working. */
   onImageStep(cb: (p: { sku: string; prompt: string; file: string | null; seconds: number; missing: boolean }) => void): () => void;
 

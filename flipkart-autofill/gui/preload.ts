@@ -109,6 +109,7 @@ const api: WwApi = {
   latchPending: () => ipcRenderer.invoke("latchPending"),
   imageQueue: () => ipcRenderer.invoke("imageQueue"),
   runImages: (sku: string) => ipcRenderer.invoke("runImages", sku),
+  runMeta: (sku: string) => ipcRenderer.invoke("runMeta", sku),
   onImageStep: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
     ipcRenderer.on("imageStep", handler);
