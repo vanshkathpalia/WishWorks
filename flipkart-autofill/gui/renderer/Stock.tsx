@@ -337,7 +337,7 @@ function NextCall({
  * The working is shown per SKU on purpose. A total cannot tell you whether a number rose because
  * ONE kit started selling or because everything drifted, and those need opposite answers.
  */
-function Forecast({ need, days, window }: { need: Need[]; days: number; window: number }) {
+export function Forecast({ need, days, window }: { need: Need[]; days: number; window: number }) {
   const [open, setOpen] = useState<string | null>(null);
   if (need.length === 0) return null;
 
