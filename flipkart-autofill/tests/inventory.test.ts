@@ -47,6 +47,7 @@ import {
   type SavedKit,
   sameWord,
   candidates,
+  whyFlagged,
 } from "../src/inventory-core.js";
 
 const PRICES: Material[] = [
@@ -1189,5 +1190,45 @@ describe("the supplier's spelling", () => {
     // flagging it would be noise — the distinction the cap turns on.
     const materials = loadMaterials();
     expect(candidates("Silver Metallic Balloons", materials, 1)[0].score).toBeGreaterThanOrEqual(SURE);
+  });
+});
+
+/**
+ * The supplier's own vocabulary. No amount of fuzzy matching reaches these — `kt` and `fringe`
+ * share one letter — so they are the things only Vansh knows, told once and then permanent.
+ * Every line is his, 2026-09-14.
+ */
+describe("what the supplier's words mean", () => {
+  const materials = loadMaterials();
+  const best = (s: string) => candidates(s, materials, 1)[0];
+
+  it("kt is fringes, not balloons", () => {
+    // Before this, `blue kt` matched **Blue Balloon** at 0.67 — above the floor and wrong. A token
+    // map rather than an alias on one row, so every colour of fringe is fixed at once.
+    expect(best("blue kt").material.material).toMatch(/Fringes/);
+  });
+
+  it("panni is a polybag", () => {
+    expect(tokens("flipcart pani 8*12")).toContain("polybag");
+  });
+
+  it("t and c say where it came from, not what it is", () => {
+    // *"he is telling us the balloon had come from Thailand with t, and c is for China."*
+    expect(tokens("blue pestal t")).toEqual(tokens("blue pestal"));
+    expect(tokens("dark green c")).toEqual(tokens("dark green"));
+  });
+
+  it("reads a word run into its number as two things", () => {
+    // He writes the space about half the time. `bopp7` matches neither `Bopp` nor `7`.
+    expect(best("Bopp7*10").material.material).toBe("Bopp 7x10");
+    expect(best("Bopp 9*12").material.material).toBe("Bopp 9x12");
+  });
+
+  it("refuses a bag of the wrong size, however well the words agree", () => {
+    // `Flipcart pani 8*12` reached 0.71 against `Flipkart Polybag 9x12` once `pani` was understood:
+    // every word agreed except the one that decides what arrives. Sending 8x12 out as 9x12 costs
+    // real money and nothing downstream re-checks it.
+    expect(whyFlagged("flipcart pani 8*12", materials.find((m) => m.material === "Flipkart Polybag 9x12")!))
+      .toBe("wrong");
   });
 });

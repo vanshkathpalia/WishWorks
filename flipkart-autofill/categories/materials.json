@@ -1746,6 +1746,16 @@
       "material": "8 No. Foil",
       "paise": 1000,
       "packOf": 100
+    },
+    {
+      "category": "Packaging",
+      "material": "Bopp 7x10",
+      "paise": null
+    },
+    {
+      "category": "Packaging",
+      "material": "Bopp 9x12",
+      "paise": null
     }
   ],
   "_piecesPerPack": "How many PIECES come in one pack, where a material is bought as a pack. The sheet counts what a buyer sees ('16 photo props'); `paise` is the price of the pack those arrive in, and multiplying the two costed a 25 rupee kit at 400 (WW-137). Set only where the pack size is STATED IN THE NAME, plus 'Annaprashan Kit With Props' = 16 which Vansh gave. NOT guessed anywhere: a wrong number here divides a cost silently, which is the very failure it exists to prevent. Absent means bought singly, like a balloon. STILL MISSING: GTB Kit, Masha Set, Paw Patrol Topper, Annaprashan Banner Kit — nobody has said how many pieces are in those, so they still cost per piece and will read high if a sheet counts their contents."

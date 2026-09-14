@@ -74,3 +74,38 @@ list**. It now offers both, tied, and refuses to choose.
 
 **And the honest limit:** `bregendy` -> `burgundy` is three edits. No safe distance reaches it. That
 one is a genuine alias — which is what aliases are for.
+
+
+## The half no matcher can do: his vocabulary
+
+Measured on fourteen of the forty-one, spelling fixed but nothing else: **3 of 14** cleared the
+floor. The other eleven were not misspellings at all.
+
+Vansh supplied the missing half, 2026-09-14:
+
+| his word | means | why a matcher could never get there |
+|---|---|---|
+| `kt` | fringes | shares one letter with "fringe" |
+| `pani` / `panni` | polybag (*lefafa*) | a different language |
+| `t` / `c` | came from Thailand / China | a fact about the SHIPMENT, not the material |
+| `bada` / `chota` | big / small | Hindi for a size we already record |
+| `Bopp` | a plain transparent bag | **not** the printed Flipkart polybag — its own product |
+
+These went in as a token map rather than per-material aliases, because a token map generalises:
+teaching `kt` once fixes `blue kt`, `golden kt` and every colour of fringe not yet bought. An alias
+would have fixed exactly one row. `t` and `c` joined the noise list — a word the row can never have,
+dragging every score down by one miss.
+
+**3 of 14 -> 6 of 14**, and two of the new passes are exact: `Bopp7*10` -> `Bopp 7x10` at 1.00.
+
+## The trap that opened on the way
+
+Understanding `pani` pushed `Flipcart pani 8*12` to **0.71** against `Flipkart Polybag 9x12` —
+through the floor, with the wrong size. Every word agreed except the one that decides what turns
+up. **A different size is now a different product**, the same verdict `whyFlagged` already gives a
+wrong colour, and only when both names carry numbers so a note that never mentions a size is still
+a plain miss rather than a conflict.
+
+That is worth stating on its own: *every time the matcher got cleverer, it got closer to a
+confident wrong answer.* Each loosening here is paired with something that refuses — the
+transposition rule with a cap below SURE, the vocabulary map with the size guard.

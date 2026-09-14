@@ -657,6 +657,10 @@ export function normalize(s: string): string {
   return s
     .toLowerCase()
     .replace(/(\d)\s*x\s*(\d)/g, "$1 $2")
+    // A word run into its number is two things: `Bopp7*10` is the bag and its size, and left joined
+    // the token `bopp7` matches neither `Bopp` nor `7`. He writes the space about half the time.
+    .replace(/([a-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-z])/g, "$1 $2")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
@@ -668,7 +672,41 @@ export function normalize(s: string): string {
 const NOISE = new Set([
   "x", "pc", "pcs", "piece", "pieces", "no", "nos", "qty", "set", "sets", "pack", "packs",
   "of", "the", "and", "a", "with", "for",
+  /**
+   * **Where the balloon was made, which is not what it is.**
+   *
+   * Vansh, 2026-09-14: *"t is just nothing actually — he is telling us the balloon had come from
+   * Thailand with t, and c is for China."* So `blue pestal t` and `dark green c` are the same two
+   * materials whether they came from Bangkok or Guangzhou, and the letter is a fact about the
+   * shipment. Left in, it was a word the row could never have, dragging every score down by one
+   * miss on a three-word note.
+   */
+  "t", "c",
+  // "the one with" — his filler, e.g. `number foil golden wala`. Names nothing.
+  "wala",
 ]);
+
+/**
+ * His word for our word. Applied per TOKEN, so it works anywhere in a name.
+ *
+ * **Not spelling, and no amount of fuzzy matching reaches it** — `kt` and `fringe` share one
+ * letter. These are the things only Vansh knows, told once and then permanent:
+ *
+ *   *"kt is fringes actually… small big bada chota are the size units."*
+ *
+ * A token map rather than a per-material alias because it generalises: teaching `kt` once fixes
+ * `blue kt`, `golden kt` and every colour of fringe he has not bought yet. An alias on one row
+ * would have fixed exactly that row.
+ */
+const SAYS: Record<string, string> = {
+  kt: "fringe",
+  bada: "big",
+  chota: "small",
+  // *"pani is panni which mean lefafa — which mean a packet to pack things up."* A polybag.
+  pani: "polybag",
+  panni: "polybag",
+  lefafa: "polybag",
+};
 
 /**
  * Trailing `s` off anything long enough for it to be a plural. Crude on purpose: `BALLOONS` and
@@ -681,6 +719,8 @@ export const tokens = (s: string): string[] =>
   normalize(s)
     .split(" ")
     .filter((w) => w && !NOISE.has(w))
+    // His word becomes ours BEFORE stemming, so `kt` -> `fringe` lines up with `Fringes` -> `fringe`.
+    .map((w) => SAYS[w] ?? w)
     .map(stem);
 
 /** Standard Levenshtein, two rows. Short strings only — the longest name here is a few words. */
@@ -897,6 +937,21 @@ export function whyFlagged(name: string, m: Material): "wrong" | "missing" | "na
   const asked = tokens(name).filter((w) => QUALIFIER.test(w));
   const has = tokens(m.material).filter((w) => QUALIFIER.test(w));
   const shared = (a: string[], b: string[]) => a.some((x) => b.some((y) => sameWord(x, y)));
+
+  /**
+   * **A different size is a different product, not a near miss.**
+   *
+   * `Flipcart pani 8*12` scored 0.71 against `Flipkart Polybag 9x12` — above the floor, because
+   * once `pani` was known to mean polybag every word agreed except the one that matters. Sending
+   * 8x12 bags out as 9x12 is a real cost and nothing downstream re-checks it.
+   *
+   * Only when BOTH names carry numbers: a note that never mentions a size is not disagreeing about
+   * one, and `10 double tape` against `Arch Tape` must stay a plain miss rather than a conflict.
+   */
+  const nums = (t: string) => tokens(t).filter((w) => /^\d+$/.test(w));
+  const mine = nums(name);
+  const theirs = nums(m.material);
+  if (mine.length > 0 && theirs.length > 0 && mine.join(" ") !== theirs.join(" ")) return "wrong";
 
   if (asked.length > 0 && has.length > 0 && !shared(asked, has)) return "wrong";
   if (asked.length > 0 && !asked.every((w) => has.some((h) => sameWord(w, h)))) return "missing";
