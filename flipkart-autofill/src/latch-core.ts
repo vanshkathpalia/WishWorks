@@ -748,39 +748,23 @@ export async function askChatGpt(page: Page, image: string, prompt: string): Pro
     // `setInputFiles` on the hidden input, never a click on the paperclip: the picker it opens is
     // an OS dialog, which is outside the page and cannot be driven from here at all.
     await page.locator("input[type=file]").first().setInputFiles(image, { timeout: 15_000 });
-    const composer = page.locator("#prompt-textarea").first();
-    await composer.click({ timeout: 15_000 });
     /**
-     * Empty the composer before typing into it.
+     * Wait for the upload BEFORE filling the composer.
      *
-     * **ChatGPT keeps an unsent draft**, so a second costing chat opens with the first one's prompt
-     * still sitting there and `pressSequentially` APPENDS. Measured: a 4,890-character prompt came
-     * back as 9,648 — the whole thing twice, with the tail intact, which is why it reads as fine
-     * until you count. Two conflicting copies of the rules is worse than none; the model follows
-     * whichever it likes.
-     *
-     * Select-all then Delete, because `fill("")` is unreliable on a contenteditable. Meta on a Mac,
-     * Control elsewhere — Playwright's `ControlOrMeta` picks the right one per platform.
+     * ChatGPT re-renders the composer while a picture is going up, and a paste into it lands
+     * nowhere — measured: `ready` returned over an empty box. The prompt goes in after the picture
+     * has arrived, not beside it.
      */
-    await page.keyboard.press("ControlOrMeta+A");
-    await page.keyboard.press("Delete");
+    await page.waitForTimeout(6000);
     /**
-     * PASTED, not typed, and the difference is not cosmetic.
+     * The composer is filled by `putInComposer` and NOT sent.
      *
-     * `pressSequentially` sends real keystrokes, so every `\n` in the prompt is an Enter — into a
-     * composer where Enter SENDS THE MESSAGE. It happened not to fire here, and the price of being
-     * wrong about that is a half-typed prompt sent to the model. It also loses the paragraph
-     * breaks: measured, `…in this kit.\n\nReply with NOTHING but…` arrived as `…in this
-     * kit.Reply with…`, with the rules run together into the sentence before them.
-     *
-     * A paste is one event, keeps the text exactly as written, and never touches Enter.
+     * This used to be its own copy of the clear-and-paste, and that is how it kept a fixed
+     * 1,200 ms wait after the paste long after the same bug was fixed in `chat-core` — it happened
+     * to work only because this prompt is small. One implementation now, in one place.
      */
-    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "https://chatgpt.com" });
-    await page.evaluate((t) => navigator.clipboard.writeText(t), prompt);
-    await page.keyboard.press("ControlOrMeta+V");
-    await page.waitForTimeout(1200);
-    // Give the upload a moment to finish, so the tab he switches to is not mid-spinner.
-    await page.waitForTimeout(4000);
+    const { putInComposer } = await import("./chat-core.js");
+    await putInComposer(page, prompt);
     return "ready";
   } catch {
     return "manual";

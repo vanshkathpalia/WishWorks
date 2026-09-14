@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { STANDARD_RUN, newImages } from "../src/chat-core.js";
+import { STANDARD_RUN, chatTitle, newImages } from "../src/chat-core.js";
 
 const url = (id: string) => `https://chatgpt.com/backend-api/estuary/content?id=${id}&ts=1&p=fs&cid=1&sig=x`;
 
@@ -83,5 +83,22 @@ describe("the step that waits for an answer", () => {
     // The hero and the counts infographic draw straight away. If another prompt ever starts asking,
     // this test is where it gets noticed rather than being silently called a failure.
     expect(STANDARD_RUN.filter((s) => s.waits)).toHaveLength(1);
+  });
+});
+
+/**
+ * Naming the chat after the work in it. The sidebar is otherwise a column of "Generate Balloon
+ * Image" and the chat that costed ANP018 is unfindable a week later — which matters, because these
+ * are the chats somebody opens when a price looks wrong.
+ */
+describe("what a chat is called", () => {
+  it("leads with the SKU, because that is what gets searched for", () => {
+    expect(chatTitle("images", "ANP018")).toBe("ANP018 — images");
+    expect(chatTitle("meta", "ANP018")).toBe("ANP018 — meta");
+    expect(chatTitle("costing", "ANP018")).toBe("ANP018 — costing");
+  });
+
+  it("names a delivery by its date, which is what a delivery has instead of a SKU", () => {
+    expect(chatTitle("words", "2026-09-14")).toBe("delivery 2026-09-14");
   });
 });

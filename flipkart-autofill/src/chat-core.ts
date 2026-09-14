@@ -57,6 +57,22 @@ export async function imagesOn(page: Page): Promise<string[]> {
  * each of those three is load-bearing rather than tidy.
  */
 export async function sendPrompt(page: Page, text: string): Promise<void> {
+  await putInComposer(page, text);
+  // **The only Enter in this file.** Splitting `sendPrompt` left one behind in `putInComposer` as
+  // well, so the costing chat — whose whole point is to hand a human a filled composer to READ —
+  // sent it instead, and `sendPrompt` pressed Enter twice. It cost an hour to find because both
+  // callers still looked like they worked: one had sent, the other had a chat.
+  await page.keyboard.press("Enter");
+}
+
+/**
+ * Put `text` in the composer and leave it there, unsent.
+ *
+ * Split out from `sendPrompt` because one caller must NOT send: the costing chat hands a human a
+ * filled composer to read before they commit to it. Both used to have their own copy of this, which
+ * is how the 1.5-second bug survived in one of them after being fixed in the other.
+ */
+export async function putInComposer(page: Page, text: string): Promise<void> {
   const composer = page.locator("#prompt-textarea").first();
   await composer.click({ timeout: 30_000 });
   await page.keyboard.press("ControlOrMeta+A");
@@ -80,14 +96,21 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
   // `text`, not `prompt` — `prompt` is a DOM global, so the wrong name TYPECHECKED and only
   // failed at runtime, after the browser had opened.
   const want = Math.min(text.trim().length, 200);
+  let got = 0;
   for (let i = 0; i < 40; i++) {
-    const got = (await composer.innerText().catch(() => "")).trim().length;
+    got = (await composer.innerText().catch(() => "")).trim().length;
     if (got >= want) break;
     await page.waitForTimeout(500);
   }
-  // A beat for the tail of a long paste to settle before the keystroke.
+  /**
+   * **Give up LOUDLY.** The first version simply fell out of the loop, so a paste that never landed
+   * returned as though it had worked — and the costing chat then reported `ready` over an empty
+   * composer. That is the same lie as the 1.5-second bug wearing a different hat: silence read as
+   * success. The caller catches this and says `manual`, which is true.
+   */
+  if (got < want) throw new Error(`the prompt did not reach the composer (${got} of ${want} chars)`);
+  // A beat for the tail of a long paste to settle before anything is pressed.
   await page.waitForTimeout(800);
-  await page.keyboard.press("Enter");
 }
 
 /**
@@ -242,6 +265,8 @@ export async function runImageChat(
     fileFor: (n: number) => string;
     onStep?: (r: RunResult) => void;
     timeoutMs?: number;
+    /** What to call the chat afterwards — `ANP018 — images`. Skipped when absent. */
+    title?: string;
   },
 ): Promise<RunResult[]> {
   const out: RunResult[] = [];
@@ -313,4 +338,50 @@ export async function askOnce(page: Page, prompt: string, timeoutMs = 300_000): 
   // The last chunk lands a beat after the stream ends.
   await page.waitForTimeout(2500);
   return lastReply(page);
+}
+
+/**
+ * Name the chat after the work it holds.
+ *
+ * Vansh, 2026-09-14: *"rename the ChatGPT chat name — the SKU name… then followed by image if it
+ * generated images, meta for the metadata one, and if delivery related then delivery-date."* The
+ * sidebar is otherwise a column of *"Generate Balloon Image"* and *"Untitled"*, and the chat that
+ * costed ANP018 is unfindable a week later — which matters because these are the chats a human goes
+ * back to when a price looks wrong.
+ *
+ * Best effort, always. A rename that fails must never cost the work in the chat, so every step is
+ * caught and the caller is told plainly rather than thrown at.
+ */
+export async function renameChat(page: Page, title: string): Promise<boolean> {
+  try {
+    // The chat has to exist before it can be named — an unsent draft has no entry in the sidebar.
+    const id = /\/c\/([^/?#]+)/.exec(page.url())?.[1];
+    if (!id) return false;
+
+    const row = page.locator(`nav a[href="/c/${id}"]`).first();
+    await row.hover({ timeout: 10_000 });
+    // The three-dot button on that row. `has=` scopes it to this chat rather than the hovered one,
+    // which is the same row today and need not be tomorrow.
+    await page.locator(`nav li:has(a[href="/c/${id}"]) button`).last().click({ timeout: 10_000 });
+    await page.getByRole("menuitem", { name: /rename/i }).click({ timeout: 10_000 });
+
+    // The row turns into an input holding the old name; select all, then type over it.
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.type(title, { delay: 0 });
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(1200);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What a chat should be called, from what it was for.
+ *
+ * `ANP018 — images`, `ANP018 — meta`, `delivery 2026-09-14`. The SKU first because that is what a
+ * human searches the sidebar for, and it is the one thing every listing chat has in common.
+ */
+export function chatTitle(what: "images" | "meta" | "costing" | "words", subject: string): string {
+  return what === "words" ? `delivery ${subject}` : `${subject} — ${what}`;
 }

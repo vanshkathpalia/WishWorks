@@ -1261,7 +1261,7 @@ ipcMain.handle("imageQueue", async (): Promise<Attempt<unknown>> => {
  */
 ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> => {
   const { readLatches, imageJobs, imageFor } = await latchEngine();
-  const { runImageChat, STANDARD_RUN } = await import("../src/chat-core.js");
+  const { runImageChat, STANDARD_RUN, chatTitle } = await import("../src/chat-core.js");
   const { rawFileFor } = await import("../src/sku-core.js");
   const { chatTab } = await import("../src/browser-core.js");
 
@@ -1292,6 +1292,9 @@ ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> =>
     readPrompt: async (name) => (await prompts.readPrompt(promptDirs(), name)).text,
     fileFor: (n) => rawFileFor(IMAGES_DIR, job.ourSku, n),
     onStep: (r) => e.sender.send("imageStep", { sku, ...r }),
+    // So the sidebar says `ANP018 — images` rather than "Generate Balloon Image", and the chat
+    // behind a price can be found again a week later.
+    title: chatTitle("images", job.ourSku),
   });
 
   const made = done.filter((d) => d.file).length;
@@ -1839,7 +1842,7 @@ ipcMain.handle("proposeWord", async (_e, note: string, key: string) => {
 ipcMain.handle("askSupplierWords", async (_e, note: string): Promise<Attempt<unknown>> => {
   if (!note.trim()) return { ok: false, message: "Paste his note first." };
   const sw = await import("../src/supplier-words.js");
-  const { askOnce } = await import("../src/chat-core.js");
+  const { askOnce, chatTitle, renameChat } = await import("../src/chat-core.js");
   const { chatTab } = await import("../src/browser-core.js");
   const inv = await inventoryEngine();
 
@@ -1857,6 +1860,8 @@ ipcMain.handle("askSupplierWords", async (_e, note: string): Promise<Attempt<unk
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
   const reply = await askOnce(tab, prompt).catch(() => "");
+  // A delivery has a date where a listing has a SKU, so that is what its chat is called.
+  await renameChat(tab, chatTitle("words", new Date().toLocaleDateString("en-CA"))).catch(() => false);
   const proposal = sw.readProposal(reply);
   const rows = sw.reviewProposal(proposal, inv.loadMaterials(), await readLearned());
 
