@@ -147,7 +147,10 @@ describe("reading the AI's reply", () => {
 
 describe("matching a name to a price row", () => {
   it("strips plurals and noise words so the commonest difference is not a miss", () => {
-    expect(tokens("20 pcs of Blue Balloons")).toEqual(["20", "blue", "balloon"]);
+    // `20 pcs` is how MANY, not what it is, so it is dropped: a note and a row naming the same
+    // material agree whatever quantity each happens to mention. Found on the full supplier note of
+    // 2026-09-14, where `jungle 5 pcs set foil` matched `5 No. Foil` at 0.80 on the bare `5`.
+    expect(tokens("20 pcs of Blue Balloons")).toEqual(["blue", "balloon"]);
     expect(score("Blue Balloons", find("BLUE Balloon"))).toBe(1);
   });
 
@@ -1346,5 +1349,65 @@ describe("a word that only means something in combination", () => {
   it("leaves the cheers balloons a separate product", () => {
     // The third row must not be swallowed by the alias: it is a real thing he sells.
     expect(best("cheers foil balloons").material.material).toBe("Cheers Foil Balloons");
+  });
+});
+
+/**
+ * Run against the WHOLE supplier note of 2026-09-14 — 83 lines, not the fourteen that had already
+ * failed. Every case below was a **confident wrong match** in that run, which is the only kind of
+ * failure that costs money: stock taken off a material that never arrived, with nobody told.
+ *
+ * Vansh, seeing two of them: *"bro kt means kt, which means fringes — so no grabbing by some other
+ * balloon or anything, and same goes with net. And this should not happen with any other item too."*
+ * The rules below are general for that reason: they read the category list itself rather than
+ * naming fringes and nets.
+ */
+describe("the whole supplier note", () => {
+  const materials = loadMaterials();
+  const best = (s: string) => candidates(s, materials, 1)[0];
+
+  it("will not answer a kind with a different kind", () => {
+    // `green kt` -> **Green Balloon** at 0.67, and there is no Green Fringes row at all. The colour
+    // agreed and the kind did not, and the kind is the half that says what it IS.
+    expect(best("green kt")).toBeUndefined();
+    // `pink net` -> **Pink Balloon** at 0.67, with no Pink Net row either.
+    expect(best("pink net")?.score ?? 0).toBeLessThan(FLOOR);
+  });
+
+  it("still matches when the row names the kind itself", () => {
+    // The guard must not fire on a row that says `banner` in its own name whatever category it
+    // sits in, or it would break every themed kit.
+    expect(best("anprrashan kit with banner").material.material).toBe("Annaprashan Banner Kit");
+    expect(best("blue kt").material.material).toMatch(/Fringes/);
+    expect(best("purple kt").material.material).toBe("Purple Fringes");
+  });
+
+  it("reads a count as a count, not as part of the name", () => {
+    // `jungle 5 pcs set foil` -> `5 No. Foil` at 0.80, agreeing on the bare `5` and on `foil`,
+    // which every foil has. Two generic agreements and a confident wrong row.
+    expect(best("jungle 5 pcs set foil")?.score ?? 0).toBeLessThan(FLOOR);
+    // The real themed sets still land, because their own names carry the same count.
+    expect(best("doremon 5 pcs set").material.material).toBe("Doraemon Set, 5 pcs");
+    expect(best("massa 5 pcs set").material.material).toBe("Masha Set, 5 pcs");
+  });
+
+  it("tells his sash from his foil", () => {
+    // `groom to be sesh` -> **GTB Foil** at 1.00 — silently, with `groom to be foil` listed on its
+    // own line two rows earlier. Both are real products and he buys both.
+    expect(best("groom to be sesh").material.material).toBe("GTB Sash");
+    expect(best("groom to be foil").material.material).toBe("GTB Foil");
+  });
+
+  it("keeps the plain colours exact, which is most of any note", () => {
+    for (const [note, row] of [
+      ["blue", "Blue Balloon"],
+      ["white", "White Balloon"],
+      ["silver t", "Silver Balloon"],
+      ["red kt", "Red Fringes"],
+      ["golden kt", "Golden Fringes"],
+      ["welcome baby pink foil", "Pink Welcome Baby Foil"],
+    ] as const) {
+      expect(best(note).material.material, note).toBe(row);
+    }
   });
 });

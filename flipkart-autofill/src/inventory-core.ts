@@ -733,6 +733,18 @@ const SAYS: Record<string, string> = {
   baggi: "big",
   // *"bacha bachi foil — girl and boy foil."* Child, boy and girl.
   bacha: "boy",
+  // `red hb foil`, `golden hb foil` — his short form for happy birthday.
+  hb: "hbd",
+  /**
+   * `groom to be sesh` is a SASH, and it was matching `GTB Foil` — with the note listing
+   * `groom to be foil` on its own line two rows earlier.
+   *
+   * A word rule rather than an alias because it generalises: `hbd sesh` and `btb sesh` are fixed
+   * too. And it has to be a rule at all because `sesh` -> `sash` is one edit on a FOUR-letter word,
+   * which gets no typo tolerance by design — that guard is what keeps `gold`/`cold` and
+   * `blue`/`glue` apart, and it is worth more than this.
+   */
+  sesh: "sash",
   bachi: "girl",
   chota: "small",
   // *"pani is panni which mean lefafa — which mean a packet to pack things up."* A polybag.
@@ -748,9 +760,21 @@ const SAYS: Record<string, string> = {
  */
 const stem = (w: string) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w);
 
+/**
+ * Units that turn the number before them into a COUNT rather than part of a name.
+ *
+ * `jungle 5 pcs set foil` was matching `5 No. Foil` at 0.80 — on the `5`, which says how many are
+ * in the set, and on `foil`, which every foil has. Two generic agreements and a confident wrong
+ * row. `No.` is deliberately absent: in `5 No. Foil` the 5 IS the name.
+ */
+const COUNTED = new Set(["pc", "pcs", "piece", "pieces", "pkt", "pkts", "packet", "packets", "set", "sets", "pack", "packs"]);
+
 export const tokens = (s: string): string[] =>
   normalize(s)
     .split(" ")
+    // A number reading as `5 pcs` is a quantity, not an identity. Dropped before NOISE takes the
+    // unit away and leaves the bare digit looking like part of the name.
+    .filter((w, i, all) => !(/^\d+$/.test(w) && COUNTED.has(all[i + 1] ?? "")))
     .filter((w) => w && !NOISE.has(w))
     // His word becomes ours BEFORE stemming, so `kt` -> `fringe` lines up with `Fringes` -> `fringe`.
     // Taught words win over shipped ones: he is the authority on what his supplier means.
@@ -853,7 +877,22 @@ function scoreName(name: string, against: string, category = ""): number {
    * writes. Dropping the row's own `balloon`, which its category already states, leaves one word
    * against one word.
    */
-  const bTrimmed = b.filter((w) => !(tokens(category).includes(w) && !a.includes(w)));
+  /**
+   * Only for a SHORT note, and that limit is not tidiness — it is the whole safety of the trim.
+   *
+   * Stripping the row's category word lets a one-word note reach the floor, which is what it was
+   * for. But it also strips the row's identity, and on the full note of 2026-09-14 that turned
+   * `Age Foil` into a catch-all: its alias `Age Foil 5` lost `age`, leaving `foil 5`, which matched
+   * `jungle 5 pcs set foil` at **0.80**. A row reduced to generic words matches everything generic.
+   *
+   * A note of TWO words does not need the help either — measured: `blue kt` reaches 0.80 against
+   * `Blue Metallic Fringes` untrimmed, because it has two words of its own to agree on. But two
+   * words WITH the trim let `jungle 5 pcs set foil` keep matching `Age Foil` on the bare word
+   * `foil`. So the trim applies to a one-word note and nothing else, which is exactly the case it
+   * was written for.
+   */
+  const bTrimmed =
+    a.length === 1 ? b.filter((w) => !(tokens(category).includes(w) && !a.includes(w))) : b;
   if (a.length === 0 || bTrimmed.length === 0) return 0;
   if (a.join(" ") === bTrimmed.join(" ")) return 1;
 
@@ -967,7 +1006,37 @@ export function narrowing(name: string, m: Material): boolean {
  *   - `narrow` — the row names one and the reading does not, the case `narrowing` already caps.
  *   - `null`   — nothing to do with colour; the names simply differ in spelling.
  */
-export function whyFlagged(name: string, m: Material): "wrong" | "missing" | "narrow" | null {
+/**
+ * The words that name a KIND of thing — read off the category list itself, so it cannot drift.
+ *
+ * `Fringes` -> `fringe`, `Net` -> `net`, `Banner` -> `banner`. Built once per material list.
+ */
+const kindWords = (materials: Material[]): Set<string> =>
+  new Set(materials.flatMap((m) => tokens(m.category)));
+
+export function whyFlagged(name: string, m: Material, all: Material[] = []): "wrong" | "missing" | "narrow" | null {
+  /**
+   * **A note that says what KIND of thing it is cannot match a different kind.**
+   *
+   * Found on the full note of 2026-09-14, and it was not a miss but a silent wrong match:
+   *
+   *   `green kt`  -> 0.67 **Green Balloon**   (there is no Green Fringes row at all)
+   *   `pink net`  -> 0.67 **Pink Balloon**    (there is no Pink Net row at all)
+   *
+   * Both above the floor, both taking stock off a material that never arrived. The colour agreed
+   * and the kind did not, and the kind is the half that says what it IS.
+   *
+   * Only when the word appears in NEITHER the row's name nor its category: `anprrashan kit with
+   * banner` against `Annaprashan Banner Kit` must stay a match whatever category that row sits in,
+   * because the row says `banner` itself.
+   */
+  if (all.length) {
+    const kinds = kindWords(all);
+    const mine = new Set([...tokens(m.material), ...tokens(m.category)]);
+    const saidKind = tokens(name).filter((w) => kinds.has(w));
+    if (saidKind.length > 0 && !saidKind.some((w) => mine.has(w))) return "wrong";
+  }
+
   const asked = tokens(name).filter((w) => QUALIFIER.test(w));
   const has = tokens(m.material).filter((w) => QUALIFIER.test(w));
   const shared = (a: string[], b: string[]) => a.some((x) => b.some((y) => sameWord(x, y)));
@@ -1013,7 +1082,7 @@ export function candidates(name: string, materials: Material[], top = 5): Candid
        * Only when BOTH sides name one. A reading with no colour still matches a coloured row (and
        * is capped below), because the sheet leaving it out is not a claim about the shade.
        */
-      if (whyFlagged(name, material) === "wrong") return { material, score: 0 };
+      if (whyFlagged(name, material, materials) === "wrong") return { material, score: 0 };
       // Capped here rather than inside `score` so the CAP is a fact about the pair, not a change
       // to how names are compared. It only ever lowers, and only across the SURE line — the row
       // stays the best answer, it just stops being a silent one.
@@ -1196,7 +1265,7 @@ export function costKit(
       match,
       score: s,
       flagged: !overridden && !wasDecided && match !== null && (s < SURE || tied),
-      why: match === null || overridden || wasDecided ? null : whyFlagged(line.item, match),
+      why: match === null || overridden || wasDecided ? null : whyFlagged(line.item, match, materials),
       overridden,
       choices,
       /** Set when this line's unit price came from the kit rather than the price list. */
