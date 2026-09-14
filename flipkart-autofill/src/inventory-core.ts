@@ -728,6 +728,12 @@ const SAYS: Record<string, string> = {
   bada: "big",
   // He writes it both ways; `badi` is the same word.
   badi: "big",
+  // He writes it three ways; all of them are "big".
+  biddi: "big",
+  baggi: "big",
+  // *"bacha bachi foil — girl and boy foil."* Child, boy and girl.
+  bacha: "boy",
+  bachi: "girl",
   chota: "small",
   // *"pani is panni which mean lefafa — which mean a packet to pack things up."* A polybag.
   pani: "polybag",

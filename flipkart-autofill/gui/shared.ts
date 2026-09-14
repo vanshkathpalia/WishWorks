@@ -760,6 +760,22 @@ export interface WwApi {
   }>;
   /** Remember a pick against the wording it was made for; null forgets it. */
   setAlias(name: string, key: string | null): Promise<Record<string, string>>;
+  /**
+   * Teach the matcher one of the supplier's words — `jhalar` means `fringe`. Null forgets it.
+   *
+   * A WORD, not a phrase, which is the difference between teaching and repeating: `kt` learnt once
+   * fixes every colour of fringe, including ones never bought. Everything re-scores afterwards,
+   * kits included, so a word learnt from a delivery note also fixes the costing.
+   */
+  learnWord(from: string, to: string | null): Promise<Record<string, string>>;
+  learnedWords(): Promise<Record<string, string>>;
+  /**
+   * What one unknown word in his note might mean, given the row just chosen.
+   *
+   * The row's spare words come back as `options`, never as an answer — only Vansh knows which.
+   * Null when there is nothing to learn, which is the common case and stays silent.
+   */
+  proposeWord(note: string, key: string): Promise<{ from: string; options: string[] } | null>;
   saveDelivery(d: Delivery): Promise<boolean>;
   /**
    * Take a saved delivery off the record.

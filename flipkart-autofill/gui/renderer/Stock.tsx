@@ -496,9 +496,26 @@ export function Stock({ n }: { n: number }) {
     );
   };
 
-  /** A pick is remembered, then the tally is re-run so the row moves out of the worklist. */
+  /**
+   * A word the last pick might have taught, waiting to be confirmed.
+   *
+   * Null almost always — a prompt after every pick would be trained away within a day, so it only
+   * appears when there is genuinely one unexplained word and something for it to mean.
+   */
+  const [teach, setTeach] = useState<{ from: string; options: string[] } | null>(null);
+
+  /**
+   * A pick is remembered, the tally re-runs so the row leaves the worklist — and then the app asks
+   * whether it just learnt a WORD.
+   *
+   * **This is the difference between the app repeating and the app learning.** Remembering
+   * `blue kt` teaches nothing about `golden kt`; learning that `kt` means fringe fixes every colour
+   * of fringe at once, including ones never bought. Vansh, 2026-09-14: *"me having freedom to
+   * choose under what any product will go, and then app learning from that."*
+   */
   const pick = (name: string, key: string) => {
     void window.ww.setAlias(name, key === "" ? null : key).then(run, (e: Error) => setError(e.message));
+    if (key) void window.ww.proposeWord(name, key).then(setTeach, () => {});
   };
 
   const save = () => {
@@ -661,6 +678,31 @@ export function Stock({ n }: { n: number }) {
 
           {/* The batch offer. It counts every unmatched row, not the ones on screen: a filter is
               for looking, and adding only what is visible would quietly leave the rest out. */}
+          {/* **The app proposes, he disposes.** It knows one word is unexplained and what the row
+              had spare; it does not know which of those the word means, and a wrong rule here is
+              permanent — it would rewrite every future note. So it asks, once, and only when there
+              is something real to ask. */}
+          {teach && (
+            <p className="teach">
+              Does <b>{teach.from}</b> always mean…{" "}
+              {teach.options.map((o) => (
+                <button
+                  key={o}
+                  className="go small"
+                  onClick={() => {
+                    setTeach(null);
+                    void window.ww.learnWord(teach.from, o).then(run, (e: Error) => setError(e.message));
+                  }}
+                >
+                  {o}
+                </button>
+              ))}{" "}
+              <button className="link" onClick={() => setTeach(null)}>
+                no, just this once
+              </button>
+            </p>
+          )}
+
           {unlisted.length > 0 && (
             <div className="add-missing">
               <p className="warnpill block">

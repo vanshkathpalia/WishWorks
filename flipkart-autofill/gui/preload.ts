@@ -138,6 +138,9 @@ const api: WwApi = {
   tallyNotes: (claimedNote: string, countedNote: string) =>
     ipcRenderer.invoke("tallyNotes", claimedNote, countedNote),
   setAlias: (name: string, key: string | null) => ipcRenderer.invoke("setAlias", name, key),
+  learnWord: (from: string, to: string | null) => ipcRenderer.invoke("learnWord", from, to),
+  learnedWords: () => ipcRenderer.invoke("learnedWords"),
+  proposeWord: (note: string, key: string) => ipcRenderer.invoke("proposeWord", note, key),
   saveDelivery: (d: unknown) => ipcRenderer.invoke("saveDelivery", d),
   removeDelivery: (date: string) => ipcRenderer.invoke("removeDelivery", date),
   stock: () => ipcRenderer.invoke("stock"),

@@ -2799,3 +2799,11 @@ h3 > button.tiny {
    the rows the matcher was NOT confident about, and quietly picking one is how a delivery of
    burgundy balloons gets counted as brandy. */
 .did-you-mean { max-width: 230px; }
+
+/* "Does `kt` always mean fringe?" — asked once, after a pick that could teach a word. Deliberately
+   quiet and deliberately rare: a prompt after every pick is a prompt nobody reads. */
+.teach { font-size: 13px; margin: 10px 0; display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; }
+.teach button.small { padding: 2px 10px; font-size: 12px; }
+.teach button.link { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--muted, #5a6472); text-decoration: underline; }

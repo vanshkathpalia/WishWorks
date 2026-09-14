@@ -1600,6 +1600,7 @@ async function readAliases(): Promise<Record<string, string>> {
 
 /** The supplier's claim against our count, matched to the price list. Nothing is written. */
 ipcMain.handle("tallyNotes", async (_e, claimedNote: string, countedNote: string) => {
+  (await inventoryEngine()).useLearnedWords(await readLearned());
   const { readNote, tally } = await stockEngine();
   const { loadMaterials } = await inventoryEngine();
   const materials = loadMaterials();
@@ -1656,6 +1657,9 @@ const FORECAST_HORIZON_DAYS = 14;
 
 ipcMain.handle("stock", async () => {
   const stock = await stockEngine();
+  // Taught words are loaded here rather than at boot: this is the first handler that needs them,
+  // and reading them on every call keeps a second window's teaching from going unnoticed.
+  (await inventoryEngine()).useLearnedWords(await readLearned());
   const orders = await ordersEngine();
   const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
 
@@ -1769,6 +1773,56 @@ ipcMain.handle("stock", async () => {
     thin: stock.THIN,
     aliases: await readAliases(),
   };
+});
+
+
+/**
+ * Words a human has taught the matcher — `{ "jhalar": "fringe" }`.
+ *
+ * Beside the aliases, in the account's folder, for the same reason: it is a fact about how this
+ * supplier talks, not about this machine, and it should follow the business to a new laptop.
+ */
+const LEARNED_FILE = () => path.join(ORDERS_DIR, "words.json");
+
+async function readLearned(): Promise<Record<string, string>> {
+  try {
+    return JSON.parse(await readFile(LEARNED_FILE(), "utf8")) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Teach the matcher one word, or forget one.
+ *
+ * **Everything re-scores afterwards**, including kits already costed — that is the point. A word
+ * learnt from a delivery note is the same word in a kit's line, so `PROMPT-inventory`'s output
+ * starts matching too, which is the half Vansh worried about: *"in this way our sku json entry will
+ * also don't match."*
+ */
+ipcMain.handle("learnWord", async (_e, from: string, to: string | null) => {
+  const words = await readLearned();
+  if (to) words[from.toLowerCase()] = to.toLowerCase();
+  else delete words[from.toLowerCase()];
+  await mkdir(ORDERS_DIR, { recursive: true });
+  await writeFile(LEARNED_FILE(), `${JSON.stringify(words, null, 2)}\n`);
+  (await inventoryEngine()).useLearnedWords(words);
+  return words;
+});
+
+ipcMain.handle("learnedWords", () => readLearned());
+
+/**
+ * What one unknown word in his note might mean, given the row a human just chose.
+ *
+ * Returns the row's spare words as OPTIONS, never an answer — see `proposeWord`. Null when there is
+ * nothing to learn, which is the common case and must be silent: a prompt after every pick would be
+ * trained away within a day.
+ */
+ipcMain.handle("proposeWord", async (_e, note: string, key: string) => {
+  const inv = await inventoryEngine();
+  const material = inv.loadMaterials().find((m) => `${m.category}|${m.material}` === key);
+  return material ? inv.proposeWord(note, material) : null;
 });
 
 /** A packer's rate, in paise per packet. Zero or absent means their pay is not worked out here. */
