@@ -2794,3 +2794,8 @@ h3 > button.tiny {
 .forecast button.link { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
   color: var(--accent, #2a55e5); text-decoration: underline dotted; }
 .forecast .small { font-size: 12px; }
+
+/* "Or one we already have" — the near-misses the floor rejected. Nothing is pre-selected: these are
+   the rows the matcher was NOT confident about, and quietly picking one is how a delivery of
+   burgundy balloons gets counted as brandy. */
+.did-you-mean { max-width: 230px; }

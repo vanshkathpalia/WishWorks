@@ -682,6 +682,42 @@ export function Stock({ n }: { n: number }) {
                       />
                     </label>
                     <span className="lid">{r.name}</span>
+                    {/**
+                      * **"Or is it one we already have?" — offered BEFORE the group picker.**
+                      *
+                      * Without it this block had one exit: add all of them as new materials. Vansh,
+                      * 2026-09-14, looking at 41 of them: *"it is treating everything as new only —
+                      * in this way our sku json entry will also don't match."* He was right, and the
+                      * cause was not the matcher being blind. It had usually FOUND the row and
+                      * scored it just under the floor: `bregendy` -> Burgundy Balloon at 57%,
+                      * `Bopp 9*12` -> Flipkart Polybag at 57%. A single-word note against a
+                      * two-word row caps at 2x0.85/3 = 0.57 however right it is, so the floor can
+                      * never pass it.
+                      *
+                      * The scores are shown rather than hidden, and nothing is pre-selected: these
+                      * are the rows the matcher was NOT confident about, and quietly choosing one
+                      * is how a delivery of burgundy balloons gets counted as brandy.
+                      *
+                      * Picking one records it against his wording, so the same word matches by
+                      * itself next time — the mechanism `setAlias` already existed for.
+                      */}
+                    {r.choices.length > 0 && (
+                      <select
+                        className="did-you-mean"
+                        value=""
+                        onChange={(e) => e.target.value && pick(r.name, e.target.value)}
+                      >
+                        <option value="">— or one we already have… —</option>
+                        {r.choices.map((c) => (
+                          <option
+                            key={`${c.material.category}|${c.material.material}`}
+                            value={`${c.material.category}|${c.material.material}`}
+                          >
+                            {c.material.material} · {Math.round(c.score * 100)}%
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <select
                       value={newGroups[r.name] ?? guessGroup(r)}
                       onChange={(e) => setNewGroups({ ...newGroups, [r.name]: e.target.value })}

@@ -640,10 +640,23 @@ export function gaps(materials: Material[]): { noPrice: Material[]; noSize: Mate
 
 // ---------------------------------------------------------------- matching
 
-/** Lowercase, letters and digits only, single-spaced. */
+/**
+ * Lowercase, letters and digits only, single-spaced — and **a size is always two numbers**.
+ *
+ * `9x12` and `9*12` are the same packet and used to be invisible to each other: the `x` is a
+ * letter, so `9x12` stayed one token while `9*12` became `9 12`. Nothing could ever line them up,
+ * and the damage was not a miss but a WRONG match — the supplier's `Flipcart pani 8*12` scored
+ * best against `Flipkart Polybag 9x12`, because with the size unreadable the only thing left to
+ * agree on was the word Flipkart. A tally that silently swaps one polybag size for another is worse
+ * than one that finds nothing.
+ *
+ * So an `x` between two digits is a separator, like the `*` already was. Everything else is
+ * unchanged, including an `x` that is part of a word.
+ */
 export function normalize(s: string): string {
   return s
     .toLowerCase()
+    .replace(/(\d)\s*x\s*(\d)/g, "$1 $2")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }

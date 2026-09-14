@@ -1117,3 +1117,34 @@ describe("signing off a costing", () => {
     expect(confirmKit({ ...kit, flatPaise: 7500 }, "2026-09-13").flatPaise).toBe(7500);
   });
 });
+
+/**
+ * A size is two numbers, however the supplier punctuates it.
+ *
+ * `9x12` and `9*12` are one packet. They used to be invisible to each other — `x` is a letter, so
+ * `9x12` stayed one token while `9*12` split — and the damage was not a miss but a WRONG match:
+ * the note's `Flipcart pani 8*12` scored best against `Flipkart Polybag 9x12`, because with the
+ * size unreadable the only thing left to agree on was the word Flipkart. A tally that silently
+ * swaps one polybag size for another is worse than one that finds nothing.
+ */
+describe("reading a size the way the supplier writes it", () => {
+  it("makes every spelling of a size the same two numbers", () => {
+    expect(normalize("9x12")).toBe("9 12");
+    expect(normalize("9*12")).toBe("9 12");
+    expect(normalize("9 x 12")).toBe("9 12");
+    expect(normalize("9×12")).toBe("9 12");
+  });
+
+  it("leaves an x that is part of a word alone", () => {
+    // Only BETWEEN digits. `Deluxe` and `Box` must not lose their letters.
+    expect(normalize("Deluxe Box")).toBe("deluxe box");
+    expect(normalize("Max 6")).toBe("max 6");
+  });
+
+  it("stops a note's 8*12 from reading as the list's 9x12", () => {
+    // The real failure. Both sides now carry their size, so the numbers disagree and the row is
+    // honestly reported as one we do not stock.
+    expect(normalize("Flipcart pani 8*12")).toContain("8 12");
+    expect(normalize("Flipkart Polybag 9x12")).toContain("9 12");
+  });
+});
