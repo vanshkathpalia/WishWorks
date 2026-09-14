@@ -708,7 +708,7 @@ function distance(a: string, b: string): number {
  * opposite ends: `metallic`/`matalic` is a misspelling we have in the real data, while `red`/`led`
  * are two words. Short words must match exactly.
  */
-function sameWord(a: string, b: string): boolean {
+export function sameWord(a: string, b: string): boolean {
   if (a === b) return true;
   // One word being the start of the other is the same root, not a typo: gold/golden,
   // metal/metallic, confetti/confettis. Edit distance cannot see this — `gold` to `golden` is two
@@ -720,6 +720,21 @@ function sameWord(a: string, b: string): boolean {
 
   const len = Math.max(a.length, b.length);
   if (len < 5) return false;
+
+  /**
+   * **The same letters in the wrong order is a typo, not another word.**
+   *
+   * `pestal` and `pastel` are two edits apart — the vowels swap places — and one edit was all a
+   * six-letter word got, so the supplier's commonest spelling slip was invisible. It cost a real
+   * match: `blue pestal t` scored best against **Blue Balloon** rather than **Blue Pastel
+   * Balloon**, which is a silent wrong material, not a miss.
+   *
+   * Simply allowing two edits is far too loose, and measuring it proved it: `silver` -> `server`
+   * is also two, `green` -> `cream` is two. Requiring the same FIRST letter does not save it —
+   * silver and server share one. But those pairs are different LETTERS, while a transposition is
+   * the same letters rearranged. That is the test, and it is exact rather than a threshold.
+   */
+  if ([...a].sort().join("") === [...b].sort().join("")) return true;
   return distance(a, b) <= (len >= 8 ? 2 : 1);
 }
 
@@ -752,24 +767,59 @@ function scoreName(name: string, against: string, category = ""): number {
   // bare "Balloons" against "Black Balloon" is untouched, because that row does contain "balloon".
   const explained = new Set(tokens(category).filter((w) => !b.includes(w)));
   const a = tokens(name).filter((w) => !explained.has(w));
-  if (a.length === 0 || b.length === 0) return 0;
-  if (a.join(" ") === b.join(" ")) return 1;
+
+  /**
+   * The same rule the other way round: a word the ROW has, the CATEGORY already says, and the note
+   * never mentioned is not a word the note is missing.
+   *
+   * **Without this, a one-word note could not pass the floor however right it was.** The score is
+   * Dice — `2 x hits / (a + b)` — so `bregendy` against `Burgundy Balloon` in category *Balloon*
+   * caps at `2 x 0.85 / (1 + 2) = 0.57` against a floor of 0.6. The typo-tolerant hit fired
+   * perfectly and the arithmetic threw it away, and it did that for every short word the supplier
+   * writes. Dropping the row's own `balloon`, which its category already states, leaves one word
+   * against one word.
+   */
+  const bTrimmed = b.filter((w) => !(tokens(category).includes(w) && !a.includes(w)));
+  if (a.length === 0 || bTrimmed.length === 0) return 0;
+  if (a.join(" ") === bTrimmed.join(" ")) return 1;
 
   // Exact first, so a row that really has the word cannot lose it to a row that merely has
   // something one letter away. A typo-tolerant hit then counts for slightly less than an exact
   // one — enough to order two otherwise equal rows, not enough to reject a real misspelling.
-  const used = new Array(b.length).fill(false);
+  const used = new Array(bTrimmed.length).fill(false);
   let hits = 0;
+  /** How much of the agreement came from a word being CLOSE rather than being the word. */
+  let guessedWeight = 0;
   for (const pass of [0, 1]) {
     for (const wa of a) {
-      const j = b.findIndex((wb, k) => !used[k] && (pass === 0 ? wa === wb : sameWord(wa, wb)));
+      const j = bTrimmed.findIndex((wb, k) => !used[k] && (pass === 0 ? wa === wb : sameWord(wa, wb)));
       if (j !== -1) {
         used[j] = true;
         hits += pass === 0 ? 1 : 0.85;
+        if (pass === 1) guessedWeight += 0.85;
       }
     }
   }
-  return (2 * hits) / (a.length + b.length);
+  const score = (2 * hits) / (a.length + bTrimmed.length);
+
+  /**
+   * **A match that leant on a misspelling is never SILENT.**
+   *
+   * Trimming the category word above lets a one-word note reach the floor, which is the point — but
+   * it can now also reach `SURE`, and at or above `SURE` a row is priced without anyone being told.
+   * `bregendy` is exactly why that must not happen: **Burgundy Balloon and Brandy Balloon are both
+   * on the price list**, one letter apart in opposite directions. Whichever the matcher prefers, it
+   * is a coin toss, and a coin toss that prices itself quietly is the failure this codebase has
+   * already had three times (see COLOUR).
+   *
+   * So anything that relied on `sameWord` stops just short of sure. It counts, it is offered, it is
+   * flagged for a look — and a human settles it once.
+   */
+  // Only when MOST of the agreement is guesswork. `Silver Metallic Balloons` against `SILVER
+  // MATALIC BALLOONS` is one shaky word out of three and the other two are exact — that is a plain
+  // misspelling and the codebase is deliberate about staying confident on it. `bregendy` is a
+  // single word carrying the whole match, with `Brandy` and `Burgundy` both one guess away.
+  return guessedWeight > hits / 2 ? Math.min(score, SURE - 0.01) : score;
 }
 
 /** Priced and quiet at or above this. */

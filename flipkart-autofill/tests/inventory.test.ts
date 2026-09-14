@@ -45,6 +45,8 @@ import {
   confirmKit,
   unconfirmed,
   type SavedKit,
+  sameWord,
+  candidates,
 } from "../src/inventory-core.js";
 
 const PRICES: Material[] = [
@@ -1146,5 +1148,46 @@ describe("reading a size the way the supplier writes it", () => {
     // honestly reported as one we do not stock.
     expect(normalize("Flipcart pani 8*12")).toContain("8 12");
     expect(normalize("Flipkart Polybag 9x12")).toContain("9 12");
+  });
+});
+
+/**
+ * Reading the supplier's spelling. Every pair below is off his real note of 2026-09-14, where 41 of
+ * 84 materials came back as "not on the price list".
+ *
+ * The failure being prevented is never a MISS — it is a confident wrong row. `blue pestal t` scored
+ * best against **Blue Balloon** rather than **Blue Pastel Balloon**: same colour, wrong material,
+ * and nothing downstream would ever ask.
+ */
+describe("the supplier's spelling", () => {
+  it("reads the same letters in the wrong order as a typo", () => {
+    // Two edits apart — the vowels swap places — which one edit could never reach.
+    expect(sameWord("pestal", "pastel")).toBe(true);
+    expect(sameWord("flipcart", "flipkart")).toBe(true);
+  });
+
+  it("does not invent a match out of two edits alone", () => {
+    // Measured, and the reason the rule is "same letters rearranged" rather than "allow two edits":
+    // each of these is also two edits, and each would be a silent wrong material.
+    expect(sameWord("silver", "server")).toBe(false);
+    expect(sameWord("green", "cream")).toBe(false);
+    expect(sameWord("blue", "glue")).toBe(false);
+    expect(sameWord("gold", "cold")).toBe(false);
+  });
+
+  it("will not guess between two rows that are both one slip away", () => {
+    // `bregendy` is three edits from `burgundy` and near `brandy` — and BOTH are on the price list.
+    // Whatever it picked would be a coin toss, so it must not pick silently.
+    const materials = loadMaterials();
+    const top = candidates("bregendy", materials, 2);
+    expect(top[0].score).toBeLessThan(SURE);
+    expect(top.map((c) => c.material.material).sort()).toEqual(["Brandy Balloon", "Burgundy Balloon"]);
+  });
+
+  it("stays confident about a misspelling the rest of the row agrees with", () => {
+    // One shaky word out of three, the other two exact. That is a typo, not an ambiguity, and
+    // flagging it would be noise — the distinction the cap turns on.
+    const materials = loadMaterials();
+    expect(candidates("Silver Metallic Balloons", materials, 1)[0].score).toBeGreaterThanOrEqual(SURE);
   });
 });

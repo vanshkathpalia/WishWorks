@@ -42,3 +42,35 @@ size for another is worse than one that finds nothing.
 That change immediately found a duplicate it had been hiding: one material carried both
 `8×10 meesho barcode` and `8x10 meesho barcode` as old names. They were only ever different because
 the punctuation was. One is gone.
+
+
+## The follow-up: "what about a spelling he has never used before?"
+
+Vansh, 2026-09-14: *"some other day he can make any other error with some other spelling — then
+what?"* Correct, and it exposed a weakness in the answer above. **An alias only covers a spelling
+already seen.** So aliases are NOT the answer to misspellings — they are for different WORDS
+(`bopp` -> polybag, `pani` -> poly). Spelling is the matcher's job, and the matcher had two faults.
+
+**1. A one-word note could not pass the floor.** Fixed by trimming from the ROW any word its own
+category already states — the mirror of a rule the file already had. `bregendy` against `Burgundy
+Balloon` in category *Balloon* is now one word against one word instead of one against two.
+
+**2. Two edits were needed, and one was allowed.** `pestal` -> `pastel` swaps the vowels. Allowing
+two outright was measured and rejected: `silver` -> `server` is two, `green` -> `cream` is two, and
+each would be a silent wrong material. Requiring the same first letter does not save it — silver and
+server share one. **The same letters rearranged** does: a transposition is a typo, different letters
+are a different word. It is an exact test rather than a threshold.
+
+That alone fixed the case that mattered: `blue pestal t` was scoring best against **Blue Balloon**
+and now finds **Blue Pastel Balloon**. Same colour, wrong material, nothing downstream would have
+asked.
+
+**3. A match resting mostly on a guess never prices itself.** Capped just below `SURE`, so it is
+offered and flagged rather than applied quietly. The cap is on the *share* of the evidence, not on
+its presence — `Silver Metallic Balloons` -> `SILVER MATALIC BALLOONS` is one shaky word out of
+three and stays confident, which two existing tests were right to insist on. `bregendy` is a single
+word carrying the whole match, with **Brandy and Burgundy both one slip away and both on the price
+list**. It now offers both, tied, and refuses to choose.
+
+**And the honest limit:** `bregendy` -> `burgundy` is three edits. No safe distance reaches it. That
+one is a genuine alias — which is what aliases are for.
