@@ -1411,3 +1411,35 @@ describe("the whole supplier note", () => {
     }
   });
 });
+
+/**
+ * A line that is nothing but colour is a balloon. Vansh, twice, 2026-09-14: *"if it is plain colour
+ * then it is balloon for sure — and with t or c it's balloon, but t or c is just noise now."*
+ *
+ * A real rule the matcher did not know, and not a spelling problem: `pastle pink` was matching
+ * **Pink Pastel Fringes** at 0.74. A balloon is the only thing he buys by colour alone; everything
+ * else he names — a fringe, a net, a banner, a foil.
+ */
+describe("a line that is only colour", () => {
+  const materials = loadMaterials();
+  const best = (s: string) => candidates(s, materials, 1)[0];
+
+  it("is a balloon, however he spells the colour", () => {
+    expect(best("pastle pink").material.category).toBe("Balloon");
+    expect(best("pastle purple t").material.category).toBe("Balloon");
+    expect(best("mint green pestal").material.category).toBe("Balloon");
+  });
+
+  it("is a balloon when the only extra letter says where it shipped from", () => {
+    expect(best("silver t").material.material).toBe("Silver Balloon");
+    expect(best("dark green c").material.category).toBe("Balloon");
+  });
+
+  it("does not fire on a line that says what it is", () => {
+    // `pink net` and `blue kt` name a kind, so the colour rule must leave them alone — and the kind
+    // rule then refuses them, because neither material exists.
+    expect(best("blue kt").material.category).toBe("Fringes");
+    expect(best("green net").material.material).toBe("Green Net");
+    expect(best("blue star").material.category).toBe("Foil Balloon");
+  });
+});

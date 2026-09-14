@@ -55,3 +55,36 @@ Every loosening this day needed a matching refusal. The transposition rule neede
 SURE. Understanding `panni` needed the size guard. The category trim needed a length limit. **A
 matcher that only ever gets more generous ends up confidently wrong**, and the wrongness is silent
 by construction — a match nobody questions is a match nobody sees.
+
+
+## A rule he had told me twice
+
+*"If it is plain colour then it is balloon for sure — and with t or c it's balloon, but t or c is
+just noise now."*
+
+He is right, it is a real rule, and the matcher did not know it: `pastle pink` was matching **Pink
+Pastel Fringes** at 0.74. Not a spelling problem — the spelling was fine — a KIND problem. A balloon
+is the only thing he buys by colour alone; everything else he names.
+
+So a line whose every word is a colour or a size can only be a balloon. Qualifiers count, because
+`dark` and `pastel` say WHICH colour rather than what the thing is, and the test is typo-tolerant
+because `pastle pink` is a colour line however he spells it. Any other word and the rule stands
+down, so `pink net` and `blue kt` are untouched — those lines say what they are.
+
+**15 of 18 colour lines landed in the Balloon category before; 17 of 18 after.** The one left is
+`brown retro t`, which he cannot identify either.
+
+## Where the AI belongs, which is not where I first said
+
+He proposed: feed the supplier's note AND our price list to an AI, once, and get back a corrected
+names list to upload. I pushed back citing WW-115 — and WW-115 does not apply. That rejected
+pushing the price list into a prompt at MATCH time: hundreds of names per sheet, every sheet, app
+left owning no data.
+
+This is the opposite shape. The list goes once, offline; what comes back is **a file the app owns**;
+every match afterwards is the same deterministic code, works with no internet, and improves rather
+than re-guesses. `src/supplier-words.ts` builds the ask, reads the reply, and **checks it against
+the real price list** — a proposed alias for a row that does not exist is refused, because the model
+being told not to invent materials is not the same as it not inventing them.
+
+Nothing applies without a human ticking it. A wrong word rule is permanent and silent.

@@ -955,6 +955,21 @@ const QUALIFIER =
   new RegExp(`^(big|large|small|medium|mini|jumbo|pastel|metallic|chrome|matte|glitter|${COLOUR.source.slice(2, -2)})$`, "i");
 
 /**
+ * The same words as a list, so a MISSPELLED one still counts as a colour.
+ *
+ * `pastle pink` is a colour line however he spells it, and the regex only knows `pastel`. Used by
+ * the colour-only rule below, which decides what KIND of thing a line names — the one place a
+ * near-miss on a qualifier has to count.
+ */
+const QUALIFIER_WORDS = "big large small medium mini jumbo pastel metallic chrome matte glitter"
+  .split(" ")
+  .concat(COLOUR.source.slice(2, -2).split("|"));
+
+/** Is this word a colour or a size — however he spelt it? */
+const isQualifier = (w: string): boolean =>
+  QUALIFIER.test(w) || QUALIFIER_WORDS.some((q) => sameWord(w, q));
+
+/**
  * A material's name with its colour taken off the front — `Dark Pink Pastel Balloon` → `Pastel
  * Balloon`, so another colour of the same product can be built from it.
  *
@@ -1030,6 +1045,26 @@ export function whyFlagged(name: string, m: Material, all: Material[] = []): "wr
    * banner` against `Annaprashan Banner Kit` must stay a match whatever category that row sits in,
    * because the row says `banner` itself.
    */
+  /**
+   * **A line that is nothing but colour is a balloon.**
+   *
+   * Vansh, twice, 2026-09-14: *"if it is plain colour then it is balloon for sure, and with t or c
+   * it's balloon but t or c is just noise now."* A balloon is the only thing he buys by colour
+   * alone — everything else he names: a fringe, a net, a banner, a foil.
+   *
+   * It is a real rule and the matcher did not know it: `pastle pink` was matching **Pink Pastel
+   * Fringes** at 0.74, and `pastle purple t` **Purple Fringes**. Both above or near the floor, both
+   * the wrong kind of thing, and neither one a spelling problem.
+   *
+   * Qualifiers count as colour words here — `dark`, `pastel`, `metallic` say WHICH colour, not what
+   * the thing is. Any other word and the rule does not apply, so `pink net` and `blue kt` are
+   * untouched: those lines say what they are.
+   */
+  const said = tokens(name);
+  if (said.length > 0 && said.every(isQualifier) && m.category !== "Balloon") {
+    return "wrong";
+  }
+
   if (all.length) {
     const kinds = kindWords(all);
     const mine = new Set([...tokens(m.material), ...tokens(m.category)]);
