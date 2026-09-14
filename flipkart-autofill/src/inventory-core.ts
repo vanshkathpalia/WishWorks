@@ -1628,3 +1628,33 @@ export function proposeWord(note: string, material: Material): { from: string; o
   if (unknown.length !== 1 || options.length === 0) return null;
   return { from: unknown[0], options };
 }
+
+/**
+ * Add old names to rows on the shipped price list, and hand back the reloaded list.
+ *
+ * **Writes through the same file `addMaterial` does**, so the list keeps one writer and one shape.
+ * Aliases only: a proposal from an AI may not touch a price, a category or a pack size, because
+ * those are facts somebody measured and it is guessing.
+ */
+export function addAliases(
+  pairs: { material: string; says: string }[],
+  dir = CATEGORIES_DIR,
+): Material[] {
+  const file = path.join(dir, "materials.json");
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as
+    | Material[]
+    | { materials: Material[] };
+  const rows = Array.isArray(parsed) ? parsed : parsed.materials;
+
+  for (const { material, says } of pairs) {
+    const row = rows.find((r) => r.material === material);
+    if (!row) continue;
+    const aka = row.aka ?? [];
+    // A duplicate would fail the list's own uniqueness check on the next load, which is a failure
+    // a long way from its cause.
+    if (aka.some((a) => normalize(a) === normalize(says))) continue;
+    row.aka = [...aka, says];
+  }
+  fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);
+  return loadMaterials(dir);
+}

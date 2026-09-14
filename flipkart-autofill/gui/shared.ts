@@ -25,6 +25,8 @@ import type { PromptFile } from "../src/prompts.js";
 import type { ListingFolder, PhotoImport, PhotoItem } from "../src/photo-inbox.js";
 import type { CostedLine, Kit, KitLine, KitRow, Material, SavedKit } from "../src/inventory-core.js";
 import type { Ledger, OrderDay, OrderRow, SubOrder } from "../src/orders-core.js";
+import type { Review as SupplierRule } from "../src/supplier-words.js";
+export type { Review as SupplierRule } from "../src/supplier-words.js";
 import type { Need } from "../src/stock-core.js";
 export type { Need } from "../src/stock-core.js";
 import type { Approval, Found, ImageJob, LatchBook, LatchRecord, Listed, Pending } from "../src/latch-core.js";
@@ -776,6 +778,24 @@ export interface WwApi {
    * Null when there is nothing to learn, which is the common case and stays silent.
    */
   proposeWord(note: string, key: string): Promise<{ from: string; options: string[] } | null>;
+  /**
+   * Ask ChatGPT once what the whole note's words mean, given our price list.
+   *
+   * Nothing is applied: the reply is checked against the real list and comes back to be ticked.
+   * A wrong word rule is permanent and silent — it rewrites every future note.
+   */
+  askSupplierWords(note: string): Promise<
+    Attempt<{
+      rows: SupplierRule[];
+      proposal: {
+        new: string[];
+        split: { line: string; means: string[] }[];
+        unsure: { line: string; why: string }[];
+      };
+    }>
+  >;
+  /** Save the ticked rules: words to the words file, aliases onto their own price-list row. */
+  applySupplierWords(chosen: SupplierRule[]): Promise<Attempt<number>>;
   saveDelivery(d: Delivery): Promise<boolean>;
   /**
    * Take a saved delivery off the record.

@@ -1825,6 +1825,79 @@ ipcMain.handle("proposeWord", async (_e, note: string, key: string) => {
   return material ? inv.proposeWord(note, material) : null;
 });
 
+
+/**
+ * Ask ChatGPT, once, what the supplier's words mean.
+ *
+ * Sends our whole price list and his note in one prompt — about 6 KB — and reads back word rules,
+ * aliases, what is genuinely new, and what it could not decide. **Nothing is applied here.** The
+ * reply is checked against the real price list and handed to the screen to tick, because a wrong
+ * word rule is permanent and silent: it rewrites every future note.
+ */
+ipcMain.handle("askSupplierWords", async (_e, note: string): Promise<Attempt<unknown>> => {
+  if (!note.trim()) return { ok: false, message: "Paste his note first." };
+  const sw = await import("../src/supplier-words.js");
+  const { askOnce } = await import("../src/chat-core.js");
+  const { chatTab } = await import("../src/browser-core.js");
+  const inv = await inventoryEngine();
+
+  let prompt: string;
+  try {
+    prompt = sw.buildPrompt(sw.promptText(promptDirs().shipped), inv.loadMaterials(), note);
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+
+  let tab;
+  try {
+    tab = await chatTab();
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  const reply = await askOnce(tab, prompt).catch(() => "");
+  const proposal = sw.readProposal(reply);
+  const rows = sw.reviewProposal(proposal, inv.loadMaterials(), await readLearned());
+
+  if (rows.length === 0 && proposal.unsure.length === 0 && proposal.new.length === 0) {
+    return {
+      ok: false,
+      message: "Nothing came back that could be read. The chat is still open — have a look at what it said.",
+    };
+  }
+  return {
+    ok: true,
+    result: { rows, proposal },
+    note: `${rows.length} rule${rows.length === 1 ? "" : "s"} proposed, ${proposal.unsure.length} it was unsure about, ${proposal.new.length} it says we do not stock.`,
+  };
+});
+
+/**
+ * Save the rules a human ticked.
+ *
+ * Words go to `words.json`, aliases onto their own row in `materials.json`. Written through the
+ * price list's own saver so its uniqueness check still runs — a duplicate alias would otherwise
+ * only surface as a failed load later.
+ */
+ipcMain.handle("applySupplierWords", async (_e, chosen: unknown): Promise<Attempt<unknown>> => {
+  const sw = await import("../src/supplier-words.js");
+  const inv = await inventoryEngine();
+  const taught = await readLearned();
+  const out = sw.applyProposal(chosen as never, inv.loadMaterials(), taught);
+
+  await mkdir(ORDERS_DIR, { recursive: true });
+  await writeFile(LEARNED_FILE(), `${JSON.stringify(out.words, null, 2)}\n`);
+  inv.useLearnedWords(out.words);
+
+  // Through the price list's own writer, so it keeps one writer and its uniqueness check still
+  // runs. Aliases only — a proposal may not touch a price, a category or a pack size.
+  const aliases = (chosen as { kind: string; from: string; to: string; blockedBy: string }[])
+    .filter((r) => r.kind === "alias" && !r.blockedBy)
+    .map((r) => ({ material: r.to, says: r.from }));
+  if (aliases.length) inv.addAliases(aliases);
+
+  return { ok: true, result: out.added, note: `${out.added} rule${out.added === 1 ? "" : "s"} saved.` };
+});
+
 /** A packer's rate, in paise per packet. Zero or absent means their pay is not worked out here. */
 ipcMain.handle("setRate", async (_e, name: string, paise: number) => {
   const rates = { ...(await readRates()), [name]: paise };

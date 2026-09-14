@@ -19,7 +19,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { CallLine, Delivery, Need, OnHand, TallyRow } from "../shared.js";
+import type { CallLine, Delivery, Need, OnHand, SupplierRule, TallyRow } from "../shared.js";
 import { Fold, MaterialPicker } from "./ui.js";
 
 const iso = (d: Date) =>
@@ -503,6 +503,22 @@ export function Stock({ n }: { n: number }) {
    * appears when there is genuinely one unexplained word and something for it to mean.
    */
   const [teach, setTeach] = useState<{ from: string; options: string[] } | null>(null);
+  /**
+   * Rules an AI proposed for the whole note, waiting to be ticked. Null until it has been asked.
+   *
+   * Everything it said comes back, refusals included — a rule silently dropped is a rule nobody
+   * knows was dropped.
+   */
+  const [rules, setRules] = useState<
+    | {
+        rows: SupplierRule[];
+        proposal: { new: string[]; split: { line: string; means: string[] }[]; unsure: { line: string; why: string }[] };
+      }
+    | null
+  >(null);
+  /** Which proposed rules are ticked, by index. Nothing is ticked to begin with. */
+  const [takeRule, setTakeRule] = useState<Record<number, boolean>>({});
+  const [askingAi, setAskingAi] = useState(false);
 
   /**
    * A pick is remembered, the tally re-runs so the row leaves the worklist — and then the app asks
@@ -678,6 +694,117 @@ export function Stock({ n }: { n: number }) {
 
           {/* The batch offer. It counts every unmatched row, not the ones on screen: a filter is
               for looking, and adding only what is visible would quietly leave the rest out. */}
+          {/* **Ask once, about the whole note.**
+              A word learnt one pick at a time is slow when forty lines are strange. This sends our
+              price list and his note to ChatGPT together — about 6 KB, once — and reads back word
+              rules and aliases. **Nothing is applied by asking**: every rule is checked against the
+              real price list and comes back to be ticked, because a wrong word rule is permanent
+              and silent, and rewrites every future note.
+              This is not what WW-115 rejected: the list goes ONCE, offline, and what comes back is
+              a file this app owns. Matching stays the same deterministic code. */}
+          <div className="picks ask-words">
+            <button
+              disabled={askingAi || !claimedNote.trim()}
+              onClick={() => {
+                setAskingAi(true);
+                setRules(null);
+                void window.ww.askSupplierWords(claimedNote).then(
+                  (r) => {
+                    setAskingAi(false);
+                    if (!r.ok) return setError(r.message);
+                    setRules(r.result);
+                    setTakeRule({});
+                    setError(r.note ?? null);
+                  },
+                  (e: Error) => {
+                    setAskingAi(false);
+                    setError(e.message);
+                  },
+                );
+              }}
+            >
+              {askingAi ? "Asking ChatGPT…" : "Work out his words with ChatGPT"}
+            </button>
+          </div>
+
+          {rules && (
+            <div className="proposed">
+              {rules.rows.length > 0 && (
+                <>
+                  <h4>Rules it proposes — tick the ones that are right</h4>
+                  <ul>
+                    {rules.rows.map((r, i) => (
+                      <li key={`${r.kind}-${r.from}-${i}`} className={r.blockedBy ? "left-out" : ""}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            disabled={!!r.blockedBy}
+                            checked={!!takeRule[i]}
+                            onChange={(e) => setTakeRule({ ...takeRule, [i]: e.target.checked })}
+                          />{" "}
+                          <b>{r.from}</b> {r.kind === "word" ? "always means" : "is"} <b>{r.to}</b>
+                          {r.replaces && <span className="why"> — replaces “{r.replaces}”</span>}
+                          {r.blockedBy && <span className="why"> — {r.blockedBy}</span>}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    className="go"
+                    disabled={!Object.values(takeRule).some(Boolean)}
+                    onClick={() => {
+                      const chosen = rules.rows.filter((_, i) => takeRule[i]);
+                      void window.ww.applySupplierWords(chosen).then((r) => {
+                        if (!r.ok) return setError(r.message);
+                        setRules(null);
+                        setError(r.note ?? null);
+                        run();
+                      });
+                    }}
+                  >
+                    Save the ticked rules
+                  </button>
+                </>
+              )}
+              {rules.proposal.unsure.length > 0 && (
+                <>
+                  {/* Shown, not hidden. The prompt tells it to use this freely — ten lines checked
+                      by hand beats one wrong rule applied to every note from now on. */}
+                  <h4>It could not decide these</h4>
+                  <ul className="muted">
+                    {rules.proposal.unsure.map((u) => (
+                      <li key={u.line}>
+                        <b>{u.line}</b> — {u.why}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {rules.proposal.split.length > 0 && (
+                <>
+                  <h4>These look like two products on one line</h4>
+                  <ul className="muted">
+                    {rules.proposal.split.map((x) => (
+                      <li key={x.line}>
+                        <b>{x.line}</b> — {x.means.join(" + ")}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {rules.proposal.new.length > 0 && (
+                <>
+                  <h4>It says we do not stock these</h4>
+                  <ul className="muted">
+                    {rules.proposal.new.map((n) => (
+                      <li key={n}>{n}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+
           {/* **The app proposes, he disposes.** It knows one word is unexplained and what the row
               had spare; it does not know which of those the word means, and a wrong rule here is
               permanent — it would rewrite every future note. So it asks, once, and only when there

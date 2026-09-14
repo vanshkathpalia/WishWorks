@@ -2807,3 +2807,14 @@ h3 > button.tiny {
 .teach button.small { padding: 2px 10px; font-size: 12px; }
 .teach button.link { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
   color: var(--muted, #5a6472); text-decoration: underline; }
+
+/* Asking ChatGPT what the whole note means, and the rules it proposes. Nothing is ticked to begin
+   with: these are proposals about a vocabulary only Vansh knows, and a word rule applied wrongly
+   rewrites every future note silently. */
+.ask-words { margin: 10px 0 2px; }
+.proposed { font-size: 13px; margin: 8px 0 4px; }
+.proposed h4 { margin: 12px 0 4px; font-size: 13px; }
+.proposed ul { margin: 0; padding-left: 18px; }
+.proposed li { margin: 2px 0; }
+.proposed ul.muted { color: var(--muted, #5a6472); }
+.proposed .why { color: var(--muted, #5a6472); }
