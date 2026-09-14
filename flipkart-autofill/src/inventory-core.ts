@@ -656,6 +656,15 @@ export function gaps(materials: Material[]): { noPrice: Material[]; noSize: Mate
 export function normalize(s: string): string {
   return s
     .toLowerCase()
+    /**
+     * A run of digits like `0-9` or `1-9` is *which numbers are in the pack*, not a size.
+     *
+     * Dropped before sizes are read, or the size guard mistakes one for the other: the note's
+     * `1-9 number foil golden` was refused against `Golden Number Foil, 0-9` because 1 and 0
+     * disagreed. Vansh: *"have one and make 1-9 diff for it, just like colour and size — year
+     * number also comes."* A hyphen is the tell; he writes real sizes with `x` or `*`.
+     */
+    .replace(/\b\d\s*-\s*\d\b/g, " ")
     .replace(/(\d)\s*x\s*(\d)/g, "$1 $2")
     // A word run into its number is two things: `Bopp7*10` is the bag and its size, and left joined
     // the token `bopp7` matches neither `Bopp` nor `7`. He writes the space about half the time.
@@ -698,9 +707,27 @@ const NOISE = new Set([
  * `blue kt`, `golden kt` and every colour of fringe he has not bought yet. An alias on one row
  * would have fixed exactly that row.
  */
+/**
+ * Words taught by a human, on top of the ones shipped in `SAYS`.
+ *
+ * Module-level and mutable because `tokens()` is called everywhere and synchronously; the app loads
+ * the saved map once at startup and every match after that knows them.
+ */
+let learned: Record<string, string> = {};
+
+/** Replace the taught words — the app calls this once with whatever is on disk. */
+export function useLearnedWords(words: Record<string, string>): void {
+  learned = { ...words };
+}
+
+/** What has been taught, for saving. */
+export const learnedWords = (): Record<string, string> => ({ ...learned });
+
 const SAYS: Record<string, string> = {
   kt: "fringe",
   bada: "big",
+  // He writes it both ways; `badi` is the same word.
+  badi: "big",
   chota: "small",
   // *"pani is panni which mean lefafa — which mean a packet to pack things up."* A polybag.
   pani: "polybag",
@@ -720,7 +747,8 @@ export const tokens = (s: string): string[] =>
     .split(" ")
     .filter((w) => w && !NOISE.has(w))
     // His word becomes ours BEFORE stemming, so `kt` -> `fringe` lines up with `Fringes` -> `fringe`.
-    .map((w) => SAYS[w] ?? w)
+    // Taught words win over shipped ones: he is the authority on what his supplier means.
+    .map((w) => learned[w] ?? SAYS[w] ?? w)
     .map(stem);
 
 /** Standard Levenshtein, two rows. Short strings only — the longest name here is a few words. */
@@ -1451,4 +1479,42 @@ export function confirmKit(kit: SavedKit, on: string | null): SavedKit {
 /** Kits whose price nobody has signed off yet — the queue the latch screen counts. */
 export function unconfirmed(kits: SavedKit[]): SavedKit[] {
   return kits.filter((k) => !k.confirmedAt);
+}
+
+
+// ---------------------------------------------------------------- learning his words
+
+/**
+ * Words taught by a human, on top of the ones shipped in `SAYS`.
+ *
+ * Module-level and mutable because `tokens()` is called everywhere and synchronously; the app loads
+ * the saved map once at startup and every match after that knows them.
+ */
+/**
+ * What ONE word in his note might mean, worked out from a row a human just picked.
+ *
+ * **This is the whole answer to "it keeps getting confidently wrong".** Vansh, 2026-09-14: *"me
+ * having freedom to choose under what any product will go, and then app learning from that."*
+ * Exactly right, and the existing alias mechanism only half did it: mapping `blue kt` to
+ * **Blue Metallic Fringes** taught nothing about `golden kt`. A word is reusable; a phrase is not.
+ *
+ * Proposed only when the note has **exactly one** word the row cannot account for. With two
+ * unknowns there is no way to tell which maps to which, and a guess here would be permanent —
+ * far worse than a guess in a single match, because it silently rewrites every future note.
+ *
+ * The row's spare words come back as `options` rather than an answer. `blue kt` against
+ * `Blue Metallic Fringes` leaves `kt` on one side and `metallic`, `fringe` on the other; only Vansh
+ * knows it is the second. **The app proposes, he disposes** — that is the difference between
+ * learning and drifting.
+ */
+export function proposeWord(note: string, material: Material): { from: string; options: string[] } | null {
+  const a = tokens(note);
+  const b = tokens(material.material);
+  const spare = (x: string[], y: string[]) => x.filter((w) => !y.some((v) => sameWord(v, w)));
+
+  const unknown = spare(a, b).filter((w) => !/^\d+$/.test(w));
+  const options = spare(b, a).filter((w) => !/^\d+$/.test(w));
+  // One unknown word, and something for it to mean. Anything else is not a rule, it is a guess.
+  if (unknown.length !== 1 || options.length === 0) return null;
+  return { from: unknown[0], options };
 }

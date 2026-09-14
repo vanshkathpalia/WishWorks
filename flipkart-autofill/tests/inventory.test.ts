@@ -48,6 +48,8 @@ import {
   sameWord,
   candidates,
   whyFlagged,
+  proposeWord,
+  useLearnedWords,
 } from "../src/inventory-core.js";
 
 const PRICES: Material[] = [
@@ -1230,5 +1232,85 @@ describe("what the supplier's words mean", () => {
     // real money and nothing downstream re-checks it.
     expect(whyFlagged("flipcart pani 8*12", materials.find((m) => m.material === "Flipkart Polybag 9x12")!))
       .toBe("wrong");
+  });
+});
+
+/**
+ * Learning a WORD from a pick, which is the answer to the thing that kept going wrong.
+ *
+ * Every time the matcher got cleverer today it got closer to a confident wrong answer, because it
+ * was guessing at a vocabulary only Vansh knows. His fix, 2026-09-14: *"me having freedom to choose
+ * under what any product will go, and then app learning from that."*
+ *
+ * The existing alias mechanism only half did it — it learned a whole phrase, so mapping `blue kt`
+ * taught nothing about `golden kt`. A word is reusable; a phrase is not.
+ */
+describe("learning a word from a pick", () => {
+  const materials = loadMaterials();
+  const row = (name: string) => materials.find((m) => m.material === name)!;
+
+  it("offers the row's spare words rather than choosing one", () => {
+    // `jhalar` on one side; `metallic` and `fringe` on the other. Only he knows it is the second,
+    // and a wrong guess here is permanent — it would rewrite every future note.
+    //
+    // A word the app does NOT already know, deliberately: `kt` is in the shipped map now, so
+    // there would be nothing left to learn from it. That is the system working.
+    const p = proposeWord("blue jhalar", row("Blue Metallic Fringes"));
+    expect(p!.from).toBe("jhalar");
+    expect(p!.options.sort()).toEqual(["fringe", "metallic"]);
+  });
+
+  it("says nothing when two words are unaccounted for", () => {
+    // No way to tell which maps to which. Not a rule, a guess.
+    expect(proposeWord("shiny golden thing", row("Red Fringes"))).toBeNull();
+  });
+
+  it("says nothing when the row explains every word already", () => {
+    expect(proposeWord("red fringes", row("Red Fringes"))).toBeNull();
+  });
+
+  it("ignores numbers, which are sizes and counts rather than words", () => {
+    expect(proposeWord("bopp 7 10", row("Bopp 7x10"))).toBeNull();
+  });
+
+  it("a taught word changes every later match, not just the one it came from", () => {
+    // The whole point. Teaching `kt` once must fix a colour of fringe never bought before.
+    useLearnedWords({});
+    const before = candidates("golden jhalar", materials, 1)[0];
+    useLearnedWords({ jhalar: "fringe" });
+    const after = candidates("golden jhalar", materials, 1)[0];
+    expect(after.material.material).toBe("Golden Fringes");
+    expect(after.score).toBeGreaterThan(before.score);
+    useLearnedWords({});
+  });
+});
+
+/**
+ * A range of digits is not a size. `0-9` on a number foil says WHICH numbers are in the pack; `9x12`
+ * on a polybag says how big it is. The size guard has to tell them apart or it refuses the wrong
+ * one: `1-9 number foil golden` was being rejected against `Golden Number Foil, 0-9` because 1 and
+ * 0 disagreed, while `8*12` against `9x12` must still be refused.
+ */
+describe("a digit range against a size", () => {
+  it("drops the range, so the pack's numbers do not read as a measurement", () => {
+    expect(normalize("1-9 number foil golden")).toBe("number foil golden");
+    expect(normalize("Golden Number Foil, 0-9")).toBe("golden number foil");
+  });
+
+  it("keeps a real size, which he writes with x or *", () => {
+    expect(normalize("Bopp 9*12")).toBe("bopp 9 12");
+    expect(normalize("Flipkart Polybag 9x12")).toBe("flipkart polybag 9 12");
+  });
+
+  it("still refuses a bag of the wrong size", () => {
+    const materials = loadMaterials();
+    expect(whyFlagged("flipcart pani 8*12", materials.find((m) => m.material === "Flipkart Polybag 9x12")!))
+      .toBe("wrong");
+  });
+
+  it("matches the number foil it was refusing", () => {
+    const materials = loadMaterials();
+    expect(candidates("1-9 number foil golden wala", materials, 1)[0].material.material)
+      .toBe("Golden Number Foil, 0-9");
   });
 });
