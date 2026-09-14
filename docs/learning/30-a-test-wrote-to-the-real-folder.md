@@ -26,10 +26,19 @@ other's browser mid-run — the symptom is `Target page, context or browser has 
 middle of a flow that was working a minute earlier. Run one at a time, or point the second at a
 different chat-profile directory.
 
-## And one claim that was not checked
+## And one claim that was not checked — since resolved
 
-`renameChat` returns true when none of its steps threw — which is not the same as the chat having
-been renamed. It was reported here as working on that basis. Verifying it properly means reading
-back the sidebar row for **that chat's own id**, not the top row, which is whatever is pinned. That
-check has not been completed, so the rename is **built and unproven**, and is written down that way
-in `AUTOMATION-STATE.md` rather than counted as done.
+`renameChat` returned true when none of its steps threw, which is not the same as the chat having
+been renamed. It was reported as working on that basis; Vansh said plainly *"I didn't see any chat
+with those names."* He was right. Checked properly, the chat was still called *"Reply exactly OK"*.
+
+It now **reads the name back** before returning — by that chat's own id, never the top row, which is
+whatever is pinned. With that in place it renames correctly: the row reads `ANP018 — images`. The
+original failure was a race, and the old code could not tell a race from a success because it never
+looked.
+
+Worth noting what the intermediate panic was worth: the chat had vanished from the sidebar, which
+looked like Archive or Delete — both sit next to Rename in that menu. It had not. The chat was
+intact with all four turns, and the "missing" row was the sidebar simply not listing the chat you
+are looking at. **A destructive theory deserves a check before it deserves a fix**, and the check
+was one page load.

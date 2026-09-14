@@ -376,8 +376,24 @@ export async function renameChat(page: Page, title: string): Promise<boolean> {
     await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.type(title, { delay: 0 });
     await page.keyboard.press("Enter");
-    await page.waitForTimeout(1200);
-    return true;
+    await page.waitForTimeout(1500);
+
+    /**
+     * **Check it actually happened.** Every step above can succeed while the chat keeps its old
+     * name — measured, 2026-09-14: this returned `true` and the chat was still called *"Reply
+     * exactly OK"*. Vansh had said so first: *"I didn't see any chat with those names."*
+     *
+     * Read back by the chat's own id, never the top row, which is whatever is pinned. `document
+     * .title` is the fallback because ChatGPT's sidebar does not always hold a row for the chat you
+     * are looking at, and a missing row is not a failed rename.
+     */
+    return page.evaluate(
+      ([id, want]) => {
+        const row = document.querySelector(`nav a[href="/c/${id}"]`)?.textContent?.trim();
+        return row === want || document.title.trim() === want;
+      },
+      [id, title] as const,
+    );
   } catch {
     return false;
   }

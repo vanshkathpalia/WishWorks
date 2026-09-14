@@ -20,13 +20,12 @@ and not started.
 | **Supplier words via AI** | real note: 40 aliases, 1 word rule, 15 honest refusals, **1 invented row caught** |
 | **Delivery matcher** | 83-line note: 35 confident, 25 flagged, 23 unmatched; four confident-wrong matches found and fixed |
 | **Supplier call + forecast** | what the next fortnight needs, per SKU working shown |
+| **Chat renaming** | `ANP018 — images` read back from the sidebar by the chat's own id |
+| **The whole delivery chain** | 1 note + 71 parcels -> 18 materials netted -> 64-line call -> 40-material forecast, on real data, read-only |
 
 ## Built, not yet run against the real thing
 
-- **Chat renaming.** `renameChat` returns true when nothing threw, which is not the same as the chat
-  having been renamed — and it was reported as working on that basis. Checking it needs the sidebar
-  row for **that chat's own id** read back, not the top row, which is whatever is pinned. Vansh:
-  *"I didn't see any chat with those names."* Correct, and it is unproven until that check passes.
+(Chat renaming moved to the proven list once it read the name back rather than assuming it.)
 
 - **Pause list** — live listings we cannot pack. Logic tested, never seen with real shortages.
 - **Meesho queue** (`forMeesho`) — no screen.
