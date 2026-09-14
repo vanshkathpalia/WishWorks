@@ -543,7 +543,10 @@
     {
       "category": "Foil Balloon",
       "material": "Mug Foil",
-      "paise": 400
+      "paise": 400,
+      "aka": [
+        "cheers mug"
+      ]
     },
     {
       "category": "Foil Balloon",

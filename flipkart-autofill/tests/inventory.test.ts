@@ -1314,3 +1314,37 @@ describe("a digit range against a size", () => {
       .toBe("Golden Number Foil, 0-9");
   });
 });
+
+/**
+ * A word that only means something in combination — and the line I got wrong by over-reaching.
+ *
+ * Vansh, 2026-09-14: *"that was a mistake by supplier — that meant 1 cheers mug foil, 1 glass foil
+ * small."* I read that as two aliases and taught `cheers glass` -> **Glass Foil**. He corrected it:
+ * *"bro cheers is mug not glass."*
+ *
+ * The line `1- cheers glass small` is ONE note line holding TWO products — the cheers mug and a
+ * small glass foil — and nothing should resolve it automatically. Teaching `cheers glass` would
+ * have made every future `cheers` line quietly pick the glass, which is the exact failure mode this
+ * whole day has been about: a rule invented from a single example, permanent, and silent.
+ *
+ * `cheers mug` stays, because that one he confirmed.
+ */
+describe("a word that only means something in combination", () => {
+  const materials = loadMaterials();
+  const best = (s: string) => candidates(s, materials, 1)[0];
+
+  it("reads his cheers mug as the mug foil", () => {
+    expect(best("Cheers mug small").material.material).toBe("Mug Foil");
+  });
+
+  it("does not claim cheers means glass", () => {
+    // A line mashing two products together is a question for a human, not a rule to infer.
+    const glass = materials.find((m) => m.material === "Glass Foil")!;
+    expect(glass.aka ?? []).not.toContain("cheers glass");
+  });
+
+  it("leaves the cheers balloons a separate product", () => {
+    // The third row must not be swallowed by the alias: it is a real thing he sells.
+    expect(best("cheers foil balloons").material.material).toBe("Cheers Foil Balloons");
+  });
+});

@@ -50,3 +50,20 @@ Fourteen of the forty-one unmatched rows, as spelling and vocabulary went in:
 The eight that pass are the ones a rule can reach. The rest were his business's questions, not his
 spelling's — *is a cheers glass a thing we stock* — and two of them turned out to be one line
 holding two items, which is a different problem again.
+
+
+## The same mistake, made by me, ten minutes later
+
+He said: *"that meant 1 cheers mug foil, 1 glass foil small."* I read two aliases out of it and
+taught **`cheers glass` -> Glass Foil**. He corrected it: *"bro cheers is mug not glass."*
+
+That line is ONE note line holding TWO products — the cheers mug, and a small glass foil. The word
+`cheers` attaches to the mug alone. My rule would have made every future `cheers` line quietly
+prefer the glass: invented from a single example, permanent, and silent — the exact failure this
+whole file is about, committed by the thing that was supposed to prevent it.
+
+**Which is the argument for `proposeWord` rather than inference, stated by accident.** The engine
+refuses to guess when two words are unexplained. I did not, because I was reading prose instead of
+counting unknowns. `cheers mug` stays because he confirmed it; `cheers glass` is gone, and that
+line now falls below the floor and waits for a human — correctly, because it is two products and no
+rule should unpick it.
