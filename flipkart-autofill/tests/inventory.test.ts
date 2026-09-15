@@ -50,6 +50,7 @@ import {
   whyFlagged,
   proposeWord,
   useLearnedWords,
+  addAliases,
 } from "../src/inventory-core.js";
 
 const PRICES: Material[] = [
@@ -1184,8 +1185,18 @@ describe("the supplier's spelling", () => {
   it("will not guess between two rows that are both one slip away", () => {
     // `bregendy` is three edits from `burgundy` and near `brandy` — and BOTH are on the price list.
     // Whatever it picked would be a coin toss, so it must not pick silently.
-    const materials = loadMaterials();
-    const top = candidates("bregendy", materials, 2);
+    //
+    // A FIXTURE, not the shipped list: Vansh has since taught the real one that `bregendy` means
+    // Brandy, and that is his call to make. Once taught it matches exactly and should — the rule
+    // under test here is what happens BEFORE anyone has said, which is when the guessing would
+    // otherwise happen.
+    // The old names are the real list's, and they are the reason this is a near-tie at all:
+    // `bregendy` is two edits from BOTH `breandy` and `burgendy`.
+    const untaught = [
+      { category: "Balloon", material: "Brandy Balloon", paise: 100, aka: ["BREANDY BALLOONS"] },
+      { category: "Balloon", material: "Burgundy Balloon", paise: 100, aka: ["BURGENDY BALLOONS"] },
+    ] as Material[];
+    const top = candidates("bregendy", untaught, 2);
     expect(top[0].score).toBeLessThan(SURE);
     expect(top.map((c) => c.material.material).sort()).toEqual(["Brandy Balloon", "Burgundy Balloon"]);
   });
@@ -1441,5 +1452,31 @@ describe("a line that is only colour", () => {
     expect(best("blue kt").material.category).toBe("Fringes");
     expect(best("green net").material.material).toBe("Green Net");
     expect(best("blue star").material.category).toBe("Foil Balloon");
+  });
+});
+
+/**
+ * Renaming a material on the way in, and keeping his wording.
+ *
+ * Vansh, 2026-09-14: *"I want to select its category and rename it to full Ring Foil."* His note
+ * says `ring`, which is not a name a price list can live with. **The rename is only half the job** —
+ * unless his wording is kept as an old name, the very next note saying `ring` matches nothing and he
+ * does it again.
+ *
+ * Against a FIXTURE, not the shipped list: that list is his, he teaches it daily, and a test that
+ * asserts against it fails every time he makes a decision. Learnt the hard way — five tests broke
+ * at once the first afternoon he used the teaching properly.
+ */
+describe("adding a material under a better name", () => {
+  const rows = [
+    { category: "Foil Balloon", material: "Ring Foil", paise: null, aka: ["ring"] },
+  ] as Material[];
+
+  it("finds the new row by the supplier's old word", () => {
+    expect(candidates("ring", rows, 1)[0].material.material).toBe("Ring Foil");
+  });
+
+  it("keeps his word and the proper name pointing at one row", () => {
+    expect(candidates("Ring Foil", rows, 1)[0].material.material).toBe("Ring Foil");
   });
 });

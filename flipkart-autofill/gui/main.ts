@@ -641,10 +641,29 @@ ipcMain.handle(
   "addMaterial",
   async (
     _e,
-    row: { category: string; material: string; paise: number | null; size?: string; piecesPerPack?: number },
+    row: {
+      category: string;
+      material: string;
+      paise: number | null;
+      size?: string;
+      piecesPerPack?: number;
+      /**
+       * What the SUPPLIER called it, when that differs from the name being created.
+       *
+       * Vansh, 2026-09-14: *"I want to select its category and rename it to full Ring Foil."* The
+       * new row should read `Ring Foil`; his note says `ring`, and unless that wording is kept as
+       * an old name the very next note fails to match the row he just made.
+       */
+      says?: string;
+    },
   ): Promise<Attempt<unknown>> => {
     try {
-      return { ok: true, result: (await inventoryEngine()).addMaterial(row) };
+      const inv = await inventoryEngine();
+      const result = inv.addMaterial(row);
+      if (row.says && row.says.trim().toLowerCase() !== row.material.trim().toLowerCase()) {
+        return { ok: true, result: inv.addAliases([{ material: row.material.trim(), says: row.says.trim() }]) };
+      }
+      return { ok: true, result };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }

@@ -16,7 +16,7 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { Material } from "./inventory-core.js";
+import { candidates, type Material } from "./inventory-core.js";
 
 /** What the AI is asked to return. Anything it invents beyond this shape is ignored. */
 export interface Proposal {
@@ -107,6 +107,21 @@ export interface Review {
   blockedBy: string;
   /** True when this would change an existing rule rather than add one. */
   replaces?: string;
+  /**
+   * **Does the matcher already think this?**
+   *
+   * Fifty-two proposals is not a list anybody reads, so everything gets ticked at once and a wrong
+   * rule slips in — which is exactly what happened on 2026-09-14: `Cheers Foil Balloons` <- *"cheers
+   * mug small"* was accepted, contradicting Vansh's own words about that line.
+   *
+   * But most of the fifty-two are not judgement calls at all. `Golden Star Foil` <- *"golden star
+   * foil"* is the matcher's own top answer written down. Those can be taken on trust; the ones that
+   * send a word somewhere the matcher would NOT have gone are the ones worth a human's attention.
+   *
+   * So each rule says whether it agrees with the matcher, and the screen can sort the handful that
+   * do not to the top. **It is a reading order, not a decision** — nothing is applied unticked.
+   */
+  agrees: boolean;
 }
 
 /**
@@ -122,6 +137,8 @@ export function reviewProposal(
 ): Review[] {
   const names = new Map(materials.map((m) => [m.material.toLowerCase(), m.material]));
   const out: Review[] = [];
+  /** The matcher's own top answer for a phrase, or null when it has none. */
+  const topFor = (says: string) => candidates(says, materials, 1)[0]?.material.material ?? null;
 
   for (const [from, to] of Object.entries(p.words)) {
     out.push({
@@ -129,6 +146,9 @@ export function reviewProposal(
       from,
       to,
       blockedBy: "",
+      // A word rule is about a word, not a row, so the matcher has no opinion to agree with. They
+      // are the most powerful rules and the fewest, so they are always worth reading.
+      agrees: false,
       ...(taught[from] && taught[from] !== to ? { replaces: taught[from] } : {}),
     });
   }
@@ -145,6 +165,7 @@ export function reviewProposal(
       from: a.says,
       to: real ?? said.trim(),
       blockedBy: real ? "" : "no such row on the price list",
+      agrees: !!real && topFor(a.says) === real,
     });
   }
   return out;

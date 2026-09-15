@@ -557,7 +557,14 @@ export interface WwApi {
    * more (₹1.50 against ₹10.00 on this list) and comes fewer to a packet.
    */
   addSize(key: string, size: string): Promise<Attempt<Material[]>>;
+  /**
+   * Add a row to the price list, optionally keeping the supplier's wording as an old name.
+   *
+   * `says` is what HIS note called it. Without it, renaming `ring` to `Ring Foil` on the way in
+   * means the next note saying `ring` matches nothing again.
+   */
   addMaterial(row: {
+    says?: string;
     category: string; material: string; paise: number | null;
     /** Carried over when a row is built from a sibling — see `baseName`. */
     size?: string; piecesPerPack?: number;

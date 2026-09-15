@@ -91,8 +91,8 @@ describe("applying what was ticked", () => {
     // row of the price list and belongs beside its price.
     const r = applyProposal(
       [
-        { kind: "word", from: "jhalar", to: "fringe", blockedBy: "" },
-        { kind: "alias", from: "groom to be sesh", to: "GTB Sash", blockedBy: "" },
+        { kind: "word", from: "jhalar", to: "fringe", blockedBy: "", agrees: false },
+        { kind: "alias", from: "groom to be sesh", to: "GTB Sash", blockedBy: "", agrees: false },
       ],
       materials,
       taught,
@@ -104,7 +104,7 @@ describe("applying what was ticked", () => {
 
   it("applies nothing that was blocked", () => {
     const r = applyProposal(
-      [{ kind: "alias", from: "x", to: "Purple Sash", blockedBy: "no such row on the price list" }],
+      [{ kind: "alias", from: "x", to: "Purple Sash", blockedBy: "no such row on the price list", agrees: false }],
       materials,
       taught,
     );
@@ -119,7 +119,7 @@ describe("applying what was ticked", () => {
       m.material === "GTB Sash" ? { ...m, aka: ["Groom To Be Sesh"] } : m,
     );
     const r = applyProposal(
-      [{ kind: "alias", from: "groom to be sesh", to: "GTB Sash", blockedBy: "" }],
+      [{ kind: "alias", from: "groom to be sesh", to: "GTB Sash", blockedBy: "", agrees: false }],
       withAka,
       taught,
     );
@@ -130,7 +130,7 @@ describe("applying what was ticked", () => {
   it("leaves the original list untouched", () => {
     // The caller writes the file; a function that mutated its input would corrupt the in-memory
     // list of anything that had already loaded it.
-    applyProposal([{ kind: "alias", from: "x", to: "GTB Sash", blockedBy: "" }], materials, taught);
+    applyProposal([{ kind: "alias", from: "x", to: "GTB Sash", blockedBy: "", agrees: false }], materials, taught);
     expect(materials.find((m) => m.material === "GTB Sash")!.aka).toBeUndefined();
   });
 });

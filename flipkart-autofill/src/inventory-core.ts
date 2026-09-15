@@ -769,7 +769,18 @@ const stem = (w: string) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : 
  */
 const COUNTED = new Set(["pc", "pcs", "piece", "pieces", "pkt", "pkts", "packet", "packets", "set", "sets", "pack", "packs"]);
 
-export const tokens = (s: string): string[] =>
+/**
+ * The words of a name, **each counted once**.
+ *
+ * A repeated word must not count twice. His alias `moon foil silver foil` says `foil` twice, which
+ * lengthened the row AND gave it two chances to match the same word — and that one alias pulled
+ * `Silver Heart Foil` onto **Silver Moon Foil** (0.81, beating the correct `Heart Foil` at 0.80)
+ * and dragged `jungle 5 pcs set foil` up through the floor. One mention of a word is all the
+ * information there is in it.
+ */
+export const tokens = (s: string): string[] => [...new Set(rawTokens(s))];
+
+const rawTokens = (s: string): string[] =>
   normalize(s)
     .split(" ")
     // A number reading as `5 pcs` is a quantity, not an identity. Dropped before NOISE takes the
@@ -1650,9 +1661,15 @@ export function addAliases(
     const row = rows.find((r) => r.material === material);
     if (!row) continue;
     const aka = row.aka ?? [];
-    // A duplicate would fail the list's own uniqueness check on the next load, which is a failure
-    // a long way from its cause.
-    if (aka.some((a) => normalize(a) === normalize(says))) continue;
+    /**
+     * Skip anything the row already answers to — **including its own name**.
+     *
+     * Missing that half was a real bug, 2026-09-14: the AI proposed `Golden Star Foil` <- `"golden
+     * star foil"`, because that is literally what the note says, and ten rows ended up claiming
+     * their own name twice. The price list's uniqueness check then failed on the next load — a
+     * failure a long way from the click that caused it.
+     */
+    if ([row.material, ...aka].some((a) => normalize(a) === normalize(says))) continue;
     row.aka = [...aka, says];
   }
   fs.writeFileSync(file, `${JSON.stringify(parsed, null, 2)}\n`);

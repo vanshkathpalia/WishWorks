@@ -12,7 +12,8 @@
       "material": "Black Balloon",
       "paise": 80,
       "aka": [
-        "BLACK BALLOONS"
+        "BLACK BALLOONS",
+        "black"
       ],
       "packOf": 1000
     },
@@ -20,14 +21,18 @@
       "category": "Balloon",
       "material": "Blue Balloon",
       "paise": 80,
-      "packOf": 1000
+      "packOf": 1000,
+      "aka": [
+        "blue"
+      ]
     },
     {
       "category": "Balloon",
       "material": "Dark Blue Balloon",
       "paise": 80,
       "aka": [
-        "BLUE Dark Balloon"
+        "BLUE Dark Balloon",
+        "dark blue"
       ],
       "packOf": 1000
     },
@@ -55,7 +60,8 @@
       "material": "Brandy Balloon",
       "paise": 80,
       "aka": [
-        "BREANDY BALLOONS"
+        "BREANDY BALLOONS",
+        "bregendy"
       ],
       "packOf": 1000
     },
@@ -124,7 +130,8 @@
       "material": "Dark Pink Balloon",
       "paise": 80,
       "aka": [
-        "DARK PINK BALLOONS"
+        "DARK PINK BALLOONS",
+        "dark pink"
       ],
       "packOf": 1000
     },
@@ -142,7 +149,8 @@
       "material": "Golden Balloon",
       "paise": 80,
       "aka": [
-        "GOLDEN BALLOONS"
+        "GOLDEN BALLOONS",
+        "golden"
       ],
       "size": "10\"",
       "packOf": 1000
@@ -222,7 +230,8 @@
       "material": "Dark Purple Balloon",
       "paise": 80,
       "aka": [
-        "PURPLE (Dark) BALLOON"
+        "PURPLE (Dark) BALLOON",
+        "dark purple"
       ],
       "packOf": 1000
     },
@@ -241,7 +250,10 @@
       "material": "Red Balloon",
       "paise": 80,
       "size": "10\"",
-      "packOf": 1000
+      "packOf": 1000,
+      "aka": [
+        "red"
+      ]
     },
     {
       "category": "Balloon",
@@ -254,7 +266,8 @@
       "material": "Rose Gold Balloon",
       "paise": 80,
       "aka": [
-        "ROSE GOLD BALLOONS"
+        "ROSE GOLD BALLOONS",
+        "rose gold"
       ],
       "packOf": 1000
     },
@@ -264,7 +277,8 @@
       "paise": 80,
       "aka": [
         "SILVER MATALIC BALLOONS",
-        "Silver Metallic Balloon"
+        "Silver Metallic Balloon",
+        "silver t"
       ],
       "packOf": 1000
     },
@@ -282,7 +296,8 @@
       "material": "White Balloon",
       "paise": 80,
       "aka": [
-        "WHITE BALLOONS"
+        "WHITE BALLOONS",
+        "white"
       ],
       "packOf": 1000
     },
@@ -407,7 +422,8 @@
       "material": "Golden Moon Foil, Card Packed",
       "paise": 800,
       "aka": [
-        "Card Packed Moon Foil Golden"
+        "Card Packed Moon Foil Golden",
+        "moon golden big foil"
       ],
       "packOf": 100
     },
@@ -455,7 +471,11 @@
     {
       "category": "Foil Balloon",
       "material": "Girl / Boy Round Foil",
-      "paise": 600
+      "paise": 600,
+      "aka": [
+        "its a boy loose round",
+        "its a girl loose round"
+      ]
     },
     {
       "category": "Foil Balloon",
@@ -527,7 +547,8 @@
       "material": "Silver Moon Foil",
       "paise": 600,
       "aka": [
-        "Moon Foil Silver"
+        "Moon Foil Silver",
+        "moon foil silver foil"
       ],
       "packOf": 100
     },
@@ -624,7 +645,8 @@
       "paise": 3500,
       "aka": [
         "pink wb foil",
-        "welcome baby foil pink"
+        "welcome baby foil pink",
+        "welcome baby pink foil"
       ],
       "packOf": 10
     },
@@ -634,7 +656,8 @@
       "paise": 3500,
       "aka": [
         "blue wb foil",
-        "welcome baby foil blue"
+        "welcome baby foil blue",
+        "welcome baby blue foil"
       ],
       "packOf": 10
     },
@@ -685,7 +708,8 @@
       "paise": 4000,
       "_note": "Price inherited from `Happy Anniversary Foil` (Rs40.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. `ha` is Happy Anniversary throughout this supplier's notes. The uncoloured `Happy Anniversary Foil` (Rs40) stays.",
       "aka": [
-        "red ha foil"
+        "red ha foil",
+        "red hb foil"
       ],
       "packOf": 10
     },
@@ -694,7 +718,8 @@
       "material": "Golden Happy Anniversary Foil",
       "paise": 4000,
       "aka": [
-        "golden ha foil"
+        "golden ha foil",
+        "golden hb foil"
       ],
       "_note": "Price inherited from `Happy Anniversary Foil` (Rs40.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. ",
       "packOf": 10
@@ -706,7 +731,9 @@
       "aka": [
         "Rosegold ha foil",
         "rose gold ha foil",
-        "rosegold happy anniversary foil"
+        "rosegold happy anniversary foil",
+        "rose gold hb foil",
+        "rosegold happy aniversery foil"
       ],
       "_note": "Price inherited from `Happy Anniversary Foil` (Rs40.00) so splitting that row did not change what any existing kit costs — see C-073. Correct it if this colour is priced differently. ",
       "packOf": 10
@@ -749,7 +776,10 @@
       "category": "Foil Balloon",
       "material": "Haldi Ceremony Foil",
       "paise": 3500,
-      "_note": "The FOIL. `Haldi Banner` (Rs12) is a different product and is untouched."
+      "_note": "The FOIL. `Haldi Banner` (Rs12) is a different product and is untouched.",
+      "aka": [
+        "haldi foil"
+      ]
     },
     {
       "category": "Foil Balloon",
@@ -972,7 +1002,8 @@
       "aka": [
         "ha banner black",
         "black ha banner",
-        "happy anniversary banner black"
+        "happy anniversary banner black",
+        "happy aniversery black banner"
       ],
       "packOf": 10
     },
@@ -996,7 +1027,8 @@
       "aka": [
         "All colors gletar hbd bunting",
         "glitter happy birthday bunting all colours",
-        "all colors gletar happy birthday bunting"
+        "all colors gletar happy birthday bunting",
+        "golden banting hbd"
       ],
       "packOf": 10
     },
@@ -1017,7 +1049,8 @@
       "aka": [
         "welcome baby banner pink",
         "pink wb banner",
-        "wb banner pink"
+        "wb banner pink",
+        "welcome baby pink banner"
       ],
       "packOf": 10
     },
@@ -1241,7 +1274,8 @@
       "paise": 2500,
       "aka": [
         "Annaprasan with props kit complete",
-        "anp kit with props"
+        "anp kit with props",
+        "anprrashan kit with banner"
       ],
       "piecesPerPack": 16,
       "packOf": 10
@@ -1252,7 +1286,8 @@
       "paise": 3800,
       "aka": [
         "Cocomelon foil Balloon Set 5 PCs",
-        "cocomelan five pcs set"
+        "cocomelan five pcs set",
+        "Cocomelon 5 pcs card"
       ],
       "piecesPerPack": 5,
       "packOf": 10
@@ -1262,7 +1297,8 @@
       "material": "Doraemon Set, 5 pcs",
       "paise": 3500,
       "aka": [
-        "doremon five pcs set"
+        "doremon five pcs set",
+        "doremon 5 pcs set"
       ],
       "piecesPerPack": 5,
       "packOf": 10
@@ -1311,7 +1347,8 @@
       "material": "Paw Patrol Topper, 2 packs",
       "paise": null,
       "aka": [
-        "Paw petrol topper 2 pkt ok"
+        "Paw petrol topper 2 pkt ok",
+        "paw petrol 5 pcs"
       ],
       "packOf": 10
     },
@@ -1321,7 +1358,8 @@
       "paise": 3800,
       "aka": [
         "peppa pig 5 pse set",
-        "pepa pig"
+        "pepa pig",
+        "pepa pig pink"
       ],
       "piecesPerPack": 5,
       "packOf": 10
@@ -1395,7 +1433,9 @@
       "paise": 4000,
       "_note": "The 5-piece set. `Unicorn` (Rs5) is a single and stays.",
       "aka": [
-        "unicorn five pcs set"
+        "unicorn five pcs set",
+        "unicorn chota",
+        "unicorn bda"
       ],
       "piecesPerPack": 5,
       "packOf": 10
@@ -1447,7 +1487,8 @@
       "paise": 4000,
       "_note": "FLAG: `Masha Set, Card Packed` (Rs38) already exists. Card-packed and a 5-pc set may be the same goods in different packing, or two products. Kept apart until Vansh says.",
       "aka": [
-        "masa five pcs set"
+        "masa five pcs set",
+        "massa 5 pcs set"
       ],
       "piecesPerPack": 5,
       "packOf": 10
@@ -1523,7 +1564,8 @@
       "material": "Car Theme Set of 5",
       "paise": 3500,
       "aka": [
-        "Car Theme Topper"
+        "Car Theme Topper",
+        "car 5pcs set theme"
       ]
     },
     {
@@ -1614,7 +1656,8 @@
       "size": "2 kg",
       "_note": "FLAG: `strow` read as straw, sold by weight. Filed under Decoration because nothing else fits; say if it is packing material and it moves to Packaging.",
       "aka": [
-        "strow 2 kg"
+        "strow 2 kg",
+        "straw"
       ],
       "packOf": 1000,
       "_packOf": "APPROXIMATE — Vansh's estimate for a 2 kg packet, his words: 'could be more maybe'. Count one to confirm."
@@ -1635,7 +1678,8 @@
       "paise": 850,
       "sellsAs": "Groom To Be Sash",
       "aka": [
-        "groom to be sash"
+        "groom to be sash",
+        "groom to be sesh"
       ],
       "packOf": 25
     },
@@ -1678,7 +1722,10 @@
       "category": "Adhesive",
       "material": "Adhesive Hook",
       "paise": 150,
-      "packOf": 100
+      "packOf": 100,
+      "aka": [
+        "hook"
+      ]
     },
     {
       "category": "Equipment",
@@ -1695,7 +1742,8 @@
       "material": "Flipkart Polybag 9x12",
       "paise": null,
       "aka": [
-        "9×12 flip cart"
+        "9×12 flip cart",
+        "Flipcart pani 9*12"
       ],
       "packOf": 100
     },
@@ -1704,7 +1752,8 @@
       "material": "Meesho Barcode Polybag 9x12",
       "paise": null,
       "aka": [
-        "meesho barcode 9×12"
+        "meesho barcode 9×12",
+        "Messo pani 9*12"
       ],
       "packOf": 100
     },
@@ -1772,7 +1821,8 @@
       "material": "Golden Number Foil, 0-9",
       "paise": null,
       "aka": [
-        "number foil golden"
+        "number foil golden",
+        "number foil golden 100 pcs wala"
       ]
     }
   ],

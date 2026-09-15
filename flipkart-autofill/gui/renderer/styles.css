@@ -2826,3 +2826,8 @@ h3 > button.tiny {
 .taught ul { margin: 6px 0 0; padding-left: 18px; }
 .taught button.link { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
   color: var(--muted, #5a6472); text-decoration: underline; }
+
+/* Rename on the way in. His words stay to the left as the evidence; this box is the decision, and
+   his wording is kept as an old name so the next note still matches the row he just made. */
+.rename { width: 190px; font-size: 12px; }
+.rename.extra { border-left: 2px solid var(--accent, #2a55e5); }

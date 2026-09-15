@@ -451,9 +451,27 @@ export function Stock({ n }: { n: number }) {
     for (const r of missing) {
       const category = (newGroups[r.name] ?? guessGroup(r)).trim();
       if (category === "") { failed.push(`${r.name} (no group chosen)`); continue; }
-      const res = await window.ww.addMaterial({ category, material: r.name.trim(), paise: null });
-      if (res.ok) added++;
-      else failed.push(`${r.name} — ${res.message}`);
+
+      /**
+       * One line can make several rows: the name he typed (or his own words), plus any split parts.
+       *
+       * `says` is passed only when ONE row comes out of the line. A split means his wording maps to
+       * two materials, and an old name that points at two rows is worse than none — it would make
+       * the matcher pick whichever it happened to see first.
+       */
+      const parts = [ (newNames[r.name] ?? r.name).trim(), ...(extras[r.name] ?? []) ]
+        .map((x) => x.trim())
+        .filter(Boolean);
+      for (const material of parts) {
+        const res = await window.ww.addMaterial({
+          category,
+          material,
+          paise: null,
+          ...(parts.length === 1 ? { says: r.name } : {}),
+        });
+        if (res.ok) added++;
+        else failed.push(`${material} — ${res.message}`);
+      }
     }
     setAddingAll(false);
     setError(failed.length === 0 ? null : `Added ${added}. Not added: ${failed.join("; ")}`);
@@ -519,6 +537,24 @@ export function Stock({ n }: { n: number }) {
   /** Which proposed rules are ticked, by index. Nothing is ticked to begin with. */
   const [takeRule, setTakeRule] = useState<Record<number, boolean>>({});
   const [askingAi, setAskingAi] = useState(false);
+  /**
+   * What each unlisted line should be CALLED on the price list, keyed by his wording.
+   *
+   * Empty means "use his words as they are", which was the only option before. Vansh, 2026-09-14:
+   * *"I want to select its category and rename it to full Ring Foil."* His `ring` is not a name a
+   * price list can live with, and renaming on the way in is the only moment somebody knows what it
+   * should be. His original wording is kept as an old name, or the next note stops matching the row
+   * he just created.
+   */
+  const [newNames, setNewNames] = useState<Record<string, string>>({});
+  /**
+   * Extra materials to create from ONE of his lines — `{ "1-1 pkt cheers glass small": ["Glass Foil"] }`.
+   *
+   * *"If I were able to split 1 into two, like 1-1 bacha bachi, and 1 cheers mug glass."* He is
+   * right that this is the other half: some of his lines are two products, and no amount of matching
+   * can resolve one line into two rows. Only a person can say where the line divides.
+   */
+  const [extras, setExtras] = useState<Record<string, string[]>>({});
   /**
    * Every word taught so far, so it can be SEEN and taken back.
    *
@@ -788,6 +824,20 @@ export function Stock({ n }: { n: number }) {
                       </li>
                     ))}
                   </ul>
+                  {/* Fifty-two rules is not a list anybody ticks one at a time. The refused ones
+                      stay off whatever this says — they cannot be applied at all. */}
+                  <button
+                    className="link"
+                    onClick={() => {
+                      const all = Object.fromEntries(
+                        rules.rows.map((r, i) => [i, !r.blockedBy]),
+                      );
+                      const anyOn = Object.values(takeRule).some(Boolean);
+                      setTakeRule(anyOn ? {} : all);
+                    }}
+                  >
+                    {Object.values(takeRule).some(Boolean) ? "none" : "select all"}
+                  </button>{" "}
                   <button
                     className="go"
                     disabled={!Object.values(takeRule).some(Boolean)}
@@ -889,7 +939,39 @@ export function Stock({ n }: { n: number }) {
                         onChange={(e) => setSkip({ ...skip, [r.name]: !e.target.checked })}
                       />
                     </label>
+                    {/* His words, kept visible and unchanged — this is the evidence, and the box
+                        beside it is the decision. */}
                     <span className="lid">{r.name}</span>
+                    <input
+                      className="rename"
+                      type="text"
+                      value={newNames[r.name] ?? r.name}
+                      title="What this should be called on the price list"
+                      onChange={(e) => setNewNames({ ...newNames, [r.name]: e.target.value })}
+                    />
+                    {(extras[r.name] ?? []).map((part, i) => (
+                      <input
+                        key={i}
+                        className="rename extra"
+                        type="text"
+                        value={part}
+                        placeholder="…and the other one"
+                        onChange={(e) => {
+                          const next = [...(extras[r.name] ?? [])];
+                          next[i] = e.target.value;
+                          setExtras({ ...extras, [r.name]: next });
+                        }}
+                      />
+                    ))}
+                    {/* One line, two products. No matcher can resolve that; only he knows where it
+                        divides. */}
+                    <button
+                      className="link"
+                      title="This line is really two products"
+                      onClick={() => setExtras({ ...extras, [r.name]: [...(extras[r.name] ?? []), ""] })}
+                    >
+                      + split
+                    </button>
                     {/**
                       * **"Or is it one we already have?" — offered BEFORE the group picker.**
                       *
