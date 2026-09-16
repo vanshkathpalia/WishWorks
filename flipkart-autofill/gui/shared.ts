@@ -734,7 +734,8 @@ export interface WwApi {
    * Not the latch form — the point is to see each product the way a buyer does and decide whether
    * it is worth selling at all. Close the tabs you do not want, then call `latchOpen`.
    */
-  showBatch(size: number): Promise<Attempt<{ fsn: string; title: string; listed: Listed | null }[]>>;
+  /** `pack` limits it to the pack selected on screen; null is everything. */
+  showBatch(size: number, pack: string | null): Promise<Attempt<{ fsn: string; title: string; listed: Listed | null }[]>>;
   /**
    * Latch whichever of that batch is still open in Chrome, and remember the rest as turned down.
    *

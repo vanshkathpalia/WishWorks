@@ -1458,9 +1458,20 @@ export function survivors(batch: string[], urls: string[]): string[] {
  * Ten at a time because sixty tabs is not a review, it is a mess — and because a batch he can hold
  * in his head is one he will actually judge.
  */
-export function nextBatch(book: LatchBook, size: number, skip: Set<string> = new Set()): LatchRecord[] {
+export function nextBatch(
+  book: LatchBook,
+  size: number,
+  skip: Set<string> = new Set(),
+  /**
+   * Only this pack's products, by filename. Null is everything. Without it, dropping a fresh label
+   * pack and asking for ten served the 37 left over from an old search instead — Vansh, 2026-09-16:
+   * *"it's mixing i dont want it this way."*
+   */
+  pack: string | null = null,
+): LatchRecord[] {
+  const only = pack === null ? null : new Set(book.packs.find((p) => p.file === pack)?.skus ?? []);
   return book.rows
-    .filter((r) => r.state === "form" && r.fsn && !r.latchedOn && !skip.has(r.fsn))
+    .filter((r) => r.state === "form" && r.fsn && !r.latchedOn && !skip.has(r.fsn) && (!only || only.has(r.sku)))
     .slice(0, Math.max(1, size));
 }
 

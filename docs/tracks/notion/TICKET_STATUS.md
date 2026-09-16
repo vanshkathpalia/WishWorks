@@ -446,6 +446,12 @@ between two reads 3s apart). Now the run checks the login first, twice, and refu
 first" before opening anything; the reviewed batch survives the refusal. Also: the costing chats
 now run after all forms, not interleaved with them. See C-080.
 
+**Fixed, 2026-09-16 — a fresh label pack got mixed with an old hunt.** Dropping a 39-product pack
+landed on "Everything", and "Show me the next 10" drew from every list — the 37 unlatched left over
+from the 13 Sept "party decoration" sweep included. `nextBatch` now takes the selected pack, a pack
+just read is selected automatically, and the "next 10 of N" count no longer counts products already
+latched. Latched ones were never re-offered; they only showed in the list.
+
 
 ## WW-191 — The image run has a trigger, and it asks rather than queues
 

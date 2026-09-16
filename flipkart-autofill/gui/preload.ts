@@ -123,7 +123,7 @@ const api: WwApi = {
     return () => void ipcRenderer.off("crawlRow", handler);
   },
   checkLatches: (all: boolean) => ipcRenderer.invoke("checkLatches", all),
-  showBatch: (size: number) => ipcRenderer.invoke("showBatch", size),
+  showBatch: (size: number, pack: string | null) => ipcRenderer.invoke("showBatch", size, pack),
   latchOpen: (withCosting: boolean) => ipcRenderer.invoke("latchOpen", withCosting),
   onLatchRow: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);

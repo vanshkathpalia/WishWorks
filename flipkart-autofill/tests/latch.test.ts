@@ -704,6 +704,21 @@ describe("reviewing a batch before listing it", () => {
     };
     expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["B"]);
   });
+
+  it("offers only the selected pack's products, not an older hunt's", () => {
+    const rows = ["A", "B", "C"].map((f) => ({
+      sku: f, description: f, seen: 0, fsn: f, title: f, state: "form" as const, checkedOn: null,
+    }));
+    const book = {
+      packs: [
+        { file: "labels.pdf", addedOn: "2026-09-16", skus: ["C"] },
+        { file: "search: party decoration · 2026-09-13", addedOn: "2026-09-13", skus: ["A", "B"] },
+      ],
+      rows,
+    };
+    expect(nextBatch(book, 10, new Set(), "labels.pdf").map((r) => r.fsn)).toEqual(["C"]);
+    expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["A", "B", "C"]);
+  });
 });
 
 /**

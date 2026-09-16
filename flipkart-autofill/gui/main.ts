@@ -1117,12 +1117,17 @@ const passed = new Set<string>();
  * price, ratings — and decide whether it is worth selling at all. The form comes after, and only
  * for the ones whose tab is still open.
  */
-ipcMain.handle("showBatch", async (_e, size: number): Promise<Attempt<unknown>> => {
+ipcMain.handle("showBatch", async (_e, size: number, pack: string | null): Promise<Attempt<unknown>> => {
   const { readLatches, nextBatch } = await latchEngine();
   const { newTab } = await import("../src/browser-core.js");
-  const rows = nextBatch(await readLatches(), size || 10, passed);
+  const rows = nextBatch(await readLatches(), size || 10, passed, pack ?? null);
   if (rows.length === 0) {
-    return { ok: false, message: "Nothing left to look at — sweep for more, or read a label pack." };
+    return {
+      ok: false,
+      message: pack
+        ? `Nothing left to look at in ${pack} — check it against Flipkart first, or pick another list.`
+        : "Nothing left to look at — sweep for more, or read a label pack.",
+    };
   }
   for (const r of rows) {
     const tab = await newTab();

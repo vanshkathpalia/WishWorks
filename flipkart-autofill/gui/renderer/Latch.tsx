@@ -149,6 +149,14 @@ export function Latch({ n }: { n: number }) {
     return ok;
   }
 
+  /**
+   * Read a pack and SHOW that pack, not everything. Its filename is the pack's name in the book.
+   * Landing on "Everything" put a fresh pack among an old hunt's leftovers.
+   */
+  function readPack(file: string) {
+    void run("reading", () => window.ww.addLabels(file)).then((ok) => ok && setPack(file.split(/[\\/]/).pop()!));
+  }
+
   /** Search terms already swept, newest first — derived, never stored twice. */
   const hunts = book.packs
     .filter((p) => p.file.startsWith("search: "))
@@ -161,7 +169,8 @@ export function Latch({ n }: { n: number }) {
   const chosen: LabelPack | null = book.packs.find((p) => p.file === pack) ?? null;
   const rows = chosen ? book.rows.filter((r) => chosen.skus.includes(r.sku)) : book.rows;
   const unchecked = rows.filter((r) => r.state === "unknown").length;
-  const ready = rows.filter((r) => r.state === "form" && r.fsn).length;
+  // Already-latched rows are never offered again, so they are not counted as ready either.
+  const ready = rows.filter((r) => r.state === "form" && r.fsn && !r.latchedOn).length;
 
   return (
     <section className="panel latch">
@@ -186,7 +195,7 @@ export function Latch({ n }: { n: number }) {
           e.preventDefault();
           setOver(false);
           const paths = [...e.dataTransfer.files].map((f) => window.ww.pathForFile(f)).filter(Boolean);
-          if (paths.length) void run("reading", () => window.ww.addLabels(paths[0]));
+          if (paths.length) readPack(paths[0]);
           else setError("Couldn't read that. Use the button instead.");
         }}
       >
@@ -198,7 +207,7 @@ export function Latch({ n }: { n: number }) {
               void window.ww
                 .pick("labels", "files")
                 .then((f) => {
-                  if (f.length) void run("reading", () => window.ww.addLabels(f[0]));
+                  if (f.length) readPack(f[0]);
                 })
             }
           >
@@ -372,7 +381,7 @@ export function Latch({ n }: { n: number }) {
               className="primary"
               disabled={!!busy || ready === 0}
               onClick={() =>
-                void window.ww.showBatch(10).then((r) => {
+                void window.ww.showBatch(10, pack).then((r) => {
                   if (!r.ok) return setError(r.message);
                   setBatch(r.result.map((x) => ({ fsn: x.fsn, title: x.title })));
                   setNote(r.note ?? null);
