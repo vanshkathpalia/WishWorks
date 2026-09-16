@@ -20,7 +20,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, cardState, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  approvedBrands, blocking, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -703,6 +703,20 @@ describe("reviewing a batch before listing it", () => {
       ],
     };
     expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["B"]);
+  });
+
+  it("forgets a latch that was opened but never saved, once Flipkart still offers the form", () => {
+    const row = {
+      sku: "A", description: "A", seen: 0, fsn: "A", title: "A", checkedOn: null,
+      latchedOn: "2026-09-13", ourSku: "GTB012",
+    };
+    expect(forgetUnsaved({ ...row, state: "form" })).not.toHaveProperty("latchedOn");
+    expect(forgetUnsaved({ ...row, state: "form" })).not.toHaveProperty("ourSku");
+    // A failed check proves nothing, and a saved listing reads "selling": both keep the date.
+    expect(forgetUnsaved({ ...row, state: "stuck" }).latchedOn).toBe("2026-09-13");
+    expect(forgetUnsaved({ ...row, state: "selling" }).latchedOn).toBe("2026-09-13");
+    const book = { packs: [], rows: [{ ...row, state: "form" as const }] };
+    expect(nextBatch({ ...book, rows: book.rows.map(forgetUnsaved) }, 10).map((r) => r.fsn)).toEqual(["A"]);
   });
 
   it("offers only the selected pack's products, not an older hunt's", () => {

@@ -452,6 +452,14 @@ from the 13 Sept "party decoration" sweep included. `nextBatch` now takes the se
 just read is selected automatically, and the "next 10 of N" count no longer counts products already
 latched. Latched ones were never re-offered; they only showed in the list.
 
+**Fixed, 2026-09-16 — 11 products "latched" that never were.** On 13 Sept their form tabs were opened
+and never saved, but `latchedOn` is stamped on OPEN, so they read "latched" and were never offered
+again ("Nothing ready to latch"). Now a check or sweep that finds Start Selling still on offer drops
+the stamp and the SKU chosen for it (`forgetUnsaved`) — so **Re-check is the relatch**, and Flipkart,
+not our file, says what is latched. Also: closing the app's Chrome by hand left a dead handle, and every
+button after answered *"browserContext.newPage: Target page, context or browser has been closed"*;
+`newTab`/`chatTab` now open a fresh window instead. See C-081.
+
 
 ## WW-191 — The image run has a trigger, and it asks rather than queues
 

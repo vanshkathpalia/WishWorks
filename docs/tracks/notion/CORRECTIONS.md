@@ -2603,3 +2603,20 @@ keep the reviewed batch when refused. The chats-after-forms change stays: it is 
 swaps.
 
 **Lesson.** A symptom you can see on screen is checked on screen before it is explained from code.
+
+## C-081 — "latched" meant "a form tab was opened"
+
+**What went wrong.** `latchedOn` is set when the latch form opens, because nothing can see the save.
+The row was then treated as done for ever: not offered again, and counted as a live listing. 11
+products from one label pack were opened on 13 Sept, never saved, and silently dropped out of the
+queue. Vansh: *"we didn't latched these we just opened the start selling page."* The C-080 fix to
+the "ready" count made it visible — the button said "Nothing ready to latch" beside 11 rows under
+"New — ready to latch".
+
+**Fix.** `forgetUnsaved`: when Flipkart answers "form" again, the stamp is dropped. Only that answer
+clears it — `stuck` proves nothing and a saved listing reads `selling`.
+
+**Lesson.** A flag written before the thing it names has happened needs a way to be taken back, and
+the marketplace is the thing to ask, not our own file.
+
+**Also.** `newTab` held on to a Chrome closed by hand and threw on every call after; it now reopens.

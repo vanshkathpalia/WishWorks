@@ -596,7 +596,25 @@ export async function searchProducts(page: Page, termOrUrl: string): Promise<Res
  * `page` is reused across every product on purpose. A tab per product would be forty tabs opened
  * to find out that thirty of them needed none.
  */
+/**
+ * **Opened is not latched.** `latchedOn` is stamped when a form TAB opens, because nothing here sees
+ * the save. So when Flipkart answers "form" again — Start Selling still on offer — the listing was
+ * never saved, and the stamp (and the SKU chosen for it) is dropped so the product is offered again.
+ * Vansh, 2026-09-16, on 11 products opened on 13 Sept and never confirmed: *"we didn't latched these
+ * we just opened the start selling page."* Only a real "form" answer clears it: a failed check
+ * (`stuck`) says nothing, and a saved one comes back `selling`.
+ */
+export function forgetUnsaved(row: LatchRecord): LatchRecord {
+  if (row.state !== "form" || !row.latchedOn) return row;
+  const { latchedOn: _l, ourSku: _s, ...rest } = row;
+  return rest;
+}
+
 export async function resolveProduct(page: Page, row: LatchRecord): Promise<LatchRecord> {
+  return forgetUnsaved(await resolveCard(page, row));
+}
+
+async function resolveCard(page: Page, row: LatchRecord): Promise<LatchRecord> {
   /**
    * A row that already has an FSN skips the search entirely.
    *
@@ -957,8 +975,9 @@ export function mergeFound(book: LatchBook, found: Found[], term: string, on = t
     const prev = by.get(f.fsn);
     if (prev) {
       // A sweep re-confirms what a sweep found: the state and the price are fresher than what is
-      // on file. What it must NOT touch is `latchedOn` — that happened, whatever the card says now.
+      // on file. `latchedOn` survives unless the card still offers the form — see `forgetUnsaved`.
       Object.assign(prev, { state: f.state, listed: f.listed, title: f.title, url: f.url, checkedOn: on });
+      by.set(f.fsn, forgetUnsaved(prev));
       continue;
     }
     added++;

@@ -267,7 +267,16 @@ export async function saveListing(
  * the first — taking the login, and any half-filled form, with it.
  */
 export async function newTab(): Promise<Page> {
-  if (!session) session = await openBrowser();
+  if (session) {
+    // Closed from the title bar since: the old handle only throws "Target page, context or browser
+    // has been closed" for ever. Forget it and open a fresh one.
+    try {
+      return await session.context.newPage();
+    } catch {
+      session = null;
+    }
+  }
+  session = await openBrowser();
   return session.context.newPage();
 }
 
@@ -288,7 +297,15 @@ export function openTabs(): Page[] {
 let chat: Session | null = null;
 
 export async function chatTab(): Promise<Page> {
-  if (!chat) chat = await openChatBrowser();
+  if (chat) {
+    // Same as `newTab`: a window closed by hand leaves a dead handle behind.
+    try {
+      return await chat.context.newPage();
+    } catch {
+      chat = null;
+    }
+  }
+  chat = await openChatBrowser();
   return chat.context.newPage();
 }
 
