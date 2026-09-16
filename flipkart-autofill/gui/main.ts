@@ -1160,11 +1160,14 @@ ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unk
   // Shown and closed is a decision: do not offer them again when he asks for the next ten.
   for (const fsn of batch) if (!keep.includes(fsn)) passed.add(fsn);
   const reviewed = batch.length;
-  batch = [];
   if (keep.length === 0) {
+    batch = [];
     return { ok: true, result: await readLatches(), note: `All ${reviewed} closed — none latched. Ask for the next ten.` };
   }
-  return latchThese(e, keep, withCosting, `${keep.length} of ${reviewed} kept.`);
+  const r = await latchThese(e, keep, withCosting, `${keep.length} of ${reviewed} kept.`);
+  // A refused run (logged out) keeps the batch, so pressing again after logging in still works.
+  if (r.ok) batch = [];
+  return r;
 });
 
 /** Every approval request on the account, read off Flipkart's own Track Approval page. */
@@ -1529,6 +1532,29 @@ async function latchThese(
     : rows.filter((r) => r.state === "form" && r.fsn);
   if (todo.length === 0) return { ok: false, message: "Nothing is waiting to be latched." };
 
+  /**
+   * **Logged in to the seller app, and STAYING logged in — before a single form tab opens.**
+   *
+   * Without this a logged-out session opened one tab per product, and each one bounced between
+   * `#dashboard/home-page` and `/?referral_url=…` for ever: Chrome flickering, the machine slowing,
+   * no form appearing. Vansh, 2026-09-16: *"making the chrome to blink back and fro and making
+   * computer slow and showing nothing new."* Checked twice because a bouncing tab reads logged in
+   * half the time; one look is a coin toss.
+   */
+  const probe = await newTab();
+  const { checkLogin, looksLoggedIn } = await import("../src/connect.js");
+  const signedIn =
+    (await checkLogin(probe)) && (await probe.waitForTimeout(3000).then(() => looksLoggedIn(probe), () => false));
+  await probe.close().catch(() => {});
+  if (!signedIn) {
+    return {
+      ok: false,
+      message:
+        "Flipkart Seller is not logged in (the dashboard keeps bouncing to the login page), so no form was opened. " +
+        "Log in on the Fill Flipkart step, then press the button again — the tabs you kept are still counted.",
+    };
+  }
+
   const values = latchValues({ MRP: "999", "Your selling price": "220" });
   /**
    * SKUs handed out as we go, so ten annaprashan kits in one batch get ten different numbers.
@@ -1569,15 +1595,27 @@ async function latchThese(
       ...(state === "form" ? { latchedOn: todayStamp(), ...(mine ? { ourSku: mine } : {}) } : {}),
     };
     if (state === "form") opened++;
+    e.sender.send("latchRow", { done: opened, of: todo.length, row: rows[at] });
+    await writeLatches(book);
+  }
 
-    /**
-     * The contents picture, and a ChatGPT tab already holding it.
-     *
-     * **The SECOND gallery photo**, because on a party kit that is the contents laid out — which
-     * is what the costing prompt reads. A listing with only one photo gets no chat rather than the
-     * styled shot, which would cost a kit from a picture that does not show its contents.
-     */
-    if (shelf && prompt && state === "form" && row.url && !loggedOut) {
+  /**
+   * The costing chats, AFTER every form is open — never interleaved with them.
+   *
+   * The ChatGPT window is a second Chrome. Opening a form, then a chat, then the next form made the
+   * two windows steal focus from each other once per product, with two heavy pages loading at a
+   * time and the progress line frozen for the ~30s each chat takes. Vansh, 2026-09-16: *"making the
+   * chrome to blink back and fro and making computer slow and showing nothing new."* Forms first
+   * means the work he types into is ready in seconds, and the chats come after in one window.
+   *
+   * **The SECOND gallery photo**, because on a party kit that is the contents laid out — which is
+   * what the costing prompt reads. A listing with only one photo gets no chat rather than the styled
+   * shot, which would cost a kit from a picture that does not show its contents.
+   */
+  if (shelf && prompt) {
+    for (const row of todo) {
+      const now = rows.find((r) => r.sku === row.sku)!;
+      if (now.state !== "form" || !row.url || loggedOut) continue;
       try {
         await shelf.goto(row.url, { waitUntil: "domcontentloaded" });
         await shelf.waitForTimeout(6000);
@@ -1593,9 +1631,6 @@ async function latchThese(
         // A picture is a nice-to-have beside the latch itself; never let it lose the form.
       }
     }
-
-    e.sender.send("latchRow", { done: opened, of: todo.length, row: rows[at] });
-    await writeLatches(book);
   }
   await shelf?.close().catch(() => {});
   return {

@@ -2585,3 +2585,21 @@ was doing the ChatGPT step by hand.
 match `profile-chat`. For about an hour, a live ChatGPT session was one `git add -A` from being
 committed. Nothing was staged in the end. *A new profile directory needs a new ignore rule; the old
 one does not stretch.*
+
+## C-080 — a latch run that never asked whether it was logged in
+
+**What went wrong.** "Latch the ones still open" opened a seller-form tab per kept product without
+checking the Flipkart Seller login. Logged out, each tab bounced between `#dashboard/home-page` and
+`/?referral_url=…` endlessly — measured by reading Chrome's tabs twice, 3s apart. Vansh, 2026-09-16:
+*"making the chrome to blink back and fro and making computer slow and showing nothing new."*
+
+**My first diagnosis was wrong.** I blamed the Flipkart form / ChatGPT chat windows swapping focus,
+moved the chats after the forms, and reported it fixed without looking at Chrome. Vansh: *"still
+it's the same."* Only one Chrome was even running. Reading the live tab URLs found it in one step.
+
+**Fix.** `latchThese` runs `checkLogin` and re-reads the URL 3s later (a bouncing tab reads logged
+in half the time) before opening anything, and returns "log in first". `latchOpen` and the screen
+keep the reviewed batch when refused. The chats-after-forms change stays: it is still fewer window
+swaps.
+
+**Lesson.** A symptom you can see on screen is checked on screen before it is explained from code.

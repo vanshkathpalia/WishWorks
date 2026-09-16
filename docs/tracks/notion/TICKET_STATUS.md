@@ -439,6 +439,13 @@ because the engine tsconfig has no `jsx`, deliberately.
 
 **Open, and needs Vansh's decision:** the ChatGPT sign-in. See CORRECTIONS C-052.
 
+**Fixed, 2026-09-16 — "Latch the ones still open" made Chrome blink and the machine crawl.** The
+seller session was logged out. The run opened a form tab per product anyway, and every one bounced
+between `#dashboard/home-page` and `/?referral_url=…` for ever (seen live: 6 tabs, URLs changing
+between two reads 3s apart). Now the run checks the login first, twice, and refuses with "log in
+first" before opening anything; the reviewed batch survives the refusal. Also: the costing chats
+now run after all forms, not interleaved with them. See C-080.
+
 
 ## WW-191 — The image run has a trigger, and it asks rather than queues
 

@@ -130,18 +130,23 @@ export function Latch({ n }: { n: number }) {
     setError(null);
     setNote(null);
     setProgress(null);
+    let ok = true;
     try {
       const r = await call();
-      if (!r.ok) setError(r.message as string);
-      else {
+      if (!r.ok) {
+        setError(r.message as string);
+        ok = false;
+      } else {
         setBook(r.result as LatchBook);
         if (r.note) setNote(r.note as string);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      ok = false;
     }
     setBusy("");
     setProgress(null);
+    return ok;
   }
 
   /** Search terms already swept, newest first — derived, never stored twice. */
@@ -380,10 +385,10 @@ export function Latch({ n }: { n: number }) {
             <button
               className="primary"
               disabled={!!busy}
-              onClick={() => {
-                setBatch([]);
-                void run("latching", () => window.ww.latchOpen(costing));
-              }}
+              onClick={() =>
+                // Cleared only on success: a refused run (logged out) leaves this button in place.
+                void run("latching", () => window.ww.latchOpen(costing)).then((ok) => ok && setBatch([]))
+              }
             >
               Latch the ones still open
             </button>
