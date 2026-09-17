@@ -722,6 +722,16 @@ async function resolveCard(page: Page, row: LatchRecord): Promise<LatchRecord> {
  * is Flipkart not answering, which is not the same as a No and must not be recorded as one.
  */
 export async function readCard(page: Page, fsn: string, timeout = 30_000): Promise<{ fsn: string; state: TabState }> {
+  /**
+   * **Blank the tab first, or the PREVIOUS product's card is read.** The seller app moves between
+   * products by changing only the `#…` part of the URL, and the old card stays on screen for a moment
+   * after. Polling for the card straight away (added 2026-09-16) found it every time: on 2026-09-17 a
+   * 631-product Re-check finished in three minutes and turned "already selling" and "needs approval"
+   * products into "can latch" — Vansh saw 1 selling where the invoice pack alone had 7. Reproduced on
+   * a fake seller page: 2 of 5 read right before, 5 of 5 after. about:blank costs a page load per
+   * product, which is what a correct answer takes anyway.
+   */
+  await page.goto("about:blank").catch(() => {});
   await page.goto(startSellingUrl(fsn), { waitUntil: "domcontentloaded" }).catch(() => {});
   // Polled rather than one long wait, so a bounce to the login screen stops the run within half a
   // second — not after the full timeout, with the page flickering the whole time.

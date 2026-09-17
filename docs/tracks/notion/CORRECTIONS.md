@@ -2678,3 +2678,19 @@ titles exact. Costing chats, which are left unsent on purpose, are now renamed `
 `nameWhenSent` the moment the person sends them.
 
 **Lesson.** A UI that changes shape after a click is not ready when the click returns.
+
+## C-086 — a faster card check that read the previous product's card
+
+**What went wrong.** C-082 replaced one long `waitForSelector` in `readCard` with a poll that looks
+for the card straight after `goto`, so a login bounce could stop a run in a second. But the seller app
+moves between products by changing only the URL hash, and the previous product's card stays on screen
+for a moment — the poll found it at once. Released in 1.7.3 and 1.7.4. On 2026-09-17 a Re-check of all
+631 finished in three minutes and turned "already selling" and "needs approval" rows into "can latch":
+Vansh saw 1 selling where the invoice pack alone had 7 that morning. An earlier Re-check the same day
+had already done part of it. No latched date or SKU was lost.
+
+**Fix.** Blank the tab (`about:blank`) before each product. Reproduced on a fake seller page whose old
+card lingers 800 ms: 2 of 5 right before, 5 of 5 after. The repair of the list is a correct Re-check.
+
+**Lesson.** Making a wait faster changes what it can see. A speed change to a read needs a test with
+the old content still on screen, not only a slow new one.
