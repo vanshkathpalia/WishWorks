@@ -21,7 +21,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, bouncedToLogin, productPage, frontLatchTab, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  approvedBrands, blocking, bouncedToLogin, productPage, frontLatchTab, photoFolder, inPack, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -680,16 +680,35 @@ describe("reviewing a batch before listing it", () => {
     expect(survivors(batch, open)).toEqual([]);
   });
 
+  it("files a contents photo in the kit's own WhatsApp folder, reusing his spelling of it", () => {
+    // Folders read off ~/Downloads/Whatsapp DW on 2026-09-17.
+    const dirs = ["ANP/ANP 10", "WH/WH 1", "HBD/HBD101", "HBD-T/dore/dore01", "HBD-T/dore/dore02", "HBD-T/babyboss", "HBD-T/kitti"];
+    expect(photoFolder("HBD-dore03", dirs)).toBe("HBD-T/dore/dore03");
+    expect(photoFolder("HBD-dore02", dirs)).toBe("HBD-T/dore/dore02");
+    expect(photoFolder("HBD-bb02", dirs)).toBe("HBD-T/babyboss/bb02");
+    expect(photoFolder("HBD-Kitty02", dirs)).toBe("HBD-T/kitti/kitty02");
+    expect(photoFolder("WH001", dirs)).toBe("WH/WH 1"); // the same kit, his spelling
+    expect(photoFolder("ANP016", dirs)).toBe("ANP/ANP016");
+    expect(photoFolder("HBD102", dirs)).toBe("HBD/HBD102");
+    expect(photoFolder("FKUP023", dirs)).toBe("FKUP/FKUP023"); // shape only; callers pass OUR SKU
+    expect(photoFolder("", dirs)).toBeNull();
+  });
+
   it("refills only the Start Selling tab showing in Chrome, and asks when that is unclear", () => {
     const form = (fsn: string) => `https://seller.flipkart.com/index.html#dashboard/listings/product/na?fsn=${fsn}&sourceid=SELECTION_INSIGHTS_UI`;
     const tabs = [
       { url: form("BLNHGK72ZM2AYEHA"), visible: false },
       { url: form("BCBHMEH4MGJAHAWY"), visible: true },
       { url: "https://web.whatsapp.com/", visible: true }, // his own window, never ours to fill
-      { url: "https://www.flipkart.com/product/p/itme?pid=X", visible: true }, // a shopper page is not a form
     ];
     const hit = frontLatchTab(tabs);
     expect(hit.ok && hit.fsn).toBe("BCBHMEH4MGJAHAWY");
+    expect(hit.ok && hit.kind).toBe("form");
+    // The shopper page "Show me the next 10" opened, in front on its own: latched, not refilled.
+    const shop = frontLatchTab([{ url: "https://www.flipkart.com/product/p/itme?pid=DECHZEDRFNCCM7QE", visible: true }, tabs[0]]);
+    expect(shop.ok && [shop.fsn, shop.kind]).toEqual(["DECHZEDRFNCCM7QE", "shopper"]);
+    // A form in one window and a product page in another: ask, never pick one.
+    expect(frontLatchTab([tabs[1], { url: "https://www.flipkart.com/x/p/itm1?pid=Y", visible: true }]).ok).toBe(false);
     expect(frontLatchTab([{ url: form("A"), visible: false }]).ok).toBe(false);
     const two = frontLatchTab([{ url: form("A"), visible: true }, { url: form("B"), visible: true }]);
     expect(two.ok).toBe(false);
@@ -796,6 +815,9 @@ describe("reviewing a batch before listing it", () => {
       rows,
     };
     expect(nextBatch(book, 10, new Set(), "labels.pdf").map((r) => r.fsn)).toEqual(["C"]);
+    // Re-check narrows through the same function, so its count and its work cannot disagree.
+    expect(inPack(book, "labels.pdf").map((r) => r.sku)).toEqual(["C"]);
+    expect(inPack(book, null)).toHaveLength(3);
     expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["A", "B", "C"]);
   });
 });

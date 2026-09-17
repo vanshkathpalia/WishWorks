@@ -366,19 +366,21 @@ export function Latch({ n }: { n: number }) {
 
       {rows.length > 0 && (
         <div className="picks latch-actions">
-          <button disabled={!!busy || unchecked === 0} onClick={() => void run("checking", () => window.ww.checkLatches(false))}>
+          <button disabled={!!busy || unchecked === 0} onClick={() => void run("checking", () => window.ww.checkLatches(false, pack))}>
             {unchecked ? `Check ${unchecked} against Flipkart` : "Nothing new to check"}
           </button>
-          <button disabled={!!busy} onClick={() => void run("checking", () => window.ww.checkLatches(true))}>
+          <button disabled={!!busy} onClick={() => void run("checking", () => window.ww.checkLatches(true, pack))}>
             Re-check all {rows.length}
           </button>
           {/* **Look, then latch.** Sixty latchable products are not sixty worth selling, and sixty
               tabs is not a review. Ten shopper pages at a time — the page a buyer sees, not the
               listing form — and whatever is still open when he presses the second button is what
               gets listed. Closing a tab is the "no". */}
-          {batch.length === 0 ? (
+          {/* Both buttons, always. The batch that decides which is primary is a memory the app can
+              lose — and the pages it opened stay open in Chrome regardless. */}
+          <>
             <button
-              className="primary"
+              className={batch.length === 0 ? "primary" : ""}
               disabled={!!busy || ready === 0}
               onClick={() =>
                 void window.ww.showBatch(10, pack).then((r) => {
@@ -390,9 +392,8 @@ export function Latch({ n }: { n: number }) {
             >
               {ready ? `Show me the next 10 of ${ready}` : "Nothing ready to latch"}
             </button>
-          ) : (
             <button
-              className="primary"
+              className={batch.length > 0 ? "primary" : ""}
               disabled={!!busy}
               onClick={() =>
                 // Cleared only on success: a refused run (logged out) leaves this button in place.
@@ -401,11 +402,15 @@ export function Latch({ n }: { n: number }) {
             >
               Latch the ones still open
             </button>
-          )}
+          </>
           {/* The refill. A refresh throws a filled form away; this puts it back in the one tab in
               front, without re-running the batch or opening anything new. */}
-          <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.fillFrontLatch())}>
-            Fill the tab I&apos;m looking at
+          <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.fillFrontLatch(costing))}>
+            Latch the tab I&apos;m looking at
+          </button>
+          {/* The redo for a chat that did not get set up — the latch itself is left alone. */}
+          <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.costingFront())}>
+            Costing chat for the tab I&apos;m looking at
           </button>
           {/* One button per thing a person actually does with this list: do it, or tell somebody
               about it. The share follows whichever pack is selected, so "what came in today" is

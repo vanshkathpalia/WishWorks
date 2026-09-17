@@ -124,10 +124,11 @@ const api: WwApi = {
     ipcRenderer.on("crawlRow", handler);
     return () => void ipcRenderer.off("crawlRow", handler);
   },
-  checkLatches: (all: boolean) => ipcRenderer.invoke("checkLatches", all),
+  checkLatches: (all: boolean, pack: string | null) => ipcRenderer.invoke("checkLatches", all, pack),
   showBatch: (size: number, pack: string | null) => ipcRenderer.invoke("showBatch", size, pack),
   latchOpen: (withCosting: boolean) => ipcRenderer.invoke("latchOpen", withCosting),
-  fillFrontLatch: () => ipcRenderer.invoke("fillFrontLatch"),
+  fillFrontLatch: (withCosting: boolean) => ipcRenderer.invoke("fillFrontLatch", withCosting),
+  costingFront: () => ipcRenderer.invoke("costingFront"),
   onLatchRow: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
     ipcRenderer.on("latchRow", handler);

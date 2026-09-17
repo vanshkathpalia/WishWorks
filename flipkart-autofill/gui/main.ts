@@ -1223,8 +1223,20 @@ ipcMain.handle("showBatch", async (_e, size: number, pack: string | null): Promi
 ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unknown>> => {
   const { survivors, readLatches } = await latchEngine();
   const { openTabs } = await import("../src/browser-core.js");
+  /**
+   * **The batch is only a memory, and memories get lost** — an app restart, or the last latch run
+   * finishing, empties it while the product pages are still open in Chrome. Then the button
+   * flipped back to "Show me the next 10" and the open pages could not be latched at all. Without
+   * a batch, every open product page of something still latchable counts instead.
+   */
   if (batch.length === 0) {
-    return { ok: false, message: 'Nothing under review — press "Show me the next 10" first.' };
+    const book = await readLatches();
+    const latchable = book.rows.filter((r) => r.state === "form" && r.fsn && !r.latchedOn).map((r) => r.fsn!);
+    const open = survivors(latchable, openTabs().map((t) => t.url()));
+    if (open.length === 0) {
+      return { ok: false, message: 'No latchable product page is open in Chrome — press "Show me the next 10" first.' };
+    }
+    return latchThese(e, open, withCosting, `${open.length} open.`);
   }
   const keep = survivors(batch, openTabs().map((t) => t.url()));
   // Shown and closed is a decision: do not offer them again when he asks for the next ten.
@@ -1506,11 +1518,12 @@ ipcMain.handle("crawlSearch", async (e, term: string, minutes: number): Promise<
  * product and does not change on its own. `all` re-asks everything, which is what a month later
  * or a rejected approval calls for.
  */
-ipcMain.handle("checkLatches", async (e, all: boolean): Promise<Attempt<unknown>> => {
-  const { readLatches, writeLatches, resolveProduct, LoggedOut } = await latchEngine();
+ipcMain.handle("checkLatches", async (e, all: boolean, pack: string | null): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, resolveProduct, LoggedOut, inPack } = await latchEngine();
   const book = await readLatches();
   const rows = book.rows;
-  const todo = rows.filter((r) => all || r.state === "unknown");
+  // Only the selected pack — the count on the button is the count that gets checked.
+  const todo = inPack(book, pack ?? null).filter((r) => all || r.state === "unknown");
   if (todo.length === 0) return { ok: true, result: book, note: "Everything has been checked already." };
 
   const tab = await sellerTab();
@@ -1571,8 +1584,121 @@ async function skusInUse(): Promise<string[]> {
       /* folder may not exist on a fresh machine */
     }
   }
+  /**
+   * **And every SKU a latch has already handed out.** A latched product has no kit or listing file
+   * until it is costed, so a second latch run did not see the first one's SKUs: on 2026-09-17 the
+   * 19:16 run gave HBD102 to one kit and the 19:26 run gave HBD102 to another.
+   */
+  try {
+    for (const r of (await (await latchEngine()).readLatches()).rows) if (r.ourSku) out.add(r.ourSku);
+  } catch {
+    /* no latch list yet */
+  }
   return [...out];
 }
+
+/**
+ * Copy a latched kit's contents photo into its folder in `Downloads/Whatsapp DW`, as `contents.jpg`.
+ *
+ * Where Vansh keeps every kit's pictures, sorted by hand (see `photoFolder`). Skipped silently on a
+ * machine without that folder — the partner's — and for a product with no SKU of ours yet. The app's
+ * own copy stays where it is; the image queue reads that one.
+ * ponytail: the folder name is his; make it a Settings folder if anyone else sorts photos this way.
+ */
+async function fileInWhatsappFolder(sku: string, photo: string): Promise<string | null> {
+  const { photoFolder } = await latchEngine();
+  const root = path.join(app.getPath("downloads"), "Whatsapp DW");
+  if (!existsSync(root)) return null;
+  const dirs: string[] = [];
+  const walk = async (rel: string, depth: number) => {
+    for (const d of await readdir(path.join(root, rel), { withFileTypes: true }).catch(() => [])) {
+      if (!d.isDirectory()) continue;
+      const child = rel ? `${rel}/${d.name}` : d.name;
+      dirs.push(child);
+      if (depth < 3) await walk(child, depth + 1);
+    }
+  };
+  await walk("", 1);
+  const rel = photoFolder(sku, dirs);
+  if (!rel) return null;
+  const to = path.join(root, ...rel.split("/"), "contents.jpg");
+  await mkdir(path.dirname(to), { recursive: true });
+  await copyFile(photo, to);
+  return to;
+}
+
+/**
+ * Set up one product's costing chat: the contents photo attached, the prompt typed, NOT sent.
+ *
+ * One implementation for the latch run and the "Costing chat for the tab I'm looking at" button.
+ * `reusePhoto` takes a photo already saved for this product instead of fetching again — the redo
+ * case, where the fetch worked and the chat did not. Returns what happened, in words; `ready` is the
+ * only success. Never throws: a picture is a nice-to-have beside the latch itself.
+ */
+async function costingChatFor(
+  row: import("../src/latch-core.js").LatchRecord,
+  shelf: import("playwright").Page,
+  prompt: string,
+  reusePhoto: boolean,
+): Promise<string> {
+  const { galleryImages, saveImage, imageFor, askChatGpt, productPage } = await latchEngine();
+  const { chatTab } = await import("../src/browser-core.js");
+  try {
+    let file = imageFor(row.sku);
+    if (!(reusePhoto && existsSync(file))) {
+      const page = productPage(row);
+      if (!page) return "no product page to take the photo from";
+      await shelf.goto(page, { waitUntil: "domcontentloaded" });
+      await shelf.waitForTimeout(6000);
+      const gallery = await galleryImages(shelf);
+      if (gallery.length < 2) return gallery.length ? "the listing has only one photo" : "no photos found on the product page";
+      file = await saveImage(shelf, gallery[1], imageFor(row.sku));
+    }
+    if (row.ourSku) await fileInWhatsappFolder(row.ourSku, file).catch(() => null);
+    const chat = await chatTab();
+    const answer = await askChatGpt(chat, file, prompt);
+    if (answer === "ready") (await import("../src/chat-core.js")).nameWhenSent(chat, `${row.ourSku ?? row.sku} — costing`);
+    return { ready: "ready", login: "ChatGPT signed out", manual: "the prompt did not go in — the tab is open, paste it by hand" }[answer];
+  } catch (err) {
+    return `failed: ${err instanceof Error ? err.message.split("\n")[0].slice(0, 80) : String(err)}`;
+  }
+}
+
+/**
+ * Redo the costing chat for the product showing in Chrome — nothing else about its latch.
+ *
+ * Vansh, 2026-09-17, after two kits got no chat: *"there should be a button at latching page to
+ * redo the chatgpt json making if any of such case come later too."* Works from the product page or
+ * its Start Selling page, reuses the contents photo already saved, and leaves the chat unsent.
+ */
+ipcMain.handle("costingFront", async (): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, frontLatchTab } = await latchEngine();
+  const { openTabs, newTab } = await import("../src/browser-core.js");
+  const tabs = await Promise.all(
+    openTabs().map(async (page) => ({
+      page,
+      url: page.url(),
+      visible: await page.evaluate(() => document.visibilityState === "visible").catch(() => false),
+    })),
+  );
+  const front = frontLatchTab(tabs);
+  if (!front.ok) return { ok: false, message: front.message.replace("latched", "costed") };
+  const book = await readLatches();
+  const row = book.rows.find((r) => r.fsn === front.fsn);
+  if (!row) return { ok: false, message: "That product is not in your latch list, so there is no kit to cost." };
+  const prompt = await (await promptsEngine()).readPrompt(promptDirs(), "PROMPT-inventory.md").then((p) => p.text, () => null);
+  if (!prompt) return { ok: false, message: "PROMPT-inventory.md could not be read." };
+
+  const shelf = await newTab();
+  const outcome = await costingChatFor(row, shelf, prompt, true);
+  await shelf.close().catch(() => {});
+  row.costingChat = outcome;
+  await writeLatches(book);
+  const name = row.ourSku ?? row.title?.slice(0, 50) ?? row.sku;
+  return outcome === "ready"
+    ? { ok: true, result: book, note: `Costing chat for ${name} is open in ChatGPT with the photo attached. Check the photo, then press Enter.` }
+    : { ok: false, message: `No costing chat for ${name}: ${outcome}.` };
+});
 
 /**
  * Fill a latch form for each of these products. Saves nothing, closes nothing.
@@ -1588,8 +1714,7 @@ async function latchThese(
   prefix = "",
 ): Promise<Attempt<unknown>> {
   const {
-    readLatches, writeLatches, latchValues, openLatchForm, startSellingUrl, todayStamp,
-    galleryImages, saveImage, imageFor, askChatGpt, productPage,
+    readLatches, writeLatches, latchValues, openLatchForm, startSellingUrl, todayStamp, productPage,
   } = await latchEngine();
   const { nextSku } = await import("../src/sku-core.js");
   const { newTab, chatTab } = await import("../src/browser-core.js");
@@ -1628,6 +1753,8 @@ async function latchThese(
   const shelf = prompt ? await newTab() : null;
   let opened = 0;
   let costing = 0;
+  /** Products whose costing chat was not set up, with why — said in the note, kept on the row. */
+  const missed: string[] = [];
   /** Set once ChatGPT says it is signed out. Asking forty times over would open forty dead tabs. */
   let loggedOut = false;
 
@@ -1676,25 +1803,14 @@ async function latchThese(
       const now = rows.find((r) => r.sku === row.sku)!;
       // `productPage`, not `row.url`: a label-pack row has no stored URL and silently got no chat.
       const page = productPage(row);
-      if (now.state !== "form" || !page || loggedOut) continue;
-      try {
-        await shelf.goto(page, { waitUntil: "domcontentloaded" });
-        await shelf.waitForTimeout(6000);
-        const gallery = await galleryImages(shelf);
-        if (gallery.length > 1) {
-          const file = await saveImage(shelf, gallery[1], imageFor(row.sku));
-          const chat = await chatTab();
-          const answer = await askChatGpt(chat, file, prompt);
-          if (answer === "login") loggedOut = true;
-          if (answer === "ready") {
-            costing++;
-            (await import("../src/chat-core.js")).nameWhenSent(chat, `${now.ourSku ?? row.sku} — costing`);
-          }
-        }
-      } catch {
-        // A picture is a nice-to-have beside the latch itself; never let it lose the form.
-      }
+      if (now.state !== "form" || !page) continue;
+      const outcome = loggedOut ? "ChatGPT signed out" : await costingChatFor(now, shelf, prompt, false);
+      now.costingChat = outcome;
+      if (outcome === "ready") costing++;
+      else missed.push(`${now.ourSku || row.title?.slice(0, 40) || row.sku} (${outcome})`);
+      if (outcome === "ChatGPT signed out") loggedOut = true;
     }
+    await writeLatches(book);
   }
   await shelf?.close().catch(() => {});
   return {
@@ -1704,6 +1820,7 @@ async function latchThese(
       `${prefix ? prefix + " " : ""}${opened} form${opened === 1 ? "" : "s"} open in Chrome, ` +
       `everything filled but the SKU. ` +
       (costing ? `${costing} costing chat${costing === 1 ? "" : "s"} ready to send. ` : "") +
+      (missed.length ? `No costing chat for: ${missed.join("; ")}. ` : "") +
       (loggedOut
         ? "ChatGPT is signed out — log in once in that tab and the session sticks, like Flipkart's. "
         : "") +
@@ -1719,7 +1836,7 @@ const LATCH_PRICES = { MRP: "999", "Your selling price": "220" };
  * `frontLatchTab`. Uses the SKU already recorded for the product, so a refill never invents a
  * second one. Saves nothing, like every other latch path.
  */
-ipcMain.handle("fillFrontLatch", async (): Promise<Attempt<unknown>> => {
+ipcMain.handle("fillFrontLatch", async (e, withCosting: boolean): Promise<Attempt<unknown>> => {
   const { readLatches, writeLatches, latchValues, openLatchForm, todayStamp, frontLatchTab } = await latchEngine();
   const { openTabs } = await import("../src/browser-core.js");
   const { nextSku } = await import("../src/sku-core.js");
@@ -1732,6 +1849,15 @@ ipcMain.handle("fillFrontLatch", async (): Promise<Attempt<unknown>> => {
   );
   const front = frontLatchTab(tabs);
   if (!front.ok) return { ok: false, message: front.message };
+
+  // A product page, not a form: latch it properly — its own form tab, and its costing chat.
+  if (front.kind === "shopper") {
+    const row = (await readLatches()).rows.find((r) => r.fsn === front.fsn);
+    if (!row) {
+      return { ok: false, message: "That product is not in your latch list. Sweep for it, or read a label pack that has it." };
+    }
+    return latchThese(e, [front.fsn], withCosting, "");
+  }
 
   const book = await readLatches();
   const at = book.rows.findIndex((r) => r.fsn === front.fsn);

@@ -730,7 +730,7 @@ export interface WwApi {
    * Unchecked rows only unless `all`. One reused tab, about fifteen seconds a product, and the
    * file is written after every one so closing the window mid-check keeps what it learnt.
    */
-  checkLatches(all: boolean): Promise<Attempt<LatchBook>>;
+  checkLatches(all: boolean, pack: string | null): Promise<Attempt<LatchBook>>;
 
   /**
    * Open the next `size` as ordinary SHOPPER pages, for a look before anything is listed.
@@ -747,8 +747,13 @@ export interface WwApi {
    * closed is not offered again.
    */
   latchOpen(withCosting: boolean): Promise<Attempt<LatchBook>>;
-  /** Fill the latch form in the Start Selling tab showing in Chrome, only that one. Never saves. */
-  fillFrontLatch(): Promise<Attempt<LatchBook>>;
+  /**
+   * The product showing in Chrome, only that one: a Start Selling page is refilled; a shopper page
+   * is latched (its own form tab, and a costing chat when asked). Never saves.
+   */
+  fillFrontLatch(withCosting: boolean): Promise<Attempt<LatchBook>>;
+  /** Redo only the costing chat for the product showing in Chrome. Reuses its saved photo; never sends. */
+  costingFront(): Promise<Attempt<LatchBook>>;
   /** Progress while a check or a latch run is going. */
   onLatchRow(cb: (p: { done: number; of: number; row: LatchRecord }) => void): () => void;
   /** The whole packing screen: what is left, today's tally, this month's packets. */

@@ -336,15 +336,29 @@ export async function openLatchForm(
  */
 export function frontLatchTab<T extends { url: string; visible: boolean }>(
   tabs: T[],
-): { ok: true; tab: T; fsn: string } | { ok: false; message: string } {
-  const fsnOf = (u: string) => (/seller\.flipkart\.com/.test(u) ? /[?&]fsn=([^&#]+)/.exec(u)?.[1] : undefined);
-  const shown = tabs.filter((t) => t.visible && fsnOf(t.url));
-  if (shown.length === 1) return { ok: true, tab: shown[0], fsn: decodeURIComponent(fsnOf(shown[0].url)!) };
+): { ok: true; tab: T; fsn: string; kind: "form" | "shopper" } | { ok: false; message: string } {
+  /**
+   * Two kinds of tab mean "this product". The seller's Start Selling page (`fsn=`) is refilled in
+   * place. The shopper's product page (`pid=`) — what "Show me the next 10" opens for review — is
+   * latched from scratch: Vansh, 2026-09-17, looking at one after the batch had been forgotten,
+   * *"for rerun latch we also want a button, not just autofill but to file a latch."*
+   */
+  const read = (u: string): { fsn: string; kind: "form" | "shopper" } | null => {
+    const form = /seller\.flipkart\.com/.test(u) && /[?&]fsn=([^&#]+)/.exec(u)?.[1];
+    if (form) return { fsn: decodeURIComponent(form), kind: "form" };
+    const shopper = /\/\/(www\.)?flipkart\.com\//.test(u) && /[?&]pid=([^&#]+)/.exec(u)?.[1];
+    return shopper ? { fsn: decodeURIComponent(shopper), kind: "shopper" } : null;
+  };
+  const shown = tabs.flatMap((t) => {
+    const r = t.visible ? read(t.url) : null;
+    return r ? [{ tab: t, ...r }] : [];
+  });
+  if (shown.length === 1) return { ok: true, ...shown[0] };
   return {
     ok: false,
     message: shown.length
-      ? "More than one Chrome window is showing a Start Selling page. Close or minimise the others, then press again."
-      : "Bring the Start Selling page you want filled to the front in Chrome, then press again.",
+      ? "More than one Chrome window is showing a Flipkart product. Close or minimise the others, then press again."
+      : "Bring the product you want latched to the front in Chrome — its Flipkart page or its Start Selling page — then press again.",
   };
 }
 
@@ -436,6 +450,12 @@ export interface LatchRecord {
   checkedOn: string | null;
   /** Set the day we opened a latch form for it, so a re-check that fails does not lose the fact. */
   latchedOn?: string;
+  /**
+   * What happened to this product's costing chat on the last latch run, in words. Absent when no
+   * run has tried. Vansh, 2026-09-17, on two latched kits with no chat: nothing recorded why, so
+   * nothing could be answered — `ready` means the photo and prompt are waiting in a ChatGPT tab.
+   */
+  costingChat?: string;
   /**
    * The day this product's Meesho listing was prepared. Absent until it is.
    *
@@ -801,6 +821,40 @@ export async function saveImage(page: Page, url: string, to: string): Promise<st
 
 /** Where a product's contents picture is kept, named so a second run overwrites rather than piles up. */
 export const imageFor = (sku: string): string => path.join(latchDir(), "images", `${sku}.jpg`);
+
+/**
+ * Where a kit's photos live in the WhatsApp download folder Vansh sorts by hand, relative to it.
+ *
+ * Vansh, 2026-09-17: the contents photos *"got saved in recent or ss folder but not on the whatsapp
+ * dw folder and sub folders as they should be."* The layout, read off his disk: a folder per line
+ * (`ANP/`, `GTB/`, `WH/`, `HBD/`) with a folder per kit inside (`ANP 10`, `WH 1`, `HBD101`); and the
+ * character birthdays under `HBD-T/<character>/<word><nn>` (`HBD-T/dore/dore01`).
+ *
+ * **An existing kit folder wins** when it is the same SKU spelt his way — `WH 1` IS `WH001` — so a
+ * second folder for one kit is never made. `dirs` are the folders already there, relative, as found.
+ * Null when the SKU names no line, because a photo in the wrong kit's folder is worse than none.
+ */
+export function photoFolder(sku: string, dirs: string[]): string | null {
+  const same = (a: string, b: string) =>
+    a.toUpperCase().replace(/[^A-Z0-9]+/g, "").replace(/([A-Z])0+(\d)/g, "$1$2") ===
+    b.toUpperCase().replace(/[^A-Z0-9]+/g, "").replace(/([A-Z])0+(\d)/g, "$1$2");
+  const themed = /^HBD-([a-z]+?)(\d+)$/i.exec(sku);
+  let parent: string;
+  let leaf: string;
+  if (themed) {
+    // His folder names for the characters, where they differ from the SKU's word.
+    const folder = { bb: "babyboss", kitty: "kitti" }[themed[1].toLowerCase()] ?? themed[1].toLowerCase();
+    parent = `HBD-T/${folder}`;
+    leaf = `${themed[1].toLowerCase()}${themed[2]}`;
+  } else {
+    const line = /^([A-Z]+)\d+$/i.exec(sku)?.[1];
+    if (!line) return null;
+    parent = line.toUpperCase();
+    leaf = sku;
+  }
+  const existing = dirs.find((d) => path.posix.dirname(d) === parent && same(path.posix.basename(d), leaf));
+  return existing ?? `${parent}/${leaf}`;
+}
 
 // ---------------------------------------------------------------- handing it to ChatGPT
 
@@ -1569,6 +1623,19 @@ export function survivors(batch: string[], urls: string[]): string[] {
  * Ten at a time because sixty tabs is not a review, it is a mess — and because a batch he can hold
  * in his head is one he will actually judge.
  */
+/**
+ * The rows of one pack, by filename — or every row for null. **The one place a pack narrows a list.**
+ *
+ * Each button used to narrow (or not) on its own: "Show me the next 10" served an old hunt's rows
+ * (C-080 era), and on 2026-09-17 "Re-check all 39" — its count from the selected invoice pack —
+ * started re-checking all 631. Vansh: *"it started hunting from those other 651 sku."*
+ */
+export function inPack(book: LatchBook, pack: string | null): LatchRecord[] {
+  if (pack === null) return book.rows;
+  const skus = new Set(book.packs.find((p) => p.file === pack)?.skus ?? []);
+  return book.rows.filter((r) => skus.has(r.sku));
+}
+
 export function nextBatch(
   book: LatchBook,
   size: number,
@@ -1580,9 +1647,8 @@ export function nextBatch(
    */
   pack: string | null = null,
 ): LatchRecord[] {
-  const only = pack === null ? null : new Set(book.packs.find((p) => p.file === pack)?.skus ?? []);
-  return book.rows
-    .filter((r) => r.state === "form" && r.fsn && !r.latchedOn && !skip.has(r.fsn) && (!only || only.has(r.sku)))
+  return inPack(book, pack)
+    .filter((r) => r.state === "form" && r.fsn && !r.latchedOn && !skip.has(r.fsn))
     .slice(0, Math.max(1, size));
 }
 

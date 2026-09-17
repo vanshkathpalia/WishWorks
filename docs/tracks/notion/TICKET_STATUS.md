@@ -601,3 +601,42 @@ Vansh saved the listing as `HBD-dore03` to match `HBD-dore01`/`HBD-dore02`, and 
 not allow a SKU to be renamed. *"lets just follow this convention of naming skus."* `nextSku` now pads
 a themed `HBD-<word>` prefix to two digits and everything else (ANP, GTB, HAL, WB, WH, plain HBD) to
 three. The Doremon latch record was corrected to `HBD-dore03` — the only file holding the wrong one.
+
+**Fixed, 2026-09-17 — the review batch was a memory the app lost.** Vansh had a product page open from
+"Show me the next 10", but the batch had been emptied (the last latch run finishing / an app restart),
+so the button was back to "Show me the next 10 of 9" and the open page could not be latched: *"for
+rerun latch we also want a button, not just autofill but to file a latch."* Now both buttons are always
+shown; "Latch the ones still open" with no batch latches every open product page of something still
+latchable (not already latched); and the front-tab button is **"Latch the tab I'm looking at"** — a
+Start Selling page is refilled, a shopper product page is latched properly (its form tab and costing
+chat), even one already marked latched. Still never saves.
+
+**Fixed, 2026-09-17 — two kits were handed the same SKU.** `skusInUse` read costed kits and listing
+files, but not the SKUs latch runs had already handed out — a latched product has neither until it is
+costed. The 19:16 run gave HBD102 to the Partyfox girls kit; the 19:26 run gave HBD102 to the DECOR
+SPARKS kit. The latch list's own SKUs now count as taken (checked on the real data: next is HBD103).
+The 100+ numbers it counts from are Vansh's own (HBD100/101, HBD-sonic100), to be renamed by him.
+
+**And every costing chat now says what became of it.** Two kits (the Sonic foil set and one birthday
+kit) got no chat, their contents photos were saved, and nothing recorded why. Each row now carries
+`costingChat` — `ready`, signed out, prompt did not go in, one photo only, or the error — and the finish
+note names every product that did not get one.
+
+**Fixed, 2026-09-17 — only the first costing chat of a latch run got its prompt.** The prompt is put in
+through the clipboard, and Chrome refuses a clipboard write from a window that is not in front. The
+run loads each product page in the FLIPKART window between chats, so from the second chat on the write
+failed and the chat was dropped with nothing recorded — WH001 (18:07, first) and the net backdrop (19:16,
+first) got chats; Doremon, the Rose Gold girls kit (HBD008) and the Sonic set did not. `putInComposer`
+now brings the chat to the front, and if the clipboard is still refused inserts the text directly
+(checked on a fake composer with the write refused: all 5,079 chars in, not sent).
+
+**Added — "Costing chat for the tab I'm looking at".** Redoes only the costing chat for the product in
+front (product page or Start Selling page), reusing its saved contents photo, unsent. The latch run and
+this button share one `costingChatFor`. Contents photos are also copied to the kit's folder in
+`Downloads/Whatsapp DW` (`photoFolder`: `HBD-T/dore/dore03`, `WH/WH 1`, `ANP/ANP016`) as `contents.jpg`,
+when that folder exists and the product has a SKU of ours.
+
+**Fixed, 2026-09-17 — "Re-check all 39" re-checked all 631.** The button counted the selected invoice
+pack; the handler checked every row, so it spent an hour on the old party-decoration hunt. Vansh: *"it
+started hunting from those other 651 sku."* Same class as "Show me the next 10" serving an old hunt
+(C-080 era). Both now narrow through one `inPack(book, pack)`; the renderer's count already matched.
