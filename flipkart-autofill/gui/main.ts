@@ -1686,7 +1686,10 @@ async function latchThese(
           const chat = await chatTab();
           const answer = await askChatGpt(chat, file, prompt);
           if (answer === "login") loggedOut = true;
-          if (answer === "ready") costing++;
+          if (answer === "ready") {
+            costing++;
+            (await import("../src/chat-core.js")).nameWhenSent(chat, `${now.ourSku ?? row.sku} — costing`);
+          }
         }
       } catch {
         // A picture is a nice-to-have beside the latch itself; never let it lose the form.

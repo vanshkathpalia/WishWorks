@@ -372,10 +372,19 @@ export async function renameChat(page: Page, title: string): Promise<boolean> {
     await page.locator(`nav li:has(a[href="/c/${id}"]) button`).last().click({ timeout: 10_000 });
     await page.getByRole("menuitem", { name: /rename/i }).click({ timeout: 10_000 });
 
-    // The row turns into an input holding the old name; select all, then type over it.
-    await page.keyboard.press("ControlOrMeta+A");
-    await page.keyboard.type(title, { delay: 0 });
-    await page.keyboard.press("Enter");
+    /**
+     * **Wait for the rename box before writing into it.** The row turns into an input a moment AFTER
+     * the menu item is clicked, and typing straight away sent the first keystrokes into nothing:
+     * `HBD-Kitty01 — meta` landed as *"D-Kitty01 — meta"* and `delivery 2026-09-14` as *"ivery
+     * 2026-09-14"* (Vansh's sidebar, 2026-09-17). Reproduced on a fake sidebar with a 400 ms delay.
+     * So: wait until an input has focus, `fill` it in one step, confirm it holds the whole title,
+     * and only then press Enter.
+     */
+    await page.waitForFunction(() => document.activeElement?.tagName === "INPUT", undefined, { timeout: 10_000 });
+    const box = page.locator("input:focus");
+    await box.fill(title, { timeout: 5_000 });
+    if ((await box.inputValue()) !== title) return false;
+    await box.press("Enter");
     await page.waitForTimeout(1500);
 
     /**
@@ -397,6 +406,39 @@ export async function renameChat(page: Page, title: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Rename a costing chat once a person has sent it.
+ *
+ * The costing chat is left UNSENT on purpose — the second gallery photo is not always the contents,
+ * and Vansh swaps it before pressing Enter. But ChatGPT cannot rename a chat that does not exist yet,
+ * so these chats kept ChatGPT's own titles (*"Inventory kit contents"*) and could not be found by SKU.
+ * Each one is watched here — its URL read every 5 s, nothing loaded — and named `<SKU> — costing`
+ * the moment it becomes `/c/<id>`. A tab closed unsent is simply dropped.
+ */
+const toName = new Map<Page, string>();
+let naming: NodeJS.Timeout | null = null;
+export function nameWhenSent(page: Page, title: string, every = 5000, settle = 4000): void {
+  toName.set(page, title);
+  if (naming) return;
+  naming = setInterval(() => {
+    for (const [p, title] of toName) {
+      if (p.isClosed()) toName.delete(p);
+      else if (/\/c\/[^/?#]+/.test(p.url())) {
+        toName.delete(p);
+        // A few seconds for the sidebar row to appear, then the same rename every chat uses.
+        void p
+          .waitForTimeout(settle)
+          .then(() => renameChat(p, title))
+          .catch(() => false);
+      }
+    }
+    if (toName.size === 0 && naming) {
+      clearInterval(naming);
+      naming = null;
+    }
+  }, every);
 }
 
 /**

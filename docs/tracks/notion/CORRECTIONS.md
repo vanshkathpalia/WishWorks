@@ -2663,3 +2663,18 @@ Vansh: *"don't make my computer sick dude."* None of it had even reached the app
 
 **Lesson.** A probe for a failure must not be able to cause it — and a gap written down as "one thing
 to watch" is a bug chosen to ship.
+
+## C-085 — a chat rename that typed before the box was there
+
+**What went wrong.** `renameChat` clicked ChatGPT's *Rename* and typed at once; the sidebar row turns
+into an input a moment later, so the first keystrokes went nowhere. Vansh's sidebar, 2026-09-17:
+`HBD-Kitty01 — meta` saved as *"D-Kitty01 — meta"*, `delivery 2026-09-14` as *"ivery 2026-09-14"*.
+Images, meta and supplier-words chats all go through it, so every automated chat name was damaged —
+and a name missing its prefix is a chat nobody finds by SKU.
+
+**Fix.** Wait until an input has focus, `fill` the whole title, confirm the box holds it, then press
+Enter. Reproduced on a fake sidebar with a 400 ms delay: before, nothing renamed; after, all three
+titles exact. Costing chats, which are left unsent on purpose, are now renamed `<SKU> — costing` by
+`nameWhenSent` the moment the person sends them.
+
+**Lesson.** A UI that changes shape after a click is not ready when the click returns.
