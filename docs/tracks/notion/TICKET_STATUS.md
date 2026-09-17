@@ -507,3 +507,28 @@ See `docs/learning/24`.
 
 **Branch note:** `latch-autofill` was merged into `main` (fast-forward) and deleted. Everything from
 this session — latching, sweeps, approvals, the image run, the Meesho queue, this — is on `main`.
+
+## WW-242 — The app froze for a minute whenever it needed the kits
+
+**Done, 2026-09-17.** Vansh: *"why app heat so much hangs so much… shifting bw the tabs… it hangs
+white while I run latching automation."* Profiled, not guessed. On the real 67 kits, `listKits` +
+`costKit` took **52 s on Electron's main thread** — which is what froze the window — and every screen
+that touches kits paid it: Stock, the latch price queue, and the start of every latch run
+(`skusInUse` → `listKits`). The profile: 84 of 95 sampled seconds in `normalize`/`candidates`/
+`whyFlagged`, because `whyFlagged` rebuilt the category word set from all 121 materials **per
+material, per line**, and the same names were re-tokenized with six regexes millions of times.
+
+Three caches, results unchanged: `tokens()` per string (cleared when a word is taught), the kind-word
+set per price-list array, `sameWord` per word pair, and `candidates()` per price list per line name.
+**52 s → 0.62 s**, and the full costing output of all 67 kits is byte-identical before and after
+(snapshot diff). Cached answers are frozen so no caller can reorder a shared one. One new test; 611.
+
+Also added a main-process watchdog (`slow.log` in the app's data folder): any freeze over 250 ms is
+logged with the requests that started inside it. **It only loads on a fresh `npm run app`** — the dev
+script has no `--watch`, so engine changes never reach a running app (which is also why the login
+guards of 2026-09-16 were never tested in the app they were written for). See C-084,
+`docs/learning/31-cache-by-the-list-not-by-time.md`.
+
+**Not done, and the next step if it hangs again:** the engine still runs on the main thread, so any
+future slow function freezes the window the same way. The durable fix is moving engine work into an
+Electron `utilityProcess`; not built until the watchdog shows something the caches do not cover.

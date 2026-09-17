@@ -1297,6 +1297,18 @@ describe("learning a word from a pick", () => {
     expect(after.score).toBeGreaterThan(before.score);
     useLearnedWords({});
   });
+
+  it("answers a repeated line from memory, and nobody can reorder the shared answer", () => {
+    // The 52s -> 0.6s costing of 2026-09-17 rests on this: the same line name against the same
+    // price list is scored once. A fresh list (every `loadMaterials`) is scored again.
+    useLearnedWords({});
+    const first = candidates("golden fringe", materials);
+    expect(candidates("golden fringe", materials)).toBe(first);
+    expect(candidates("golden fringe", [...materials])).not.toBe(first);
+    expect(candidates("golden fringe", [...materials])).toEqual(first);
+    expect(() => (first as unknown as string[]).reverse()).toThrow();
+    expect(() => (tokens("Golden Fringes") as string[]).sort()).toThrow();
+  });
 });
 
 /**

@@ -718,6 +718,10 @@ let learned: Record<string, string> = {};
 /** Replace the taught words — the app calls this once with whatever is on disk. */
 export function useLearnedWords(words: Record<string, string>): void {
   learned = { ...words };
+  // A taught word changes what a name tokenizes to, so everything derived from tokens is stale.
+  tokenCache.clear();
+  kindCache = new WeakMap();
+  candidateCache = new WeakMap();
 }
 
 /** What has been taught, for saving. */
@@ -778,7 +782,25 @@ const COUNTED = new Set(["pc", "pcs", "piece", "pieces", "pkt", "pkts", "packet"
  * and dragged `jungle 5 pcs set foil` up through the floor. One mention of a word is all the
  * information there is in it.
  */
-export const tokens = (s: string): string[] => [...new Set(rawTokens(s))];
+export const tokens = (s: string): string[] => {
+  let t = tokenCache.get(s);
+  if (!t) {
+    // Frozen because the SAME array is handed to every caller: a caller that sorted it would
+    // silently change the next match. Frozen makes that a thrown error instead.
+    t = Object.freeze([...new Set(rawTokens(s))]) as string[];
+    tokenCache.set(s, t);
+  }
+  return t;
+};
+
+/**
+ * **Why the app froze for a minute.** Profiled 2026-09-17 against the real 67 kits: listing and
+ * costing them took 52s on the main thread, and 84s of every 95s sampled was `normalize` — six
+ * regexes — run on the SAME 121 material names over and over. A name tokenizes the same way until a
+ * word is taught, so it is worked out once. Cleared by `useLearnedWords`.
+ * ponytail: unbounded; it holds material names and note lines, a few thousand strings at most.
+ */
+const tokenCache = new Map<string, string[]>();
 
 const rawTokens = (s: string): string[] =>
   normalize(s)
@@ -819,6 +841,16 @@ function distance(a: string, b: string): number {
  */
 export function sameWord(a: string, b: string): boolean {
   if (a === b) return true;
+  // Pure in its two words, and the vocabulary is small: the same pairs are asked millions of times
+  // across a costing. 7.6s of an 11s costing was this function before the answer was remembered.
+  const key = a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;
+  let same = sameCache.get(key);
+  if (same === undefined) sameCache.set(key, (same = sameWordUncached(a, b)));
+  return same;
+}
+const sameCache = new Map<string, boolean>();
+
+function sameWordUncached(a: string, b: string): boolean {
   // One word being the start of the other is the same root, not a typo: gold/golden,
   // metal/metallic, confetti/confettis. Edit distance cannot see this — `gold` to `golden` is two
   // insertions on a six-letter word, so it failed the test below, and `GOLD BALLOONS` matched
@@ -1037,8 +1069,17 @@ export function narrowing(name: string, m: Material): boolean {
  *
  * `Fringes` -> `fringe`, `Net` -> `net`, `Banner` -> `banner`. Built once per material list.
  */
-const kindWords = (materials: Material[]): Set<string> =>
-  new Set(materials.flatMap((m) => tokens(m.category)));
+const kindWords = (materials: Material[]): Set<string> => {
+  // Was rebuilt per material per line — 121 x 121 tokenizations for EVERY line of every kit, when
+  // the price list it reads does not change during a costing. One Set per list.
+  let kinds = kindCache.get(materials);
+  if (!kinds) {
+    kinds = new Set(materials.flatMap((m) => tokens(m.category)));
+    kindCache.set(materials, kinds);
+  }
+  return kinds;
+};
+let kindCache = new WeakMap<Material[], Set<string>>();
 
 export function whyFlagged(name: string, m: Material, all: Material[] = []): "wrong" | "missing" | "narrow" | null {
   /**
@@ -1113,6 +1154,22 @@ export const SURE = 0.85;
 export const FLOOR = 0.6;
 
 export function candidates(name: string, materials: Material[], top = 5): Candidate[] {
+  /**
+   * Remembered per price list, per line name. Sixty-seven kits say `Golden Balloon` and `Happy
+   * Birthday Banner` again and again, and each asking scored all 121 rows from scratch. The key is
+   * the list ARRAY: `loadMaterials` builds a fresh one on every read, so an edited price list can
+   * never be answered from an old one. Frozen, so a caller cannot reorder the shared answer.
+   */
+  let byName = candidateCache.get(materials);
+  if (!byName) candidateCache.set(materials, (byName = new Map()));
+  const key = `${top}\u0000${name}`;
+  let hit = byName.get(key);
+  if (!hit) byName.set(key, (hit = Object.freeze(rankCandidates(name, materials, top)) as Candidate[]));
+  return hit;
+}
+let candidateCache = new WeakMap<Material[], Map<string, Candidate[]>>();
+
+function rankCandidates(name: string, materials: Material[], top: number): Candidate[] {
   return materials
     .map((material) => {
       const raw = score(name, material);

@@ -19,7 +19,7 @@
  */
 
 import { app, BrowserWindow, clipboard, dialog, ipcMain, net, protocol, shell } from "electron";
-import { readFile, writeFile, mkdir, readdir, rename, rm, copyFile, stat } from "node:fs/promises";
+import { readFile, writeFile, appendFile, mkdir, readdir, rename, rm, copyFile, stat } from "node:fs/promises";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -53,6 +53,42 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const USER_DATA = app.getPath("userData");
+
+/**
+ * **Where the app hangs, written down instead of guessed.** Vansh, 2026-09-17: *"wishwork app hangs a
+ * lot."* A sample of the main process showed seconds of our own JavaScript on the main thread — which
+ * freezes the whole window — but JIT frames carry no names. This logs every freeze over 250ms to
+ * `<userData>/slow.log` with the requests that started inside it, and any request over 2s.
+ * ponytail: a diagnostic; take it out once the slow handlers are moved off the main thread.
+ */
+const SLOW_LOG = path.join(USER_DATA, "slow.log");
+const slow = (line: string) =>
+  void appendFile(SLOW_LOG, `${new Date().toISOString()} ${line}\n`).catch(() => {});
+const started: { channel: string; at: number }[] = [];
+const rawHandle = ipcMain.handle.bind(ipcMain);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Electron's own signature
+ipcMain.handle = ((channel: string, fn: (...a: any[]) => unknown) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rawHandle(channel, async (...args: any[]) => {
+    const at = performance.now();
+    started.push({ channel, at });
+    if (started.length > 50) started.shift();
+    try {
+      return await fn(...args);
+    } finally {
+      const ms = performance.now() - at;
+      if (ms > 2000) slow(`request ${channel} took ${Math.round(ms)}ms`);
+    }
+  })) as typeof ipcMain.handle;
+let tick = performance.now();
+setInterval(() => {
+  const now = performance.now();
+  const lag = now - tick - 500;
+  tick = now;
+  if (lag < 250) return;
+  const during = started.filter((s) => s.at >= now - lag - 600).map((s) => s.channel);
+  slow(`main thread FROZEN ${Math.round(lag)}ms — started then: ${during.join(", ") || "(no request)"}`);
+}, 500).unref();
 const SETTINGS_FILE = path.join(USER_DATA, "settings.json");
 
 /**

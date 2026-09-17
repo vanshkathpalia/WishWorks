@@ -2635,3 +2635,17 @@ routed to it. The broken profile was renamed `profile-broken-2026-09-17`, a fres
 
 **Lesson.** A graceful-close rule written for one entry point is not a rule for the app. And
 `npm run app` compiles the engine once at start: a fix is not in the app until it is restarted.
+
+## C-084 — a minute of matching on the thread that draws the window
+
+**What went wrong.** Every screen that needed the kits re-costed all of them on Electron's main
+thread, and costing was quadratic in the price list per line: 52 s for 67 kits. The window cannot
+redraw while that runs, so switching tabs went white, and a latch run froze before it opened a tab.
+Nobody measured it because each feature was fast on the three kits it was built with.
+
+**Fix.** Profiled with `node --cpu-prof` against the real data; cached the pure work (tokens, kind
+words, word pairs, candidates) keyed so an edited list or a taught word can never hit a stale answer.
+52 s → 0.62 s, output byte-identical.
+
+**Lesson.** A feature that is fast on today's data is not fast; time it on the real folder, and keep
+work that grows with the data off the thread that draws the screen.
