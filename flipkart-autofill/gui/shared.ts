@@ -747,6 +747,8 @@ export interface WwApi {
    * closed is not offered again.
    */
   latchOpen(withCosting: boolean): Promise<Attempt<LatchBook>>;
+  /** Fill the latch form in the Start Selling tab showing in Chrome, only that one. Never saves. */
+  fillFrontLatch(): Promise<Attempt<LatchBook>>;
   /** Progress while a check or a latch run is going. */
   onLatchRow(cb: (p: { done: number; of: number; row: LatchRecord }) => void): () => void;
   /** The whole packing screen: what is left, today's tally, this month's packets. */

@@ -402,6 +402,11 @@ export function Latch({ n }: { n: number }) {
               Latch the ones still open
             </button>
           )}
+          {/* The refill. A refresh throws a filled form away; this puts it back in the one tab in
+              front, without re-running the batch or opening anything new. */}
+          <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.fillFrontLatch())}>
+            Fill the tab I&apos;m looking at
+          </button>
           {/* One button per thing a person actually does with this list: do it, or tell somebody
               about it. The share follows whichever pack is selected, so "what came in today" is
               one click from a message. */}

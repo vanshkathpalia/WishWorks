@@ -21,7 +21,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, bouncedToLogin, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  approvedBrands, blocking, bouncedToLogin, productPage, frontLatchTab, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -680,6 +680,33 @@ describe("reviewing a batch before listing it", () => {
     expect(survivors(batch, open)).toEqual([]);
   });
 
+  it("refills only the Start Selling tab showing in Chrome, and asks when that is unclear", () => {
+    const form = (fsn: string) => `https://seller.flipkart.com/index.html#dashboard/listings/product/na?fsn=${fsn}&sourceid=SELECTION_INSIGHTS_UI`;
+    const tabs = [
+      { url: form("BLNHGK72ZM2AYEHA"), visible: false },
+      { url: form("BCBHMEH4MGJAHAWY"), visible: true },
+      { url: "https://web.whatsapp.com/", visible: true }, // his own window, never ours to fill
+      { url: "https://www.flipkart.com/product/p/itme?pid=X", visible: true }, // a shopper page is not a form
+    ];
+    const hit = frontLatchTab(tabs);
+    expect(hit.ok && hit.fsn).toBe("BCBHMEH4MGJAHAWY");
+    expect(frontLatchTab([{ url: form("A"), visible: false }]).ok).toBe(false);
+    const two = frontLatchTab([{ url: form("A"), visible: true }, { url: form("B"), visible: true }]);
+    expect(two.ok).toBe(false);
+    expect(!two.ok && two.message).toMatch(/More than one/);
+  });
+
+  it("reviews a label-pack product on the shopper page, and counts that tab as kept", () => {
+    // A label-pack row has an FSN and no stored URL. It must open the page a buyer sees — and the
+    // tab it opens must be one `survivors` recognises, or keeping it open would read as a "no".
+    const page = productPage({ fsn: "BCBHNG9GV2HZBP3A", url: null })!;
+    expect(page).toBe("https://www.flipkart.com/product/p/itme?pid=BCBHNG9GV2HZBP3A");
+    expect(page).not.toContain("seller.flipkart.com");
+    expect(survivors(["BCBHNG9GV2HZBP3A"], [page])).toEqual(["BCBHNG9GV2HZBP3A"]);
+    // A swept row keeps the slug URL the search gave it.
+    expect(productPage({ fsn: "F1", url: "https://www.flipkart.com/a-kit/p/itm1?pid=F1" })).toContain("a-kit");
+  });
+
   it("counts a product once however many tabs show it", () => {
     const open = ["https://www.flipkart.com/a/p/i?pid=F2", "https://www.flipkart.com/a/p/i?pid=F2&x=1"];
     expect(survivors(batch, open)).toEqual(["F2"]);
@@ -733,13 +760,28 @@ describe("reviewing a batch before listing it", () => {
       sku: "A", description: "A", seen: 0, fsn: "A", title: "A", checkedOn: null,
       latchedOn: "2026-09-13", ourSku: "GTB012",
     };
-    expect(forgetUnsaved({ ...row, state: "form" })).not.toHaveProperty("latchedOn");
-    expect(forgetUnsaved({ ...row, state: "form" })).not.toHaveProperty("ourSku");
+    // Four days on and Start Selling is still offered: never saved. Offered again, SKU kept.
+    const later = forgetUnsaved({ ...row, state: "form" }, "2026-09-17");
+    expect(later).not.toHaveProperty("latchedOn");
+    expect(later.ourSku).toBe("GTB012");
     // A failed check proves nothing, and a saved listing reads "selling": both keep the date.
-    expect(forgetUnsaved({ ...row, state: "stuck" }).latchedOn).toBe("2026-09-13");
-    expect(forgetUnsaved({ ...row, state: "selling" }).latchedOn).toBe("2026-09-13");
+    expect(forgetUnsaved({ ...row, state: "stuck" }, "2026-09-17").latchedOn).toBe("2026-09-13");
+    expect(forgetUnsaved({ ...row, state: "selling" }, "2026-09-17").latchedOn).toBe("2026-09-13");
     const book = { packs: [], rows: [{ ...row, state: "form" as const }] };
-    expect(nextBatch({ ...book, rows: book.rows.map(forgetUnsaved) }, 10).map((r) => r.fsn)).toEqual(["A"]);
+    expect(nextBatch({ ...book, rows: book.rows.map((r) => forgetUnsaved(r, "2026-09-17")) }, 10).map((r) => r.fsn)).toEqual(["A"]);
+  });
+
+  it("does not forget a latch saved today that is still in Flipkart's review", () => {
+    // WH001, 2026-09-17: saved, Under Evaluation, and the card still said START SELLING.
+    const saved = {
+      sku: "FKUP003", description: "d", seen: 1, fsn: "BCBHMEH4MGJAHAWY", title: "t", checkedOn: "2026-09-17",
+      state: "form" as const, latchedOn: "2026-09-17", ourSku: "WH001",
+    };
+    for (const today of ["2026-09-17", "2026-09-18", "2026-09-19"]) {
+      expect(forgetUnsaved(saved, today)).toEqual(saved);
+    }
+    expect(nextBatch({ packs: [], rows: [forgetUnsaved(saved, "2026-09-18")] }, 10)).toEqual([]);
+    expect(forgetUnsaved(saved, "2026-09-20")).not.toHaveProperty("latchedOn");
   });
 
   it("offers only the selected pack's products, not an older hunt's", () => {

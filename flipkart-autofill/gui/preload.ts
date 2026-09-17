@@ -127,6 +127,7 @@ const api: WwApi = {
   checkLatches: (all: boolean) => ipcRenderer.invoke("checkLatches", all),
   showBatch: (size: number, pack: string | null) => ipcRenderer.invoke("showBatch", size, pack),
   latchOpen: (withCosting: boolean) => ipcRenderer.invoke("latchOpen", withCosting),
+  fillFrontLatch: () => ipcRenderer.invoke("fillFrontLatch"),
   onLatchRow: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
     ipcRenderer.on("latchRow", handler);

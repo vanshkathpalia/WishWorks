@@ -297,11 +297,15 @@ export async function openLatchForm(
   ourSku?: string,
 ): Promise<TabState> {
   try {
-    await tab.waitForSelector("a.startSelling", { timeout: 30_000 });
-    const state = cardState((await tab.locator("a.startSelling").first().getAttribute("class")) ?? "");
-    if (state !== "form") return state;
-
-    await tab.locator("a.startSelling.listingsModalLink").first().click({ timeout: 20_000 });
+    // Already open — a refill of a form somebody is looking at. Clicking the card behind the modal
+    // would do nothing, and waiting for it would time out a form that is right there.
+    const open = (await tab.locator("input[name=sku_id]").count().catch(() => 0)) > 0;
+    if (!open) {
+      await tab.waitForSelector("a.startSelling", { timeout: 30_000 });
+      const state = cardState((await tab.locator("a.startSelling").first().getAttribute("class")) ?? "");
+      if (state !== "form") return state;
+      await tab.locator("a.startSelling.listingsModalLink").first().click({ timeout: 20_000 });
+    }
     // The form is a modal: the URL never changes, so `sku_id` appearing is the only honest signal.
     await tab.waitForSelector("input[name=sku_id]", { timeout: 25_000 });
     await fillLatchForm(tab, values);
@@ -319,6 +323,29 @@ export async function openLatchForm(
   } catch {
     return "stuck";
   }
+}
+
+/**
+ * Which Start Selling tab to refill: the one showing in Chrome.
+ *
+ * Vansh, 2026-09-17: *"do we have single page — whichever is in focus, that page filling only — in
+ * case, or refilling option for latching?"* A refresh throws a filled form away, and the only way
+ * back was the whole batch. Chrome's own "focus" is useless here — pressing the app's button takes
+ * it — but the front tab of a window stays `visible`, so that is the test. Two windows each showing
+ * one is ambiguous, and a refill of the wrong product is worse than asking.
+ */
+export function frontLatchTab<T extends { url: string; visible: boolean }>(
+  tabs: T[],
+): { ok: true; tab: T; fsn: string } | { ok: false; message: string } {
+  const fsnOf = (u: string) => (/seller\.flipkart\.com/.test(u) ? /[?&]fsn=([^&#]+)/.exec(u)?.[1] : undefined);
+  const shown = tabs.filter((t) => t.visible && fsnOf(t.url));
+  if (shown.length === 1) return { ok: true, tab: shown[0], fsn: decodeURIComponent(fsnOf(shown[0].url)!) };
+  return {
+    ok: false,
+    message: shown.length
+      ? "More than one Chrome window is showing a Start Selling page. Close or minimise the others, then press again."
+      : "Bring the Start Selling page you want filled to the front in Chrome, then press again.",
+  };
 }
 
 export async function fillLatchForm(tab: Page, values: Map<string, string>): Promise<number> {
@@ -389,7 +416,7 @@ export interface LatchRecord {
   fsn: string | null;
   /** The real, untruncated catalog title. Proof the right product was found. */
   title: string | null;
-  /** The product page, for its pictures. The FSN alone cannot reach it — see `Result.url`. */
+  /** The product page as a search found it. Absent for label-pack rows — use `productPage`. */
   url?: string | null;
   /**
    * What the seller we would latch onto charges.
@@ -604,11 +631,25 @@ export async function searchProducts(page: Page, termOrUrl: string): Promise<Res
  * we just opened the start selling page."* Only a real "form" answer clears it: a failed check
  * (`stuck`) says nothing, and a saved one comes back `selling`.
  */
-export function forgetUnsaved(row: LatchRecord): LatchRecord {
+export function forgetUnsaved(row: LatchRecord, today = todayStamp()): LatchRecord {
   if (row.state !== "form" || !row.latchedOn) return row;
-  const { latchedOn: _l, ourSku: _s, ...rest } = row;
+  /**
+   * **A SAVED listing also shows Start Selling — until Flipkart approves it.** Measured 2026-09-17:
+   * WH001 and HBD-dore03 were saved the same day and sat in My Listings as *Under Evaluation*, while
+   * their catalog cards still offered START SELLING. Cleared on sight, a Re-check would have offered
+   * them to be latched a second time. The card cannot tell "never saved" from "saved, in review", so
+   * the stamp is only dropped once the form has been open longer than a review takes.
+   * ponytail: a fixed wait, not a lookup — reading My Listings by FSN would make it exact.
+   */
+  const days = (Date.parse(today) - Date.parse(row.latchedOn)) / 864e5;
+  if (!(days >= REVIEW_DAYS)) return row;
+  // The SKU is kept: it is ours, a costing is filed under it, and the next latch should reuse it.
+  const { latchedOn: _l, ...rest } = row;
   return rest;
 }
+
+/** Days a saved latch can sit in Flipkart's review still showing START SELLING. A guess; see above. */
+export const REVIEW_DAYS = 3;
 
 export async function resolveProduct(page: Page, row: LatchRecord): Promise<LatchRecord> {
   return forgetUnsaved(await resolveCard(page, row));
@@ -1012,7 +1053,7 @@ export function mergeFound(book: LatchBook, found: Found[], term: string, on = t
       // A sweep re-confirms what a sweep found: the state and the price are fresher than what is
       // on file. `latchedOn` survives unless the card still offers the form — see `forgetUnsaved`.
       Object.assign(prev, { state: f.state, listed: f.listed, title: f.title, url: f.url, checkedOn: on });
-      by.set(f.fsn, forgetUnsaved(prev));
+      by.set(f.fsn, forgetUnsaved(prev, on));
       continue;
     }
     added++;
@@ -1480,6 +1521,22 @@ export function blocking(pending: Pending[]): { material: string; skus: string[]
 
 
 // ---------------------------------------------------------------- looking before latching
+
+/**
+ * The page a BUYER sees for a product — what "Show me the next 10" opens and where the contents photo
+ * is fetched from.
+ *
+ * A sweep stores the slug URL the search gave; a label pack never searches for a row it already has an
+ * FSN for, so 18 of 19 latchable rows in the 2026-09-13 invoice pack had none. The fallback was the
+ * SELLER start-selling form, which is the wrong page to review, and whose `fsn=` address `survivors`
+ * does not recognise — every tab kept open would have been counted as turned down. Vansh, 2026-09-17:
+ * *"it opened the already latch page… first the normal flipkart listing was supposed to open."*
+ *
+ * `/product/p/itme?pid=<FSN>` measured 200 with the right product on three real FSNs; `/p/p?pid=` is 404.
+ */
+export const productPage = (row: { url?: string | null; fsn: string | null }): string | null =>
+  row.url ?? (row.fsn ? `https://www.flipkart.com/product/p/itme?pid=${row.fsn}` : null);
+
 
 /**
  * Which of a batch's products are still open in Chrome.

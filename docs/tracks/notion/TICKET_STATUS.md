@@ -569,3 +569,29 @@ and the login page — the flicker and the slowdown of 2026-09-16.
 
 Checked against a fake bouncing seller site in headless Chrome, and 618 tests. Not yet checked on a
 real logged-out Flipkart session or on Windows. See C-082.
+
+**Fixed, 2026-09-17 — "Show me the next 10" opened the seller form for label-pack products.** A sweep
+stores each product's shopper URL; a label pack does not (18 of 19 latchable rows in the invoice pack
+had none), and the fallback was the seller start-selling form — the latch step, not the review step.
+Worse, `survivors` recognises a kept tab by `pid=`, which that form's URL does not carry, so every tab
+kept open would have been recorded as turned down; and the costing chat skipped any row without a
+URL. `productPage()` now builds `flipkart.com/product/p/itme?pid=<FSN>` (measured 200 on three real
+FSNs; `/p/p?pid=` is 404) for both. Vansh: *"first the normal flipkart listing was supposed to open
+so that I can review it."*
+
+**Fixed, 2026-09-17 — a Re-check would have un-latched listings still in Flipkart's review.** WH001 and
+HBD-dore03 were saved (Vansh pressed Save) and sat in My Listings as *Under Evaluation*, yet their
+catalog cards still offered START SELLING — Flipkart only shows ALREADY SELLING once a listing is live.
+`forgetUnsaved` (C-081) read that as "opened, never saved": it would have dropped the latched date AND
+the SKU and offered both for latching again. The card cannot tell the two apart, so the date is now
+only dropped when START SELLING is still offered `REVIEW_DAYS` (3) after the form opened, and the SKU
+is never dropped. 3 days is a guess at Flipkart's review time, not a measurement.
+
+**Added, 2026-09-17 — "Fill the tab I'm looking at", a single-tab refill on the Latch screen.** Vansh:
+*"do we have single page — whichever is in focus, that page filling only — or refilling option for
+latching?"* A refresh throws a filled latch form away, and the only way back was the whole batch. The
+button fills the one Start Selling tab showing in Chrome (`frontLatchTab`: visible, not focused —
+pressing the app's button takes focus), with the SKU already recorded for that product and the same
+MRP/price as the batch (`LATCH_PRICES`, now one constant). `openLatchForm` fills a form that is already
+open instead of clicking the card behind it. Two windows each showing a form → it asks rather than
+guess. Never saves. Checked on a fake page in headless Chrome, both with the form open and card-only.

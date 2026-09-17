@@ -1188,7 +1188,7 @@ const passed = new Set<string>();
  * for the ones whose tab is still open.
  */
 ipcMain.handle("showBatch", async (_e, size: number, pack: string | null): Promise<Attempt<unknown>> => {
-  const { readLatches, nextBatch } = await latchEngine();
+  const { readLatches, nextBatch, productPage } = await latchEngine();
   const { newTab } = await import("../src/browser-core.js");
   const rows = nextBatch(await readLatches(), size || 10, passed, pack ?? null);
   if (rows.length === 0) {
@@ -1201,9 +1201,8 @@ ipcMain.handle("showBatch", async (_e, size: number, pack: string | null): Promi
   }
   for (const r of rows) {
     const tab = await newTab();
-    // The product page, not the latch form. `r.url` is the real slug URL the search gave us —
-    // `flipkart.com/p/p?pid=<FSN>` answers 500, which is why the URL is stored at all.
-    await tab.goto(r.url ?? startSellingUrlFor(r), { waitUntil: "domcontentloaded" }).catch(() => {});
+    // The shopper's page, never the latch form — see `productPage`.
+    await tab.goto(productPage(r)!, { waitUntil: "domcontentloaded" }).catch(() => {});
   }
   batch = rows.map((r) => r.fsn!);
   return {
@@ -1214,10 +1213,6 @@ ipcMain.handle("showBatch", async (_e, size: number, pack: string | null): Promi
       `"Latch the ones still open".`,
   };
 });
-
-/** `startSellingUrl` needs the engine; this keeps the call above readable when a row has no URL. */
-const startSellingUrlFor = (r: { fsn?: string | null }) =>
-  `https://seller.flipkart.com/index.html#dashboard/listings/product/na?fsn=${r.fsn}&sourceid=SELECTION_INSIGHTS_UI`;
 
 /**
  * Latch whichever of the batch is still open, and remember the rest as turned down.
@@ -1594,7 +1589,7 @@ async function latchThese(
 ): Promise<Attempt<unknown>> {
   const {
     readLatches, writeLatches, latchValues, openLatchForm, startSellingUrl, todayStamp,
-    galleryImages, saveImage, imageFor, askChatGpt,
+    galleryImages, saveImage, imageFor, askChatGpt, productPage,
   } = await latchEngine();
   const { nextSku } = await import("../src/sku-core.js");
   const { newTab, chatTab } = await import("../src/browser-core.js");
@@ -1619,7 +1614,7 @@ async function latchThese(
   if (!probe.ok) return { ok: false, message: `${probe.message} The tabs you kept are still counted.` };
   await probe.result.close().catch(() => {});
 
-  const values = latchValues({ MRP: "999", "Your selling price": "220" });
+  const values = latchValues(LATCH_PRICES);
   /**
    * SKUs handed out as we go, so ten annaprashan kits in one batch get ten different numbers.
    * Seeded with everything already on disk; each one assigned is added before the next is chosen.
@@ -1679,9 +1674,11 @@ async function latchThese(
   if (shelf && prompt) {
     for (const row of todo) {
       const now = rows.find((r) => r.sku === row.sku)!;
-      if (now.state !== "form" || !row.url || loggedOut) continue;
+      // `productPage`, not `row.url`: a label-pack row has no stored URL and silently got no chat.
+      const page = productPage(row);
+      if (now.state !== "form" || !page || loggedOut) continue;
       try {
-        await shelf.goto(row.url, { waitUntil: "domcontentloaded" });
+        await shelf.goto(page, { waitUntil: "domcontentloaded" });
         await shelf.waitForTimeout(6000);
         const gallery = await galleryImages(shelf);
         if (gallery.length > 1) {
@@ -1710,6 +1707,50 @@ async function latchThese(
       `Type your SKU in each and save it. Nothing was closed.`,
   };
 }
+
+/** What every latch form is filled with, until prices are set per kit. One place for both callers. */
+const LATCH_PRICES = { MRP: "999", "Your selling price": "220" };
+
+/**
+ * Fill the latch form in the Start Selling tab showing in Chrome — and only that one. See
+ * `frontLatchTab`. Uses the SKU already recorded for the product, so a refill never invents a
+ * second one. Saves nothing, like every other latch path.
+ */
+ipcMain.handle("fillFrontLatch", async (): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, latchValues, openLatchForm, todayStamp, frontLatchTab } = await latchEngine();
+  const { openTabs } = await import("../src/browser-core.js");
+  const { nextSku } = await import("../src/sku-core.js");
+  const tabs = await Promise.all(
+    openTabs().map(async (page) => ({
+      page,
+      url: page.url(),
+      visible: await page.evaluate(() => document.visibilityState === "visible").catch(() => false),
+    })),
+  );
+  const front = frontLatchTab(tabs);
+  if (!front.ok) return { ok: false, message: front.message };
+
+  const book = await readLatches();
+  const at = book.rows.findIndex((r) => r.fsn === front.fsn);
+  const row = at === -1 ? null : book.rows[at];
+  const sku = row?.ourSku ?? (row ? nextSku(row.title ?? row.description, await skusInUse().catch(() => [])) : null);
+  const state = await openLatchForm(front.tab.page, latchValues(LATCH_PRICES), sku ?? undefined).catch(() => "stuck" as const);
+  if (state !== "form") {
+    const why = { selling: "Flipkart says you already sell it.", approval: "it needs brand approval first.", stuck: "the form did not open — is the page loaded and are you logged in?" }[state];
+    return { ok: false, message: `Could not fill that tab: ${why}` };
+  }
+  if (row) {
+    book.rows[at] = { ...row, state, checkedOn: todayStamp(), latchedOn: row.latchedOn ?? todayStamp(), ...(sku ? { ourSku: sku } : {}) };
+    await writeLatches(book);
+  }
+  return {
+    ok: true,
+    result: book,
+    note:
+      `Filled ${row?.title?.slice(0, 60) ?? front.fsn}${sku ? ` with SKU ${sku}` : " — type the SKU, none could be worked out"}. ` +
+      `Check it and press Save in Chrome.`,
+  };
+});
 
 // There is deliberately NO "latch everything" handler. It existed, and the look-first flow
 // replaced it: ten shopper pages, close what you do not want, latch what survives. A button that
