@@ -12,6 +12,7 @@
 
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { ShareInventory } from "./ShareInventory.js";
 import { Convert } from "./Convert.js";
 import { Images } from "./Images.js";
 import { Inventory } from "./Inventory.js";
@@ -348,6 +349,8 @@ function Settings({ close }: { close: () => void }) {
           cannot read. The one folder meant for sharing is the <b>ready folder</b> on step 4,
           where the finished images go.
         </p>
+
+        <ShareInventory />
 
         <h3>Editing the prompts</h3>
         <label className="inline">

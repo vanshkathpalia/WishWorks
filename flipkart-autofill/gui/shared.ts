@@ -595,6 +595,10 @@ export interface WwApi {
   exportKits(only: string | null): Promise<string | null>;
   /** Reveal the folder the saved kits live in — for looking at, backing up, or syncing. */
   openKitsFolder(): Promise<void>;
+  /** Save this computer's price list, taught words and aliases to one file. Empty message = cancelled. */
+  exportInventory(): Promise<Attempt<string>>;
+  /** Add what someone else's export has and this computer does not. Clashes are listed, never applied. */
+  importInventory(): Promise<Attempt<{ added: string; clashes: string[] }>>;
   /**
    * File every loose image in the ready folder under its SKU code — `GTB-2.1.jpg` into `GTB/`.
    * Never overwrites: a name already taken in the group folder is left alone and named back.

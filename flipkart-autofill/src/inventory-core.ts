@@ -489,7 +489,11 @@ export function editMaterial(
  * not a thing to do in a hurry through a small form.
  */
 export function addMaterial(
-  row: { category: string; material: string; paise: number | null; size?: string; piecesPerPack?: number },
+  row: {
+    category: string; material: string; paise: number | null; size?: string; piecesPerPack?: number;
+    /** Carried by an inventory import, so a row arrives with its packet size and old spellings. */
+    packOf?: number; sellsAs?: string; aka?: string[];
+  },
   dir = CATEGORIES_DIR,
   editsFile = PRICE_EDITS_FILE,
 ): Material[] {
@@ -521,6 +525,9 @@ export function addMaterial(
     // Carried from the row this one was built from: a colour does not change how many come in a
     // packet, and re-typing it is how two colours of one product end up disagreeing about it.
     ...(row.piecesPerPack ? { piecesPerPack: row.piecesPerPack } : {}),
+    ...(row.packOf ? { packOf: row.packOf } : {}),
+    ...(row.sellsAs ? { sellsAs: row.sellsAs } : {}),
+    ...(row.aka?.length ? { aka: [...row.aka] } : {}),
   };
 
   if (canWrite(file)) {

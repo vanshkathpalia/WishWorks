@@ -1974,6 +1974,65 @@ ipcMain.handle("learnWord", async (_e, from: string, to: string | null) => {
 ipcMain.handle("learnedWords", () => readLearned());
 
 /**
+ * Export this computer's price list, taught words and aliases into one file for someone else.
+ * Saved where the person chooses (Downloads by default), because it is sent on by hand. See share-core.
+ */
+ipcMain.handle("exportInventory", async (e): Promise<Attempt<string>> => {
+  const { buildExport } = await import("../src/share-core.js");
+  const inv = await inventoryEngine();
+  const day = new Date().toISOString().slice(0, 10);
+  const { canceled, filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender)!, {
+    defaultPath: path.join(app.getPath("downloads"), `wishworks-inventory-${day}.json`),
+    filters: [{ name: "Inventory export", extensions: ["json"] }],
+  });
+  if (canceled || !filePath) return { ok: false, message: "" };
+  const file = buildExport(activeAccount()?.label ?? "WishWorks", inv.loadMaterials(), await readLearned(), await readAliases());
+  await writeFile(filePath, `${JSON.stringify(file, null, 2)}\n`);
+  return {
+    ok: true,
+    result: filePath,
+    note: `Saved ${file.materials.length} materials, ${Object.keys(file.words).length} words and ${Object.keys(file.aliases).length} aliases. Send this file to whoever needs it.`,
+  };
+});
+
+/**
+ * Fold someone's export into this computer. Adds only — every clash is listed and left alone.
+ */
+ipcMain.handle("importInventory", async (e): Promise<Attempt<{ added: string; clashes: string[] }>> => {
+  const share = await import("../src/share-core.js");
+  const inv = await inventoryEngine();
+  const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender)!, {
+    defaultPath: app.getPath("downloads"),
+    filters: [{ name: "Inventory export", extensions: ["json"] }],
+    properties: ["openFile"],
+  });
+  if (canceled || filePaths.length === 0) return { ok: false, message: "" };
+  let theirs;
+  try {
+    theirs = share.readInventoryFile(await readFile(filePaths[0], "utf8"));
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+  const plan = share.planImport({ materials: inv.loadMaterials(), words: await readLearned(), aliases: await readAliases() }, theirs);
+  const done = await share.applyImport(plan, {
+    categoriesDir: (await import("../src/paths.js")).CATEGORIES_DIR,
+    editsFile: inv.PRICE_EDITS_FILE,
+    wordsFile: LEARNED_FILE(),
+    aliasesFile: ALIASES_FILE(),
+  });
+  inv.useLearnedWords(await readLearned());
+  return {
+    ok: true,
+    result: {
+      added:
+        `From ${theirs.from}: added ${done.materials} material${done.materials === 1 ? "" : "s"}, ` +
+        `${done.words} word${done.words === 1 ? "" : "s"}, ${done.aliases} alias${done.aliases === 1 ? "" : "es"}.`,
+      clashes: [...share.describeClashes(plan, theirs.from), ...done.refused],
+    },
+  };
+});
+
+/**
  * What one unknown word in his note might mean, given the row a human just chose.
  *
  * Returns the row's spare words as OPTIONS, never an answer — see `proposeWord`. Null when there is

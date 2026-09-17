@@ -532,3 +532,23 @@ guards of 2026-09-16 were never tested in the app they were written for). See C-
 **Not done, and the next step if it hangs again:** the engine still runs on the main thread, so any
 future slow function freezes the window the same way. The durable fix is moving engine work into an
 Electron `utilityProcess`; not built until the watchdog shows something the caches do not cover.
+
+## WW-243 — Share inventory with a partner: Export / Import buttons in Settings
+
+**Done, 2026-09-17.** Vansh: *"i just want to get the new added inventory to load to some other
+people… partner and i don't use much terminal."* No database — everything is local — so Settings has
+**Export inventory…** (one JSON file: the full price list as this computer sees it, taught words,
+delivery-note aliases) and **Import inventory…** (pick that file).
+
+**Import only adds.** A missing material goes in through `addMaterial` — the list itself in
+development, `price-edits.json` on an installed app — with its packet size and old spellings. A
+material both have at **different prices is listed and never changed**; a name already used under
+another category, and a word or alias that means something else here, are listed too. Importing the
+same file twice adds nothing. **Deliveries and stock are not in the file** — each person counts their
+own shelf, and merging two would double-count.
+
+Checked on the real list: 203 materials exported; imported into a simulated partner install (read-only
+list, 10 rows missing, one price changed) → 10 added, his price kept and reported, second import 0.
+`src/share-core.ts`, 4 engine tests + a render test for the buttons (`ShareInventory.tsx`). 616 tests.
+
+**Next when wanted:** the same file can carry more sections (orders, latch list) later.
