@@ -2620,3 +2620,18 @@ clears it — `stuck` proves nothing and a saved listing reads `selling`.
 the marketplace is the thing to ask, not our own file.
 
 **Also.** `newTab` held on to a Chrome closed by hand and threw on every call after; it now reopens.
+
+## C-083 — the app killed Chrome on every quit, and that is what broke the login
+
+**What went wrong.** `connect.ts` closes Chrome gracefully so cookies reach the disk — but only for
+the terminal CLIs. The Electron app had no quit handler, so on exit Playwright's own hook SIGKILLed
+both Chromes. A day of app restarts left the Flipkart profile holding half a session, and the
+dashboard bounced between `#dashboard/home-page` and `/?referral_url=…` on its own. The guards
+written first (C-080, C-082 — now parked in a git stash) treated the bounce, not the cause.
+
+**Fix.** `app.on("before-quit")` closes the Flipkart and ChatGPT sessions, then quits; SIGTERM is
+routed to it. The broken profile was renamed `profile-broken-2026-09-17`, a fresh one created, and
+`profile-*/` added to `.gitignore` — a renamed profile is a live session too.
+
+**Lesson.** A graceful-close rule written for one entry point is not a rule for the app. And
+`npm run app` compiles the engine once at start: a fix is not in the app until it is restarted.

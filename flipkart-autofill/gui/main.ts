@@ -2826,6 +2826,32 @@ app.whenReady().then(() => {
   });
 });
 
+/**
+ * **Close both Chromes properly before the app exits — this is what keeps the logins.**
+ *
+ * Without it, Playwright's own exit hook SIGKILLs every browser it launched (read in
+ * `playwright-core`'s process launcher). A killed Chrome never flushes its cookies, so the next
+ * launch holds half a session: the dashboard thinks it is logged in, the server does not, and the
+ * page bounces between `#dashboard/home-page` and the login screen on its own — no automation
+ * running, and "Log in to Flipkart" bouncing too. Vansh, 2026-09-16, after a day of app restarts:
+ * *"now even the login to flipkart page is refreshing again and again."* Every quit did this,
+ * including the partner's on Windows, where the kill is `taskkill /F`.
+ */
+let closingBrowsers = false;
+app.on("before-quit", (e) => {
+  if (closingBrowsers) return;
+  closingBrowsers = true;
+  e.preventDefault();
+  void browserEngine()
+    .then(async (b) => {
+      await Promise.all([b.closeSession(), b.closeChat()]);
+    })
+    .catch(() => {})
+    .finally(() => app.quit());
+});
+// `npm run gui` restarting on a code change sends SIGTERM, which skips `before-quit` — route it there.
+process.on("SIGTERM", () => app.quit());
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

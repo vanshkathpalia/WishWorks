@@ -7,6 +7,8 @@ profile/
 # not match it — `profile/` is a directory name, `profile-chat` is a different one — so for an hour
 # this folder was tracked. A session cookie in git is a logged-in account in git.
 profile-chat/
+# Any renamed or parked copy of a profile is a live session too (profile-broken-2026-09-17).
+profile-*/
 
 # Working images. The folders themselves are kept (via .gitkeep) so the pipeline has
 # somewhere to write on a fresh clone; their contents are yours, not the repo's.
