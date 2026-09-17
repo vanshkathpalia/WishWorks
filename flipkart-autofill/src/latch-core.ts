@@ -660,15 +660,46 @@ async function resolveCard(page: Page, row: LatchRecord): Promise<LatchRecord> {
  * Answered by looking, never by clicking, so nothing is created on the account by asking. "stuck"
  * is Flipkart not answering, which is not the same as a No and must not be recorded as one.
  */
-export async function readCard(page: Page, fsn: string): Promise<{ fsn: string; state: TabState }> {
+export async function readCard(page: Page, fsn: string, timeout = 30_000): Promise<{ fsn: string; state: TabState }> {
   await page.goto(startSellingUrl(fsn), { waitUntil: "domcontentloaded" }).catch(() => {});
-  try {
-    await page.waitForSelector("a.startSelling", { timeout: 30_000 });
-    return { fsn, state: cardState((await page.locator("a.startSelling").first().getAttribute("class")) ?? "") };
-  } catch {
-    return { fsn, state: "stuck" };
+  // Polled rather than one long wait, so a bounce to the login screen stops the run within half a
+  // second — not after the full timeout, with the page flickering the whole time.
+  for (const end = Date.now() + timeout; Date.now() < end; ) {
+    if (page.isClosed()) break;
+    if (bouncedToLogin(page.url())) {
+      await page.goto("about:blank").catch(() => {}); // park it: a bouncing tab keeps burning CPU
+      throw new LoggedOut();
+    }
+    const card = page.locator("a.startSelling").first();
+    if ((await card.count().catch(() => 0)) > 0) {
+      return { fsn, state: cardState((await card.getAttribute("class").catch(() => null)) ?? "") };
+    }
+    await page.waitForTimeout(500).catch(() => {});
+  }
+  return { fsn, state: "stuck" };
+}
+
+/**
+ * The seller session died: every product from here on would load, bounce, wait out its timeout and
+ * be written down as "stuck". Measured 2026-09-16, twice: the tab cycling `#dashboard/home-page` →
+ * `/?referral_url=…` every ~9s, Chrome at 42% CPU, a 39-product re-check heading for twenty minutes
+ * of that. A run that sees this stops, keeping what it already learned.
+ */
+export class LoggedOut extends Error {
+  constructor() {
+    super(
+      "Flipkart Seller logged you out — the page keeps bouncing to the login screen, so the run stopped. " +
+        "Log in on the Fill Flipkart step, then press it again. Everything checked before this is saved.",
+    );
   }
 }
+
+/**
+ * A product card URL that ended up anywhere but the product: the login gate, or the home page the
+ * gate bounces through. ponytail: URL shape, not a DOM check — revisit if Flipkart moves either.
+ */
+export const bouncedToLogin = (url: string): boolean =>
+  url.includes("referral_url") || /#dashboard\/home-page/.test(url);
 
 // ---------------------------------------------------------------- the contents picture
 
@@ -911,6 +942,8 @@ export async function crawlSearch(
     onFound?: (f: Found, seen: number) => void;
     /** True to stop early. The screen's cancel button. */
     stopped?: () => boolean;
+    /** Called once if the seller session died mid-sweep; the sweep returns what it had. */
+    onLoggedOut?: () => void;
     /**
      * Keep only products whose title STARTS with this brand.
      *
@@ -948,13 +981,15 @@ export async function crawlSearch(
     for (const r of results) {
       if (Date.now() >= opts.until || opts.stopped?.()) break;
       seen++;
-      await page.goto(startSellingUrl(r.fsn), { waitUntil: "domcontentloaded" }).catch(() => {});
-      let state: TabState = "stuck";
+      // "stuck" is not a No and not worth abandoning the sweep for; being logged out is, and
+      // `LoggedOut` goes up to the handler after what was found so far has been handed out.
+      let state: TabState;
       try {
-        await page.waitForSelector("a.startSelling", { timeout: 20_000 });
-        state = cardState((await page.locator("a.startSelling").first().getAttribute("class")) ?? "");
-      } catch {
-        /* "stuck" — Flipkart did not answer. Not a No, and not worth abandoning the sweep for. */
+        state = (await readCard(page, r.fsn, 20_000)).state;
+      } catch (e) {
+        if (!(e instanceof LoggedOut)) throw e;
+        opts.onLoggedOut?.();
+        return out;
       }
       const found = { fsn: r.fsn, title: r.title, url: r.url, listed: r.listed ?? null, state };
       out.push(found);

@@ -2649,3 +2649,17 @@ words, word pairs, candidates) keyed so an edited list or a taught word can neve
 
 **Lesson.** A feature that is fast on today's data is not fast; time it on the real folder, and keep
 work that grows with the data off the thread that draws the screen.
+
+## C-082 — a login check that caused the thing it was checking for
+
+**What went wrong.** The first guard (C-080) sat on the latch run only; Re-check had none and blinked
+the machine the same evening. The next guard LOADED the seller dashboard to see whether we were logged
+in — and a broken session does not rest on a login page, it bounces, so every check started a bounce.
+Vansh: *"don't make my computer sick dude."* None of it had even reached the app he was testing:
+`npm run app` compiles the engine once at start (C-083).
+
+**Fix.** `sellerTab()` never navigates; `readCard` polls and throws `LoggedOut`; `bounceWatch` +
+`clearSellerLogin` heal a saved login that loops. Re-applied only after a clean login held (WW-244).
+
+**Lesson.** A probe for a failure must not be able to cause it — and a gap written down as "one thing
+to watch" is a bug chosen to ship.

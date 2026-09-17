@@ -552,3 +552,20 @@ list, 10 rows missing, one price changed) → 10 added, his price kept and repor
 `src/share-core.ts`, 4 engine tests + a render test for the buttons (`ShareInventory.tsx`). 616 tests.
 
 **Next when wanted:** the same file can carry more sections (orders, latch list) later.
+
+## WW-244 — Latch runs check the Flipkart login before opening anything
+
+**Done, 2026-09-17**, restored from the stash parked the night before once the fresh login was proven
+to survive a quit. Logged out, every latch run used to open tabs that bounced between the dashboard
+and the login page — the flicker and the slowdown of 2026-09-16.
+
+- **Before a run** — Re-check, Sweep, Sweep approved brands, Latch, *What am I approved for?* — the app
+  reads the URLs of Flipkart tabs already open, twice 3 s apart, and refuses without opening a tab if
+  none shows the dashboard. It never LOADS a page to find out: loading one is what starts a bounce.
+- **During a run** a product card that lands on the login bounce stops the run in ~2 s, blanks the
+  tab, and keeps everything already checked.
+- **A saved login that bounces on its own** (`/?referral_url=` reached twice) is cleared automatically
+  by the Flipkart panel's status check, which then opens the plain sign-in page.
+
+Checked against a fake bouncing seller site in headless Chrome, and 618 tests. Not yet checked on a
+real logged-out Flipkart session or on Windows. See C-082.

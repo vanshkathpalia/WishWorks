@@ -70,10 +70,53 @@ export async function openSession(url = APP_URL): Promise<SessionStatus> {
   return statusOf(session.context);
 }
 
-/** Poll-friendly: never navigates, so it cannot interrupt an OTP being typed. */
+/**
+ * Spot a broken saved login bouncing on its own, and clear it — once, the moment it is proven.
+ *
+ * **What a broken login looks like, measured 2026-09-16.** A Chrome that has never signed in lands
+ * on `seller.flipkart.com/sell-online?referral_url=…` and waits there. The app's profile, left
+ * with half a session by Chrome being killed on quit (C-083), instead hit `seller.flipkart.com/?referral_url=…`
+ * and was thrown straight back to `#dashboard/home-page`, for ever — flickering and burning CPU
+ * with nothing automated running, the "Log in to Flipkart" page included.
+ *
+ * **Why clearing is safe.** A working login never visits `/?referral_url`, so the trigger is that
+ * gate reached TWICE with the dashboard in between — a loop, not a single redirect. Whatever was
+ * in those cookies was already worthless; afterwards the plain sign-in page shows and stays.
+ * ponytail: cookies + local/session storage only; clear IndexedDB too if a loop ever survives this.
+ */
+export function bounceWatch() {
+  let gateVisits = 0;
+  let atGate = false;
+  return (urls: string[]): boolean => {
+    const now = urls.some((u) => /seller\.flipkart\.com\/\?referral_url/.test(u));
+    if (now && !atGate) gateVisits++;
+    atGate = now;
+    if (gateVisits < 2) return false;
+    gateVisits = 0;
+    return true;
+  };
+}
+const looping = bounceWatch();
+
+export async function clearSellerLogin(context: BrowserContext): Promise<void> {
+  await context.clearCookies({ domain: /flipkart\.com$/ });
+  const page =
+    context.pages().find((p) => !p.isClosed() && p.url().includes("seller.flipkart.com")) ?? (await context.newPage());
+  // Park on a blank page first: a page mid-bounce navigates away under the storage clear.
+  await page.goto("https://seller.flipkart.com/robots.txt").catch(() => {});
+  await page.evaluate(() => (localStorage.clear(), sessionStorage.clear())).catch(() => {});
+  await page.goto("https://seller.flipkart.com/sell-online", { waitUntil: "domcontentloaded" }).catch(() => {});
+}
+
+/** Poll-friendly: never navigates, so it cannot interrupt an OTP being typed — except to stop a login loop. */
 export async function sessionStatus(): Promise<SessionStatus> {
   if (!session) return { open: false, login: "unknown", url: "" };
   try {
+    const context = session.context;
+    if (looping(context.pages().filter((p) => !p.isClosed()).map((p) => p.url()))) {
+      await clearSellerLogin(context);
+      return { open: true, login: "no", url: "https://seller.flipkart.com/sell-online" };
+    }
     return await statusOf(session.context);
   } catch {
     // The window was closed from the title bar — that is allowed, it just ends the session.

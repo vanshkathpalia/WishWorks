@@ -15,12 +15,13 @@
  *   5. Nothing from the address block becomes a SKU.
  */
 
+import { bounceWatch } from "../src/browser-core.js";
 import { describe, it, expect } from "vitest";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  approvedBrands, blocking, bouncedToLogin, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -703,6 +704,28 @@ describe("reviewing a batch before listing it", () => {
       ],
     };
     expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["B"]);
+  });
+
+  it("calls it a broken login only when the gate is hit twice, never on an ordinary sign-in", () => {
+    const gate = "https://seller.flipkart.com/?referral_url=%2Findex.html%3F%23dashboard%2Fhome-page";
+    const home = "https://seller.flipkart.com/index.html#dashboard/home-page";
+    const signIn = "https://seller.flipkart.com/sell-online?referral_url=/index.html?#dashboard/home-page";
+    // The loop read off the live tab: home, gate, home, gate.
+    const loop = bounceWatch();
+    expect([home, gate, gate, home, home].map((u) => loop([u]))).toEqual([false, false, false, false, false]);
+    expect(loop([gate])).toBe(true);
+    // A fresh logged-out Chrome, measured: home, then the sign-in page, and it stays there. Then logged in.
+    const fresh = bounceWatch();
+    expect([home, signIn, signIn, signIn, home, home].some((u) => fresh([u]))).toBe(false);
+  });
+
+  it("tells the login bounce apart from a product page that was merely slow", () => {
+    // The three URLs read off the live tab, 2026-09-16, while a logged-out Re-check was running.
+    expect(bouncedToLogin("https://seller.flipkart.com/index.html#dashboard/home-page")).toBe(true);
+    expect(bouncedToLogin("https://seller.flipkart.com/?referral_url=%2Findex.html%3F%23dashboard%2Fhome-page")).toBe(true);
+    expect(
+      bouncedToLogin("https://seller.flipkart.com/index.html#dashboard/listings/product/na?fsn=BCBHNG7CYNTANGFS&sourceid=SELECTION_INSIGHTS_UI"),
+    ).toBe(false);
   });
 
   it("forgets a latch that was opened but never saved, once Flipkart still offers the form", () => {

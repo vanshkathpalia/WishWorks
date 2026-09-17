@@ -963,6 +963,40 @@ ipcMain.handle("orders", () => ordersView());
 const latchEngine = () => import("../src/latch-core.js");
 
 /**
+ * A tab in the seller app, but only when a tab ALREADY OPEN shows the logged-in dashboard.
+ *
+ * **Asking must not load anything.** Three versions of this evening's fix loaded the dashboard to
+ * find out, and a logged-out dashboard does not sit on a login page — it bounces between
+ * `#dashboard/home-page` and `/?referral_url=…` every few seconds, which is the flicker and the
+ * CPU (C-080, C-082). Vansh: *"don't make my computer sick dude."* So this only reads the URLs of
+ * tabs that are open anyway, twice 3s apart (a bouncing tab reads logged in half the time), and
+ * refuses before a single tab is opened. Logging in is the Flipkart button's job, where a person
+ * is watching.
+ */
+async function sellerTab(): Promise<Attempt<import("playwright").Page>> {
+  const { newTab, openTabs } = await import("../src/browser-core.js");
+  const { looksLoggedIn } = await import("../src/connect.js");
+  const signedIn = () => {
+    const seller = openTabs().filter((p) => p.url().includes("seller.flipkart.com"));
+    return seller.some(looksLoggedIn) && !seller.some((p) => p.url().includes("referral_url"));
+  };
+  const refuse = {
+    ok: false as const,
+    message:
+      "Not logged in to Flipkart Seller, so nothing was opened. Press \"Log in to Flipkart\" (bottom left), " +
+      "wait until the dashboard shows in Chrome, then press this again.",
+  };
+  if (!signedIn()) return refuse;
+  await new Promise((r) => setTimeout(r, 3000));
+  if (!signedIn()) return refuse;
+  try {
+    return { ok: true, result: await newTab() };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
  * Read a label pack into the latch list.
  *
  * The same pack twice changes nothing and next month's adds only what is new — the SKU is the
@@ -1214,13 +1248,9 @@ ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unk
 /** Every approval request on the account, read off Flipkart's own Track Approval page. */
 ipcMain.handle("approvals", async (): Promise<Attempt<unknown>> => {
   const { readApprovals } = await latchEngine();
-  const { newTab } = await import("../src/browser-core.js");
-  let page;
-  try {
-    page = await newTab();
-  } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
-  }
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  const page = tab.result;
   const rows = await readApprovals(page).catch(() => []);
   await page.close().catch(() => {});
   return rows.length
@@ -1241,16 +1271,13 @@ ipcMain.handle("approvals", async (): Promise<Attempt<unknown>> => {
  * the first.
  */
 ipcMain.handle("sweepApproved", async (e, minutes: number): Promise<Attempt<unknown>> => {
-  const { readApprovals, approvedBrands, readLatches, writeLatches, crawlSearch, mergeFound } =
+  const { readApprovals, approvedBrands, readLatches, writeLatches, crawlSearch, mergeFound, LoggedOut } =
     await latchEngine();
-  const { newTab } = await import("../src/browser-core.js");
   stopSweep = false;
-  let page;
-  try {
-    page = await newTab();
-  } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
-  }
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  const page = tab.result;
+  let loggedOut = false;
 
   const brands = approvedBrands(await readApprovals(page).catch(() => []));
   if (brands.length === 0) {
@@ -1263,12 +1290,13 @@ ipcMain.handle("sweepApproved", async (e, minutes: number): Promise<Attempt<unkn
   let total = 0;
   let canLatch = 0;
   for (const b of brands) {
-    if (stopSweep) break;
+    if (stopSweep || loggedOut) break;
     const found = await crawlSearch(page, b.brand, {
       until: Date.now() + each,
       known: new Set(book.rows.map((r) => r.fsn).filter((f): f is string => !!f)),
       stopped: () => stopSweep,
       onFound: (f, seen) => e.sender.send("crawlRow", { seen, found: f }),
+      onLoggedOut: () => (loggedOut = true),
     });
     book = mergeFound(book, found, b.brand).book;
     // Written per brand, not at the end: twelve brands is a long run and a window closed halfway
@@ -1278,6 +1306,7 @@ ipcMain.handle("sweepApproved", async (e, minutes: number): Promise<Attempt<unkn
     canLatch += found.filter((f) => f.state === "form").length;
   }
   await page.close().catch(() => {});
+  if (loggedOut) return { ok: false, message: `${new LoggedOut().message} (${total} looked at before it.)` };
   return {
     ok: true,
     result: book,
@@ -1440,18 +1469,15 @@ ipcMain.handle("shareLatches", async (_e, pack: string | null): Promise<string> 
   return text;
 });
 ipcMain.handle("crawlSearch", async (e, term: string, minutes: number): Promise<Attempt<unknown>> => {
-  const { readLatches, writeLatches, crawlSearch, mergeFound } = await latchEngine();
-  const { newTab } = await import("../src/browser-core.js");
+  const { readLatches, writeLatches, crawlSearch, mergeFound, LoggedOut } = await latchEngine();
   if (!term.trim()) return { ok: false, message: "Type something to search for." };
 
   const book = await readLatches();
   stopSweep = false;
-  let page;
-  try {
-    page = await newTab();
-  } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
-  }
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  const page = tab.result;
+  let loggedOut = false;
 
   const found = await crawlSearch(page, term.trim(), {
     until: Date.now() + Math.max(1, minutes) * 60_000,
@@ -1460,11 +1486,13 @@ ipcMain.handle("crawlSearch", async (e, term: string, minutes: number): Promise<
     known: new Set(book.rows.map((r) => r.fsn).filter((f): f is string => !!f)),
     stopped: () => stopSweep,
     onFound: (f, seen) => e.sender.send("crawlRow", { seen, found: f }),
+    onLoggedOut: () => (loggedOut = true),
   });
   await page.close().catch(() => {});
 
   const merged = mergeFound(book, found, term.trim());
   await writeLatches(merged.book);
+  if (loggedOut) return { ok: false, message: `${new LoggedOut().message} (${found.length} looked at before it.)` };
   const canLatch = found.filter((f) => f.state === "form").length;
   return {
     ok: true,
@@ -1484,22 +1512,27 @@ ipcMain.handle("crawlSearch", async (e, term: string, minutes: number): Promise<
  * or a rejected approval calls for.
  */
 ipcMain.handle("checkLatches", async (e, all: boolean): Promise<Attempt<unknown>> => {
-  const { readLatches, writeLatches, resolveProduct } = await latchEngine();
-  const { newTab } = await import("../src/browser-core.js");
+  const { readLatches, writeLatches, resolveProduct, LoggedOut } = await latchEngine();
   const book = await readLatches();
   const rows = book.rows;
   const todo = rows.filter((r) => all || r.state === "unknown");
   if (todo.length === 0) return { ok: true, result: book, note: "Everything has been checked already." };
 
-  let page;
-  try {
-    page = await newTab();
-  } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
-  }
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  const page = tab.result;
   let done = 0;
   for (const row of todo) {
-    const next = await resolveProduct(page, row).catch(() => ({ ...row, state: "stuck" as const }));
+    let next;
+    try {
+      next = await resolveProduct(page, row);
+    } catch (err) {
+      if (err instanceof LoggedOut) {
+        await page.close().catch(() => {});
+        return { ok: false, message: `${err.message} (${done} of ${todo.length} done.)` };
+      }
+      next = { ...row, state: "stuck" as const };
+    }
     const at = rows.findIndex((r) => r.sku === row.sku);
     rows[at] = next;
     done++;
@@ -1582,19 +1615,9 @@ async function latchThese(
    * computer slow and showing nothing new."* Checked twice because a bouncing tab reads logged in
    * half the time; one look is a coin toss.
    */
-  const probe = await newTab();
-  const { checkLogin, looksLoggedIn } = await import("../src/connect.js");
-  const signedIn =
-    (await checkLogin(probe)) && (await probe.waitForTimeout(3000).then(() => looksLoggedIn(probe), () => false));
-  await probe.close().catch(() => {});
-  if (!signedIn) {
-    return {
-      ok: false,
-      message:
-        "Flipkart Seller is not logged in (the dashboard keeps bouncing to the login page), so no form was opened. " +
-        "Log in on the Fill Flipkart step, then press the button again — the tabs you kept are still counted.",
-    };
-  }
+  const probe = await sellerTab();
+  if (!probe.ok) return { ok: false, message: `${probe.message} The tabs you kept are still counted.` };
+  await probe.result.close().catch(() => {});
 
   const values = latchValues({ MRP: "999", "Your selling price": "220" });
   /**
