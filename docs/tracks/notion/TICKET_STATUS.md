@@ -595,3 +595,9 @@ pressing the app's button takes focus), with the SKU already recorded for that p
 MRP/price as the batch (`LATCH_PRICES`, now one constant). `openLatchForm` fills a form that is already
 open instead of clicking the card behind it. Two windows each showing a form → it asks rather than
 guess. Never saves. Checked on a fake page in headless Chrome, both with the form open and card-only.
+
+**Changed, 2026-09-17 — character birthday SKUs get two digits.** The app handed out `HBD-dore003`;
+Vansh saved the listing as `HBD-dore03` to match `HBD-dore01`/`HBD-dore02`, and Flipkart and Meesho do
+not allow a SKU to be renamed. *"lets just follow this convention of naming skus."* `nextSku` now pads
+a themed `HBD-<word>` prefix to two digits and everything else (ANP, GTB, HAL, WB, WH, plain HBD) to
+three. The Doremon latch record was corrected to `HBD-dore03` — the only file holding the wrong one.

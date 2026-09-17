@@ -44,7 +44,15 @@ describe("choosing the next SKU", () => {
   it("uses ONE format, whatever the old ones look like", () => {
     expect(nextSku("Some Annaprashan Decoration Kit", onDisk)).toBe("ANP004");
     expect(nextSku("Haldi Ceremony Decoration Set", onDisk)).toBe("HAL004");
-    expect(nextSku("Doremon Theme Birthday Kit", onDisk)).toBe("HBD-dore002");
+    expect(nextSku("ZYRIC Happy Birthday Black and Gold Decoration Kit", ["HBD001", "HBD101"])).toBe("HBD102");
+  });
+
+  it("gives a character birthday kit two digits, like the listings already live", () => {
+    // HBD-dore01 and HBD-dore02 are on Flipkart; he saved the third as HBD-dore03, not HBD-dore003.
+    expect(nextSku("Doremon Theme Birthday Kit", ["HBD-dore01", "HBD-dore02"])).toBe("HBD-dore03");
+    expect(nextSku("Doremon Theme Birthday Kit", onDisk)).toBe("HBD-dore02");
+    // A three-digit sibling from before the rule still counts as taken.
+    expect(nextSku("Doremon Theme Birthday Kit", ["HBD-dore01", "HBD-dore003"])).toBe("HBD-dore04");
   });
 
   it("counts an old spelling as taken, so a new one cannot collide with it", () => {

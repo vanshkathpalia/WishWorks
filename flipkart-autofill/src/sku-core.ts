@@ -72,8 +72,17 @@ export function themeFor(title: string): string | null {
  *
  * **Nothing already on disk is renamed.** `normalizeId` in `id.ts` is what makes the old spellings
  * still match; this only decides what NEW ones are called.
+ *
+ * **One exception, and it is the live listings that set it.** Vansh, 2026-09-17: the character
+ * birthday kits were always `HBD-dore01`, `HBD-spider01`, `HBD-masha02` — two digits after the word —
+ * and Flipkart and Meesho do not allow a SKU to be renamed. The app handed out `HBD-dore003`, he
+ * saved the listing as `HBD-dore03` to match its siblings, and the two records no longer agreed.
+ * *"lets just follow this convention."* So a themed `HBD-<word>` prefix pads to two; everything
+ * else, including plain `HBD001`, pads to three.
  */
 export const SKU_DIGITS = 3;
+export const THEMED_SKU_DIGITS = 2;
+const digitsFor = (prefix: string) => (/^HBD-/i.test(prefix) ? THEMED_SKU_DIGITS : SKU_DIGITS);
 
 /**
  * The next unused SKU for a listing, or null when we cannot say which line it is.
@@ -100,7 +109,7 @@ export function nextSku(title: string, taken: string[]): string | null {
   }
 
   for (let n = highest + 1; n < highest + 1000; n++) {
-    const sku = `${prefix}${String(n).padStart(SKU_DIGITS, "0")}`;
+    const sku = `${prefix}${String(n).padStart(digitsFor(prefix), "0")}`;
     const key = sku.toUpperCase().replace(/-/g, "").replace(/(\d+)$/, (d) => String(Number(d)));
     if (!used.has(key)) return sku;
   }
