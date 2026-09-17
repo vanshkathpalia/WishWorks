@@ -222,6 +222,18 @@ export function Inventory({ n }: { n: number }) {
   const [showGaps, setShowGaps] = useState(false);
   /** What is typed in the kit search. Empty shows every kit, which is how it opens. */
   const [find, setFind] = useState("");
+  /**
+   * How the kits inside every code are ordered. Newest first was already the order — `listKits`
+   * sorts by `savedAt` — but chips wrapping left to right never said so, and Vansh read it as no
+   * order at all (2026-09-17). A toggle names it and offers A→Z. Remembered on this screen only.
+   */
+  const [order, setOrder] = useState<"newest" | "az">(() => {
+    try {
+      return localStorage.getItem("ww.kits.order") === "az" ? "az" : "newest";
+    } catch {
+      return "newest";
+    }
+  });
 
   const [image, setImage] = useState<string | null>(null);
   const [paste, setPaste] = useState("");
@@ -392,7 +404,11 @@ export function Inventory({ n }: { n: number }) {
     const shown = wanted === ""
       ? saved
       : saved.filter((k) => k.sku.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(wanted));
-    for (const k of shown) {
+    const ordered =
+      order === "az"
+        ? [...shown].sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: "base" }))
+        : [...shown].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    for (const k of ordered) {
       const p = skuPrefix(k.sku);
       kits.set(p, [...(kits.get(p) ?? []), k]);
     }
@@ -434,7 +450,7 @@ export function Inventory({ n }: { n: number }) {
           newest: listings.find((l) => skuPrefix(l.label) === prefix)?.label ?? null,
         };
       });
-  }, [find, saved, listings]);
+  }, [find, saved, listings, order]);
 
   /**
    * What the shelf holds, beside the kit being costed — material id → pieces left.
@@ -966,6 +982,20 @@ export function Inventory({ n }: { n: number }) {
                   }}
                   onKeyDown={(e) => e.key === "Escape" && setFind("")}
                 />
+                <button
+                  title="How the kits inside every code are ordered"
+                  onClick={() => {
+                    const next = order === "newest" ? "az" : "newest";
+                    setOrder(next);
+                    try {
+                      localStorage.setItem("ww.kits.order", next);
+                    } catch {
+                      /* a private window: the choice just is not remembered */
+                    }
+                  }}
+                >
+                  {order === "newest" ? "newest saved first" : "A → Z"}
+                </button>
               </h3>
               {offTarget > 0 && (
                 <p className="muted">
