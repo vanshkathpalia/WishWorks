@@ -8,11 +8,8 @@ Read `TICKET_STATUS.md` for how each thing came about, `CORRECTIONS.md` for what
 
 ## NOT built — the whole gap, in the order it hurts
 
-- **Meesho bulk sheet.** No code at all. `forMeesho(book)` in `latch-core.ts` picks the latched
-  products whose Meesho half is missing, and `markMeesho` records that it was done — **neither is
-  wired to a handler or a screen**, so nothing calls them. Fields and image rules are written down
-  in `MEESHO-FROM-LATCH.md`. Nothing writes a spreadsheet; nothing pastes image URLs from the
-  supplier panel. Meesho has no API: this is an Excel file plus the panel's own uploader.
+- **Meesho image links.** The bulk sheet is built (below); its four image columns are not. The
+  supplier panel's uploader hands back URLs and a person pastes them in.
 - **Price updater.** Nothing edits a live listing's price. The app fills and saves a NEW listing
   form (`fillListing`, `saveListing`) and reads what a rival charges (`Listed`), but the "change
   the price days later" half — the one the kit costing exists for — has no code and no screen.
@@ -42,7 +39,8 @@ Where work moves between Flipkart, Meesho, ChatGPT and this computer's folders. 
 | Computer → ChatGPT → computer | finished images + kit → `image-meta-<ID>.json`, `products-<ID>.json` | 🟡 never run for real |
 | Downloads → `image-meta/`, `products/` | filing the AI's downloads by their CONTENT | ✅ (`inbox.ts`) |
 | `products/<ID>.json` → Flipkart | the 66-field listing form | ✅ (fill bot; Submit is human) |
-| App → Meesho | the bulk sheet, and the panel's image URLs | ❌ nothing at all |
+| App → Meesho | the bulk sheet (copy, price, fixed fields) | 🟡 never uploaded for real |
+| Supplier panel → sheet | the image URLs | ❌ |
 | Flipkart → app | live price / stock changes days later | ❌ nothing at all |
 | Marketplace reports → app | manifests, order books, returns, settlements | ✅ (drop the file in) |
 | Supplier note → app | delivery note → shelf, taught words, the next call | ✅ |
@@ -63,7 +61,9 @@ Where work moves between Flipkart, Meesho, ChatGPT and this computer's folders. 
 - **Waiting for stock**, **latching a page opened by hand in Chrome**, **costing-chat redo**,
   **inventory export/import** (Settings), **right-click paste** — all 2026-09-17, tests only.
 - **Pause list** — on the Latch screen, but never seen with a real shortage.
-- **Meesho queue** — engine only, see above.
+- **Meesho bulk sheet** (2026-09-18) — "Which go on Meesho?" on the Latch screen; a ChatGPT chat per
+  kit for the copy and dropdowns, written into Meesho's own template. Tests and an openpyxl read-back
+  only: never run against real ChatGPT, never uploaded. See `MEESHO-FROM-LATCH.md`.
 
 ## Works, and proven against the live account
 

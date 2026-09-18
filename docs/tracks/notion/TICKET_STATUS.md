@@ -724,7 +724,6 @@ brand's "can be latched": "61 looked at, 310 can be latched").
 **Added — "Sweep these brands".** Comma-separated brands that need no approval (Dream Aura, Partyfox,
 Fundots…), the same sweep; never-sweep brands are refused.
 
-
 **Added, 2026-09-18 — two photo folders, by stage.** `Whatsapp DW` is the FINISHED version — listed on
 Meesho and Flipkart, priced, sorted by hand — and Vansh does not want a freshly latched product landing
 among them: *"this is only going to be on Flipkart, you know."* A latch now files `contents.jpg` and
@@ -735,3 +734,13 @@ kit that ALREADY has a folder in `Whatsapp DW` is filed there whatever its costi
 were sorted by hand), and *confirmed* is not part of "final" — 0 of 67 kits have ever been confirmed,
 54 are priced. **Still to do:** the third stage Vansh named — products he cannot latch, whose inventory
 and hero image could still go to Meesho alone — needs its own folder and its own list.
+
+**Added, 2026-09-18 — the Meesho bulk sheet.** The top of AUTOMATION-STATE's "not built" list: nothing
+wrote a Meesho sheet, so every latched kit's Meesho half was typed by hand. Latch screen → "Which go on
+Meesho?" → "Write the Meesho sheet" runs `PROMPT-meesho-only` + the new `PROMPT-meesho-sheet` (six
+dropdowns) per costed kit and fills Meesho's own template in Downloads — edited in place with `fflate`
+so its 672 dropdown validations survive, columns found by header. Price = materials + flat markup + 5%
+GST. HSN 950300 (Vansh; Meesho has no 95030020) and the WishWorks Hisar address live in
+`categories/meesho-sheet.json`. Image links stay by hand. "I uploaded these" marks the batch done.
+Not yet run against real ChatGPT or uploaded to Meesho.
+

@@ -32,6 +32,14 @@ export type { Need } from "../src/stock-core.js";
 import type { Approval, Found, ImageJob, LatchBook, LatchRecord, Listed, Pending } from "../src/latch-core.js";
 export type { Approval, Found, ImageJob, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
 
+/** A latched kit waiting for its Meesho row. `costed` is false when no kit is saved under the SKU. */
+export interface MeeshoJob {
+  ourSku: string;
+  title: string;
+  latchedOn: string;
+  costed: boolean;
+}
+
 /**
  * Everything the packing screen draws, as one answer from the engine.
  *
@@ -710,6 +718,12 @@ export interface WwApi {
   runImages(sku: string): Promise<Attempt<unknown>>;
   /** Describe those images and fill the Flipkart fields — `PROMPT-meta` then `PROMPT-product`, one chat. */
   runMeta(sku: string): Promise<Attempt<unknown>>;
+  /** Latched with our SKU, not yet on Meesho — oldest first. */
+  meeshoQueue(): Promise<Attempt<MeeshoJob[]>>;
+  /** One Meesho bulk sheet for these SKUs, in Downloads. Result: the SKUs that got a row. */
+  meeshoSheet(skus: string[]): Promise<Attempt<string[]>>;
+  /** Mark these as uploaded to Meesho, taking them off the list. */
+  meeshoDone(skus: string[]): Promise<Attempt<number>>;
   /** Each prompt as it finishes, so a four-minute run shows its working. */
   onImageStep(cb: (p: { sku: string; prompt: string; file: string | null; seconds: number; missing: boolean }) => void): () => void;
 

@@ -341,6 +341,17 @@ export async function lastReply(page: Page): Promise<string> {
 }
 
 /**
+ * The last reply with its line breaks. `textContent` runs paragraphs together, which is fine for JSON
+ * and ruins a description whose whole shape is short lines (`PROMPT-meesho-only`).
+ */
+export async function lastReplyLines(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const turns = [...document.querySelectorAll<HTMLElement>("[data-message-author-role=assistant]")];
+    return (turns[turns.length - 1]?.innerText ?? "").trim();
+  });
+}
+
+/**
  * Ask one question in a fresh chat and hand back the answer.
  *
  * A NEW chat each time, unlike the image run: this question carries its own price list and its own
@@ -457,7 +468,7 @@ export function nameWhenSent(page: Page, title: string, every = 5000, settle = 4
  * `ANP018 — images`, `ANP018 — meta`, `delivery 2026-09-14`. The SKU first because that is what a
  * human searches the sidebar for, and it is the one thing every listing chat has in common.
  */
-export function chatTitle(what: "images" | "meta" | "costing" | "words", subject: string): string {
+export function chatTitle(what: "images" | "meta" | "costing" | "words" | "meesho", subject: string): string {
   return what === "words" ? `delivery ${subject}` : `${subject} — ${what}`;
 }
 
@@ -592,4 +603,31 @@ export async function runMetaChat(
   }
   if (opts.title) await renameChat(page, opts.title);
   return out;
+}
+
+// ---------------------------------------------------------------- the Meesho copy chat
+
+/**
+ * Meesho's copy for ONE kit: `PROMPT-meesho-only` with the pack in it, then `PROMPT-meesho-sheet`
+ * for the dropdowns, in one chat — the second has to see the name the first wrote. Text only, no
+ * photos: the prompt calls them optional and the pack is what the copy must come from anyway.
+ * Hands back the two raw replies; `meesho-core` reads them, so the reading is unit-tested.
+ */
+export async function runMeeshoChat(
+  page: Page,
+  opts: { copyPrompt: string; sheetPrompt: string; title?: string; timeoutMs?: number },
+): Promise<{ copyReply: string; sheetReply: string; timedOut: boolean }> {
+  await page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
+  await page.waitForTimeout(6000);
+  let timedOut = false;
+  const ask = async (text: string) => {
+    await sendPrompt(page, text);
+    timedOut = !(await waitUntilIdle(page, { timeoutMs: opts.timeoutMs ?? 300_000 })) || timedOut;
+    await page.waitForTimeout(2500);
+    return lastReplyLines(page);
+  };
+  const copyReply = await ask(opts.copyPrompt);
+  const sheetReply = await ask(opts.sheetPrompt);
+  if (opts.title) await renameChat(page, opts.title);
+  return { copyReply, sheetReply, timedOut };
 }

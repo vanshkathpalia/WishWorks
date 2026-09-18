@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import type { ImageJob, LabelPack, LatchBook, LatchRecord, Pending } from "../shared.js";
+import type { ImageJob, LabelPack, LatchBook, LatchRecord, MeeshoJob, Pending } from "../shared.js";
 
 /**
  * `₹190` — paise back to something a person reads.
@@ -107,6 +107,10 @@ export function Latch({ n }: { n: number }) {
   const [blocking, setBlocking] = useState<{ material: string; skus: string[] }[]>([]);
   /** Latched products that could have their images made. Loaded on demand — it reads the disk. */
   const [jobs, setJobs] = useState<ImageJob[] | null>(null);
+  /** Latched kits not yet on Meesho. Loaded on demand. */
+  const [meesho, setMeesho] = useState<MeeshoJob[] | null>(null);
+  /** The SKUs in the last sheet written, until "I uploaded these" — and what it said about each. */
+  const [sheet, setSheet] = useState<{ skus: string[]; note: string } | null>(null);
   /** Which product's run is going, and what step it is on. */
   const [running, setRunning] = useState<{ sku: string; step: string } | null>(null);
   /** Brand approvals on the account. Null until asked — it reads Flipkart. */
@@ -525,6 +529,17 @@ export function Latch({ n }: { n: number }) {
           <button
             disabled={!!busy}
             onClick={() =>
+              void window.ww.meeshoQueue().then((r) => {
+                if (!r.ok) return setError(r.message);
+                setMeesho(r.result);
+              })
+            }
+          >
+            Which go on Meesho?
+          </button>
+          <button
+            disabled={!!busy}
+            onClick={() =>
               void window.ww.latchPending().then((r) => {
                 if (!r.ok) return setError(r.message);
                 setPending(r.result.rows);
@@ -608,6 +623,58 @@ export function Latch({ n }: { n: number }) {
                       </button>
                     )}
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* The Meesho half of a latch. One sheet for every costed kit, because Meesho takes them in
+          bulk; a chat per kit writes the copy. Nothing is marked done until he says it uploaded —
+          a sheet written is not a sheet accepted. */}
+      {meesho && (
+        <div className="latch-group">
+          <h2>
+            Latched, not yet on Meesho <span className="count">{meesho.length}</span>
+          </h2>
+          <p>
+            <button
+              disabled={!!busy || !!running || !meesho.some((j) => j.costed)}
+              onClick={() => {
+                const skus = meesho.filter((j) => j.costed).map((j) => j.ourSku);
+                setRunning({ sku: skus[0], step: "writing the Meesho copy…" });
+                void window.ww.meeshoSheet(skus).then((r) => {
+                  setRunning(null);
+                  if (!r.ok) return setError(r.message);
+                  setSheet({ skus: r.result, note: r.note ?? "" });
+                });
+              }}
+            >
+              Write the Meesho sheet for {meesho.filter((j) => j.costed).length} costed
+            </button>{" "}
+            {sheet && (
+              <button
+                disabled={!!busy || !!running}
+                onClick={() =>
+                  void window.ww.meeshoDone(sheet.skus).then(() => {
+                    setMeesho(meesho.filter((j) => !sheet.skus.includes(j.ourSku)));
+                    setSheet(null);
+                  })
+                }
+              >
+                I uploaded these {sheet.skus.length}
+              </button>
+            )}
+          </p>
+          {sheet && <p className="allgood" style={{ whiteSpace: "pre-line" }}>{sheet.note}</p>}
+          <table className="latch-table">
+            <tbody>
+              {meesho.map((j) => (
+                <tr key={j.ourSku} className={j.costed ? "" : "blocked"}>
+                  <td className="sku">{j.ourSku}</td>
+                  <td className="title">{j.title}</td>
+                  <td className="why">{j.costed ? `latched ${j.latchedOn}` : "not costed yet"}</td>
                 </tr>
               ))}
             </tbody>

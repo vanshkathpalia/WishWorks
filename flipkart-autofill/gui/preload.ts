@@ -112,6 +112,9 @@ const api: WwApi = {
   imageQueue: () => ipcRenderer.invoke("imageQueue"),
   runImages: (sku: string) => ipcRenderer.invoke("runImages", sku),
   runMeta: (sku: string) => ipcRenderer.invoke("runMeta", sku),
+  meeshoQueue: () => ipcRenderer.invoke("meeshoQueue"),
+  meeshoSheet: (skus: string[]) => ipcRenderer.invoke("meeshoSheet", skus),
+  meeshoDone: (skus: string[]) => ipcRenderer.invoke("meeshoDone", skus),
   onImageStep: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
     ipcRenderer.on("imageStep", handler);
