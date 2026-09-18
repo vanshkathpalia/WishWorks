@@ -723,3 +723,15 @@ brand's "can be latched": "61 looked at, 310 can be latched").
 
 **Added — "Sweep these brands".** Comma-separated brands that need no approval (Dream Aura, Partyfox,
 Fundots…), the same sweep; never-sweep brands are refused.
+
+
+**Added, 2026-09-18 — two photo folders, by stage.** `Whatsapp DW` is the FINISHED version — listed on
+Meesho and Flipkart, priced, sorted by hand — and Vansh does not want a freshly latched product landing
+among them: *"this is only going to be on Flipkart, you know."* A latch now files `contents.jpg` and
+`main.jpg` under **`Downloads/Flipkart only/`** (same shape, created automatically — these are exactly
+the products with no folder yet), and `graduateFolders` moves a kit's folder across to `Whatsapp DW`
+once the kit is **costed and priced**, checked when the Latch screen loads. Two rules keep it honest: a
+kit that ALREADY has a folder in `Whatsapp DW` is filed there whatever its costing says (those folders
+were sorted by hand), and *confirmed* is not part of "final" — 0 of 67 kits have ever been confirmed,
+54 are priced. **Still to do:** the third stage Vansh named — products he cannot latch, whose inventory
+and hero image could still go to Meesho alone — needs its own folder and its own list.

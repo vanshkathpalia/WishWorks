@@ -1024,7 +1024,11 @@ ipcMain.handle("addLabels", async (_e, file: string): Promise<Attempt<unknown>> 
   };
 });
 
-ipcMain.handle("latches", async () => (await latchEngine()).readLatches());
+ipcMain.handle("latches", async () => {
+  // A kit that became final since last time takes its photos with it, quietly.
+  await graduateFolders().catch(() => 0);
+  return (await latchEngine()).readLatches();
+});
 
 /**
  * Park EVERY product page open in Chrome until its stock arrives — or, with `fsn`, un-park that one.
@@ -1919,10 +1923,25 @@ async function skusInUse(): Promise<string[]> {
  * own copy stays where it is; the image queue reads that one.
  * ponytail: the folder name is his; make it a Settings folder if anyone else sorts photos this way.
  */
-async function whatsappPath(sku: string, as = "contents.jpg"): Promise<string | null> {
+/**
+ * **Two folders, because a product is at one of two stages.** `Whatsapp DW` is the finished version —
+ * a kit listed on Meesho AND Flipkart, priced, sorted by hand over months. A product just latched has
+ * none of that, and Vansh does not want it landing among the finished ones: *"Whatsapp DW is the one
+ * that is the final version… but this is only going to be on Flipkart."* So a fresh latch files its
+ * photos under `Flipkart only`, and `graduateFolders` moves the kit's folder across once the kit is
+ * costed (confirmed) and has a price — his answer to when it becomes final.
+ */
+const PHOTO_ROOTS = {
+  final: () => path.join(app.getPath("downloads"), "Whatsapp DW"),
+  latchedOnly: () => path.join(app.getPath("downloads"), "Flipkart only"),
+};
+
+async function photoPath(sku: string, as: string, root: string, make = false): Promise<string | null> {
   const { photoFolder } = await latchEngine();
-  const root = path.join(app.getPath("downloads"), "Whatsapp DW");
-  if (!existsSync(root)) return null;
+  if (!existsSync(root)) {
+    if (!make) return null;
+    await mkdir(root, { recursive: true });
+  }
   const dirs: string[] = [];
   const walk = async (rel: string, depth: number) => {
     for (const d of await readdir(path.join(root, rel), { withFileTypes: true }).catch(() => [])) {
@@ -1937,26 +1956,68 @@ async function whatsappPath(sku: string, as = "contents.jpg"): Promise<string | 
   return rel ? path.join(root, ...rel.split("/"), as) : null;
 }
 
+/**
+ * A kit is final once it is **costed and priced** — Vansh's rule, taken literally: the kit file exists
+ * (so it has been costed) and a marketplace carries a price. *Confirmed* is deliberately NOT required:
+ * measured 2026-09-18, 0 of his 67 kits have ever been confirmed and 54 are priced, so requiring it
+ * would mean nothing ever left `Flipkart only`.
+ */
+async function kitIsFinal(sku: string): Promise<boolean> {
+  const { findById } = await import("../src/id.js");
+  const hit = await findById(KITS_DIR, sku).catch(() => null);
+  if (!hit) return false;
+  try {
+    const kit = JSON.parse(await readFile(hit.file, "utf8")) as {
+      marketplaces?: Record<string, { pricePaise?: number; settlementPaise?: number }>;
+    };
+    return Object.values(kit.marketplaces ?? {}).some((m) => (m?.pricePaise ?? m?.settlementPaise ?? 0) > 0);
+  } catch {
+    return false;
+  }
+}
+
+/** File a photo under the kit's folder in the right root, creating it when there is none yet. */
 async function fileInWhatsappFolder(sku: string, photo: string, as = "contents.jpg"): Promise<string | null> {
-  const { photoFolder } = await latchEngine();
-  const root = path.join(app.getPath("downloads"), "Whatsapp DW");
-  if (!existsSync(root)) return null;
-  const dirs: string[] = [];
-  const walk = async (rel: string, depth: number) => {
-    for (const d of await readdir(path.join(root, rel), { withFileTypes: true }).catch(() => [])) {
-      if (!d.isDirectory()) continue;
-      const child = rel ? `${rel}/${d.name}` : d.name;
-      dirs.push(child);
-      if (depth < 3) await walk(child, depth + 1);
-    }
-  };
-  await walk("", 1);
-  const rel = photoFolder(sku, dirs);
-  if (!rel) return null;
-  const to = path.join(root, ...rel.split("/"), as);
+  /**
+   * A kit that ALREADY has a folder in `Whatsapp DW` is filed there whatever its costing says: those
+   * folders were sorted by hand over months, and most of the old kits were never marked confirmed.
+   * Only a kit with no folder there yet starts life under `Flipkart only`.
+   */
+  const already = await photoPath(sku, as, PHOTO_ROOTS.final()).catch(() => null);
+  const root = already && existsSync(path.dirname(already)) ? PHOTO_ROOTS.final()
+    : (await kitIsFinal(sku)) ? PHOTO_ROOTS.final()
+      : PHOTO_ROOTS.latchedOnly();
+  const to = await photoPath(sku, as, root, true);
+  if (!to) return null;
   await mkdir(path.dirname(to), { recursive: true });
   await copyFile(photo, to);
   return to;
+}
+
+/**
+ * Move every kit that has become final out of `Flipkart only` and into `Whatsapp DW`, folder and all.
+ * Cheap and silent: nothing to do when the folder does not exist. Run when the Latch screen loads.
+ */
+async function graduateFolders(): Promise<number> {
+  const from = PHOTO_ROOTS.latchedOnly();
+  if (!existsSync(from)) return 0;
+  const inv = await inventoryEngine();
+  let moved = 0;
+  for (const kit of inv.listKits(KITS_DIR)) {
+    if (!kit.sku || !(await kitIsFinal(kit.sku))) continue;
+    const here = await photoPath(kit.sku, "", from);
+    if (!here || !existsSync(path.dirname(here))) continue;
+    const there = await photoPath(kit.sku, "", PHOTO_ROOTS.final(), true);
+    if (!there) continue;
+    await mkdir(path.dirname(there), { recursive: true });
+    for (const f of await readdir(path.dirname(here)).catch(() => [])) {
+      await copyFile(path.join(path.dirname(here), f), path.join(path.dirname(there), f)).catch(() => {});
+      await rm(path.join(path.dirname(here), f)).catch(() => {});
+    }
+    await rm(path.dirname(here), { recursive: true }).catch(() => {});
+    moved++;
+  }
+  return moved;
 }
 
 /**
@@ -2020,7 +2081,10 @@ async function costingChatFor(
        * will add those images in the folder manually."* So a newer `contents.jpg` there is the one
        * the chat gets.
        */
-      const theirs = row.ourSku ? await whatsappPath(row.ourSku).catch(() => null) : null;
+      const theirs = row.ourSku
+        ? await photoPath(row.ourSku, "contents.jpg", PHOTO_ROOTS.latchedOnly()).catch(() => null) ??
+          (await photoPath(row.ourSku, "contents.jpg", PHOTO_ROOTS.final()).catch(() => null))
+        : null;
       if (theirs && existsSync(theirs)) {
         const [mine, hand] = [statSync(file).mtimeMs, statSync(theirs).mtimeMs];
         if (hand > mine) file = theirs;
