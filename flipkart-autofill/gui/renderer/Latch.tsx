@@ -27,6 +27,13 @@ const rupees = (paise: number): string => `₹${Math.round(paise / 100).toLocale
  * latch-core, for the same reason `rupees` is one: importing the engine's VALUE pulls `node:fs` into
  * the browser bundle. Keep the two word lists identical.
  */
+/**
+ * Ask the window to open a kit on the Costing screen. A plain event rather than a prop threaded
+ * through every panel: Vansh, 2026-09-18, looking at "not costed yet" — *"provide me a click and go
+ * to their cost-a-kit page."* `main.tsx` switches tab, `Inventory.tsx` opens (or starts) that SKU.
+ */
+const costThisKit = (sku: string) => window.dispatchEvent(new CustomEvent("ww:cost-kit", { detail: sku }));
+
 const easyApproval = (docs?: string[], asksDocument?: boolean): boolean =>
   asksDocument === false || !!docs?.some((o) => /\bmrp\b|image|photo|invoice|bill\b/i.test(o));
 
@@ -449,13 +456,21 @@ export function Latch({ n }: { n: number }) {
       )}
 
       {rows.length > 0 && (
-        <div className="picks latch-actions">
+        <div className="latch-actions">
+          {/* Grouped, not one wall of buttons — Vansh, 2026-09-18: *"instead of making big lists
+              here, please make a group of similar ones."* In the order the work happens. */}
+          <div className="picks group">
+          <span className="group-label">Ask Flipkart</span>
           <button disabled={!!busy || unchecked === 0} onClick={() => void run("checking", () => window.ww.checkLatches(false, pack))}>
             {unchecked ? `Check ${unchecked} against Flipkart` : "Nothing new to check"}
           </button>
           <button disabled={!!busy} onClick={() => void run("checking", () => window.ww.checkLatches(true, pack))}>
             Re-check all {rows.length}
           </button>
+          </div>
+
+          <div className="picks group">
+          <span className="group-label">Review &amp; latch</span>
           {/* **Look, then latch.** Sixty latchable products are not sixty worth selling, and sixty
               tabs is not a review. Ten shopper pages at a time — the page a buyer sees, not the
               listing form — and whatever is still open when he presses the second button is what
@@ -495,25 +510,13 @@ export function Latch({ n }: { n: number }) {
           <button disabled={!!busy} onClick={() => void run("reading", () => window.ww.saveForLater(null))}>
             Save all open product pages for later
           </button>
+          </div>
+
+          <div className="picks group">
+          <span className="group-label">Costing, images &amp; Meesho</span>
           {/* The redo for a chat that did not get set up — the latch itself is left alone. */}
           <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.costingFront())}>
             Costing chat for the tab I&apos;m looking at
-          </button>
-          {/* One button per thing a person actually does with this list: do it, or tell somebody
-              about it. The share follows whichever pack is selected, so "what came in today" is
-              one click from a message. */}
-          {/* Follows whichever chip is selected, which IS the three lists Vansh asked for:
-              Everything, today's sweep, today's label pack. Enabled whenever there is anything at
-              all — the message carries every state now, not only what we can latch. */}
-          <button
-            disabled={!!busy || rows.length === 0}
-            onClick={() =>
-              void window.ww.shareLatches(pack).then((t) =>
-                setNote(`Copied — ${t.split("\n")[0]} Paste it to your partner.`),
-              )
-            }
-          >
-            Copy {chosen ? "this list" : "everything"} for a partner
           </button>
           <button
             disabled={!!busy}
@@ -556,6 +559,27 @@ export function Latch({ n }: { n: number }) {
             <input type="checkbox" checked={costing} disabled={!!busy} onChange={(e) => setCosting(e.target.checked)} />
             {" "}…and open a costing chat with the contents photo
           </label>
+          </div>
+
+          <div className="picks group">
+          <span className="group-label">Share</span>
+          {/* One button per thing a person actually does with this list: do it, or tell somebody
+              about it. The share follows whichever pack is selected, so "what came in today" is
+              one click from a message. */}
+          {/* Follows whichever chip is selected, which IS the three lists Vansh asked for:
+              Everything, today's sweep, today's label pack. Enabled whenever there is anything at
+              all — the message carries every state now, not only what we can latch. */}
+          <button
+            disabled={!!busy || rows.length === 0}
+            onClick={() =>
+              void window.ww.shareLatches(pack).then((t) =>
+                setNote(`Copied — ${t.split("\n")[0]} Paste it to your partner.`),
+              )
+            }
+          >
+            Copy {chosen ? "this list" : "everything"} for a partner
+          </button>
+          </div>
         </div>
       )}
 
@@ -588,7 +612,7 @@ export function Latch({ n }: { n: number }) {
             <tbody>
               {jobs.map((j) => (
                 <tr key={j.sku} className={j.blockedBy.length ? "blocked" : ""}>
-                  <td className="sku">{j.ourSku || "—"}</td>
+                  <td className="sku">{j.ourSku ? <button className="link" onClick={() => costThisKit(j.ourSku)}>{j.ourSku}</button> : "—"}</td>
                   <td className="title">{j.title}</td>
                   <td className="why">
                     {j.blockedBy.length ? j.blockedBy.join("; ") : j.have ? `${j.have} already there` : ""}
@@ -672,7 +696,11 @@ export function Latch({ n }: { n: number }) {
             <tbody>
               {meesho.map((j) => (
                 <tr key={j.ourSku} className={j.costed ? "" : "blocked"}>
-                  <td className="sku">{j.ourSku}</td>
+                  <td className="sku">
+                    <button className="link" onClick={() => costThisKit(j.ourSku)} title={`Cost ${j.ourSku}`}>
+                      {j.ourSku}
+                    </button>
+                  </td>
                   <td className="title">{j.title}</td>
                   <td className="why">{j.costed ? `latched ${j.latchedOn}` : "not costed yet"}</td>
                 </tr>
@@ -699,7 +727,7 @@ export function Latch({ n }: { n: number }) {
             <tbody>
               {pause.map((p) => (
                 <tr key={p.fsn}>
-                  <td className="sku">{p.ourSku ?? "—"}</td>
+                  <td className="sku">{p.ourSku ? <button className="link" onClick={() => costThisKit(p.ourSku!)}>{p.ourSku}</button> : "—"}</td>
                   <td className="title">{p.title}</td>
                   <td className="why">no {p.short.slice(0, 3).join(", ")}</td>
                 </tr>
@@ -741,7 +769,7 @@ export function Latch({ n }: { n: number }) {
                     <td className="risk" title={p.reasons.join("\n")}>
                       {p.risk}
                     </td>
-                    <td className="sku">{p.ourSku ?? "—"}</td>
+                    <td className="sku">{p.ourSku ? <button className="link" onClick={() => costThisKit(p.ourSku!)}>{p.ourSku}</button> : "—"}</td>
                     <td className="title">
                       {p.title}
                       <span className="from"> {p.from.join(", ")}</span>
@@ -775,7 +803,7 @@ export function Latch({ n }: { n: number }) {
                 .filter((r) => r.laterOn)
                 .map((r) => (
                   <tr key={r.sku}>
-                    <td className="sku">{r.ourSku ?? r.sku}</td>
+                    <td className="sku">{r.ourSku ? <button className="link" onClick={() => costThisKit(r.ourSku!)}>{r.ourSku}</button> : r.sku}</td>
                     <td className="title">{r.title ?? r.description}</td>
                     <td className="when">saved {r.laterOn}</td>
                     <td className="when">
@@ -821,7 +849,7 @@ export function Latch({ n }: { n: number }) {
                 .filter((r) => r.state === "approval" && easyApproval(r.approvalDocs, r.approvalAsksDocument))
                 .map((r) => (
                   <tr key={r.sku}>
-                    <td className="sku">{r.ourSku ?? r.sku}</td>
+                    <td className="sku">{r.ourSku ? <button className="link" onClick={() => costThisKit(r.ourSku!)}>{r.ourSku}</button> : r.sku}</td>
                     <td className="title">{r.title ?? r.description}</td>
                     <td className="why">
                       {r.approvalAsksDocument === false
@@ -852,6 +880,34 @@ export function Latch({ n }: { n: number }) {
         </div>
       )}
 
+      {/* Closed during a review — saved, so a restart cannot bring them round again. One button back,
+          because the reason is usually "wrongly shortlisted", not "never". */}
+      {rows.some((r) => r.turnedDownOn) && (
+        <details className="latch-group turned-down">
+          <summary>
+            Turned down <span className="count">{rows.filter((r) => r.turnedDownOn).length}</span>
+          </summary>
+          <table className="latch-table">
+            <tbody>
+              {rows
+                .filter((r) => r.turnedDownOn)
+                .map((r) => (
+                  <tr key={r.sku}>
+                    <td className="sku">{r.sku}</td>
+                    <td className="title">{r.title ?? r.description}</td>
+                    <td className="when">closed {r.turnedDownOn}</td>
+                    <td className="when">
+                      <button disabled={!!busy} onClick={() => void run("reading", () => window.ww.showAgain(r.fsn!))}>
+                        Show again
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </details>
+      )}
+
       {GROUPS.map(({ state, label }) => {
         /**
          * A form that takes only a trademark or brand letter is one he can never apply for — Vansh: *"I
@@ -861,7 +917,12 @@ export function Latch({ n }: { n: number }) {
         const hard = (r: LatchRecord) =>
           state === "approval" && r.approvalAsksDocument !== false && !!r.approvalDocs?.length && !easyApproval(r.approvalDocs);
         const mine = rows.filter(
-          (r) => r.state === state && !r.laterOn && !(state === "approval" && easyApproval(r.approvalDocs, r.approvalAsksDocument)) && !hard(r),
+          (r) =>
+            r.state === state &&
+            !r.laterOn &&
+            !r.turnedDownOn &&
+            !(state === "approval" && easyApproval(r.approvalDocs, r.approvalAsksDocument)) &&
+            !hard(r),
         );
         const hidden = rows.filter((r) => r.state === state && hard(r)).length;
         if (mine.length === 0 && hidden === 0) return null;

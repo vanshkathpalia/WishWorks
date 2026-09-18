@@ -2701,7 +2701,24 @@ h3 > button.tiny {
 /* ---------------------------------------------------------------- Latch on
    Four states in one list, so the state is the heading and a row only carries what differs:
    whose SKU it is, how often it shipped, and what it actually is. */
-.latch-actions { margin: 12px 0 4px; }
+.latch-actions { margin: 12px 0 4px; display: grid; gap: 10px; }
+/* One bordered block per group, its name on the line above — four short lists read faster than one
+   wall of twelve buttons (2026-09-18). */
+.latch-actions .group {
+  margin: 0;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--line, #2a2724);
+  border-radius: 10px;
+  align-items: center;
+}
+.latch-actions .group-label {
+  flex-basis: 100%;
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted, #8a8078);
+  margin-bottom: 2px;
+}
 .latch-group { margin-top: 22px; }
 .latch-group h2 { font-size: 15px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
 .latch-group h2 .count {

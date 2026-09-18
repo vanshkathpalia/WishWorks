@@ -807,6 +807,28 @@ export function Inventory({ n }: { n: number }) {
     refreshSaved();
   }
 
+  /**
+   * Open the kit another screen asked for — or, when it has never been costed, start a fresh one with
+   * its SKU already filled in, which is the state that list is complaining about ("not costed yet").
+   */
+  useEffect(() => {
+    const open = (e: Event) => {
+      const want = String((e as CustomEvent).detail ?? "");
+      if (!want) return;
+      const flat = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, "").replace(/([A-Z])0+(\d)/g, "$1$2");
+      const hit = saved.find((k) => flat(k.sku) === flat(want));
+      if (hit) void reopen(hit.file);
+      else {
+        setSku(want);
+        setLines(null);
+        setImage(null);
+        setKit(null);
+      }
+    };
+    window.addEventListener("ww:cost-kit", open);
+    return () => window.removeEventListener("ww:cost-kit", open);
+  });
+
   async function reopen(file: string) {
     const k = await window.ww.openKit(file);
     setSku(k.sku);

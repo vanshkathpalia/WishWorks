@@ -744,3 +744,20 @@ GST. HSN 950300 (Vansh; Meesho has no 95030020) and the WishWorks Hisar address 
 `categories/meesho-sheet.json`. Image links stay by hand. "I uploaded these" marks the batch done.
 Not yet run against real ChatGPT or uploaded to Meesho.
 
+
+**Changed, 2026-09-18 — the Latch buttons are grouped, and a SKU is a link to its costing.** Twelve
+buttons in one wall: *"instead of making big lists here, please make a group of similar ones."* Four
+bordered groups in the order the work happens — Ask Flipkart / Review & latch / Costing, images &
+Meesho / Share. And every OUR-SKU cell (Meesho queue, image queue, price queue, waiting for stock) is
+now a link: *"provide me a click and go to their cost-a-kit page."* It switches to Costing and opens
+that kit, or starts a fresh one with the SKU filled in when it has never been costed — which is
+exactly the "not costed yet" state the Meesho list shows. A window event, not a prop threaded through
+every panel.
+
+**Fixed, 2026-09-18 — a product turned down came back after every restart.** "Shown and closed" lived
+in a `Set` in the main process, so an app restart (or the crash of 2026-09-17) lost it and the same
+products came round in the next batch. Vansh: *"I hope this Show me the next 10 button won't show up
+the previously closed listings ever again."* Closing a page during a review now writes `turnedDownOn`
+on the row, `nextBatch` skips it for good, and a folded **Turned down** list carries **Show again** per
+product — because the usual reason is a wrong shortlist (not even a balloon product), not a decision
+about the product itself. The stock-related "no" is a different list: Waiting for stock.

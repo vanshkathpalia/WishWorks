@@ -1024,6 +1024,17 @@ ipcMain.handle("addLabels", async (_e, file: string): Promise<Attempt<unknown>> 
   };
 });
 
+/** Put a turned-down product back in the queue — it was a wrong shortlist, not a decision. */
+ipcMain.handle("showAgain", async (_e, fsn: string): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches } = await latchEngine();
+  const book = await readLatches();
+  const row = book.rows.find((r) => r.fsn === fsn);
+  if (!row) return { ok: false, message: "That product is not in your latch list." };
+  delete row.turnedDownOn;
+  await writeLatches(book);
+  return { ok: true, result: book, note: `${row.title?.slice(0, 60) ?? fsn} is back in the queue.` };
+});
+
 ipcMain.handle("latches", async () => {
   // A kit that became final since last time takes its photos with it, quietly.
   await graduateFolders().catch(() => 0);
@@ -1131,7 +1142,7 @@ ipcMain.handle("approvalOpen", async (e, pack: string | null, only: string[] | n
   if (only) keep = only;
   else if (approvalBatch.length) {
     keep = survivors(approvalBatch, openTabs().map((t) => t.url()));
-    for (const fsn of approvalBatch) if (!keep.includes(fsn)) passedApproval.add(fsn);
+    await turnDown(approvalBatch.filter((f) => !keep.includes(f)));
   } else {
     book = adoptOpened(book, await openProducts()).book;
     const candidates = book.rows.filter((r) => r.state === "approval" && r.fsn && !r.approvalOpenedOn).map((r) => r.fsn!);
@@ -1411,13 +1422,26 @@ ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
  *
  * Module-level because there is exactly one batch at a time — it is a person looking at ten tabs in
  * one Chrome window, and a second batch would be fighting the first for the same window. Also
- * `passed`: FSNs already shown and turned down, so "next ten" does not offer them again.
+ * Turning one down is written to the LIST (`turnedDownOn`), not kept here: the app restarts and a
+ * memory of what was rejected would be lost, so the same products came back around (2026-09-18).
  */
 let batch: string[] = [];
-const passed = new Set<string>();
+/** Write "turned down today" onto these products, so no later batch offers them again. */
+async function turnDown(fsns: string[]): Promise<void> {
+  if (fsns.length === 0) return;
+  const { readLatches, writeLatches, todayStamp } = await latchEngine();
+  const book = await readLatches();
+  let touched = 0;
+  for (const row of book.rows) {
+    if (row.fsn && fsns.includes(row.fsn) && !row.turnedDownOn) {
+      row.turnedDownOn = todayStamp();
+      touched++;
+    }
+  }
+  if (touched) await writeLatches(book);
+}
 /** The same, for approval products under review — a separate batch, so the two flows never mix. */
 let approvalBatch: string[] = [];
-const passedApproval = new Set<string>();
 
 /**
  * Open the next ten as ORDINARY shopper pages, for a look before anything is listed.
@@ -1436,11 +1460,10 @@ ipcMain.handle("showBatch", async (_e, size: number, pack: string | null, kind: 
    */
   const current = kind === "form" ? batch : approvalBatch;
   if (current.length) {
-    const skip = kind === "form" ? passed : passedApproval;
-    for (const fsn of current) skip.add(fsn);
+    await turnDown(current);
     for (const t of openTabs()) if (current.some((f) => t.url().includes(`pid=${f}`))) await t.close().catch(() => {});
   }
-  const rows = nextBatch(await readLatches(), size || 10, kind === "form" ? passed : passedApproval, pack ?? null, kind);
+  const rows = nextBatch(await readLatches(), size || 10, new Set(), pack ?? null, kind);
   if (rows.length === 0) {
     return {
       ok: false,
@@ -1496,7 +1519,7 @@ ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unk
   }
   const keep = survivors(batch, openTabs().map((t) => t.url()));
   // Shown and closed is a decision: do not offer them again when he asks for the next ten.
-  for (const fsn of batch) if (!keep.includes(fsn)) passed.add(fsn);
+  await turnDown(batch.filter((f) => !keep.includes(f)));
   const reviewed = batch.length;
   if (keep.length === 0) {
     batch = [];

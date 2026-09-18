@@ -814,6 +814,16 @@ describe("reviewing a batch before listing it", () => {
     expect(nextBatch(book, 10, new Set(), null, "approval").map((r) => r.fsn)).toEqual(["A1"]);
   });
 
+  it("never offers a product that was turned down in a review", () => {
+    // The rejection is saved on the row, so restarting the app cannot bring it round again.
+    const row = (f: string, extra = {}) => ({ sku: f, description: f, seen: 0, fsn: f, title: f, state: "form" as const, checkedOn: null, ...extra });
+    const book = { packs: [], rows: [row("A", { turnedDownOn: "2026-09-18" }), row("B")] };
+    expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["B"]);
+    // Put back by hand ("Show again") and it is offered again.
+    const back = { packs: [], rows: [row("A"), row("B")] };
+    expect(nextBatch(back, 10).map((r) => r.fsn)).toEqual(["A", "B"]);
+  });
+
   it("does not offer a product parked until its stock arrives", () => {
     const row = (f: string, extra = {}) => ({ sku: f, description: f, seen: 0, fsn: f, title: f, state: "form" as const, checkedOn: null, ...extra });
     const book = { packs: [], rows: [row("A", { laterOn: "2026-09-17" }), row("B")] };

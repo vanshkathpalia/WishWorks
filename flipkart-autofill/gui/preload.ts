@@ -134,6 +134,7 @@ const api: WwApi = {
   fillFrontLatch: (withCosting: boolean) => ipcRenderer.invoke("fillFrontLatch", withCosting),
   costingFront: () => ipcRenderer.invoke("costingFront"),
   saveForLater: (unpark: string | null) => ipcRenderer.invoke("saveForLater", unpark),
+  showAgain: (fsn: string) => ipcRenderer.invoke("showAgain", fsn),
   openProduct: (fsn: string) => ipcRenderer.invoke("openProduct", fsn),
   recordApproval: (pasted: string) => ipcRenderer.invoke("recordApproval", pasted),
   approvalOpen: (pack: string | null, only: string[] | null) => ipcRenderer.invoke("approvalOpen", pack, only),

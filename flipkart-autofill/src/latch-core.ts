@@ -462,6 +462,13 @@ export interface LatchRecord {
    * fill those Start Selling."* Kept out of "Show me the next 10" while set.
    */
   laterOn?: string;
+  /**
+   * The day its page was closed during a review — "I did not like it", or it was shortlisted wrongly
+   * and is not even a balloon product. **Saved, not remembered in memory**: Vansh, 2026-09-18, *"I
+   * hope this Show me the next 10 button won't show up the previously closed listings ever again."*
+   * A turned-down product is never offered again until it is put back from the Turned down list.
+   */
+  turnedDownOn?: string;
   /** The approval form's document choices, as last read — see `recordApprovalForm`, `approvalEase`. */
   approvalDocs?: string[];
   /** False when the form asked for no document at all — only consent ticks. See `approvalEase`. */
@@ -1881,8 +1888,8 @@ export function nextBatch(
   return inPack(book, pack)
     .filter((r) =>
       kind === "form"
-        ? r.state === "form" && r.fsn && !r.latchedOn && !r.laterOn && !skip.has(r.fsn)
-        : r.state === "approval" && r.fsn && !r.approvalOpenedOn && !r.laterOn && !skip.has(r.fsn),
+        ? r.state === "form" && r.fsn && !r.latchedOn && !r.laterOn && !r.turnedDownOn && !skip.has(r.fsn)
+        : r.state === "approval" && r.fsn && !r.approvalOpenedOn && !r.laterOn && !r.turnedDownOn && !skip.has(r.fsn),
     )
     .slice(0, Math.max(1, size));
 }

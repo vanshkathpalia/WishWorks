@@ -471,6 +471,12 @@ function Login({ hasAccounts, onDone }: { hasAccounts: boolean; onDone: () => vo
 
 function App() {
   const [settings, setSettings] = useState(false);
+  // "Cost this kit" from another screen: go to Costing, which then opens the kit itself.
+  useEffect(() => {
+    const go = () => setStep(7);
+    window.addEventListener("ww:cost-kit", go);
+    return () => window.removeEventListener("ww:cost-kit", go);
+  }, []);
   /**
    * Null until the accounts have been read. The gate must not flash up and vanish on a machine
    * with one account, so nothing is decided until the answer is actually in.
