@@ -32,6 +32,16 @@ export type { Need } from "../src/stock-core.js";
 import type { Approval, Found, ImageJob, LatchBook, LatchRecord, Listed, Pending } from "../src/latch-core.js";
 export type { Approval, Found, ImageJob, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
 
+/** A product Flipkart will not take, that Meesho could — and how far it has got. */
+export interface MeeshoOnlyJob {
+  fsn: string;
+  ourSku: string | null;
+  title: string;
+  why: string;
+  photos: boolean;
+  costed: boolean;
+}
+
 /** A latched kit waiting for its Meesho row. `costed` is false when no kit is saved under the SKU. */
 export interface MeeshoJob {
   ourSku: string;
@@ -738,6 +748,12 @@ export interface WwApi {
   runImages(sku: string): Promise<Attempt<unknown>>;
   /** Describe those images and fill the Flipkart fields — `PROMPT-meta` then `PROMPT-product`, one chat. */
   runMeta(sku: string): Promise<Attempt<unknown>>;
+  /** What Flipkart will not take but Meesho could: no catalog entry, or an approval he cannot get. */
+  meeshoOnlyQueue(): Promise<Attempt<MeeshoOnlyJob[]>>;
+  /** Take the two photos for these (empty = all) into the Meesho only folder, and give each a SKU. */
+  meeshoOnlyPhotos(fsns: string[]): Promise<Attempt<LatchBook>>;
+  /** A costing chat for one of them, from the photo already taken. Never sent. */
+  meeshoOnlyCosting(fsn: string): Promise<Attempt<LatchBook>>;
   /** Latched with our SKU, not yet on Meesho — oldest first. */
   meeshoQueue(): Promise<Attempt<MeeshoJob[]>>;
   /** One Meesho bulk sheet for these SKUs, in Downloads. Result: the SKUs that got a row. */

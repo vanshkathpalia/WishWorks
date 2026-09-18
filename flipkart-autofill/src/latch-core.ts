@@ -464,6 +464,8 @@ export interface LatchRecord {
    * fill those Start Selling."* Kept out of "Show me the next 10" while set.
    */
   laterOn?: string;
+  /** The day its photos were taken off Flipkart for a Meesho-only listing. See `meeshoOnly`. */
+  meeshoPhotosOn?: string;
   /**
    * The day its page was closed during a review — "I did not like it", or it was shortlisted wrongly
    * and is not even a balloon product. **Saved, not remembered in memory**: Vansh, 2026-09-18, *"I
@@ -1917,6 +1919,23 @@ export function forMeesho(book: LatchBook): LatchRecord[] {
   return book.rows
     .filter((r) => r.latchedOn && !r.meeshoOn && r.ourSku)
     .sort((a, b) => a.latchedOn!.localeCompare(b.latchedOn!) || a.ourSku!.localeCompare(b.ourSku!));
+}
+
+/**
+ * Products Flipkart will not let us list, that Meesho could still take.
+ *
+ * Vansh, 2026-09-18: *"even those Flipkart listings I don't have the right to latch — we will take
+ * inventory and hero image of those and at least upload them to Meesho."* Two kinds qualify: a form
+ * that asks for a trademark or brand letter (read, and not applicable), and a product Flipkart's
+ * catalog has no entry for at all (`none`). Anything parked, turned down or already prepared for
+ * Meesho is left out — those are decisions already made.
+ */
+export function meeshoOnly(book: LatchBook): LatchRecord[] {
+  return book.rows.filter((r) => {
+    if (r.meeshoOn || r.laterOn || r.turnedDownOn) return false;
+    if (r.state === "none") return true;
+    return r.state === "approval" && !!r.approvalDocs?.length && approvalEase(r.approvalDocs, r.approvalAsksDocument) === "hard";
+  });
 }
 
 /** Mark these as prepared for Meesho, so the next batch is what has happened since. */

@@ -21,7 +21,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, withoutNeverSweep, bouncedToLogin, parseSharedList, productPage, frontLatchTab, photoFolder, inPack, adoptOpened, productTitle, approvalEase, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  approvedBrands, blocking, withoutNeverSweep, bouncedToLogin, meeshoOnly, parseSharedList, productPage, frontLatchTab, photoFolder, inPack, adoptOpened, productTitle, approvalEase, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -812,6 +812,23 @@ describe("reviewing a batch before listing it", () => {
     const book = { packs: [], rows: [row("F", "form"), row("A1", "approval"), row("A2", "approval", { approvalOpenedOn: "2026-09-17" }), row("A3", "approval", { laterOn: "2026-09-17" })] };
     expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["F"]);
     expect(nextBatch(book, 10, new Set(), null, "approval").map((r) => r.fsn)).toEqual(["A1"]);
+  });
+
+  it("offers for Meesho only what Flipkart will not take", () => {
+    const row = (sku: string, extra: Record<string, unknown>) => ({ sku, description: sku, seen: 0, fsn: sku, title: sku, checkedOn: null, ...extra }) as never;
+    const book = {
+      packs: [],
+      rows: [
+        row("HARD", { state: "approval", approvalDocs: ["Trademark Certificate", "Brand Authorization Letter"] }),
+        row("EASY", { state: "approval", approvalDocs: ["MRP Image"] }),
+        row("UNREAD", { state: "approval" }), // its form has never been read — not a decision yet
+        row("NONE", { state: "none" }),
+        row("LATCHABLE", { state: "form" }),
+        row("DONE", { state: "none", meeshoOn: "2026-09-18" }),
+        row("PARKED", { state: "none", laterOn: "2026-09-18" }),
+      ],
+    };
+    expect(meeshoOnly(book).map((r) => r.sku)).toEqual(["HARD", "NONE"]);
   });
 
   it("never offers a product that was turned down in a review", () => {

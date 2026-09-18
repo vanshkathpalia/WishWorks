@@ -826,3 +826,17 @@ Flipkart with no data here. Latch screen → **Your Flipkart account**:
   MEH01, MEH02, HAL01, JM001, SKU001…).
 Not run through the app yet: the sync call was proven by hand against the account the same day.
 
+
+**Added, 2026-09-18 — "Can only go on Meesho".** The third stage Vansh named: *"even those Flipkart
+listings I don't have the right to latch — we will take the inventory and hero image and at least
+upload them to Meesho."* `meeshoOnly` picks exactly two kinds — a product Flipkart has no catalog entry
+for (`none`), and one whose approval form was READ and asks for a trademark or brand letter. An
+approval never read is not a decision, and anything parked, turned down or already done is out.
+The flow is three retryable steps, each shown per row (photos ✓ / costed ✓): **Take photos** (a SKU of
+ours, then main.jpg + contents.jpg into `Downloads/Meesho only/<kit>/`, written per product so a
+stopped run keeps what it got) → **Costing chat** (from the photo already taken, unsent) → the existing
+**Which go on Meesho? → Write the Meesho sheet**.
+
+**Said plainly on screen, because it is his risk to take:** those photos are the other seller's, so the
+panel says they are kept apart and worth replacing with his own shot before the listing goes live.
+Latching is different — there the catalog entry is shared, not the picture.

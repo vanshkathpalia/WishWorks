@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from "react";
 import type {
-  AccountView, ImageJob, LabelPack, LatchBook, LatchRecord, MeeshoJob, Pending, PhotoMove,
+  AccountView, ImageJob, LabelPack, LatchBook, LatchRecord, MeeshoJob, MeeshoOnlyJob, Pending, PhotoMove,
 } from "../shared.js";
 
 /**
@@ -116,6 +116,8 @@ export function Latch({ n }: { n: number }) {
   const [blocking, setBlocking] = useState<{ material: string; skus: string[] }[]>([]);
   /** Latched products that could have their images made. Loaded on demand — it reads the disk. */
   const [jobs, setJobs] = useState<ImageJob[] | null>(null);
+  /** What Flipkart will not take, that Meesho could. Loaded on demand. */
+  const [only, setOnly] = useState<MeeshoOnlyJob[] | null>(null);
   /** Latched kits not yet on Meesho. Loaded on demand. */
   const [meesho, setMeesho] = useState<MeeshoJob[] | null>(null);
   /** The SKUs in the last sheet written, until "I uploaded these" — and what it said about each. */
@@ -539,6 +541,17 @@ export function Latch({ n }: { n: number }) {
           <button
             disabled={!!busy}
             onClick={() =>
+              void window.ww.meeshoOnlyQueue().then((r) => {
+                if (!r.ok) return setError(r.message);
+                setOnly(r.result);
+              })
+            }
+          >
+            Which can only go on Meesho?
+          </button>
+          <button
+            disabled={!!busy}
+            onClick={() =>
               void window.ww.meeshoQueue().then((r) => {
                 if (!r.ok) return setError(r.message);
                 setMeesho(r.result);
@@ -901,6 +914,74 @@ export function Latch({ n }: { n: number }) {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {/* **Flipkart said no; Meesho can still have it.** Vansh, 2026-09-18: *"even those Flipkart
+          listings I don't have the right to latch — we will take the inventory and hero image and at
+          least upload them to Meesho."* Three steps, each retryable on its own row: photos → costing
+          chat → the Meesho copy + sheet the rest of the flow already writes. */}
+      {only && (
+        <div className="latch-group">
+          <h2>
+            Can only go on Meesho <span className="count">{only.length}</span>
+          </h2>
+          {only.length === 0 ? (
+            <p className="allgood">
+              Nothing here: every product Flipkart refused is either parked, turned down, or already done.
+            </p>
+          ) : (
+            <>
+              <div className="picks">
+                <button
+                  disabled={!!busy || only.every((j) => j.photos)}
+                  onClick={() =>
+                    void run("latching", () => window.ww.meeshoOnlyPhotos(only.filter((j) => !j.photos).map((j) => j.fsn))).then(
+                      (ok) => ok && void window.ww.meeshoOnlyQueue().then((r) => r.ok && setOnly(r.result)),
+                    )
+                  }
+                >
+                  Take photos for {only.filter((j) => !j.photos).length}
+                </button>
+              </div>
+              <p className="muted">
+                The photos come off the other seller&apos;s listing. They are saved apart, in
+                <b> Downloads/Meesho only/</b>, because a photo you did not take is theirs — worth
+                replacing with your own shot before the listing goes live.
+              </p>
+              <table className="latch-table">
+                <tbody>
+                  {only.map((j) => (
+                    <tr key={j.fsn}>
+                      <td className="sku">
+                        {j.ourSku ? (
+                          <button className="link" onClick={() => costThisKit(j.ourSku!)}>
+                            {j.ourSku}
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="title">{j.title}</td>
+                      <td className="why">{j.why}</td>
+                      <td className="when">
+                        {j.photos ? "photos ✓" : "no photos"} · {j.costed ? "costed ✓" : "not costed"}
+                      </td>
+                      <td className="when">
+                        <button
+                          disabled={!!busy || !j.photos}
+                          title={j.photos ? "Open its costing chat, unsent" : "Take its photos first"}
+                          onClick={() => void run("latching", () => window.ww.meeshoOnlyCosting(j.fsn))}
+                        >
+                          Costing chat
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       )}

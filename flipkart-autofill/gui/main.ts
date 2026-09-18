@@ -1967,6 +1967,114 @@ ipcMain.handle("meeshoSheet", async (e, skus: string[]): Promise<Attempt<unknown
   };
 });
 
+/**
+ * The products Flipkart will not take, that Meesho still could — and how far each one has got.
+ * `photos` and `costed` are the two steps before the existing Meesho copy + sheet flow.
+ */
+ipcMain.handle("meeshoOnlyQueue", async (): Promise<Attempt<unknown>> => {
+  const { readLatches, meeshoOnly } = await latchEngine();
+  const { findById } = await import("../src/id.js");
+  const { ROOT_FOR } = await import("../src/flipkart-live.js");
+  const rows = await Promise.all(
+    meeshoOnly(await readLatches()).map(async (r) => {
+      const folder = r.ourSku
+        ? await photoPath(r.ourSku, "contents.jpg", path.join(downloads(), ROOT_FOR.meesho)).catch(() => null)
+        : null;
+      return {
+        fsn: r.fsn!,
+        ourSku: r.ourSku ?? null,
+        title: r.title ?? r.description,
+        why: r.state === "none" ? "no catalog entry" : `needs ${r.approvalDocs?.join(" or ") ?? "a document"}`,
+        photos: !!(folder && existsSync(folder)),
+        costed: r.ourSku ? !!(await findById(KITS_DIR, r.ourSku)) : false,
+      };
+    }),
+  );
+  return { ok: true, result: rows };
+});
+
+/**
+ * Step one of the Meesho-only flow: give the product a SKU of ours and take its two photos into
+ * `Meesho only/<kit>/`. One tab, reused; the list is written as each is done, so a run stopped
+ * halfway keeps what it got. Nothing is uploaded and nothing is published.
+ */
+ipcMain.handle("meeshoOnlyPhotos", async (e, fsns: string[]): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, meeshoOnly, galleryImages, saveImage, imageFor, productPage, todayStamp } =
+    await latchEngine();
+  const { ROOT_FOR } = await import("../src/flipkart-live.js");
+  const { newTab } = await import("../src/browser-core.js");
+  const { nextSku } = await import("../src/sku-core.js");
+  const book = await readLatches();
+  const want = new Set(fsns);
+  const todo = meeshoOnly(book).filter((r) => want.size === 0 || want.has(r.fsn!));
+  if (todo.length === 0) return { ok: false, message: "Nothing here needs photos." };
+  const taken = await skusInUse().catch(() => [] as string[]);
+  const root = path.join(downloads(), ROOT_FOR.meesho);
+  const tab = await newTab();
+  let done = 0;
+  const missed: string[] = [];
+  for (const row of todo) {
+    const page = productPage(row);
+    if (!page) {
+      missed.push(`${row.title?.slice(0, 40)} (no product page)`);
+      continue;
+    }
+    row.ourSku ??= nextSku(row.title ?? row.description, taken) ?? undefined;
+    if (row.ourSku && !taken.includes(row.ourSku)) taken.push(row.ourSku);
+    try {
+      await tab.goto(page, { waitUntil: "domcontentloaded" });
+      await tab.waitForTimeout(6000);
+      const gallery = await galleryImages(tab);
+      if (gallery.length === 0) {
+        missed.push(`${row.ourSku ?? row.sku} (no photos on the page)`);
+        continue;
+      }
+      // The app's own copy too, so the costing chat can reuse it without fetching again.
+      const contents = await saveImage(tab, gallery[Math.min(1, gallery.length - 1)], imageFor(row.sku));
+      const main = await saveImage(tab, gallery[0], imageFor(`${row.sku}-main`)).catch(() => null);
+      if (row.ourSku) {
+        await fileInWhatsappFolder(row.ourSku, contents, "contents.jpg", root).catch(() => null);
+        if (main) await fileInWhatsappFolder(row.ourSku, main, "main.jpg", root).catch(() => null);
+      }
+      row.meeshoPhotosOn = todayStamp();
+      done++;
+      e.sender.send("latchRow", { done, of: todo.length, row });
+      await writeLatches(book);
+    } catch (err) {
+      missed.push(`${row.ourSku ?? row.sku} (${err instanceof Error ? err.message.split("\n")[0].slice(0, 50) : String(err)})`);
+    }
+  }
+  await tab.close().catch(() => {});
+  await writeLatches(book);
+  return {
+    ok: true,
+    result: book,
+    note:
+      `Photos for ${done} of ${todo.length} in Downloads/${ROOT_FOR.meesho}/ — main.jpg and contents.jpg each. ` +
+      (missed.length ? `No photos for: ${missed.join("; ")}. ` : "") +
+      `Next: a costing chat, then "Which go on Meesho?".`,
+  };
+});
+
+/** Step two: the costing chat for one of them, from the photo already taken. Never sent. */
+ipcMain.handle("meeshoOnlyCosting", async (_e, fsn: string): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches } = await latchEngine();
+  const book = await readLatches();
+  const row = book.rows.find((r) => r.fsn === fsn);
+  if (!row) return { ok: false, message: "That product is not in your latch list." };
+  const prompt = await (await promptsEngine()).readPrompt(promptDirs(), "PROMPT-inventory.md").then((p) => p.text, () => null);
+  if (!prompt) return { ok: false, message: "PROMPT-inventory.md could not be read." };
+  const { newTab } = await import("../src/browser-core.js");
+  const shelf = await newTab();
+  row.costingChat = await costingChatFor(row, shelf, prompt, true);
+  await shelf.close().catch(() => {});
+  await writeLatches(book);
+  const name = row.ourSku ?? row.title?.slice(0, 40) ?? fsn;
+  return row.costingChat === "ready"
+    ? { ok: true, result: book, note: `Costing chat for ${name} is open — check the photo, then press Enter.` }
+    : { ok: false, message: `No costing chat for ${name}: ${row.costingChat}.` };
+});
+
 /** Take these off the Meesho list — pressed once the sheet has been uploaded. */
 ipcMain.handle("meeshoDone", async (_e, skus: string[]): Promise<Attempt<unknown>> => {
   const { readLatches, writeLatches, markMeesho } = await latchEngine();
@@ -2346,8 +2454,8 @@ async function placeFor(sku: string): Promise<string> {
 }
 
 /** File a photo under the kit's folder in the right root, creating it when there is none yet. */
-async function fileInWhatsappFolder(sku: string, photo: string, as = "contents.jpg"): Promise<string | null> {
-  const to = await photoPath(sku, as, await placeFor(sku), true);
+async function fileInWhatsappFolder(sku: string, photo: string, as = "contents.jpg", root?: string): Promise<string | null> {
+  const to = await photoPath(sku, as, root ?? (await placeFor(sku)), true);
   if (!to) return null;
   await mkdir(path.dirname(to), { recursive: true });
   await copyFile(photo, to);
