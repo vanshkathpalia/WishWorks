@@ -774,6 +774,8 @@ export interface WwApi {
   costingFront(): Promise<Attempt<LatchBook>>;
   /** Park every product page open in Chrome until its stock arrives; with an FSN, un-park that one. */
   saveForLater(unpark: string | null): Promise<Attempt<LatchBook>>;
+  /** This kit's costing JSON out of its own ChatGPT chat, with our SKU in it. Reads only. */
+  costingReply(sku: string): Promise<Attempt<string>>;
   /** Put a turned-down product back in the review queue. */
   showAgain(fsn: string): Promise<Attempt<LatchBook>>;
   /** Record what a product's approval form asks for — a pasted link/FSN, or the tab in front. Never submits. */

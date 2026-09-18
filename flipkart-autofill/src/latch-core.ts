@@ -456,6 +456,8 @@ export interface LatchRecord {
    * nothing could be answered — `ready` means the photo and prompt are waiting in a ChatGPT tab.
    */
   costingChat?: string;
+  /** Its costing chat in ChatGPT, once sent — so the Costing screen can fetch the reply back. */
+  costingChatUrl?: string;
   /**
    * Parked until the stock arrives — the day it was saved. Vansh, 2026-09-17: *"all of these listings
    * I have left only because the supplier is still sending them; once that is reached I would like to

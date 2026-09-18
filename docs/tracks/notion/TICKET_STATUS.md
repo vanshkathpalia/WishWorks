@@ -761,3 +761,12 @@ the previously closed listings ever again."* Closing a page during a review now 
 on the row, `nextBatch` skips it for good, and a folded **Turned down** list carries **Show again** per
 product — because the usual reason is a wrong shortlist (not even a balloon product), not a decision
 about the product itself. The stock-related "no" is a different list: Waiting for stock.
+
+**Added, 2026-09-18 — the costing JSON comes back on its own, and the kit list filters by marketplace.**
+Clicking a SKU to cost it only helps if the reply is there: the chat's own address is now saved on the
+row when it is sent (`costingChatUrl`, via `nameWhenSent`), and "cost this kit" reads that chat's last
+reply, puts OUR SKU at the top of the JSON and fills the paste box — *"this redirect will be really
+useful only when it would fill this session from the automated ChatGPT's JSON."* It reads; it sends
+nothing. And "Kits you have costed" has five chips — all / both / Flipkart / Meesho / **none yet** —
+where none-yet means costed with no price decided on either marketplace, the ones still on the ₹220
+default.

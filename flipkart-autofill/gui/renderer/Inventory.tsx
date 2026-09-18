@@ -227,6 +227,12 @@ export function Inventory({ n }: { n: number }) {
    * sorts by `savedAt` — but chips wrapping left to right never said so, and Vansh read it as no
    * order at all (2026-09-17). A toggle names it and offers A→Z. Remembered on this screen only.
    */
+  /**
+   * Which marketplaces a kit is priced for — Vansh, 2026-09-18: *"a filter option here, sorted based
+   * on only Flipkart, Meesho, both, or none yet."* **"None yet" is the useful one**: those are the
+   * kits still sitting at the ₹220 default with no price of their own decided anywhere.
+   */
+  const [sells, setSells] = useState<"all" | "both" | "flipkart" | "meesho" | "none">("all");
   const [order, setOrder] = useState<"newest" | "az">(() => {
     try {
       return localStorage.getItem("ww.kits.order") === "az" ? "az" : "newest";
@@ -401,9 +407,16 @@ export function Inventory({ n }: { n: number }) {
     // empty ones. `ANP 3`, `anp-3` and `ANP003` all find the same kit — the same normalising the
     // rest of the app matches IDs with, because a person searching does not pad their zeros.
     const wanted = find.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const shown = wanted === ""
+    const byName = wanted === ""
       ? saved
       : saved.filter((k) => k.sku.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(wanted));
+    // A marketplace counts as priced when the kit says what it pays there.
+    const on = (k: KitRow, id: string) => (k.pays?.[id] ?? 0) > 0;
+    const shown = byName.filter((k) => {
+      const f = on(k, "flipkart");
+      const m = on(k, "meesho");
+      return sells === "all" || (sells === "both" ? f && m : sells === "none" ? !f && !m : sells === "flipkart" ? f && !m : m && !f);
+    });
     const ordered =
       order === "az"
         ? [...shown].sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: "base" }))
@@ -450,7 +463,7 @@ export function Inventory({ n }: { n: number }) {
           newest: listings.find((l) => skuPrefix(l.label) === prefix)?.label ?? null,
         };
       });
-  }, [find, saved, listings, order]);
+  }, [find, saved, listings, order, sells]);
 
   /**
    * What the shelf holds, beside the kit being costed — material id → pieces left.
@@ -823,6 +836,10 @@ export function Inventory({ n }: { n: number }) {
         setLines(null);
         setImage(null);
         setKit(null);
+        // Its costing chat, if one was sent: the reply lands in the paste box already carrying the SKU.
+        void window.ww.costingReply(want).then((r) => {
+          if (r.ok) pasted(r.result);
+        });
       }
     };
     window.addEventListener("ww:cost-kit", open);
@@ -1004,6 +1021,25 @@ export function Inventory({ n }: { n: number }) {
                   }}
                   onKeyDown={(e) => e.key === "Escape" && setFind("")}
                 />
+                {/* Where each kit is actually priced. "None yet" is the list to work through. */}
+                <span className="kit-filter">
+                  {(["all", "both", "flipkart", "meesho", "none"] as const).map((k) => (
+                    <button
+                      key={k}
+                      className={sells === k ? "on" : ""}
+                      onClick={() => setSells(k)}
+                      title={
+                        k === "none"
+                          ? "Costed, but no price decided on either marketplace yet"
+                          : k === "all"
+                            ? "Every costed kit"
+                            : `Priced on ${k === "both" ? "both marketplaces" : k}`
+                      }
+                    >
+                      {{ all: "all", both: "both", flipkart: "Flipkart", meesho: "Meesho", none: "none yet" }[k]}
+                    </button>
+                  ))}
+                </span>
                 <button
                   title="How the kits inside every code are ordered"
                   onClick={() => {

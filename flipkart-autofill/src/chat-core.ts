@@ -439,15 +439,26 @@ export async function renameChat(page: Page, title: string): Promise<boolean> {
  * the moment it becomes `/c/<id>`. A tab closed unsent is simply dropped.
  */
 const toName = new Map<Page, string>();
+const onSentOf = new Map<Page, ((url: string) => void) | undefined>();
 let naming: NodeJS.Timeout | null = null;
-export function nameWhenSent(page: Page, title: string, every = 5000, settle = 4000): void {
+export function nameWhenSent(
+  page: Page,
+  title: string,
+  every = 5000,
+  settle = 4000,
+  /** Called with the chat's own address the moment it exists — how the kit finds its costing again. */
+  onSent?: (url: string) => void,
+): void {
   toName.set(page, title);
+  onSentOf.set(page, onSent);
   if (naming) return;
   naming = setInterval(() => {
     for (const [p, title] of toName) {
       if (p.isClosed()) toName.delete(p);
       else if (/\/c\/[^/?#]+/.test(p.url())) {
         toName.delete(p);
+        onSentOf.get(p)?.(p.url());
+        onSentOf.delete(p);
         // A few seconds for the sidebar row to appear, then the same rename every chat uses.
         void p
           .waitForTimeout(settle)

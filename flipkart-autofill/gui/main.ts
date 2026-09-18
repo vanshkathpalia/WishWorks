@@ -1024,6 +1024,40 @@ ipcMain.handle("addLabels", async (_e, file: string): Promise<Attempt<unknown>> 
   };
 });
 
+/**
+ * The costing JSON out of this kit's own ChatGPT chat, with OUR SKU written into it.
+ *
+ * Vansh, 2026-09-18, on the Costing screen's paste box: *"this redirect will be really useful only
+ * when it would fill this session… from the automated ChatGPT's JSON, and storing that SKU name at
+ * the appropriate place at top of this JSON."* The chat is opened by the address saved when it was
+ * sent — no searching the sidebar — and nothing is sent or changed in it.
+ */
+ipcMain.handle("costingReply", async (_e, sku: string): Promise<Attempt<string>> => {
+  const { readLatches } = await latchEngine();
+  const { normalizeId } = await import("../src/id.js");
+  const row = (await readLatches()).rows.find(
+    (r) => r.ourSku && normalizeId(r.ourSku) === normalizeId(sku) && r.costingChatUrl,
+  );
+  if (!row?.costingChatUrl) return { ok: false, message: "" }; // no chat for it; the box stays empty
+  const { chatTab } = await import("../src/browser-core.js");
+  const { lastReply, jsonFromReply } = await import("../src/chat-core.js");
+  let tab;
+  try {
+    tab = await chatTab();
+    await tab.goto(row.costingChatUrl, { waitUntil: "domcontentloaded" });
+    await tab.waitForTimeout(6000);
+    const data = jsonFromReply(await lastReply(tab));
+    if (data === null) return { ok: false, message: "That chat has no JSON reply yet — send it, then try again." };
+    // Our SKU goes in at the top, where the Costing screen reads it from.
+    const kit = { ...(data as Record<string, unknown>), sku: row.ourSku };
+    return { ok: true, result: JSON.stringify(kit, null, 2), note: `Read from ${row.ourSku}'s costing chat.` };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  } finally {
+    await tab?.close().catch(() => {});
+  }
+});
+
 /** Put a turned-down product back in the queue — it was a wrong shortlist, not a decision. */
 ipcMain.handle("showAgain", async (_e, fsn: string): Promise<Attempt<unknown>> => {
   const { readLatches, writeLatches } = await latchEngine();
@@ -2230,7 +2264,20 @@ async function costingChatFor(
     }
     const chat = await chatTab();
     const answer = await askChatGpt(chat, file, prompt);
-    if (answer === "ready") (await import("../src/chat-core.js")).nameWhenSent(chat, `${row.ourSku ?? row.sku} — costing`);
+    if (answer === "ready") {
+      // The chat's address is written onto the row the moment it is sent, so "cost this kit" can
+      // fetch the reply back instead of asking a person to copy it out of ChatGPT.
+      (await import("../src/chat-core.js")).nameWhenSent(chat, `${row.ourSku ?? row.sku} — costing`, 5000, 4000, (url) => {
+        void (async () => {
+          const { readLatches, writeLatches } = await latchEngine();
+          const book = await readLatches();
+          const mine = book.rows.find((r) => r.sku === row.sku);
+          if (!mine || mine.costingChatUrl === url) return;
+          mine.costingChatUrl = url;
+          await writeLatches(book);
+        })();
+      });
+    }
     return { ready: "ready", login: "ChatGPT signed out", manual: "the prompt did not go in — the tab is open, paste it by hand" }[answer];
   } catch (err) {
     return `failed: ${err instanceof Error ? err.message.split("\n")[0].slice(0, 80) : String(err)}`;

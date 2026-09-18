@@ -135,6 +135,7 @@ const api: WwApi = {
   costingFront: () => ipcRenderer.invoke("costingFront"),
   saveForLater: (unpark: string | null) => ipcRenderer.invoke("saveForLater", unpark),
   showAgain: (fsn: string) => ipcRenderer.invoke("showAgain", fsn),
+  costingReply: (sku: string) => ipcRenderer.invoke("costingReply", sku),
   openProduct: (fsn: string) => ipcRenderer.invoke("openProduct", fsn),
   recordApproval: (pasted: string) => ipcRenderer.invoke("recordApproval", pasted),
   approvalOpen: (pack: string | null, only: string[] | null) => ipcRenderer.invoke("approvalOpen", pack, only),

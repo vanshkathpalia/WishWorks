@@ -2848,3 +2848,8 @@ h3 > button.tiny {
    his wording is kept as an old name so the next note still matches the row he just made. */
 .rename { width: 190px; font-size: 12px; }
 .rename.extra { border-left: 2px solid var(--accent, #2a55e5); }
+
+/* Where a kit is priced — five small chips beside the SKU search (2026-09-18). */
+.kit-filter { display: inline-flex; gap: 4px; margin-left: 6px; }
+.kit-filter button { font-size: 11px; padding: 3px 8px; }
+.kit-filter button.on { border-color: var(--accent, #d98b4a); color: var(--accent, #d98b4a); }
