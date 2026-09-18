@@ -23,6 +23,14 @@ import type { ImageJob, LabelPack, LatchBook, LatchRecord, Pending } from "../sh
 const rupees = (paise: number): string => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 
 /**
+ * Whether a recorded approval form takes a document a reseller has. A copy of `approvalEase` in
+ * latch-core, for the same reason `rupees` is one: importing the engine's VALUE pulls `node:fs` into
+ * the browser bundle. Keep the two word lists identical.
+ */
+const easyApproval = (docs?: string[], asksDocument?: boolean): boolean =>
+  asksDocument === false || !!docs?.some((o) => /\bmrp\b|image|photo|invoice|bill\b/i.test(o));
+
+/**
  * The headings, and the order they appear in. Presentation, so it lives here — and NOT in
  * `latch-core.ts`: the renderer is a browser bundle, and importing a value from the engine drags
  * `node:fs` and `node:child_process` in with it. Types cross that line (they are erased); values
@@ -81,6 +89,12 @@ export function Latch({ n }: { n: number }) {
   const [swept, setSwept] = useState<{ seen: number; title: string; can: number } | null>(null);
   /** A list a partner sent, pasted straight back in. Empty until somebody uses it. */
   const [shared, setShared] = useState("");
+  /** Brands to sweep that need no approval — typed, comma-separated. */
+  const [brandsTyped, setBrandsTyped] = useState("");
+  /** How many approval product pages are under review — non-zero makes "Open approval forms" primary. */
+  const [approvalBatch, setApprovalBatch] = useState(0);
+  /** A link or FSN pasted for "Record approval page". Empty means the product tab in front. */
+  const [approvalLink, setApprovalLink] = useState("");
   /**
    * The batch under review, as it was opened. Non-empty means ten shopper tabs are up and the
    * next press should be "latch the ones still open", not "show me ten more".
@@ -169,6 +183,7 @@ export function Latch({ n }: { n: number }) {
   const chosen: LabelPack | null = book.packs.find((p) => p.file === pack) ?? null;
   const rows = chosen ? book.rows.filter((r) => chosen.skus.includes(r.sku)) : book.rows;
   const unchecked = rows.filter((r) => r.state === "unknown").length;
+  const approvalReady = rows.filter((r) => r.state === "approval" && r.fsn && !r.approvalOpenedOn && !r.laterOn).length;
   // Already-latched rows are never offered again, so they are not counted as ready either.
   const ready = rows.filter((r) => r.state === "form" && r.fsn && !r.latchedOn).length;
 
@@ -292,6 +307,71 @@ export function Latch({ n }: { n: number }) {
         </button>
       </div>
 
+      {/* Sellers whose products need no approval at all — the same sweep, over brands typed here. */}
+      <div className="latch-sweep">
+        <input
+          type="text"
+          value={brandsTyped}
+          disabled={!!busy}
+          placeholder="Brands that need no approval, comma-separated — Dream Aura, Partyfox, Fundots"
+          onChange={(e) => setBrandsTyped(e.target.value)}
+        />
+        <button
+          disabled={!!busy || !brandsTyped.trim()}
+          onClick={() => {
+            setSwept(null);
+            void run("sweeping", () => window.ww.sweepBrandsTyped(brandsTyped, minutes));
+          }}
+        >
+          Sweep these brands
+        </button>
+      </div>
+
+      {/* Looking only: records what an approval form asks for, so the easy ones can be listed. */}
+      <div className="latch-sweep">
+        <input
+          type="text"
+          value={approvalLink}
+          disabled={!!busy}
+          placeholder="Paste a Flipkart link to record its approval form (empty = the product tab in front)"
+          onChange={(e) => setApprovalLink(e.target.value)}
+        />
+        {/* The approval twin of the latch flow: look at the product pages first, close the ones not
+            wanted, and only then open forms — each opened form is a Draft in Track Approval. */}
+        <button
+          disabled={!!busy || approvalReady === 0}
+          onClick={() =>
+            void window.ww.showBatch(3, pack, "approval").then((r) => {
+              if (!r.ok) return setError(r.message);
+              setApprovalBatch(r.result.length);
+              setNote(r.note ?? null);
+            })
+          }
+        >
+          {approvalReady ? `Show me the next 3 approval products of ${approvalReady}` : "No approval products to review"}
+        </button>
+        <button
+          className={approvalBatch ? "primary" : ""}
+          disabled={!!busy}
+          onClick={() =>
+            void run("latching", () => window.ww.approvalOpen(pack, null)).then((ok) => ok && setApprovalBatch(0))
+          }
+        >
+          Open approval forms for the ones still open
+        </button>
+        <button
+          disabled={!!busy}
+          onClick={() =>
+            void window.ww.recordApproval(approvalLink).then((r) => {
+              if (!r.ok) setError(r.message);
+              else setNote(r.note ?? "Recorded.");
+            })
+          }
+        >
+          Record approval page
+        </button>
+      </div>
+
       {approvals && (
         <p className="latch-history">
           {approvals.filter((a) => /approved/i.test(a.status)).length} approved:{" "}
@@ -407,6 +487,9 @@ export function Latch({ n }: { n: number }) {
               front, without re-running the batch or opening anything new. */}
           <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.fillFrontLatch(costing))}>
             Latch the tab I&apos;m looking at
+          </button>
+          <button disabled={!!busy} onClick={() => void run("reading", () => window.ww.saveForLater(null))}>
+            Save all open product pages for later
           </button>
           {/* The redo for a chat that did not get set up — the latch itself is left alone. */}
           <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.costingFront())}>
@@ -612,14 +695,119 @@ export function Latch({ n }: { n: number }) {
         </div>
       )}
 
+      {/* Parked until the supplier delivers. Above the state groups, and only here — a parked row in
+          "New — ready to latch" as well would be offered twice. */}
+      {rows.some((r) => r.laterOn) && (
+        <div className="latch-group">
+          <h2>
+            Waiting for stock <span className="count">{rows.filter((r) => r.laterOn).length}</span>
+          </h2>
+          <table className="latch-table">
+            <tbody>
+              {rows
+                .filter((r) => r.laterOn)
+                .map((r) => (
+                  <tr key={r.sku}>
+                    <td className="sku">{r.ourSku ?? r.sku}</td>
+                    <td className="title">{r.title ?? r.description}</td>
+                    <td className="when">saved {r.laterOn}</td>
+                    <td className="when">
+                      <button disabled={!!busy} onClick={() => void window.ww.openProduct(r.fsn!)}>Open</button>{" "}
+                      <button
+                        disabled={!!busy}
+                        onClick={() => void window.ww.copyProductLink(r.fsn!).then((u) => setNote(u ? `Copied: ${u}` : "No link for that one."))}
+                      >
+                        Copy link
+                      </button>{" "}
+                      {r.state === "approval" ? (
+                        <button
+                          disabled={!!busy}
+                          onClick={() => void window.ww.openApprovalForm(r.fsn!).then((x) => (x.ok ? setNote(x.note ?? null) : setError(x.message)))}
+                        >
+                          Open approval form
+                        </button>
+                      ) : (
+                        <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.latchOne(r.fsn!, costing))}>
+                          Latch
+                        </button>
+                      )}{" "}
+                      <button disabled={!!busy} onClick={() => void run("reading", () => window.ww.saveForLater(r.fsn!))}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {rows.some((r) => r.state === "approval" && easyApproval(r.approvalDocs, r.approvalAsksDocument)) && (
+        <div className="latch-group">
+          <h2>
+            Approval — you can apply{" "}
+            <span className="count">{rows.filter((r) => r.state === "approval" && easyApproval(r.approvalDocs, r.approvalAsksDocument)).length}</span>
+          </h2>
+          <table className="latch-table">
+            <tbody>
+              {rows
+                .filter((r) => r.state === "approval" && easyApproval(r.approvalDocs, r.approvalAsksDocument))
+                .map((r) => (
+                  <tr key={r.sku}>
+                    <td className="sku">{r.ourSku ?? r.sku}</td>
+                    <td className="title">{r.title ?? r.description}</td>
+                    <td className="why">
+                      {r.approvalAsksDocument === false
+                        ? "consent ticks only"
+                        : r.approvalDocs!.filter((o) => easyApproval([o])).join(" · ")}
+                    </td>
+                    <td className="when">
+                      {r.appliedOn ? (
+                        `applied ${r.appliedOn}`
+                      ) : (
+                        <>
+                          <button
+                            disabled={!!busy}
+                            onClick={() => void window.ww.openApprovalForm(r.fsn!).then((x) => (x.ok ? setNote(x.note ?? null) : setError(x.message)))}
+                          >
+                            Open approval form
+                          </button>{" "}
+                          <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.markApplied(r.fsn!, costing))}>
+                            I applied
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {GROUPS.map(({ state, label }) => {
-        const mine = rows.filter((r) => r.state === state);
-        if (mine.length === 0) return null;
+        /**
+         * A form that takes only a trademark or brand letter is one he can never apply for — Vansh: *"I
+         * don't want that listing in that list, I can't get its approval, I know."* Read-and-hard rows
+         * leave the lists; only their count is said, under the approval heading.
+         */
+        const hard = (r: LatchRecord) =>
+          state === "approval" && r.approvalAsksDocument !== false && !!r.approvalDocs?.length && !easyApproval(r.approvalDocs);
+        const mine = rows.filter(
+          (r) => r.state === state && !r.laterOn && !(state === "approval" && easyApproval(r.approvalDocs, r.approvalAsksDocument)) && !hard(r),
+        );
+        const hidden = rows.filter((r) => r.state === state && hard(r)).length;
+        if (mine.length === 0 && hidden === 0) return null;
         return (
           <div key={state} className="latch-group">
             <h2>
               {label} <span className="count">{mine.length}</span>
             </h2>
+            {hidden > 0 && (
+              <p className="muted">
+                {hidden} more need a trademark certificate or brand authorization letter — not shown.
+              </p>
+            )}
             <table className="latch-table">
               <tbody>
                 {mine.map((r) => (

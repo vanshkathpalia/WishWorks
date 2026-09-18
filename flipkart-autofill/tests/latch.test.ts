@@ -21,7 +21,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, bouncedToLogin, productPage, frontLatchTab, photoFolder, inPack, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  approvedBrands, blocking, withoutNeverSweep, bouncedToLogin, parseSharedList, productPage, frontLatchTab, photoFolder, inPack, adoptOpened, productTitle, approvalEase, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -680,6 +680,61 @@ describe("reviewing a batch before listing it", () => {
     expect(survivors(batch, open)).toEqual([]);
   });
 
+  it("never sweeps the partner's brand, and takes his products back out of the list", () => {
+    const approvals = [
+      { id: "1", brand: "Partymash", vertical: "Birthday Combo", status: "Approved", updatedAt: "" },
+      { id: "2", brand: "Svarupam Trecon", vertical: "Decoration", status: "Approved", updatedAt: "" },
+    ];
+    expect(approvedBrands(approvals).map((a) => a.brand)).toEqual(["Partymash"]);
+    const row = (sku: string, title: string) => ({ sku, description: title, seen: 0, fsn: sku, title, state: "form" as const, checkedOn: null });
+    const book = {
+      packs: [
+        { file: "search: Partymash · 2026-09-17", addedOn: "2026-09-17", skus: ["P1", "S1"] },
+        { file: "search: Svarupam Trecon · 2026-09-17", addedOn: "2026-09-17", skus: ["S2"] },
+      ],
+      rows: [row("P1", "Partymash Birthday Combo"), row("S1", "SVARUPAM TRECON Balloon Arch"), row("S2", "Svarupam Trecon Decoration Kit")],
+    };
+    const { book: clean, removed } = withoutNeverSweep(book);
+    expect(removed).toBe(2);
+    expect(clean.rows.map((r) => r.sku)).toEqual(["P1"]);
+    expect(clean.packs).toEqual([{ file: "search: Partymash · 2026-09-17", addedOn: "2026-09-17", skus: ["P1"] }]);
+  });
+
+  it("reads pasted Flipkart links as products, named from the link's own words", () => {
+    // One of the links Vansh pasted, 2026-09-17 — the FSN also appears in lid= and iid=, once.
+    const link =
+      "https://www.flipkart.com/decor-sparks-53pcs-6months-birthday-kit-banner-rosegold-confetti-pastel-balloons/p/itmc8b36c5ef5ab4?pid=BCBHCZ6ZEZ3DTUTN&lid=LSTBCBHCZ6ZEZ3DTUTNARTURW&marketplace=FLIPKART&iid=b709586f-55bc-43fc-8c8f-c0a878940c77.BCBHCZ6ZEZ3DTUTN.SEARCH";
+    expect(parseSharedList(`${link}\n\n${link}`)).toEqual([
+      { fsn: "BCBHCZ6ZEZ3DTUTN", title: "decor sparks 53pcs 6months birthday kit banner rosegold confetti pastel balloons" },
+    ]);
+  });
+
+  it("calls an approval easy only when the form takes a document a reseller has", () => {
+    // Vansh's screenshot, 2026-09-17, Party Midlinkerz birthday combo: not applicable.
+    expect(approvalEase(["Trademark Certificate", "Brand Authorization Letter"])).toBe("hard");
+    expect(approvalEase(["Trademark Certificate", "MRP Image"])).toBe("easy");
+    expect(approvalEase(["Brand Authorization Letter", "Purchase Invoice"])).toBe("easy");
+    expect(approvalEase([])).toBe("unknown");
+    // The other applicable case: the form asks for no document, only consent ticks.
+    expect(approvalEase([], false)).toBe("easy");
+  });
+
+  it("takes a product opened by hand in Chrome into the list, once, without touching known ones", () => {
+    // The real document.title of one of the DECOR SPARKS pages Vansh opened, 2026-09-17.
+    const title = productTitle(
+      "DECOR SPARKS 53pcs 6Months Birthday Kit with Banner, Rosegold Confetti & Pastel Balloons Price in India - Buy DECOR SPARKS 53pcs 6Months Birthday Kit with Banner, Rosegold Confetti & Pastel Balloons online at Flipkart.com",
+    );
+    expect(title).toBe("DECOR SPARKS 53pcs 6Months Birthday Kit with Banner, Rosegold Confetti & Pastel Balloons");
+    const known = { sku: "FKUP015", description: "d", seen: 9, fsn: "OLD", title: "t", state: "selling" as const, checkedOn: "2026-09-17", latchedOn: "2026-09-13" };
+    const page = (fsn: string) => ({ fsn, title, url: `https://www.flipkart.com/x/p/itm?pid=${fsn}` });
+    const { book, added } = adoptOpened({ packs: [], rows: [known] }, [page("NEW"), page("OLD"), page("NEW")], "2026-09-17");
+    expect(added).toBe(1);
+    expect(book.rows.find((r) => r.fsn === "OLD")).toEqual(known);
+    expect(book.rows.find((r) => r.fsn === "NEW")).toMatchObject({ sku: "NEW", title, state: "unknown" });
+    expect(book.packs).toEqual([{ file: "opened in Chrome · 2026-09-17", addedOn: "2026-09-17", skus: ["NEW"] }]);
+    expect(adoptOpened(book, [page("NEW")], "2026-09-17").added).toBe(0);
+  });
+
   it("files a contents photo in the kit's own WhatsApp folder, reusing his spelling of it", () => {
     // Folders read off ~/Downloads/Whatsapp DW on 2026-09-17.
     const dirs = ["ANP/ANP 10", "WH/WH 1", "HBD/HBD101", "HBD-T/dore/dore01", "HBD-T/dore/dore02", "HBD-T/babyboss", "HBD-T/kitti"];
@@ -749,6 +804,19 @@ describe("reviewing a batch before listing it", () => {
         { sku: "B", description: "B", seen: 0, fsn: "B", title: "B", state: "form" as const, checkedOn: null },
       ],
     };
+    expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["B"]);
+  });
+
+  it("reviews approval products apart from latchable ones, and not twice", () => {
+    const row = (f: string, state: "form" | "approval", extra = {}) => ({ sku: f, description: f, seen: 0, fsn: f, title: f, state, checkedOn: null, ...extra });
+    const book = { packs: [], rows: [row("F", "form"), row("A1", "approval"), row("A2", "approval", { approvalOpenedOn: "2026-09-17" }), row("A3", "approval", { laterOn: "2026-09-17" })] };
+    expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["F"]);
+    expect(nextBatch(book, 10, new Set(), null, "approval").map((r) => r.fsn)).toEqual(["A1"]);
+  });
+
+  it("does not offer a product parked until its stock arrives", () => {
+    const row = (f: string, extra = {}) => ({ sku: f, description: f, seen: 0, fsn: f, title: f, state: "form" as const, checkedOn: null, ...extra });
+    const book = { packs: [], rows: [row("A", { laterOn: "2026-09-17" }), row("B")] };
     expect(nextBatch(book, 10).map((r) => r.fsn)).toEqual(["B"]);
   });
 

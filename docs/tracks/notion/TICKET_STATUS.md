@@ -632,11 +632,94 @@ now brings the chat to the front, and if the clipboard is still refused inserts 
 
 **Added — "Costing chat for the tab I'm looking at".** Redoes only the costing chat for the product in
 front (product page or Start Selling page), reusing its saved contents photo, unsent. The latch run and
-this button share one `costingChatFor`. Contents photos are also copied to the kit's folder in
-`Downloads/Whatsapp DW` (`photoFolder`: `HBD-T/dore/dore03`, `WH/WH 1`, `ANP/ANP016`) as `contents.jpg`,
-when that folder exists and the product has a SKU of ours.
+this button share one `costingChatFor`. Both gallery slides are copied to the kit's folder in
+`Downloads/Whatsapp DW` (`photoFolder`: `HBD-T/dore/dore03`, `WH/WH 1`, `ANP/ANP016`) — the contents
+slide as `contents.jpg` and the listing's main shot as `main.jpg` — when that folder exists and the
+product has a SKU of ours. **Only `contents.jpg` is sent to ChatGPT**: the costing prompt reading the
+styled main photo would cost a picture that does not show the contents (Vansh, 2026-09-18). And because
+the second slide is not always the contents, **a `contents.jpg` replaced by hand in that folder wins**
+over the app's own copy when a costing chat is redone (newer file). The chat is still never sent — he
+checks the photo and presses Enter himself.
 
 **Fixed, 2026-09-17 — "Re-check all 39" re-checked all 631.** The button counted the selected invoice
 pack; the handler checked every row, so it spent an hour on the old party-decoration hunt. Vansh: *"it
 started hunting from those other 651 sku."* Same class as "Show me the next 10" serving an old hunt
 (C-080 era). Both now narrow through one `inPack(book, pack)`; the renderer's count already matched.
+
+**Added, 2026-09-17 — latch products opened by hand in Chrome.** Every latch button refused a product
+that came from no label pack or hunt. Vansh: *"sometimes I just get some new listings — I will open
+that in a new tab under Chrome."* `adoptOpened` adds each open Flipkart product page to the list once,
+under a pack `opened in Chrome · <day>`, named from `document.title` (`productTitle` — the on-page
+heading is truncated; measured on three DECOR SPARKS listings). "Latch the ones still open" (with no
+review batch) and "Latch the tab I'm looking at" both use it. With a review batch open, "Latch the
+ones still open" still latches only that batch, on purpose.
+
+**Added — "Waiting for stock".** "Save all open product pages for later" parks every product page open
+in Chrome at once (`laterOn`) — first built for the tab in front only, which Vansh rejected: *"these can
+be many — all of the present open ones I want in the list"*; it also hit "more than one window". Parks a product
+until the supplier delivers — kept out of "Show me the next 10", listed on its own with Open, Copy
+link, Latch and Remove. Latching it takes it off the list.
+
+**Added, 2026-09-17 — which approvals can actually be applied for.** Vansh: some "Apply for approval"
+products take an MRP image, and those he will apply for by hand; others take only documents a reseller
+never has. Measured from his screenshot (Party Midlinkerz, birthday combo): the form is "Apply for
+Brand Approval", the label "Please select the document*" sits BESIDE a control that only says
+"Select", and its options were Trademark Certificate and Brand Authorization Letter — not applicable.
+**Opening the form already creates a Draft request** ("Approval Status: Draft, Request Id …").
+
+Approval products get **the same look-first flow as latching** — Vansh stopped a "check every
+approval" button: *"like now I am seeing the listing in normal Flipkart before autofilling Start
+Selling, I want to do the same for these too."* "Show me the next 10 approval products" opens their
+shopper pages; close the unwanted; "Open approval forms for the ones still open" opens each kept form,
+reads the document dropdown (`approvalDocs`, `approvalUrl`, JSON + screenshots in `latch/approval/`),
+and **closes every form**. Applying stays entirely by hand, one at a time — Vansh: *"when MRP image is
+going to get selected I have to manually take the image and upload it — don't want any automation
+there, just searching these types of listings."* The easy ones wait under "Approval — you can apply"
+with **Open approval form** (that one form, nothing filled) and **I applied** (`appliedOn`, a SKU via
+`nextSku`, and the costing chat — so the inventory JSON is ready when the approval is accepted). Only
+kept products get a Draft. `approvalOpenedOn` stops a product
+being offered again. "Save all open product pages for later" parks approval products too; in
+"Waiting for stock" they get "Open approval form". **Two applicable cases** (Vansh): the document dropdown offers an MRP image, or the form asks for no
+document at all and has only consent ticks (`asksForDocument: false`). Ticks alone decide nothing —
+his hard form had one too. `approvalEase` word list is from one screenshot.
+Checked on a fake form with the real layout: options read, nothing ticked or submitted.
+
+**Changed, 2026-09-17 — approval review in threes, and the unapplicable ones out of sight.** Approval
+products are shown 3 at a time; asking again turns the 3 under review down and closes their pages
+(*"another next 3 button if none was liked"*). "Approval — you can apply" shows only the reason it
+applies (MRP image / consent ticks only). A product whose form takes only a trademark certificate or
+brand authorization letter is hidden from every list, with a count under the approval heading — Vansh:
+*"I don't want that listing in that list, I can't get its approval."*
+
+**Fixed — latching now reuses a product's SKU.** `latchThese` picked a fresh SKU every time; an approval
+product gets its SKU and costed kit at "I applied", days before it is latched, so the listing would
+have been filed under a different SKU from its costing. After approval: Re-check moves it to "New —
+ready to latch", it latches under the SKU it already has, and "What still needs a price?" joins it to
+its kit.
+
+**Fixed, 2026-09-17 — no right-click paste anywhere in the app.** Electron shows no context menu by
+default, so right-click → Paste in a text box did nothing (Vansh, on "Paste a list somebody sent
+you": *"this is not letting me paste anything"*). The window now has Cut / Copy / Paste / Select All on
+text fields, Copy on selected text. Also: that box already found the FSN in a pasted Flipkart link, but
+named the product with the URL; a link now names it from its slug words, which is what `nextSku` reads.
+
+**Added, 2026-09-17 — never sweep the partner's brand.** Vansh, watching "Sweep every approved brand"
+reach Svarupam Trecon: *"it's my partner's only — we will have a personal discussion about what I should
+latch from him, not like this."* `NEVER_SWEEP` removes it from the approved-brand sweep and drops its
+products from any search sweep's results; `withoutNeverSweep` takes already-saved ones back out of the
+list. That cleanup waits until the running sweep ends — the sweep holds the list in memory and writes
+it back after every brand, so an edit to the file mid-sweep would be overwritten.
+
+**Fixed, 2026-09-17 — one crashed tab ended the whole approved-brand sweep.** After ~30 minutes in one
+tab Chrome showed "Aw, Snap! Error code 5" on Anita Enterprises' page 3; the error went straight up and
+the run stopped — Anita lost, Fundots / Maithili decors / Svarupam Trecon never reached (5 brands had
+saved: tigorik 162, Partymash 181, BEST WISHES 134, Giftzadda 133, REVAYAA 73). Now `sweepBrands` gives
+each brand a fresh tab and passes the brand filter it was missing (BEST WISHES was 112/134 "needs
+approval" — other brands' products); `crawlSearch` keeps what it found on a crash and reports it;
+`readCard` throws on a crashed tab instead of reading every later product as "stuck" (measured with a
+real CDP Page.crash: two unasked products had been saved as stuck); Re-check retries a product once in
+a fresh tab. The progress line counts the whole run (it showed one brand's "looked at" beside every
+brand's "can be latched": "61 looked at, 310 can be latched").
+
+**Added — "Sweep these brands".** Comma-separated brands that need no approval (Dream Aura, Partyfox,
+Fundots…), the same sweep; never-sweep brands are refused.

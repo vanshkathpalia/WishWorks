@@ -739,7 +739,11 @@ export interface WwApi {
    * it is worth selling at all. Close the tabs you do not want, then call `latchOpen`.
    */
   /** `pack` limits it to the pack selected on screen; null is everything. */
-  showBatch(size: number, pack: string | null): Promise<Attempt<{ fsn: string; title: string; listed: Listed | null }[]>>;
+  showBatch(
+    size: number,
+    pack: string | null,
+    kind?: "form" | "approval",
+  ): Promise<Attempt<{ fsn: string; title: string; listed: Listed | null }[]>>;
   /**
    * Latch whichever of that batch is still open in Chrome, and remember the rest as turned down.
    *
@@ -754,6 +758,27 @@ export interface WwApi {
   fillFrontLatch(withCosting: boolean): Promise<Attempt<LatchBook>>;
   /** Redo only the costing chat for the product showing in Chrome. Reuses its saved photo; never sends. */
   costingFront(): Promise<Attempt<LatchBook>>;
+  /** Park every product page open in Chrome until its stock arrives; with an FSN, un-park that one. */
+  saveForLater(unpark: string | null): Promise<Attempt<LatchBook>>;
+  /** Record what a product's approval form asks for — a pasted link/FSN, or the tab in front. Never submits. */
+  recordApproval(pasted: string): Promise<Attempt<unknown>>;
+  /**
+   * Open the approval form of every approval product still open in Chrome (or of `only`), read its
+   * document choices, close the ones needing a trademark or brand letter. Never applies.
+   */
+  approvalOpen(pack: string | null, only: string[] | null): Promise<Attempt<LatchBook>>;
+  /** Sweep brands typed by hand (comma-separated), each kept to its own products. */
+  sweepBrandsTyped(typed: string, minutes: number): Promise<Attempt<LatchBook>>;
+  /** Open one product's approval form for a person to fill. */
+  openApprovalForm(fsn: string): Promise<Attempt<null>>;
+  /** Record a by-hand approval application, give the product a SKU, open its costing chat when asked. */
+  markApplied(fsn: string, withCosting: boolean): Promise<Attempt<LatchBook>>;
+  /** Open a product's shopper page in the app's Chrome. */
+  openProduct(fsn: string): Promise<Attempt<string>>;
+  /** Copy a product's shopper link. Null when it has none. */
+  copyProductLink(fsn: string): Promise<string | null>;
+  /** Latch one product from the list, with its costing chat when asked. Never saves. */
+  latchOne(fsn: string, withCosting: boolean): Promise<Attempt<LatchBook>>;
   /** Progress while a check or a latch run is going. */
   onLatchRow(cb: (p: { done: number; of: number; row: LatchRecord }) => void): () => void;
   /** The whole packing screen: what is left, today's tally, this month's packets. */

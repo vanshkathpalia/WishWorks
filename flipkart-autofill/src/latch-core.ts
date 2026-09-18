@@ -457,6 +457,26 @@ export interface LatchRecord {
    */
   costingChat?: string;
   /**
+   * Parked until the stock arrives — the day it was saved. Vansh, 2026-09-17: *"all of these listings
+   * I have left only because the supplier is still sending them; once that is reached I would like to
+   * fill those Start Selling."* Kept out of "Show me the next 10" while set.
+   */
+  laterOn?: string;
+  /** The approval form's document choices, as last read — see `recordApprovalForm`, `approvalEase`. */
+  approvalDocs?: string[];
+  /** False when the form asked for no document at all — only consent ticks. See `approvalEase`. */
+  approvalAsksDocument?: boolean;
+  /** The approval form's own address, as last opened — reopened for a person to apply. */
+  approvalUrl?: string;
+  /** The day its approval form was opened for a person to apply — the approval flow's "latched". */
+  approvalOpenedOn?: string;
+  /**
+   * The day Vansh said he applied for this approval — by hand: taking the MRP photo, uploading it and
+   * pressing Apply stay his. *"I'll just report which I applied for so we can make the inventory JSON,
+   * so that later the rate and the listing work once the approval is accepted."* Off the easy list.
+   */
+  appliedOn?: string;
+  /**
    * The day this product's Meesho listing was prepared. Absent until it is.
    *
    * **A latch is half the job.** The same product sells on both marketplaces, and the Flipkart side
@@ -731,8 +751,13 @@ export async function readCard(page: Page, fsn: string, timeout = 30_000): Promi
    * a fake seller page: 2 of 5 read right before, 5 of 5 after. about:blank costs a page load per
    * product, which is what a correct answer takes anyway.
    */
-  await page.goto("about:blank").catch(() => {});
-  await page.goto(startSellingUrl(fsn), { waitUntil: "domcontentloaded" }).catch(() => {});
+  // A crashed tab must stop the run, not be read as "Flipkart didn't answer" product after product —
+  // measured with a real crash (CDP Page.crash): two unasked products were saved as `stuck`.
+  const dead = (e: unknown) => {
+    if (/crash|closed/i.test(String((e as Error)?.message ?? e))) throw e;
+  };
+  await page.goto("about:blank").catch(dead);
+  await page.goto(startSellingUrl(fsn), { waitUntil: "domcontentloaded" }).catch(dead);
   // Polled rather than one long wait, so a bounce to the login screen stops the run within half a
   // second — not after the full timeout, with the page flickering the whole time.
   for (const end = Date.now() + timeout; Date.now() < end; ) {
@@ -1050,6 +1075,12 @@ export async function crawlSearch(
     /** Called once if the seller session died mid-sweep; the sweep returns what it had. */
     onLoggedOut?: () => void;
     /**
+     * Called if the TAB died — Chrome's "Aw, Snap!" after hundreds of heavy pages. The sweep returns
+     * what it had instead of throwing it away: on 2026-09-17 one crash on Anita Enterprises' page 3
+     * ended a nine-brand sweep and lost the brand in progress.
+     */
+    onCrashed?: (why: string) => void;
+    /**
      * Keep only products whose title STARTS with this brand.
      *
      * **Without it a brand sweep latches the wrong catalog entirely.** Measured, 2026-09-13:
@@ -1066,45 +1097,87 @@ export async function crawlSearch(
   const seenFsn = new Set(opts.known ?? []);
   let seen = 0;
 
-  for (let n = 1; Date.now() < opts.until && !opts.stopped?.(); n++) {
-    const want = opts.brand ? normalize(opts.brand) : null;
-    const fresh = (await searchProducts(page, searchPage(term, n))).filter((r) => !seenFsn.has(r.fsn));
-    // A page with nothing NEW on it is the end of the results — Flipkart serves the last page over
-    // and over rather than 404ing, so that is the only stop signal there is. Judged before the
-    // brand filter, because a page that is all other brands is still a page that moved forward.
-    if (fresh.length === 0) break;
+  try {
+    for (let n = 1; Date.now() < opts.until && !opts.stopped?.(); n++) {
+      const want = opts.brand ? normalize(opts.brand) : null;
+      const fresh = (await searchProducts(page, searchPage(term, n))).filter((r) => !seenFsn.has(r.fsn));
+      // A page with nothing NEW on it is the end of the results — Flipkart serves the last page over
+      // and over rather than 404ing, so that is the only stop signal there is. Judged before the
+      // brand filter, because a page that is all other brands is still a page that moved forward.
+      if (fresh.length === 0) break;
 
-    // Two rails, and the trade one is not optional. A sweep runs unattended for an hour; the cost
-    // of getting this wrong is that hour, plus a live listing on somebody's car cover.
-    const results = (want ? fresh.filter((r) => normalize(r.title).startsWith(want)) : fresh).filter(
-      (r) => weSell(r.title),
-    );
-    // Everything on the page counts as seen, matched or not: a product rejected for being another
-    // brand must not be reconsidered on page after page.
-    for (const r of fresh) seenFsn.add(r.fsn);
+      // Two rails, and the trade one is not optional. A sweep runs unattended for an hour; the cost
+      // of getting this wrong is that hour, plus a live listing on somebody's car cover.
+      const results = (want ? fresh.filter((r) => normalize(r.title).startsWith(want)) : fresh).filter(
+        (r) => weSell(r.title) && !neverSweep(r.title),
+      );
+      // Everything on the page counts as seen, matched or not: a product rejected for being another
+      // brand must not be reconsidered on page after page.
+      for (const r of fresh) seenFsn.add(r.fsn);
 
-    for (const r of results) {
-      if (Date.now() >= opts.until || opts.stopped?.()) break;
-      seen++;
-      // "stuck" is not a No and not worth abandoning the sweep for; being logged out is, and
-      // `LoggedOut` goes up to the handler after what was found so far has been handed out.
-      let state: TabState;
-      try {
-        state = (await readCard(page, r.fsn, 20_000)).state;
-      } catch (e) {
-        if (!(e instanceof LoggedOut)) throw e;
-        opts.onLoggedOut?.();
-        return out;
+      for (const r of results) {
+        if (Date.now() >= opts.until || opts.stopped?.()) break;
+        seen++;
+        // "stuck" is not a No and not worth abandoning the sweep for; being logged out is, and
+        // `LoggedOut` goes up to the handler after what was found so far has been handed out.
+        let state: TabState;
+        try {
+          state = (await readCard(page, r.fsn, 20_000)).state;
+        } catch (e) {
+          if (!(e instanceof LoggedOut)) throw e;
+          opts.onLoggedOut?.();
+          return out;
+        }
+        const found = { fsn: r.fsn, title: r.title, url: r.url, listed: r.listed ?? null, state };
+        out.push(found);
+        opts.onFound?.(found, seen);
       }
-      const found = { fsn: r.fsn, title: r.title, url: r.url, listed: r.listed ?? null, state };
-      out.push(found);
-      opts.onFound?.(found, seen);
     }
+  } catch (e) {
+    if (e instanceof LoggedOut) throw e;
+    opts.onCrashed?.(e instanceof Error ? e.message.split("\n")[0] : String(e));
   }
   return out;
 }
 
 /** Fold a sweep's results into the book, keeping the FSN as the id where there is no rival SKU. */
+/**
+ * The product name from a Flipkart product page's `document.title`.
+ *
+ * Measured 2026-09-17 on three DECOR SPARKS listings: the title is *"<full name> Price in India - Buy
+ * <full name> online at Flipkart.com"*, while the page's own heading is cut off (*"…Rosegold
+ * Con...more"*). The full name matters — it is what `nextSku` reads the occasion from.
+ */
+export function productTitle(documentTitle: string): string {
+  return documentTitle.split(/\s+Price in India\b/)[0].replace(/\s*[|-]\s*(Buy .*)?Flipkart\.com\s*$/i, "").trim();
+}
+
+/**
+ * Put product pages somebody opened in Chrome into the list, so they can be latched like the rest.
+ *
+ * Vansh, 2026-09-17: *"sometimes I just get some new listings — I will open that in a new tab under
+ * Chrome."* A product in no label pack and no hunt was refused by every latch button. Each one is
+ * added once, under a pack `opened in Chrome · <day>`, named by its FSN like a sweep's rows, and
+ * **not checked** — the latch form reads the card and records what Flipkart says. Already-known
+ * products are left exactly as they are.
+ */
+export function adoptOpened(
+  book: LatchBook,
+  pages: { fsn: string; title: string; url: string }[],
+  on = todayStamp(),
+): { book: LatchBook; added: number } {
+  const known = new Set(book.rows.map((r) => r.fsn).filter(Boolean));
+  const fresh = pages.filter((p, i) => !known.has(p.fsn) && pages.findIndex((q) => q.fsn === p.fsn) === i);
+  if (fresh.length === 0) return { book, added: 0 };
+  const rows: LatchRecord[] = fresh.map((p) => ({
+    sku: p.fsn, description: p.title, seen: 0, fsn: p.fsn, title: p.title, url: p.url, state: "unknown", checkedOn: null,
+  }));
+  return {
+    book: { packs: addPack(book.packs, `opened in Chrome · ${on}`, on, rows.map((r) => r.sku)), rows: [...book.rows, ...rows] },
+    added: rows.length,
+  };
+}
+
 export function mergeFound(book: LatchBook, found: Found[], term: string, on = todayStamp()): {
   book: LatchBook;
   added: number;
@@ -1241,7 +1314,12 @@ export function parseSharedList(text: string): { fsn: string; title: string }[] 
     for (const m of line.matchAll(/\b([A-Z0-9]{16})\b/g)) {
       // The title is whatever sits before the id on that line, stripped of the list number and of
       // any quoting the messenger added. Empty is fine — the catalog page knows its own name.
-      const before = line.slice(0, m.index).replace(/^[>\s]*\d+[.)]\s*/, "").replace(/\[$/, "").trim();
+      let before = line.slice(0, m.index).replace(/^[>\s]*\d+[.)]\s*/, "").replace(/\[$/, "").trim();
+      // A pasted Flipkart LINK: the name is the words of its slug, not the URL in front of `pid=`.
+      // Vansh pastes product links here too (2026-09-17); the name is what `nextSku` reads.
+      const slug = /flipkart\.com\/([^/?#]+)\/p\//i.exec(before)?.[1];
+      if (slug) before = decodeURIComponent(slug).replace(/-/g, " ");
+      else if (/https?:\/\//.test(before)) before = "";
       if (!out.has(m[1]) || (out.get(m[1]) ?? "").length < before.length) out.set(m[1], before);
     }
   }
@@ -1519,6 +1597,117 @@ export function parseApprovals(pageText: string): Approval[] {
   return out;
 }
 
+/**
+ * What an approval form asks for, recorded from the live page — LOOKING ONLY.
+ *
+ * Vansh, 2026-09-17: some "Apply for approval" products need only an MRP image or a tick, and those
+ * are worth applying for by hand; others ask for documents he does not have. The form had never been
+ * seen by this tool, so the first step records it rather than guessing its markup: every dropdown and
+ * its options (a custom dropdown is opened to read them, then closed with Escape), every checkbox
+ * label, every button's text, and the page text. **Nothing is selected, ticked, uploaded or submitted.**
+ */
+export interface ApprovalForm {
+  fsn: string;
+  /** What the catalog card said. Only `approval` goes on to click. */
+  card: TabState;
+  url: string;
+  selects: { label: string; options: string[] }[];
+  /** Options read by opening the "Please select the document" dropdown. */
+  documentOptions: string[];
+  /**
+   * Whether the form asks for a document at all. **False is the other applicable case** — Vansh: *"I can
+   * apply only for those that have just some consent ticks to press, or this MRP image and other ticks."*
+   */
+  asksForDocument: boolean;
+  checkboxes: string[];
+  buttons: string[];
+  text: string;
+}
+
+export async function recordApprovalForm(page: Page, fsn: string, shotTo: (n: number) => string): Promise<ApprovalForm> {
+  await page.goto("about:blank").catch(() => {});
+  await page.goto(startSellingUrl(fsn), { waitUntil: "domcontentloaded" }).catch(() => {});
+  const empty: ApprovalForm = { fsn, card: "stuck", url: page.url(), selects: [], documentOptions: [], asksForDocument: false, checkboxes: [], buttons: [], text: "" };
+  try {
+    await page.waitForSelector("a.startSelling", { timeout: 30_000 });
+  } catch {
+    return { ...empty, url: page.url() };
+  }
+  const card = cardState((await page.locator("a.startSelling").first().getAttribute("class")) ?? "");
+  if (card !== "approval") return { ...empty, card, url: page.url() };
+
+  // The click may open the form in a new tab; take whichever page it lands on.
+  const popup = page.context().waitForEvent("page", { timeout: 8_000 }).catch(() => null);
+  await page.locator("a.startSelling.applyForApprovalLink").first().click({ timeout: 15_000 });
+  const opened = await popup;
+  const form = opened ?? page;
+  await form.waitForLoadState("domcontentloaded").catch(() => {});
+  await form.waitForTimeout(8_000);
+  await form.screenshot({ path: shotTo(1), fullPage: true }).catch(() => {});
+
+  // No named helper inside `evaluate`: esbuild's keepNames wraps it in `__name()`, which does not exist
+  // in the page ("__name is not defined" — the same trap `galleryImages` notes). Inlined instead.
+  const seen = await form.evaluate(() => ({
+    selects: [...document.querySelectorAll("select")].map((s) => ({
+      label: ((s.id && document.querySelector(`label[for="${s.id}"]`)?.textContent) || s.closest("label")?.textContent ||
+        s.getAttribute("aria-label") || s.parentElement?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120),
+      options: [...(s as HTMLSelectElement).options].map((o) => o.text.trim()).filter(Boolean),
+    })),
+    checkboxes: [...document.querySelectorAll("input[type=checkbox]")].map((c) =>
+      ((c.id && document.querySelector(`label[for="${c.id}"]`)?.textContent) || c.closest("label")?.textContent ||
+        c.getAttribute("aria-label") || c.parentElement?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120),
+    ),
+    // Read, never pressed. Plain buttons only — the "stops before Save" test forbids a submit selector here.
+    buttons: [...document.querySelectorAll("button, a[role=button]")]
+      .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .slice(0, 40),
+    text: document.body.innerText.slice(0, 6000),
+  }));
+
+  /**
+   * The document dropdown: open it to read the choices, then close it. Never pick one.
+   *
+   * Measured on Vansh's screenshot, 2026-09-17: the words "Please select the document*" are a LABEL
+   * beside the control, and the control itself only says "Select". So the control is found as the
+   * nearest "Select" box in the smallest block that holds that label — not by searching the dropdown
+   * for the word "document", which it never contains.
+   */
+  let documentOptions: string[] = [];
+  const label = form.getByText(/please select the document/i).first();
+  const asksForDocument = (await label.count().catch(() => 0)) > 0 || /select the document|upload .*document/i.test(seen.text);
+  const block = label.locator("xpath=ancestor::*[.//*[normalize-space(text())='Select']][1]");
+  const target = (await block.count().catch(() => 0)) ? block.getByText("Select", { exact: true }).first() : label;
+  if (await target.count().catch(() => 0)) {
+    await target.click({ timeout: 5_000 }).catch(() => {});
+    await form.waitForTimeout(1_500);
+    await form.screenshot({ path: shotTo(2), fullPage: true }).catch(() => {});
+    documentOptions = await form
+      .locator("[role=option], [role=listbox] li, .Select-option, [class*=option i]")
+      .allInnerTexts()
+      .then((t) => [...new Set(t.map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean))])
+      .catch(() => []);
+    await form.keyboard.press("Escape").catch(() => {});
+  }
+  return { fsn, card, url: form.url(), ...seen, documentOptions, asksForDocument };
+}
+
+/**
+ * An approval Vansh can actually get: the form accepts a document he has.
+ *
+ * *"if there was MRP image then I could have applied."* The form he showed offered only Trademark
+ * Certificate and Brand Authorization Letter — neither of which a reseller holds. So an option naming
+ * an MRP image, a product image, an invoice or a bill makes it `easy`; no options read is `unknown`,
+ * never assumed hard.
+ * ponytail: a word list from one screenshot; widen it when a real easy form shows other wording.
+ */
+export function approvalEase(documentOptions: string[], asksForDocument = true): "easy" | "hard" | "unknown" {
+  // The consent-ticks-only form: nothing to upload, so it can be applied for as it is.
+  if (!asksForDocument) return "easy";
+  if (documentOptions.length === 0) return "unknown";
+  return documentOptions.some((o) => /\bmrp\b|image|photo|invoice|bill\b/i.test(o)) ? "easy" : "hard";
+}
+
 /** Every approval request on the account, as Flipkart currently reports it. */
 export async function readApprovals(page: Page): Promise<Approval[]> {
   await page.goto(APPROVALS_URL, { waitUntil: "domcontentloaded" }).catch(() => {});
@@ -1542,7 +1731,33 @@ export async function readApprovals(page: Page): Promise<Approval[]> {
  * those is the search we already sweep — so an approved brand becomes a search term.
  */
 export const approvedBrands = (all: Approval[]): Approval[] =>
-  all.filter((a) => /approved/i.test(a.status));
+  all.filter((a) => /approved/i.test(a.status) && !neverSweep(a.brand));
+
+/**
+ * Brands no sweep may collect, however they are found.
+ *
+ * Vansh, 2026-09-17, watching "Sweep every approved brand" reach it: *"please make it not search for
+ * Svarupam Trecon listings — it's my partner's only. We will have a personal discussion about what I
+ * should latch from him, not like this."* A person's decision, not a filter's.
+ */
+export const NEVER_SWEEP = ["Svarupam Trecon"];
+export const neverSweep = (brandOrTitle: string): boolean =>
+  NEVER_SWEEP.some((b) => normalize(brandOrTitle).startsWith(normalize(b)));
+
+/** The list with every product of a never-sweep brand taken out — rows, and their SKUs in each pack. */
+export function withoutNeverSweep(book: LatchBook): { book: LatchBook; removed: number } {
+  const gone = new Set(book.rows.filter((r) => neverSweep(r.title ?? r.description)).map((r) => r.sku));
+  if (gone.size === 0) return { book, removed: 0 };
+  return {
+    book: {
+      packs: book.packs
+        .map((p) => ({ ...p, skus: p.skus.filter((s) => !gone.has(s)) }))
+        .filter((p) => p.skus.length > 0 && !neverSweep(p.file.replace(/^search:\s*/, ""))),
+      rows: book.rows.filter((r) => !gone.has(r.sku)),
+    },
+    removed: gone.size,
+  };
+}
 
 
 /**
@@ -1656,9 +1871,19 @@ export function nextBatch(
    * *"it's mixing i dont want it this way."*
    */
   pack: string | null = null,
+  /**
+   * Which kind of product to review. Approval products get the same look-first flow as latchable
+   * ones — Vansh, 2026-09-17: *"like now I am seeing the listing in normal Flipkart before autofilling
+   * Start Selling, I want to do the same for these too."* One whose form was opened is done, like latched.
+   */
+  kind: "form" | "approval" = "form",
 ): LatchRecord[] {
   return inPack(book, pack)
-    .filter((r) => r.state === "form" && r.fsn && !r.latchedOn && !skip.has(r.fsn))
+    .filter((r) =>
+      kind === "form"
+        ? r.state === "form" && r.fsn && !r.latchedOn && !r.laterOn && !skip.has(r.fsn)
+        : r.state === "approval" && r.fsn && !r.approvalOpenedOn && !r.laterOn && !skip.has(r.fsn),
+    )
     .slice(0, Math.max(1, size));
 }
 

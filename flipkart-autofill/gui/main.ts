@@ -18,9 +18,9 @@
  * shared.ts and nothing else.
  */
 
-import { app, BrowserWindow, clipboard, dialog, ipcMain, net, protocol, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, protocol, shell } from "electron";
 import { readFile, writeFile, appendFile, mkdir, readdir, rename, rm, copyFile, stat } from "node:fs/promises";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { filePathFromUrl } from "./shared.js";
@@ -1027,6 +1027,238 @@ ipcMain.handle("addLabels", async (_e, file: string): Promise<Attempt<unknown>> 
 ipcMain.handle("latches", async () => (await latchEngine()).readLatches());
 
 /**
+ * Park EVERY product page open in Chrome until its stock arrives — or, with `fsn`, un-park that one.
+ *
+ * Every open page, not the one in front: Vansh, 2026-09-17, *"these can be many — all of the present
+ * open ones I want in the list; otherwise for a single one I can just copy the link somewhere."* It
+ * also cannot hit "more than one window is showing a product", which the front-tab version did.
+ * Products opened by hand join the list first; one already latched is left alone.
+ */
+ipcMain.handle("saveForLater", async (_e, unpark: string | null): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, adoptOpened, todayStamp } = await latchEngine();
+  const book = await readLatches();
+  if (unpark) {
+    const row = book.rows.find((r) => r.fsn === unpark);
+    if (!row) return { ok: false, message: "That product is not in your latch list." };
+    delete row.laterOn;
+    await writeLatches(book);
+    return { ok: true, result: book, note: `${row.title?.slice(0, 60) ?? unpark} is back in the list.` };
+  }
+  const pages = await openProducts();
+  if (pages.length === 0) return { ok: false, message: "No Flipkart product page is open in Chrome." };
+  const { book: next, added } = adoptOpened(book, pages);
+  const open = new Set(pages.map((p) => p.fsn));
+  let saved = 0;
+  let latched = 0;
+  for (const row of next.rows) {
+    if (!row.fsn || !open.has(row.fsn)) continue;
+    if (row.latchedOn) latched++;
+    else if (!row.laterOn) {
+      row.laterOn = todayStamp();
+      saved++;
+    }
+  }
+  await writeLatches(next);
+  return {
+    ok: true,
+    result: next,
+    note:
+      `Saved ${saved} of ${pages.length} open product page${pages.length === 1 ? "" : "s"} for later` +
+      (added ? ` (${added} new to the list)` : "") +
+      (latched ? `; ${latched} already latched, left alone` : "") +
+      `. You can close those tabs now.`,
+  };
+});
+
+/**
+ * Record the approval form for one product — a pasted link or FSN, or the product tab in front.
+ * LOOKING ONLY: see `recordApprovalForm`. Writes `latch/approval/<FSN>.json` and screenshots, and leaves
+ * the tab open for a person to look at too.
+ */
+ipcMain.handle("recordApproval", async (_e, pasted: string): Promise<Attempt<unknown>> => {
+  const { recordApprovalForm, frontLatchTab, latchDir } = await latchEngine();
+  let fsn = /[?&](?:pid|fsn)=([A-Z0-9]+)/i.exec(pasted)?.[1] ?? (/^[A-Z0-9]{16}$/i.test(pasted.trim()) ? pasted.trim() : null);
+  if (!fsn) {
+    const { openTabs } = await import("../src/browser-core.js");
+    const tabs = await Promise.all(
+      openTabs().map(async (page) => ({
+        page,
+        url: page.url(),
+        visible: await page.evaluate(() => document.visibilityState === "visible").catch(() => false),
+      })),
+    );
+    const front = frontLatchTab(tabs);
+    if (!front.ok) return { ok: false, message: pasted.trim() ? "No product code in that link." : front.message };
+    fsn = front.fsn;
+  }
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  const dir = path.join(latchDir(), "approval");
+  await mkdir(dir, { recursive: true });
+  const found = await recordApprovalForm(tab.result, fsn.toUpperCase(), (n) => path.join(dir, `${fsn!.toUpperCase()}-${n}.png`));
+  const file = path.join(dir, `${found.fsn}.json`);
+  await writeFile(file, `${JSON.stringify(found, null, 2)}\n`);
+  if (found.card !== "approval") {
+    return { ok: false, message: `Not an approval product — Flipkart's card says "${found.card}". Recorded anyway: ${file}` };
+  }
+  return {
+    ok: true,
+    result: found,
+    note:
+      `Recorded ${found.fsn}: ${found.documentOptions.length ? `document choices — ${found.documentOptions.join(" · ")}` : "no document dropdown options read"}; ` +
+      `${found.selects.length} dropdown(s), ${found.checkboxes.length} tick box(es). Nothing was submitted. Saved to ${file}`,
+  };
+});
+
+/**
+ * Open the approval form of every approval product still open in Chrome — or of `only` — for a person
+ * to press Apply. The approval twin of "Latch the ones still open".
+ *
+ * Reads each form's document choices on the way (`recordApprovalForm`, never selecting or submitting),
+ * **closes the forms that only take a trademark or brand letter**, and leaves the rest open. Opening a
+ * form creates a Draft in Track Approval, which is why this only runs on products a person kept open.
+ */
+ipcMain.handle("approvalOpen", async (e, pack: string | null, only: string[] | null): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, recordApprovalForm, approvalEase, survivors, adoptOpened, latchDir, todayStamp } =
+    await latchEngine();
+  const { openTabs, newTab } = await import("../src/browser-core.js");
+  let book = await readLatches();
+  let keep: string[];
+  if (only) keep = only;
+  else if (approvalBatch.length) {
+    keep = survivors(approvalBatch, openTabs().map((t) => t.url()));
+    for (const fsn of approvalBatch) if (!keep.includes(fsn)) passedApproval.add(fsn);
+  } else {
+    book = adoptOpened(book, await openProducts()).book;
+    const candidates = book.rows.filter((r) => r.state === "approval" && r.fsn && !r.approvalOpenedOn).map((r) => r.fsn!);
+    keep = survivors(candidates, openTabs().map((t) => t.url()));
+  }
+  void pack; // the batch was already drawn from the selected pack
+  if (keep.length === 0) {
+    approvalBatch = [];
+    return { ok: false, message: 'No approval product page is open — press "Show me the next 10 approval products" first.' };
+  }
+  const probe = await sellerTab();
+  if (!probe.ok) return probe;
+  await probe.result.close().catch(() => {});
+
+  const dir = path.join(latchDir(), "approval");
+  await mkdir(dir, { recursive: true });
+  const tally = { easy: 0, hard: 0, unknown: 0 };
+  let done = 0;
+  for (const fsn of keep) {
+    const row = book.rows.find((r) => r.fsn === fsn);
+    if (!row) continue;
+    const tab = await newTab();
+    const before = new Set(tab.context().pages());
+    const found = await recordApprovalForm(tab, fsn, (n) => path.join(dir, `${fsn}-${n}.png`)).catch(() => null);
+    done++;
+    if (found) {
+      await writeFile(path.join(dir, `${fsn}.json`), `${JSON.stringify(found, null, 2)}\n`);
+      if (found.card === "approval") {
+        row.approvalDocs = found.documentOptions;
+        row.approvalAsksDocument = found.asksForDocument;
+        row.approvalUrl = found.url;
+        row.approvalOpenedOn = todayStamp();
+        row.laterOn = undefined;
+        tally[approvalEase(found.documentOptions, found.asksForDocument)]++;
+      } else row.state = found.card; // Flipkart's answer changed since the last check.
+    }
+    // Every form is closed once read. Applying is by hand and one at a time, from the list — Vansh:
+    // *"I don't want any automation there, just searching these types of listings."*
+    for (const p of tab.context().pages()) if (p === tab || !before.has(p)) await p.close().catch(() => {});
+    e.sender.send("latchRow", { done, of: keep.length, row });
+    await writeLatches(book);
+  }
+  approvalBatch = [];
+  return {
+    ok: true,
+    result: book,
+    note:
+      `Read ${done}: ${tally.easy} you can apply for — listed under "Approval — you can apply"; ` +
+      `${tally.hard} take only a trademark or brand letter` +
+      (tally.unknown ? `; ${tally.unknown} whose document choices could not be read (see latch/approval/)` : "") +
+      `. All forms closed; each is a Draft in Track Approval until you apply.`,
+  };
+});
+
+/** Open ONE product's approval form, for a person to fill in and apply. Nothing is filled. */
+ipcMain.handle("openApprovalForm", async (_e, fsn: string): Promise<Attempt<unknown>> => {
+  const { readLatches, startSellingUrl } = await latchEngine();
+  const row = (await readLatches()).rows.find((r) => r.fsn === fsn);
+  if (!row) return { ok: false, message: "That product is not in your latch list." };
+  const { newTab } = await import("../src/browser-core.js");
+  const tab = await newTab();
+  await tab.goto(row.approvalUrl ?? startSellingUrl(fsn), { waitUntil: "domcontentloaded" }).catch(() => {});
+  return {
+    ok: true,
+    result: null,
+    note: row.approvalUrl
+      ? "Approval form open in Chrome. Pick the document, upload, Apply — then press \"I applied\" here."
+      : "Its Start Selling page is open — press APPLY FOR APPROVAL there, then \"I applied\" here when done.",
+  };
+});
+
+/**
+ * Record that a person applied for this approval, give the product its SKU, and open its costing chat.
+ *
+ * The kit is costed now rather than when the approval is accepted, so that on acceptance the price and
+ * the listing are ready — the inventory JSON is the slow half. The SKU is chosen the same way latching
+ * chooses one and never replaced if the product already has one.
+ */
+ipcMain.handle("markApplied", async (_e, fsn: string, withCosting: boolean): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, todayStamp } = await latchEngine();
+  const { nextSku } = await import("../src/sku-core.js");
+  const book = await readLatches();
+  const row = book.rows.find((r) => r.fsn === fsn);
+  if (!row) return { ok: false, message: "That product is not in your latch list." };
+  row.appliedOn = todayStamp();
+  row.ourSku ??= nextSku(row.title ?? row.description, await skusInUse().catch(() => [])) ?? undefined;
+  await writeLatches(book);
+  let chat = "";
+  if (withCosting) {
+    const prompt = await (await promptsEngine()).readPrompt(promptDirs(), "PROMPT-inventory.md").then((p) => p.text, () => null);
+    if (prompt) {
+      const { newTab } = await import("../src/browser-core.js");
+      const shelf = await newTab();
+      row.costingChat = await costingChatFor(row, shelf, prompt, true);
+      await shelf.close().catch(() => {});
+      await writeLatches(book);
+      chat = row.costingChat === "ready" ? " Its costing chat is open in ChatGPT — check the photo, press Enter." : ` No costing chat: ${row.costingChat}.`;
+    }
+  }
+  return {
+    ok: true,
+    result: book,
+    note: `Marked applied: ${row.title?.slice(0, 50) ?? fsn}${row.ourSku ? `, SKU ${row.ourSku}` : " — no SKU could be worked out, type one"}.${chat}`,
+  };
+});
+
+/** Open a product's shopper page in the app's Chrome — for a parked product whose stock has come. */
+ipcMain.handle("openProduct", async (_e, fsn: string): Promise<Attempt<string>> => {
+  const { readLatches, productPage } = await latchEngine();
+  const row = (await readLatches()).rows.find((r) => r.fsn === fsn);
+  const url = row ? productPage(row) : null;
+  if (!url) return { ok: false, message: "No product page for that one." };
+  const { newTab } = await import("../src/browser-core.js");
+  const tab = await newTab();
+  await tab.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
+  return { ok: true, result: url };
+});
+
+/** Put a product's shopper link on the clipboard. */
+ipcMain.handle("copyProductLink", async (_e, fsn: string): Promise<string | null> => {
+  const { readLatches, productPage } = await latchEngine();
+  const row = (await readLatches()).rows.find((r) => r.fsn === fsn);
+  const url = row ? productPage(row) : null;
+  if (url) clipboard.writeText(url);
+  return url;
+});
+
+/** Latch one product from the list — the parked one whose stock has arrived. */
+ipcMain.handle("latchOne", (e, fsn: string, withCosting: boolean) => latchThese(e, [fsn], withCosting, ""));
+
+/**
  * Sweep a search term for latchable products, for up to `minutes`.
  *
  * The stop flag is a module-level boolean rather than anything cleverer because there is exactly
@@ -1179,6 +1411,9 @@ ipcMain.handle("latchPending", async (): Promise<Attempt<unknown>> => {
  */
 let batch: string[] = [];
 const passed = new Set<string>();
+/** The same, for approval products under review — a separate batch, so the two flows never mix. */
+let approvalBatch: string[] = [];
+const passedApproval = new Set<string>();
 
 /**
  * Open the next ten as ORDINARY shopper pages, for a look before anything is listed.
@@ -1187,10 +1422,21 @@ const passed = new Set<string>();
  * price, ratings — and decide whether it is worth selling at all. The form comes after, and only
  * for the ones whose tab is still open.
  */
-ipcMain.handle("showBatch", async (_e, size: number, pack: string | null): Promise<Attempt<unknown>> => {
+ipcMain.handle("showBatch", async (_e, size: number, pack: string | null, kind: "form" | "approval" = "form"): Promise<Attempt<unknown>> => {
   const { readLatches, nextBatch, productPage } = await latchEngine();
-  const { newTab } = await import("../src/browser-core.js");
-  const rows = nextBatch(await readLatches(), size || 10, passed, pack ?? null);
+  const { newTab, openTabs } = await import("../src/browser-core.js");
+  /**
+   * **Asking again means none of these.** Vansh, 2026-09-17, on approval products: *"keep it 3 for them,
+   * and another next 3 button if none was liked."* The batch still under review is turned down and its
+   * pages closed, so the next press shows three new ones instead of the same three.
+   */
+  const current = kind === "form" ? batch : approvalBatch;
+  if (current.length) {
+    const skip = kind === "form" ? passed : passedApproval;
+    for (const fsn of current) skip.add(fsn);
+    for (const t of openTabs()) if (current.some((f) => t.url().includes(`pid=${f}`))) await t.close().catch(() => {});
+  }
+  const rows = nextBatch(await readLatches(), size || 10, kind === "form" ? passed : passedApproval, pack ?? null, kind);
   if (rows.length === 0) {
     return {
       ok: false,
@@ -1204,13 +1450,14 @@ ipcMain.handle("showBatch", async (_e, size: number, pack: string | null): Promi
     // The shopper's page, never the latch form — see `productPage`.
     await tab.goto(productPage(r)!, { waitUntil: "domcontentloaded" }).catch(() => {});
   }
-  batch = rows.map((r) => r.fsn!);
+  if (kind === "form") batch = rows.map((r) => r.fsn!);
+  else approvalBatch = rows.map((r) => r.fsn!);
   return {
     ok: true,
     result: rows.map((r) => ({ fsn: r.fsn, title: r.title ?? r.description, listed: r.listed ?? null })),
     note:
       `${rows.length} open in Chrome. Close the tabs for the ones you do not want, then press ` +
-      `"Latch the ones still open".`,
+      (kind === "form" ? `"Latch the ones still open".` : `"Open approval forms for the ones still open".`),
   };
 });
 
@@ -1230,13 +1477,18 @@ ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unk
    * a batch, every open product page of something still latchable counts instead.
    */
   if (batch.length === 0) {
-    const book = await readLatches();
-    const latchable = book.rows.filter((r) => r.state === "form" && r.fsn && !r.latchedOn).map((r) => r.fsn!);
+    // Products opened by hand join the list first, so a page from no pack or hunt can be latched.
+    const { writeLatches, adoptOpened } = await latchEngine();
+    const adopted = adoptOpened(await readLatches(), await openProducts());
+    if (adopted.added) await writeLatches(adopted.book);
+    const latchable = adopted.book.rows
+      .filter((r) => (r.state === "form" || r.state === "unknown") && r.fsn && !r.latchedOn)
+      .map((r) => r.fsn!);
     const open = survivors(latchable, openTabs().map((t) => t.url()));
     if (open.length === 0) {
-      return { ok: false, message: 'No latchable product page is open in Chrome — press "Show me the next 10" first.' };
+      return { ok: false, message: 'No latchable product page is open in Chrome — open one, or press "Show me the next 10".' };
     }
-    return latchThese(e, open, withCosting, `${open.length} open.`);
+    return latchThese(e, open, withCosting, `${open.length} open${adopted.added ? `, ${adopted.added} new to the list` : ""}.`);
   }
   const keep = survivors(batch, openTabs().map((t) => t.url()));
   // Shown and closed is a decision: do not offer them again when he asks for the next ten.
@@ -1278,50 +1530,89 @@ ipcMain.handle("approvals", async (): Promise<Attempt<unknown>> => {
  * the first.
  */
 ipcMain.handle("sweepApproved", async (e, minutes: number): Promise<Attempt<unknown>> => {
-  const { readApprovals, approvedBrands, readLatches, writeLatches, crawlSearch, mergeFound, LoggedOut } =
-    await latchEngine();
-  stopSweep = false;
+  const { readApprovals, approvedBrands } = await latchEngine();
   const tab = await sellerTab();
   if (!tab.ok) return tab;
-  const page = tab.result;
-  let loggedOut = false;
+  const brands = approvedBrands(await readApprovals(tab.result).catch(() => [])).map((a) => a.brand);
+  await tab.result.close().catch(() => {});
+  if (brands.length === 0) return { ok: false, message: "Nothing is approved yet, or Flipkart did not answer." };
+  return sweepBrands(e, brands, minutes, "approved brand");
+});
 
-  const brands = approvedBrands(await readApprovals(page).catch(() => []));
-  if (brands.length === 0) {
-    await page.close().catch(() => {});
-    return { ok: false, message: "Nothing is approved yet, or Flipkart did not answer." };
+/**
+ * Sweep brands typed by hand — sellers whose products show START SELLING with no approval at all.
+ * Vansh, 2026-09-17: *"I would like to see these for all those sellers that don't want any approval
+ * from me — like Dream Aura, Partyfox, and some of Fundots."*
+ */
+ipcMain.handle("sweepBrandsTyped", async (e, typed: string, minutes: number): Promise<Attempt<unknown>> => {
+  const { neverSweep } = await latchEngine();
+  const brands = [...new Set(typed.split(/[,\n]/).map((b) => b.trim()).filter(Boolean))];
+  const skipped = brands.filter(neverSweep);
+  const todo = brands.filter((b) => !neverSweep(b));
+  if (todo.length === 0) {
+    return { ok: false, message: skipped.length ? `${skipped.join(", ")} is never swept.` : "Type one or more brand names, separated by commas." };
   }
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  await tab.result.close().catch(() => {});
+  return sweepBrands(e, todo, minutes, "brand");
+});
 
+/**
+ * One sweep over several brands: each in a FRESH tab, kept to that brand's own products, and one
+ * crashed tab costs one brand's remaining pages — not the run.
+ *
+ * All three were learnt on 2026-09-17's approved-brand sweep: a single tab reused for half an hour
+ * crashed ("Aw, Snap!") on Anita Enterprises' page 3 and the whole run stopped, losing that brand and
+ * never reaching three more; and without the brand filter a brand's search pulled in other brands'
+ * products (BEST WISHES: 112 of 134 "needs approval"). The progress line counts the WHOLE run — it
+ * used to show one brand's "looked at" beside every brand's "can be latched".
+ */
+async function sweepBrands(
+  e: Electron.IpcMainInvokeEvent,
+  brands: string[],
+  minutes: number,
+  kind: string,
+): Promise<Attempt<unknown>> {
+  const { readLatches, writeLatches, crawlSearch, mergeFound, LoggedOut } = await latchEngine();
+  const { newTab } = await import("../src/browser-core.js");
+  stopSweep = false;
   const each = (Math.max(1, minutes) * 60_000) / brands.length;
   let book = await readLatches();
   let total = 0;
   let canLatch = 0;
-  for (const b of brands) {
+  let loggedOut = false;
+  const crashed: string[] = [];
+  for (const brand of brands) {
     if (stopSweep || loggedOut) break;
-    const found = await crawlSearch(page, b.brand, {
+    const page = await newTab();
+    const base = total;
+    const found = await crawlSearch(page, brand, {
       until: Date.now() + each,
+      brand,
       known: new Set(book.rows.map((r) => r.fsn).filter((f): f is string => !!f)),
       stopped: () => stopSweep,
-      onFound: (f, seen) => e.sender.send("crawlRow", { seen, found: f }),
+      onFound: (f, seen) => e.sender.send("crawlRow", { seen: base + seen, found: f }),
       onLoggedOut: () => (loggedOut = true),
+      onCrashed: () => crashed.push(brand),
     });
-    book = mergeFound(book, found, b.brand).book;
-    // Written per brand, not at the end: twelve brands is a long run and a window closed halfway
-    // through must keep what it found.
+    await page.close().catch(() => {});
+    book = mergeFound(book, found, brand).book;
+    // Written per brand: a long run closed halfway through must keep what it found.
     await writeLatches(book);
     total += found.length;
     canLatch += found.filter((f) => f.state === "form").length;
   }
-  await page.close().catch(() => {});
   if (loggedOut) return { ok: false, message: `${new LoggedOut().message} (${total} looked at before it.)` };
   return {
     ok: true,
     result: book,
     note:
-      `Swept ${brands.length} approved brand${brands.length === 1 ? "" : "s"} — ` +
-      `${total} product${total === 1 ? "" : "s"} looked at, ${canLatch} can be latched now.`,
+      `Swept ${brands.length} ${kind}${brands.length === 1 ? "" : "s"} — ${total} product${total === 1 ? "" : "s"} looked at, ` +
+      `${canLatch} can be latched now.` +
+      (crashed.length ? ` Chrome's tab crashed during ${crashed.join(", ")}; what it found before that is kept — sweep ${crashed.length === 1 ? "it" : "them"} again to finish.` : ""),
   };
-});
+}
 
 
 /**
@@ -1485,6 +1776,7 @@ ipcMain.handle("crawlSearch", async (e, term: string, minutes: number): Promise<
   if (!tab.ok) return tab;
   const page = tab.result;
   let loggedOut = false;
+  let crashedTab = false;
 
   const found = await crawlSearch(page, term.trim(), {
     until: Date.now() + Math.max(1, minutes) * 60_000,
@@ -1494,6 +1786,7 @@ ipcMain.handle("crawlSearch", async (e, term: string, minutes: number): Promise<
     stopped: () => stopSweep,
     onFound: (f, seen) => e.sender.send("crawlRow", { seen, found: f }),
     onLoggedOut: () => (loggedOut = true),
+    onCrashed: () => (crashedTab = true),
   });
   await page.close().catch(() => {});
 
@@ -1507,7 +1800,8 @@ ipcMain.handle("crawlSearch", async (e, term: string, minutes: number): Promise<
     note:
       `Looked at ${found.length} product${found.length === 1 ? "" : "s"} for "${term.trim()}" — ` +
       `${canLatch} can be latched, ${found.filter((f) => f.state === "selling").length} you already sell, ` +
-      `${found.filter((f) => f.state === "approval").length} need approval.`,
+      `${found.filter((f) => f.state === "approval").length} need approval.` +
+      (crashedTab ? " Chrome's tab crashed partway; what it found before that is kept — sweep again to finish." : ""),
   };
 });
 
@@ -1528,18 +1822,32 @@ ipcMain.handle("checkLatches", async (e, all: boolean, pack: string | null): Pro
 
   const tab = await sellerTab();
   if (!tab.ok) return tab;
-  const page = tab.result;
+  let page = tab.result;
+  const { newTab } = await import("../src/browser-core.js");
   let done = 0;
+  let crashes = 0;
   for (const row of todo) {
     let next;
-    try {
-      next = await resolveProduct(page, row);
-    } catch (err) {
-      if (err instanceof LoggedOut) {
-        await page.close().catch(() => {});
-        return { ok: false, message: `${err.message} (${done} of ${todo.length} done.)` };
+    // One retry in a fresh tab when Chrome's tab crashed — a long Re-check (592 products) loads
+    // hundreds of heavy pages in one tab, which is what crashed the 2026-09-17 sweep.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        next = await resolveProduct(page, row);
+        break;
+      } catch (err) {
+        if (err instanceof LoggedOut) {
+          await page.close().catch(() => {});
+          return { ok: false, message: `${err.message} (${done} of ${todo.length} done.)` };
+        }
+        if (attempt === 0 && /crash|closed/i.test(String((err as Error)?.message ?? err))) {
+          crashes++;
+          await page.close().catch(() => {});
+          page = await newTab();
+          continue;
+        }
+        next = { ...row, state: "stuck" as const };
+        break;
       }
-      next = { ...row, state: "stuck" as const };
     }
     const at = rows.findIndex((r) => r.sku === row.sku);
     rows[at] = next;
@@ -1550,7 +1858,13 @@ ipcMain.handle("checkLatches", async (e, all: boolean, pack: string | null): Pro
     await writeLatches(book);
   }
   await page.close().catch(() => {});
-  return { ok: true, result: book, note: `Checked ${done} product${done === 1 ? "" : "s"} against Flipkart.` };
+  return {
+    ok: true,
+    result: book,
+    note:
+      `Checked ${done} product${done === 1 ? "" : "s"} against Flipkart.` +
+      (crashes ? ` Chrome's tab crashed ${crashes} time${crashes === 1 ? "" : "s"}; a fresh one carried on.` : ""),
+  };
 });
 
 /**
@@ -1605,7 +1919,25 @@ async function skusInUse(): Promise<string[]> {
  * own copy stays where it is; the image queue reads that one.
  * ponytail: the folder name is his; make it a Settings folder if anyone else sorts photos this way.
  */
-async function fileInWhatsappFolder(sku: string, photo: string): Promise<string | null> {
+async function whatsappPath(sku: string, as = "contents.jpg"): Promise<string | null> {
+  const { photoFolder } = await latchEngine();
+  const root = path.join(app.getPath("downloads"), "Whatsapp DW");
+  if (!existsSync(root)) return null;
+  const dirs: string[] = [];
+  const walk = async (rel: string, depth: number) => {
+    for (const d of await readdir(path.join(root, rel), { withFileTypes: true }).catch(() => [])) {
+      if (!d.isDirectory()) continue;
+      const child = rel ? `${rel}/${d.name}` : d.name;
+      dirs.push(child);
+      if (depth < 3) await walk(child, depth + 1);
+    }
+  };
+  await walk("", 1);
+  const rel = photoFolder(sku, dirs);
+  return rel ? path.join(root, ...rel.split("/"), as) : null;
+}
+
+async function fileInWhatsappFolder(sku: string, photo: string, as = "contents.jpg"): Promise<string | null> {
   const { photoFolder } = await latchEngine();
   const root = path.join(app.getPath("downloads"), "Whatsapp DW");
   if (!existsSync(root)) return null;
@@ -1621,10 +1953,28 @@ async function fileInWhatsappFolder(sku: string, photo: string): Promise<string 
   await walk("", 1);
   const rel = photoFolder(sku, dirs);
   if (!rel) return null;
-  const to = path.join(root, ...rel.split("/"), "contents.jpg");
+  const to = path.join(root, ...rel.split("/"), as);
   await mkdir(path.dirname(to), { recursive: true });
   await copyFile(photo, to);
   return to;
+}
+
+/**
+ * Every Flipkart PRODUCT page open in the app's Chrome — the shopper's page, not the seller form —
+ * with the full name read off `document.title`. What `adoptOpened` takes.
+ */
+async function openProducts(): Promise<{ fsn: string; title: string; url: string }[]> {
+  const { productTitle } = await latchEngine();
+  const { openTabs } = await import("../src/browser-core.js");
+  const out: { fsn: string; title: string; url: string }[] = [];
+  for (const page of openTabs()) {
+    const url = page.url();
+    const pid = /\/\/(www\.)?flipkart\.com\//.test(url) && /[?&]pid=([^&#]+)/.exec(url)?.[1];
+    if (!pid) continue;
+    const title = productTitle(await page.evaluate(() => document.title).catch(() => ""));
+    out.push({ fsn: decodeURIComponent(pid), url, title: title || decodeURIComponent(pid) });
+  }
+  return out;
 }
 
 /**
@@ -1645,6 +1995,14 @@ async function costingChatFor(
   const { chatTab } = await import("../src/browser-core.js");
   try {
     let file = imageFor(row.sku);
+    /**
+     * **Both slides to the folder, only the contents one to ChatGPT.** Vansh, 2026-09-18: *"when you
+     * save the image of the inventory slide, save the main image of that listing too — only the
+     * inventory image goes to ChatGPT with the cost-a-kit prompt; the folder on our computer will
+     * have both."* The main shot is what a person recognises the kit by; the costing prompt must not
+     * see it, or it would cost a styled photo instead of the contents laid out.
+     */
+    let main: string | null = null;
     if (!(reusePhoto && existsSync(file))) {
       const page = productPage(row);
       if (!page) return "no product page to take the photo from";
@@ -1653,8 +2011,25 @@ async function costingChatFor(
       const gallery = await galleryImages(shelf);
       if (gallery.length < 2) return gallery.length ? "the listing has only one photo" : "no photos found on the product page";
       file = await saveImage(shelf, gallery[1], imageFor(row.sku));
+      main = await saveImage(shelf, gallery[0], imageFor(`${row.sku}-main`)).catch(() => null);
+    } else {
+      if (existsSync(imageFor(`${row.sku}-main`))) main = imageFor(`${row.sku}-main`);
+      /**
+       * **A photo put in the kit's folder by hand wins.** The second gallery slide is not always the
+       * contents — Vansh, 2026-09-18: *"sometimes the 2nd image is not the contents image; for that I
+       * will add those images in the folder manually."* So a newer `contents.jpg` there is the one
+       * the chat gets.
+       */
+      const theirs = row.ourSku ? await whatsappPath(row.ourSku).catch(() => null) : null;
+      if (theirs && existsSync(theirs)) {
+        const [mine, hand] = [statSync(file).mtimeMs, statSync(theirs).mtimeMs];
+        if (hand > mine) file = theirs;
+      }
     }
-    if (row.ourSku) await fileInWhatsappFolder(row.ourSku, file).catch(() => null);
+    if (row.ourSku) {
+      await fileInWhatsappFolder(row.ourSku, file).catch(() => null);
+      if (main) await fileInWhatsappFolder(row.ourSku, main, "main.jpg").catch(() => null);
+    }
     const chat = await chatTab();
     const answer = await askChatGpt(chat, file, prompt);
     if (answer === "ready") (await import("../src/chat-core.js")).nameWhenSent(chat, `${row.ourSku ?? row.sku} — costing`);
@@ -1768,8 +2143,13 @@ async function latchThese(
      * was before this existed. A blank asks; a wrong SKU files the listing under another product's
      * costing and says nothing.
      */
-    const mine = nextSku(row.title ?? row.description, taken);
-    if (mine) taken.push(mine);
+    /**
+     * **Reuse the SKU the product already has.** An approval product gets its SKU (and its costed kit)
+     * at "I applied", days before the approval is accepted and it is latched; a fresh one here would
+     * list it under a SKU its costing is not filed under, and the later price change would miss it.
+     */
+    const mine = row.ourSku ?? nextSku(row.title ?? row.description, taken);
+    if (mine && !taken.includes(mine)) taken.push(mine);
     const state = await openLatchForm(tab, values, mine ?? undefined).catch(() => "stuck" as const);
     const at = rows.findIndex((r) => r.sku === row.sku);
     // A tab that opened is a latch STARTED, so the day is recorded now rather than on save —
@@ -1778,7 +2158,8 @@ async function latchThese(
       ...rows[at],
       state,
       checkedOn: todayStamp(),
-      ...(state === "form" ? { latchedOn: todayStamp(), ...(mine ? { ourSku: mine } : {}) } : {}),
+      // Latched is no longer waiting: `laterOn: undefined` drops out when the list is written.
+      ...(state === "form" ? { latchedOn: todayStamp(), laterOn: undefined, ...(mine ? { ourSku: mine } : {}) } : {}),
     };
     if (state === "form") opened++;
     e.sender.send("latchRow", { done: opened, of: todo.length, row: rows[at] });
@@ -1852,11 +2233,12 @@ ipcMain.handle("fillFrontLatch", async (e, withCosting: boolean): Promise<Attemp
 
   // A product page, not a form: latch it properly — its own form tab, and its costing chat.
   if (front.kind === "shopper") {
-    const row = (await readLatches()).rows.find((r) => r.fsn === front.fsn);
-    if (!row) {
-      return { ok: false, message: "That product is not in your latch list. Sweep for it, or read a label pack that has it." };
-    }
-    return latchThese(e, [front.fsn], withCosting, "");
+    // A product opened by hand, in no pack or hunt, is added to the list rather than refused.
+    const { adoptOpened } = await latchEngine();
+    const title = await front.tab.page.evaluate(() => document.title).catch(() => "");
+    const adopted = adoptOpened(await readLatches(), [{ fsn: front.fsn, url: front.tab.url, title: (await latchEngine()).productTitle(title) || front.fsn }]);
+    if (adopted.added) await writeLatches(adopted.book);
+    return latchThese(e, [front.fsn], withCosting, adopted.added ? "Added to the list." : "");
   }
 
   const book = await readLatches();
@@ -3042,6 +3424,20 @@ function createWindow(): void {
       // which is the boundary that matters — the renderer sees `window.ww` and nothing else.
       sandbox: false,
     },
+  });
+
+  /**
+   * A right-click menu. Electron shows NONE by default, so right-click → Paste in a text box did
+   * nothing — Vansh, 2026-09-17, on the "Paste a list" box: *"this is not letting me paste anything."*
+   * The partner on Windows pastes this way as often as with a shortcut.
+   */
+  win.webContents.on("context-menu", (_e, params) => {
+    const items: Electron.MenuItemConstructorOptions[] = params.isEditable
+      ? [{ role: "cut" }, { role: "copy" }, { role: "paste" }, { type: "separator" }, { role: "selectAll" }]
+      : params.selectionText
+        ? [{ role: "copy" }]
+        : [];
+    if (items.length) Menu.buildFromTemplate(items).popup({ window: win });
   });
 
   if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL);
