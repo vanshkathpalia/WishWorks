@@ -123,7 +123,9 @@ export async function readPrompt(dirs: PromptDirs, name: string): Promise<Prompt
   const file = await activeFile(dirs, name);
   return {
     name,
-    text: await readFile(file, "utf8"),
+    // CRLF out, always: every prompt slot and every check in this repo matches on "\n", and Windows
+    // checks these files out with "\r\n" (v1.7.7's CI failed on Windows alone because of it).
+    text: (await readFile(file, "utf8")).replace(/\r\n/g, "\n"),
     savesTo: dirs.canEditShipped ? path.join(dirs.shipped, name) : null,
     readOnly: !dirs.canEditShipped,
     ignoredOverride: await leftoverOverride(dirs, name),

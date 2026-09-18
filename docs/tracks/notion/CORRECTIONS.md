@@ -2722,3 +2722,19 @@ folders"), which moves the kit's own folder and merges file by file without over
 **Lesson.** A helper that takes a file name returns a folder when given `""`. Anything that deletes
 needs a test with real folder shapes before it runs silently on load.
 
+
+## C-089 — CRLF on Windows silently emptied a prompt's slot
+
+**What went wrong.** v1.7.7's CI failed on Windows alone: `PROMPT-meesho-only still has the pack slot`.
+Git checks text files out with CRLF there, and every slot in this repo is matched on `\n`, so
+`withPack` could not find the line to replace. Reproduced on a Mac by converting the prompt: with CRLF
+the pack never reaches the prompt. **It was not a test-only fault** — the partner's Windows app would
+have sent the Meesho copy prompt to ChatGPT with no pack list in it, and the reply would have described
+a kit nobody named.
+
+**Fix.** `.gitattributes` (`* text=auto eol=lf`) so these files stay LF on every machine; `readPrompt`
+normalises CRLF anyway; the test's own reader does too. Proven with all three shapes: LF yes, CRLF no,
+CRLF-normalised yes.
+
+**Lesson.** A repo whose data files are matched on `\n` has to say so in `.gitattributes`, or Windows
+will differ from every developer's machine in a way no Mac test can see.

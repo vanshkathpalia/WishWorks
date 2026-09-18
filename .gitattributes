@@ -1,0 +1,9 @@
+# The prompts and the code that fills them match on "\n". Checked out with CRLF on Windows, a slot
+# like "<PASTE THE PACK HERE>" stops being found — which is how v1.7.7's CI failed on Windows only
+# while every Mac test passed. Keep every text file LF everywhere.
+* text=auto eol=lf
+*.xlsx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.avif binary

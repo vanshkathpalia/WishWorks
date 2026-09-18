@@ -16,7 +16,10 @@ const TEMPLATE = readFileSync(path.join(HERE, "..", "categories", "meesho-party-
 const FIXED = Object.fromEntries(
   Object.entries(JSON.parse(readFileSync(path.join(HERE, "..", "categories", "meesho-sheet.json"), "utf8"))).filter(([k]) => !k.startsWith("_")),
 ) as Record<string, string | number>;
-const guide = (n: string) => readFileSync(path.join(HERE, "..", "..", "docs", "guides", n), "utf8");
+// Newlines normalised: Windows checks these files out with CRLF, and every slot in them is matched
+// on "\n" — that alone failed v1.7.7's CI on Windows while every Mac run passed.
+const guide = (n: string) =>
+  readFileSync(path.join(HERE, "..", "..", "docs", "guides", n), "utf8").replace(/\r\n/g, "\n");
 
 const REPLY = `=== PRODUCT NAME ===
 Annaprashan Decoration Kit | Red Gold Metallic Balloons | Heart Foil Banner (Set of 3 Pcs)
