@@ -10,7 +10,7 @@
  *    was last used, and at ~/Downloads on a first run.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ShareInventory } from "./ShareInventory.js";
 import { Convert } from "./Convert.js";
@@ -490,8 +490,62 @@ function App() {
    * before making the mistake.
    */
   const account = useAccount();
-  // Any step, any time. Nothing here checks whether an earlier one has run.
-  const [step, setStep] = useState(SECTIONS[0].steps[0]);
+  /**
+   * Any step, any time — and **where you were is remembered**, three ways. Vansh, 2026-09-18:
+   * *"there is no back nav button… refreshing is taking me to the first page… if I was on the fourth
+   * step and went to Costing and came back, it opens the first step."*
+   *
+   *  - `step` is kept in `localStorage`, so a reload (Cmd+R) returns to the same screen.
+   *  - `lastOf` remembers the step per TAB, so a tab reopens where you left it.
+   *  - `history` is every screen visited, so Back (and Cmd+[ / Cmd+←) walks back through them.
+   */
+  const [step, setStepRaw] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem("ww.step"));
+      return STEPS[saved] ? saved : SECTIONS[0].steps[0];
+    } catch {
+      return SECTIONS[0].steps[0];
+    }
+  });
+  const stepRef = useRef(step);
+  const history = useRef<number[]>([]);
+  const lastOf = useRef<Record<string, number>>({});
+  /**
+   * The bookkeeping happens HERE, not inside the state updater: React may run an updater twice, and
+   * a history pushed twice would need two presses of Back to move one screen.
+   */
+  const setStep = (next: number, remember = true) => {
+    // `stepRef`, never the `step` of this render: the keyboard shortcut is bound once, and its copy
+    // of `step` would be the screen the app started on for ever.
+    const was = stepRef.current;
+    if (next === was) return;
+    stepRef.current = next;
+    if (remember) history.current.push(was);
+    const tab = SECTIONS.find((s) => s.steps.includes(was));
+    if (tab) lastOf.current[tab.tab] = was;
+    try {
+      localStorage.setItem("ww.step", String(next));
+    } catch {
+      /* a private window: it just will not be remembered */
+    }
+    setStepRaw(next);
+  };
+  const back = () => {
+    const to = history.current.pop();
+    if (to !== undefined) setStep(to, false);
+  };
+  useEffect(() => {
+    // Cmd+[ and Cmd+← on a Mac, Alt+← elsewhere — the shortcuts a browser would give you.
+    const onKey = (e: KeyboardEvent) => {
+      const going = e.key === "[" || e.key === "ArrowLeft";
+      if (going && (e.metaKey || e.altKey)) {
+        e.preventDefault();
+        back();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const section = SECTIONS.find((s) => s.steps.includes(step)) ?? SECTIONS[0];
   /**
    * Every step visited so far. Panels are **hidden, never unmounted** — switching to the prompts
@@ -507,6 +561,9 @@ function App() {
     <div className="app">
       <nav className="rail">
         <div className="brand">
+          <button className="back" title="Back (⌘[)" disabled={history.current.length === 0} onClick={back}>
+            ←
+          </button>
           WishWorks
           {account && <small title={account.workspace}>{account.label}</small>}
         </div>
@@ -515,10 +572,9 @@ function App() {
             <button
               key={s.tab}
               className={s === section ? "current" : ""}
-              /* Switching tabs lands on that section's first step — and on the step you left it
-                 on would be worse, not better: half these tabs are one screen, and a tab that
-                 remembers is a tab whose button does something different each time. */
-              onClick={() => setStep(s.steps[0])}
+              /* Back to the step you left that tab on — a tab with seven steps that always reopens
+                 at step 1 loses your place, which is what Vansh hit going Listing → Costing → Listing. */
+              onClick={() => setStep(lastOf.current[s.tab] ?? s.steps[0])}
             >
               {s.tab}
             </button>

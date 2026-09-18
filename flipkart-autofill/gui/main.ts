@@ -740,7 +740,19 @@ ipcMain.handle("exportKits", async (_e, only: string | null) => {
   return filePath;
 });
 
-ipcMain.handle("saveKit", async (_e, kit: unknown) => (await inventoryEngine()).saveKit(kit as never));
+/**
+ * Save a kit — and when its SKU changed, MOVE it rather than leave the old file behind.
+ *
+ * The filename comes from the SKU, so renaming used to write a second kit and ask, in one line at the
+ * bottom of a long screen, which was meant. Vansh, 2026-09-18, after renaming two: *"I saved those
+ * kits… but when I opened them again they came with the previous name only."* He had reopened the old
+ * copy, which was still in the list. A rename is a rename; `replace` is the file it came from.
+ */
+ipcMain.handle("saveKit", async (_e, kit: unknown, replace: string | null) => {
+  const file = (await inventoryEngine()).saveKit(kit as never);
+  if (replace && path.resolve(replace) !== path.resolve(file)) await rm(replace, { force: true }).catch(() => {});
+  return file;
+});
 /**
  * Reveal where the saved kits live — for looking at, backing up, or pointing at a shared drive.
  *

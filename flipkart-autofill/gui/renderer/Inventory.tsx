@@ -275,7 +275,6 @@ export function Inventory({ n }: { n: number }) {
    * file on the first reading, which silently ate the first listing on the second one. So keeping
    * now only ever ADDS, and the delete is this one button. Nothing is destroyed without a click.
    */
-  const [stray, setStray] = useState<string | null>(null);
   const [showKits, setShowKits] = useState(false);
   /** The saved kit whose × has been pressed once. Deleting takes a second click, in place. */
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -541,7 +540,6 @@ export function Inventory({ n }: { n: number }) {
       setChosen({});
       setTyped({});
       setOpenedFile(null); // not the kit that was opened, so keeping must not replace it
-      setStray(null); // and the last kit's old name is not this one's to delete
     }
     setSku(r.result.sku);
     setLines(r.result.lines.map(({ item, qty, size }) => (size ? { item, qty, size } : { item, qty })));
@@ -622,14 +620,12 @@ export function Inventory({ n }: { n: number }) {
       ),
       savedAt: "",
     };
-    const file = await window.ww.saveKit(kept);
-    // The filename comes from the SKU, so keeping under a new one has just written a second kit
-    // beside the first. Both are real until someone says the old name was a mistake.
-    const under = openedFile !== null && openedFile !== file ? openedFile : null;
-    setStray(under);
+    const was = openedFile?.split(/[\\/]/).pop()?.replace(/\.json$/i, "") ?? null;
+    // A rename MOVES the kit: the old file goes, so the list cannot show the same kit twice.
+    const file = await window.ww.saveKit(kept, openedFile);
     setOpenedFile(file);
     const name = file.split(/[\\/]/).pop();
-    setNote(`Kept as ${name}.`);
+    setNote(was && was !== name?.replace(/\.json$/i, "") ? `Renamed ${was} → ${name}.` : `Kept as ${name}.`);
     setTimeout(() => setNote(null), 4000);
     refreshSaved();
   }
@@ -814,7 +810,6 @@ export function Inventory({ n }: { n: number }) {
     await window.ww.deleteKit(file);
     setConfirming(null);
     if (openedFile === file) setOpenedFile(null);
-    if (stray === file) setStray(null);
     setNote(`${file.split(/[\\/]/).pop()?.replace(/\.json$/i, "")} is deleted.`);
     setTimeout(() => setNote(null), 4000);
     refreshSaved();
@@ -873,14 +868,12 @@ export function Inventory({ n }: { n: number }) {
     setTyped({});
     setLines(k.lines);
     setOpenedFile(file);
-    setStray(null);
     setError(null);
   }
 
   const total = kit?.totalPaise ?? 0;
 
   /** The old kit's name as it is on screen everywhere else — the SKU, not the filename. */
-  const strayName = stray?.split(/[\\/]/).pop()?.replace(/\.json$/i, "") ?? "";
 
   // ₹20 out on a ₹60 target is a third of the margin — far enough to be worth a second look, and
   // loose enough that ordinary rounding does not fill the heading with warnings.
@@ -1804,26 +1797,6 @@ export function Inventory({ n }: { n: number }) {
                 the screen reads as "you must delete something" — and the safe answer is the one
                 that needs saying most clearly. Both buttons only clear this message; the kit is
                 already saved either way. */}
-            {stray && (
-              <span className="muted inv-both">
-                <b>Both kits are saved now:</b> {strayName} and {sku}. Which did you mean?
-                <span>
-                  <button onClick={() => setStray(null)}>
-                    Two products — keep both
-                  </button>
-                  <button
-                    onClick={() => {
-                      void window.ww.deleteKit(stray).then(() => {
-                        setStray(null);
-                        refreshSaved();
-                      });
-                    }}
-                  >
-                    One product — {strayName} was the wrong name, delete it
-                  </button>
-                </span>
-              </span>
-            )}
           </div>
 
           {parcel && (

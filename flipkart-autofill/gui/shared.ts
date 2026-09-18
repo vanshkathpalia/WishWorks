@@ -595,7 +595,8 @@ export interface WwApi {
   } | null>;
 
   /** Keep a costed kit. The reading and the corrections are stored; the total never is. */
-  saveKit(kit: SavedKit): Promise<string>;
+  /** Save a kit; `replace` is the file it was opened from, deleted when the SKU has changed. */
+  saveKit(kit: SavedKit, replace: string | null): Promise<string>;
   /**
    * Write the kits out as a spreadsheet and return where it landed, or null if cancelled.
    * Pass a kit's file to export just that one, or null for all of them.

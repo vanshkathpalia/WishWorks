@@ -2853,3 +2853,13 @@ h3 > button.tiny {
 .kit-filter { display: inline-flex; gap: 4px; margin-left: 6px; }
 .kit-filter button { font-size: 11px; padding: 3px 8px; }
 .kit-filter button.on { border-color: var(--accent, #d98b4a); color: var(--accent, #d98b4a); }
+
+/* Back, beside the app name — the window has no browser chrome, so this is the only way back
+   besides ⌘[ (2026-09-18). Disabled until there is somewhere to go. */
+.brand .back {
+  margin-right: 8px;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+.brand .back:disabled { opacity: .35; }

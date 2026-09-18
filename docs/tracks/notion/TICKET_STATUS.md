@@ -770,3 +770,18 @@ useful only when it would fill this session from the automated ChatGPT's JSON."*
 nothing. And "Kits you have costed" has five chips — all / both / Flipkart / Meesho / **none yet** —
 where none-yet means costed with no price decided on either marketplace, the ones still on the ₹220
 default.
+
+**Fixed, 2026-09-18 — you could not go back.** No back control, ⌘[ dead, a reload dropped you on the
+first screen, and a tab always reopened at step 1: *"if I was on the fourth step and then I changed it
+to Costing and then went back to Listing, it opens with the first step."* Now: a **Back** button beside
+the app name, **⌘[ / ⌘←** (Alt+← elsewhere), the screen remembered in `localStorage` so a reload returns
+where you were, and a tab reopening on the step it was left on. The bookkeeping sits outside React's
+state updater (an updater can run twice — Back would have needed two presses) and reads the current
+screen from a ref (a shortcut bound once would otherwise remember the screen the app started on).
+
+**Fixed — renaming a kit's SKU left the old one behind.** `saveKit` names the file from the SKU, so a
+rename wrote a SECOND kit and asked, in one line at the bottom, which was meant. Vansh renamed two and
+reopened the old copies: *"it didn't take the new name."* His `SVP033 - ANP002` (8 Aug) and its rename
+`ANP002 - SVP033` (today) were both on disk — and the renamed one had moved to the **ANP** group, which
+is why he could not find it. A rename now MOVES the kit: the old file is deleted, and the note says
+`Renamed X → Y`.
