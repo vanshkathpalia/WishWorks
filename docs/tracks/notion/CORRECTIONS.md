@@ -2738,3 +2738,15 @@ CRLF-normalised yes.
 
 **Lesson.** A repo whose data files are matched on `\n` has to say so in `.gitattributes`, or Windows
 will differ from every developer's machine in a way no Mac test can see.
+
+## C-090 — a build that failed on a stopwatch
+
+**What went wrong.** v1.7.8's Windows build failed with *"Test timed out in 5000ms"* in
+`tests/images.test.ts`: four 1500×1500 JPEGs through `sharp`, well under a second on an idle Mac, over
+five on a shared Windows runner. The same test had flaked twice on Vansh's Mac while Chrome was busy.
+Nothing was wrong with the code either time.
+
+**Fix.** `vitest.config.ts`: a 30-second timeout for every test. A real failure still fails; a slow
+machine no longer decides whether the build is green.
+
+**Lesson.** Test time limits are a property of the slowest machine that runs them, not of the code.
