@@ -474,6 +474,38 @@ export function nameWhenSent(
 }
 
 /**
+ * Find a chat by what it is called, through ChatGPT's own sidebar search, and open it.
+ *
+ * The address of a chat is saved when it is SENT (`nameWhenSent`), but chats sent before that existed
+ * have none — Vansh, 2026-09-18: *"there will be cases where that inventory SKU is not saved yet, and
+ * we have to pick it from the ChatGPT."* So the fallback is the search a person would use: type the
+ * SKU, take the row whose title carries it. Returns the chat's address, or null when nothing matches.
+ *
+ * Opens and reads only. ponytail: three ways in (a search box, `Cmd+K`, plain sidebar rows), because
+ * ChatGPT's markup moves and this is the one place that has to survive it.
+ */
+export async function findChatByTitle(page: Page, key: string): Promise<string | null> {
+  await page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
+  await page.waitForTimeout(4000);
+  const box = page.locator('input[type=search], input[placeholder*="Search" i], [role=searchbox]').first();
+  if (await box.count().catch(() => 0)) await box.click({ timeout: 5_000 }).catch(() => {});
+  else await page.keyboard.press("ControlOrMeta+K").catch(() => {});
+  await page.waitForTimeout(800);
+  // The SKU alone, never the whole title: `<SKU> — costing` carries an em dash, and one character
+  // rendered differently (or a chat renamed by hand) would lose a chat that is plainly there.
+  await page.keyboard.type(key, { delay: 10 }).catch(() => {});
+  await page.waitForTimeout(2500);
+
+  const row = page.locator('a[href^="/c/"]').filter({ hasText: key }).first();
+  if (!(await row.count().catch(() => 0))) return null;
+  const href = await row.getAttribute("href").catch(() => null);
+  if (!href) return null;
+  await row.click({ timeout: 8_000 }).catch(() => {});
+  await page.waitForTimeout(4000);
+  return new URL(href, "https://chatgpt.com").toString();
+}
+
+/**
  * What a chat should be called, from what it was for.
  *
  * `ANP018 — images`, `ANP018 — meta`, `delivery 2026-09-14`. The SKU first because that is what a

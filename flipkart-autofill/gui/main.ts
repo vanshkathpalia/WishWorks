@@ -1050,19 +1050,36 @@ ipcMain.handle("costingReply", async (_e, sku: string): Promise<Attempt<string>>
   const row = (await readLatches()).rows.find(
     (r) => r.ourSku && normalizeId(r.ourSku) === normalizeId(sku) && r.costingChatUrl,
   );
-  if (!row?.costingChatUrl) return { ok: false, message: "" }; // no chat for it; the box stays empty
+  const known = (await readLatches()).rows.find((r) => r.ourSku && normalizeId(r.ourSku) === normalizeId(sku));
+  if (!row && !known) return { ok: false, message: "" }; // nothing of ours by that SKU
   const { chatTab } = await import("../src/browser-core.js");
-  const { lastReply, jsonFromReply } = await import("../src/chat-core.js");
+  const { lastReply, jsonFromReply, findChatByTitle } = await import("../src/chat-core.js");
   let tab;
   try {
     tab = await chatTab();
-    await tab.goto(row.costingChatUrl, { waitUntil: "domcontentloaded" });
+    let url = row?.costingChatUrl ?? null;
+    if (!url) {
+      /**
+       * Sent before the address was ever saved: find it by the name the app gives these chats. Saved
+       * onto the row when found, so this search happens once per kit.
+       */
+      url = await findChatByTitle(tab, known!.ourSku!);
+      if (!url) return { ok: false, message: "" };
+      const book = await readLatches();
+      const mine = book.rows.find((r) => r.sku === known!.sku);
+      if (mine) {
+        mine.costingChatUrl = url;
+        await (await latchEngine()).writeLatches(book);
+      }
+    }
+    await tab.goto(url, { waitUntil: "domcontentloaded" });
     await tab.waitForTimeout(6000);
     const data = jsonFromReply(await lastReply(tab));
     if (data === null) return { ok: false, message: "That chat has no JSON reply yet — send it, then try again." };
     // Our SKU goes in at the top, where the Costing screen reads it from.
-    const kit = { ...(data as Record<string, unknown>), sku: row.ourSku };
-    return { ok: true, result: JSON.stringify(kit, null, 2), note: `Read from ${row.ourSku}'s costing chat.` };
+    const mineSku = row?.ourSku ?? known?.ourSku ?? sku;
+    const kit = { ...(data as Record<string, unknown>), sku: mineSku };
+    return { ok: true, result: JSON.stringify(kit, null, 2), note: `Read from ${mineSku}'s costing chat.` };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   } finally {

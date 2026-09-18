@@ -785,3 +785,12 @@ reopened the old copies: *"it didn't take the new name."* His `SVP033 - ANP002` 
 `ANP002 - SVP033` (today) were both on disk — and the renamed one had moved to the **ANP** group, which
 is why he could not find it. A rename now MOVES the kit: the old file is deleted, and the note says
 `Renamed X → Y`.
+
+**Added, 2026-09-18 — a kit with no saved chat address is found by searching ChatGPT.** "Cost this kit"
+could only fetch the costing JSON for chats sent after `costingChatUrl` existed, which was none of
+Vansh's: *"there will be cases where that inventory SKU is not saved yet and we have to pick it from
+the ChatGPT."* `findChatByTitle` now types the **SKU** into ChatGPT's own search and opens the row
+carrying it, saving the address on the row so the search happens once per kit. Searching by the SKU,
+not by `<SKU> — costing`: the em dash cost the first attempt — the fake page served it mangled and the
+match failed, which is exactly what a renamed chat would do. Checked on a fake sidebar: found and
+opened the right chat, and answered "not found" for a SKU with no chat. Reads only; sends nothing.
