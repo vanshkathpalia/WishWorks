@@ -2694,3 +2694,31 @@ card lingers 800 ms: 2 of 5 right before, 5 of 5 after. The repair of the list i
 
 **Lesson.** Making a wait faster changes what it can see. A speed change to a read needs a test with
 the old content still on screen, not only a slow new one.
+
+## C-087 — the latch list recorded the SKU we suggested, not the one saved
+
+**What went wrong.** A latch pre-fills a SKU and `readOurSkus` reads the box from the tabs still open.
+What it recorded was not what Flipkart saved. Read off the live account on 2026-09-18: the list said
+HBD102 for two different products and HBD-sonic101 for a third; Flipkart had HBD008, HBD009 and
+HBD-sonic-org. A fourth (the Partyfox backdrop) counted as latched with no SKU, and was never saved at
+all. "Latched" meant "form opened", and the app could not tell a saved form from an abandoned one.
+
+**Fix.** "Sync from Flipkart" reads every listing on the account and corrects each row by FSN. The
+account is the truth; our notes follow it.
+
+**Lesson.** A value read back from a form we filled is our own guess coming home. Read the saved
+result from where it was saved.
+
+## C-088 — a folder move that would have emptied the parent folder
+
+**What went wrong.** `graduateFolders` (2026-09-18, uncommitted, never run on Vansh's Mac because
+`Flipkart only` did not exist yet) called `photoPath(sku, "")`, which returns the kit's folder itself,
+then worked on `path.dirname` of it: the PARENT (`HBD/`). For the first kit counted final it would have
+moved every file of that parent into the kit's folder and deleted the parent.
+
+**Fix.** Removed. Folders now move only through a plan a person sees and confirms ("Sort the photo
+folders"), which moves the kit's own folder and merges file by file without overwriting.
+
+**Lesson.** A helper that takes a file name returns a folder when given `""`. Anything that deletes
+needs a test with real folder shapes before it runs silently on load.
+
