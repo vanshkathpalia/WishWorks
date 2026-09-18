@@ -8,6 +8,9 @@ Read `TICKET_STATUS.md` for how each thing came about, `CORRECTIONS.md` for what
 
 ## NOT built — the whole gap, in the order it hurts
 
+- **Flipkart bulk upload.** Never built, and not an oversight: Flipkart's API cannot create a product,
+  so a new listing goes through the 66-field form filled from `products/<ID>.json`. A bulk template
+  would be a second field mapping to keep in step with the form. First asked about 2026-09-18.
 - **Meesho image links.** The bulk sheet is built (below); its four image columns are not. The
   supplier panel's uploader hands back URLs and a person pastes them in.
 - **Price updater.** Nothing edits a live listing's price. The app fills and saves a NEW listing
@@ -65,6 +68,9 @@ Where work moves between Flipkart, Meesho, ChatGPT and this computer's folders. 
 - **Waiting for stock**, **latching a page opened by hand in Chrome**, **costing-chat redo**,
   **inventory export/import** (Settings), **right-click paste** — all 2026-09-17, tests only.
 - **Pause list** — on the Latch screen, but never seen with a real shortage.
+- **"Can only go on Meesho"** (2026-09-18) — the products Flipkart refuses (no catalog entry, or an
+  approval needing a trademark/brand letter): a SKU of ours, both photos into `Downloads/Meesho only/`,
+  then a costing chat, then the sheet below. Photos are the other seller's; the panel says so.
 - **Meesho bulk sheet** (2026-09-18) — "Which go on Meesho?" on the Latch screen; a ChatGPT chat per
   kit for the copy and dropdowns, written into Meesho's own template. Tests and an openpyxl read-back
   only: never run against real ChatGPT, never uploaded. See `MEESHO-FROM-LATCH.md`.
