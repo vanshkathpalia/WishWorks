@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import type { ImageJob, LabelPack, LatchBook, LatchRecord, Pending } from "../shared.js";
+import type { AccountView, ImageJob, LabelPack, LatchBook, LatchRecord, Pending, PhotoMove } from "../shared.js";
 
 /**
  * `₹190` — paise back to something a person reads.
@@ -107,6 +107,10 @@ export function Latch({ n }: { n: number }) {
   const [blocking, setBlocking] = useState<{ material: string; skus: string[] }[]>([]);
   /** Latched products that could have their images made. Loaded on demand — it reads the disk. */
   const [jobs, setJobs] = useState<ImageJob[] | null>(null);
+  /** The last Flipkart sync joined with the kits — what is live, where it sells, which have no kit. */
+  const [account, setAccount] = useState<AccountView | null>(null);
+  /** Folder moves between the three photo roots, shown before anything moves. */
+  const [moves, setMoves] = useState<PhotoMove[] | null>(null);
   /** Which product's run is going, and what step it is on. */
   const [running, setRunning] = useState<{ sku: string; step: string } | null>(null);
   /** Brand approvals on the account. Null until asked — it reads Flipkart. */
@@ -115,6 +119,7 @@ export function Latch({ n }: { n: number }) {
   >(null);
 
   useEffect(() => void window.ww.latches().then(setBook), []);
+  useEffect(() => void window.ww.accountView().then((r) => r.ok && r.result.live && setAccount(r.result)), []);
   useEffect(
     () => window.ww.onLatchRow((p) => setProgress({ done: p.done, of: p.of, sku: p.row.sku })),
     [],
@@ -551,6 +556,114 @@ export function Latch({ n }: { n: number }) {
       )}
       {error && <p className="error">{error}</p>}
       {note && <p className="allgood">{note}</p>}
+
+      {/* **Your Flipkart account, as Flipkart says it is.** The latch list recorded the SKU the app
+          suggested, not the one saved (HBD102 was really HBD008 and HBD009), so the account is read
+          and wins. From it: the three photo folders, every listing's photos, and a costing chat for
+          each live listing with no kit — everything short of the Meesho bulk sheet. */}
+      <div className="latch-group">
+        <h2>
+          Your Flipkart account {account && <span className="count">{account.live} live</span>}
+        </h2>
+        <p>
+          <button
+            disabled={!!busy || !!running}
+            onClick={() => {
+              setRunning({ sku: "Flipkart", step: "reading your listings…" });
+              void window.ww.syncFlipkart().then((r) => {
+                setRunning(null);
+                if (!r.ok) return setError(r.message);
+                setAccount(r.result);
+                setNote(r.note ?? null);
+                void window.ww.latches().then(setBook);
+              });
+            }}
+          >
+            Sync from Flipkart
+          </button>{" "}
+          <button
+            disabled={!!busy || !!running || !account}
+            onClick={() => {
+              setRunning({ sku: "photos", step: "starting…" });
+              void window.ww.saveListingPhotos().then((r) => {
+                setRunning(null);
+                if (!r.ok) return setError(r.message);
+                setNote(r.note ?? null);
+              });
+            }}
+          >
+            Save every listing's photos
+          </button>{" "}
+          {running?.sku === "photos" || running?.step.startsWith("photos") ? (
+            <button onClick={() => void window.ww.stopCrawl()}>Stop</button>
+          ) : null}{" "}
+          <button
+            disabled={!!busy || !!running || !account}
+            onClick={() =>
+              void window.ww.photoPlan().then((r) => {
+                if (!r.ok) return setError(r.message);
+                setMoves(r.result);
+              })
+            }
+          >
+            Sort the photo folders
+          </button>{" "}
+          <button
+            disabled={!!busy || !!running || !account?.noKit.length}
+            onClick={() => {
+              setRunning({ sku: "costing", step: `${account!.noKit.length} costing chats…` });
+              void window.ww.costNoKit().then((r) => {
+                setRunning(null);
+                if (!r.ok) return setError(r.message);
+                setNote(r.note ?? null);
+              });
+            }}
+          >
+            Costing chats for the {account?.noKit.length ?? 0} with no kit
+          </button>
+        </p>
+        {account && (
+          <p className="why">
+            {(["both", "flipkart", "meesho", "none"] as const)
+              .map((w) => `${{ both: "On both", flipkart: "Flipkart only", meesho: "Meesho only", none: "Priced nowhere" }[w]}: ${account.placed.filter((p) => p.where === w).length}`)
+              .join(" · ")}
+            {account.noKit.length > 0 && <> · No kit yet: {account.noKit.join(", ")}</>}
+          </p>
+        )}
+        {moves && (
+          <>
+            <p>
+              {moves.length
+                ? `${moves.length} folder${moves.length === 1 ? "" : "s"} would move. Nothing moves until you press the button.`
+                : "Every folder the app can match is already in the right place."}{" "}
+              {moves.length > 0 && (
+                <button
+                  onClick={() =>
+                    void window.ww.applyPhotoPlan(moves.map((m) => m.sku)).then((r) => {
+                      if (!r.ok) return setError(r.message);
+                      setNote(r.note ?? null);
+                      setMoves(null);
+                    })
+                  }
+                >
+                  Move these {moves.length}
+                </button>
+              )}
+            </p>
+            <table className="latch-table">
+              <tbody>
+                {moves.map((m) => (
+                  <tr key={m.sku}>
+                    <td className="sku">{m.sku}</td>
+                    <td className="title">{m.from}</td>
+                    <td className="why">→ {m.to}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
 
       {/* The buffer. A latch takes a minute; its costing waits on a photo, a ChatGPT reply and a
           person checking it — days later. Without this list what falls through is silent: a live

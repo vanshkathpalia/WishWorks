@@ -32,6 +32,25 @@ export type { Need } from "../src/stock-core.js";
 import type { Approval, Found, ImageJob, LatchBook, LatchRecord, Listed, Pending } from "../src/latch-core.js";
 export type { Approval, Found, ImageJob, LabelPack, LatchBook, Listed, LatchRecord, Pending } from "../src/latch-core.js";
 
+/** Where one SKU is sold — see `place` in flipkart-live.ts. */
+export interface Placed {
+  sku: string;
+  kitSku: string | null;
+  where: "both" | "flipkart" | "meesho" | "none";
+  live: boolean;
+  hasKit: boolean;
+}
+export interface AccountView {
+  live: number;
+  placed: Placed[];
+  noKit: string[];
+}
+export interface PhotoMove {
+  sku: string;
+  from: string;
+  to: string;
+}
+
 /**
  * Everything the packing screen draws, as one answer from the engine.
  *
@@ -710,6 +729,18 @@ export interface WwApi {
   runImages(sku: string): Promise<Attempt<unknown>>;
   /** Describe those images and fill the Flipkart fields — `PROMPT-meta` then `PROMPT-product`, one chat. */
   runMeta(sku: string): Promise<Attempt<unknown>>;
+  /** What the last Flipkart sync found, joined with the kits on disk. Reads nothing online. */
+  accountView(): Promise<Attempt<AccountView>>;
+  /** Read every listing on the seller account; correct each latched product's SKU from it. */
+  syncFlipkart(): Promise<Attempt<AccountView & { fixed: { fsn: string; was?: string; now: string }[] }>>;
+  /** The folder moves between the three photo roots. Moves nothing. */
+  photoPlan(): Promise<Attempt<PhotoMove[]>>;
+  /** Move those folders, for these SKUs. */
+  applyPhotoPlan(skus: string[]): Promise<Attempt<number>>;
+  /** Every gallery photo of every live listing into its folder. Stoppable with stopCrawl. */
+  saveListingPhotos(): Promise<Attempt<number>>;
+  /** A costing chat, unsent, for every live listing with no kit. */
+  costNoKit(): Promise<Attempt<string[]>>;
   /** Each prompt as it finishes, so a four-minute run shows its working. */
   onImageStep(cb: (p: { sku: string; prompt: string; file: string | null; seconds: number; missing: boolean }) => void): () => void;
 

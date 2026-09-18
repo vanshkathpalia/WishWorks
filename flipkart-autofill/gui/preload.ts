@@ -112,6 +112,12 @@ const api: WwApi = {
   imageQueue: () => ipcRenderer.invoke("imageQueue"),
   runImages: (sku: string) => ipcRenderer.invoke("runImages", sku),
   runMeta: (sku: string) => ipcRenderer.invoke("runMeta", sku),
+  accountView: () => ipcRenderer.invoke("accountView"),
+  syncFlipkart: () => ipcRenderer.invoke("syncFlipkart"),
+  photoPlan: () => ipcRenderer.invoke("photoPlan"),
+  applyPhotoPlan: (skus: string[]) => ipcRenderer.invoke("applyPhotoPlan", skus),
+  saveListingPhotos: () => ipcRenderer.invoke("saveListingPhotos"),
+  costNoKit: () => ipcRenderer.invoke("costNoKit"),
   onImageStep: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
     ipcRenderer.on("imageStep", handler);

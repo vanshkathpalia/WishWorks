@@ -1024,11 +1024,7 @@ ipcMain.handle("addLabels", async (_e, file: string): Promise<Attempt<unknown>> 
   };
 });
 
-ipcMain.handle("latches", async () => {
-  // A kit that became final since last time takes its photos with it, quietly.
-  await graduateFolders().catch(() => 0);
-  return (await latchEngine()).readLatches();
-});
+ipcMain.handle("latches", async () => (await latchEngine()).readLatches());
 
 /**
  * Park EVERY product page open in Chrome until its stock arrives — or, with `fsn`, un-park that one.
@@ -1763,6 +1759,167 @@ ipcMain.handle("runMeta", async (e, sku: string): Promise<Attempt<unknown>> => {
   };
 });
 
+/** Everything the "Your Flipkart account" panel shows, from the last sync and the kits on disk. */
+async function accountView() {
+  const { readLive, place } = await import("../src/flipkart-live.js");
+  const live = await readLive();
+  const placed = place(await kitPlaces(), live);
+  return {
+    live: live.filter((l) => l.state !== "ARCHIVED").length,
+    placed,
+    noKit: placed.filter((p) => p.live && !p.hasKit).map((p) => p.sku),
+  };
+}
+
+ipcMain.handle("accountView", async (): Promise<Attempt<unknown>> => ({ ok: true, result: await accountView() }));
+
+/**
+ * Read every listing on the seller account and put the truth into the latch list: each live product
+ * gets the SKU it was SAVED with, and listings the list never knew about are added. Reads only.
+ */
+ipcMain.handle("syncFlipkart", async (): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, todayStamp } = await latchEngine();
+  const { fetchLive, writeLive, syncBook } = await import("../src/flipkart-live.js");
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  let live;
+  try {
+    live = await fetchLive(tab.result);
+  } catch (err) {
+    return { ok: false, message: `Could not read your listings: ${err instanceof Error ? err.message.split("\n")[0] : String(err)}` };
+  } finally {
+    await tab.result.close().catch(() => {});
+  }
+  await writeLive(live);
+  const synced = syncBook(await readLatches(), live, todayStamp());
+  await writeLatches(synced.book);
+  const view = await accountView();
+  return {
+    ok: true,
+    result: { ...view, fixed: synced.fixed },
+    note:
+      `${view.live} live on Flipkart. ` +
+      (synced.fixed.length ? `Corrected ${synced.fixed.map((f) => `${f.was ?? "no SKU"} → ${f.now}`).join(", ")}. ` : "") +
+      (synced.added ? `${synced.added} added to the latch list. ` : "") +
+      `${view.noKit.length} have no costed kit.`,
+  };
+});
+
+/** Which folders would move between the three photo roots. Moves nothing. */
+async function photoMoves() {
+  const { planMoves } = await import("../src/flipkart-live.js");
+  const { placed } = await accountView();
+  const found = new Map<string, string | null>();
+  for (const p of placed) for (const s of [p.sku, p.kitSku]) if (s) found.set(s, await existingFolder(s));
+  return planMoves(placed, (s) => found.get(s) ?? null);
+}
+
+ipcMain.handle("photoPlan", async (): Promise<Attempt<unknown>> => ({ ok: true, result: await photoMoves() }));
+
+/**
+ * Move the folders the plan showed, for these SKUs. The plan is worked out again here rather than
+ * taken from the screen, so a path can only ever be one of the three roots under Downloads. A folder
+ * that already exists at the far end is merged file by file, never overwritten.
+ */
+ipcMain.handle("applyPhotoPlan", async (_e, skus: string[]): Promise<Attempt<unknown>> => {
+  const moves = (await photoMoves()).filter((m) => skus.includes(m.sku));
+  const kept: string[] = [];
+  for (const m of moves) {
+    const from = path.join(downloads(), ...m.from.split("/"));
+    const to = path.join(downloads(), ...m.to.split("/"));
+    await mkdir(path.dirname(to), { recursive: true });
+    if (!existsSync(to)) {
+      await rename(from, to);
+      continue;
+    }
+    for (const f of await readdir(from)) {
+      if (existsSync(path.join(to, f))) kept.push(`${m.from}/${f}`);
+      else await rename(path.join(from, f), path.join(to, f));
+    }
+    if ((await readdir(from)).length === 0) await rm(from, { recursive: true });
+  }
+  return {
+    ok: true,
+    result: moves.length,
+    note: `Moved ${moves.length} folder${moves.length === 1 ? "" : "s"}.` + (kept.length ? ` Left where they were (a file of that name was already there): ${kept.join(", ")}.` : ""),
+  };
+});
+
+/**
+ * Every gallery photo of every live listing, into its folder as 1.jpg, 2.jpg… in Flipkart's order.
+ * A folder that already has a 1.jpg is skipped, so a second run only fills the gaps. Stoppable.
+ */
+ipcMain.handle("saveListingPhotos", async (e): Promise<Attempt<unknown>> => {
+  const { readLive } = await import("../src/flipkart-live.js");
+  const { galleryImages, saveImage } = await latchEngine();
+  const live = (await readLive()).filter((l) => l.state !== "ARCHIVED");
+  if (!live.length) return { ok: false, message: "Sync from Flipkart first." };
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  const page = tab.result;
+  stopSweep = false;
+  let saved = 0;
+  const missed: string[] = [];
+  for (const [i, l] of live.entries()) {
+    if (stopSweep) break;
+    const root = await placeFor(l.sku);
+    // A SKU the folder matcher cannot read (`HBD-sonic-org`, `HBD005 - 1 year`) still gets its photos.
+    const dir = (await photoPath(l.sku, "", root, true)) ?? path.join(root, "unsorted", l.sku.replace(/[^\w -]+/g, "-"));
+    if (existsSync(path.join(dir, "1.jpg"))) continue;
+    e.sender.send("imageStep", { sku: l.sku, prompt: `photos ${i + 1} of ${live.length}`, file: null, seconds: 0, missing: false });
+    try {
+      await page.goto(l.url, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(5000);
+      const gallery = await galleryImages(page);
+      if (!gallery.length) {
+        missed.push(`${l.sku} (no photos on the page)`);
+        continue;
+      }
+      for (const [n, url] of gallery.entries()) await saveImage(page, url, path.join(dir, `${n + 1}.jpg`));
+      saved++;
+    } catch (err) {
+      missed.push(`${l.sku} (${err instanceof Error ? err.message.split("\n")[0].slice(0, 60) : String(err)})`);
+    }
+  }
+  await page.close().catch(() => {});
+  return {
+    ok: true,
+    result: saved,
+    note: `Saved the photos of ${saved} listing${saved === 1 ? "" : "s"}.` + (missed.length ? ` Missed: ${missed.join("; ")}.` : ""),
+  };
+});
+
+/**
+ * A costing chat for every live listing with no costed kit — the contents photo and PROMPT-inventory,
+ * unsent, one tab each, named `<SKU> — costing` once sent. The same `costingChatFor` a latch uses.
+ */
+ipcMain.handle("costNoKit", async (): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches } = await latchEngine();
+  const { skuKey } = await import("../src/flipkart-live.js");
+  const { noKit } = await accountView();
+  const want = new Set(noKit.map(skuKey));
+  const book = await readLatches();
+  const rows = book.rows.filter((r) => r.ourSku && r.state === "selling" && want.has(skuKey(r.ourSku)));
+  if (!rows.length) return { ok: false, message: "Every live listing has a kit — or sync from Flipkart first." };
+  const prompt = await (await promptsEngine()).readPrompt(promptDirs(), "PROMPT-inventory.md").then((p) => p.text, () => null);
+  if (!prompt) return { ok: false, message: "PROMPT-inventory.md could not be read." };
+  const tab = await sellerTab();
+  if (!tab.ok) return tab;
+  const results: string[] = [];
+  for (const row of rows) {
+    row.costingChat = await costingChatFor(row, tab.result, prompt, true);
+    results.push(`${row.ourSku}: ${row.costingChat}`);
+  }
+  await tab.result.close().catch(() => {});
+  await writeLatches(book);
+  const ready = rows.filter((r) => r.costingChat === "ready").length;
+  return {
+    ok: true,
+    result: results,
+    note: `${ready} costing chat${ready === 1 ? "" : "s"} ready to check and send.` + (ready < rows.length ? ` ${results.filter((r) => !r.endsWith(": ready")).join("; ")}.` : ""),
+  };
+});
+
 /** The latchable list as a message for a partner, put straight on the clipboard. */
 ipcMain.handle("shareLatches", async (_e, pack: string | null): Promise<string> => {
   const { readLatches, shareText } = await latchEngine();
@@ -1916,25 +2073,12 @@ async function skusInUse(): Promise<string[]> {
 }
 
 /**
- * Copy a latched kit's contents photo into its folder in `Downloads/Whatsapp DW`, as `contents.jpg`.
- *
- * Where Vansh keeps every kit's pictures, sorted by hand (see `photoFolder`). Skipped silently on a
- * machine without that folder — the partner's — and for a product with no SKU of ours yet. The app's
- * own copy stays where it is; the image queue reads that one.
- * ponytail: the folder name is his; make it a Settings folder if anyone else sorts photos this way.
+ * **Three photo roots in Downloads, by where the kit is sold** — `Whatsapp DW` both, `Flipkart only`,
+ * `Meesho only`. Vansh, 2026-09-18: *"separate flipkart only, meesho only, and if both — that's in
+ * whatsapp dw."* On Flipkart = live on the account at the last sync; on Meesho = the kit has a Meesho
+ * price. See `flipkart-live.ts`. Folders only move through the plan a person confirms.
  */
-/**
- * **Two folders, because a product is at one of two stages.** `Whatsapp DW` is the finished version —
- * a kit listed on Meesho AND Flipkart, priced, sorted by hand over months. A product just latched has
- * none of that, and Vansh does not want it landing among the finished ones: *"Whatsapp DW is the one
- * that is the final version… but this is only going to be on Flipkart."* So a fresh latch files its
- * photos under `Flipkart only`, and `graduateFolders` moves the kit's folder across once the kit is
- * costed (confirmed) and has a price — his answer to when it becomes final.
- */
-const PHOTO_ROOTS = {
-  final: () => path.join(app.getPath("downloads"), "Whatsapp DW"),
-  latchedOnly: () => path.join(app.getPath("downloads"), "Flipkart only"),
-};
+const downloads = () => app.getPath("downloads");
 
 async function photoPath(sku: string, as: string, root: string, make = false): Promise<string | null> {
   const { photoFolder } = await latchEngine();
@@ -1956,68 +2100,43 @@ async function photoPath(sku: string, as: string, root: string, make = false): P
   return rel ? path.join(root, ...rel.split("/"), as) : null;
 }
 
-/**
- * A kit is final once it is **costed and priced** — Vansh's rule, taken literally: the kit file exists
- * (so it has been costed) and a marketplace carries a price. *Confirmed* is deliberately NOT required:
- * measured 2026-09-18, 0 of his 67 kits have ever been confirmed and 54 are priced, so requiring it
- * would mean nothing ever left `Flipkart only`.
- */
-async function kitIsFinal(sku: string): Promise<boolean> {
-  const { findById } = await import("../src/id.js");
-  const hit = await findById(KITS_DIR, sku).catch(() => null);
-  if (!hit) return false;
-  try {
-    const kit = JSON.parse(await readFile(hit.file, "utf8")) as {
-      marketplaces?: Record<string, { pricePaise?: number; settlementPaise?: number }>;
-    };
-    return Object.values(kit.marketplaces ?? {}).some((m) => (m?.pricePaise ?? m?.settlementPaise ?? 0) > 0);
-  } catch {
-    return false;
+/** The kit's folder as it is today, in whichever root — `<root>/<rel>` relative to Downloads — or null. */
+async function existingFolder(sku: string): Promise<string | null> {
+  const { ROOT_FOR } = await import("../src/flipkart-live.js");
+  for (const root of Object.values(ROOT_FOR)) {
+    const dir = await photoPath(sku, "", path.join(downloads(), root)).catch(() => null);
+    if (dir && existsSync(dir)) return path.relative(downloads(), dir).split(path.sep).join("/");
   }
+  return null;
+}
+
+/** Every kit's name and whether it carries a Meesho price — what `place` needs from the kits. */
+async function kitPlaces(): Promise<{ sku: string; meesho: boolean }[]> {
+  const { listKits } = await inventoryEngine();
+  return Promise.all(
+    listKits(KITS_DIR).map(async (k) => {
+      const m = await readFile(k.file, "utf8").then((t) => JSON.parse(t).marketplaces?.meesho, () => null);
+      return { sku: k.sku, meesho: (m?.pricePaise ?? 0) > 0 || (m?.settlementPaise ?? 0) > 0 };
+    }),
+  );
+}
+
+/** Where this SKU's photos go now: its existing folder's root if it has one, else by where it sells. */
+async function placeFor(sku: string): Promise<string> {
+  const { place, readLive, skuKey, ROOT_FOR } = await import("../src/flipkart-live.js");
+  const have = await existingFolder(sku);
+  if (have) return path.join(downloads(), have.split("/")[0]);
+  const p = place(await kitPlaces(), await readLive()).find((x) => skuKey(x.sku) === skuKey(sku) || (x.kitSku && skuKey(x.kitSku) === skuKey(sku)));
+  return path.join(downloads(), ROOT_FOR[!p || p.where === "none" ? "flipkart" : p.where]);
 }
 
 /** File a photo under the kit's folder in the right root, creating it when there is none yet. */
 async function fileInWhatsappFolder(sku: string, photo: string, as = "contents.jpg"): Promise<string | null> {
-  /**
-   * A kit that ALREADY has a folder in `Whatsapp DW` is filed there whatever its costing says: those
-   * folders were sorted by hand over months, and most of the old kits were never marked confirmed.
-   * Only a kit with no folder there yet starts life under `Flipkart only`.
-   */
-  const already = await photoPath(sku, as, PHOTO_ROOTS.final()).catch(() => null);
-  const root = already && existsSync(path.dirname(already)) ? PHOTO_ROOTS.final()
-    : (await kitIsFinal(sku)) ? PHOTO_ROOTS.final()
-      : PHOTO_ROOTS.latchedOnly();
-  const to = await photoPath(sku, as, root, true);
+  const to = await photoPath(sku, as, await placeFor(sku), true);
   if (!to) return null;
   await mkdir(path.dirname(to), { recursive: true });
   await copyFile(photo, to);
   return to;
-}
-
-/**
- * Move every kit that has become final out of `Flipkart only` and into `Whatsapp DW`, folder and all.
- * Cheap and silent: nothing to do when the folder does not exist. Run when the Latch screen loads.
- */
-async function graduateFolders(): Promise<number> {
-  const from = PHOTO_ROOTS.latchedOnly();
-  if (!existsSync(from)) return 0;
-  const inv = await inventoryEngine();
-  let moved = 0;
-  for (const kit of inv.listKits(KITS_DIR)) {
-    if (!kit.sku || !(await kitIsFinal(kit.sku))) continue;
-    const here = await photoPath(kit.sku, "", from);
-    if (!here || !existsSync(path.dirname(here))) continue;
-    const there = await photoPath(kit.sku, "", PHOTO_ROOTS.final(), true);
-    if (!there) continue;
-    await mkdir(path.dirname(there), { recursive: true });
-    for (const f of await readdir(path.dirname(here)).catch(() => [])) {
-      await copyFile(path.join(path.dirname(here), f), path.join(path.dirname(there), f)).catch(() => {});
-      await rm(path.join(path.dirname(here), f)).catch(() => {});
-    }
-    await rm(path.dirname(here), { recursive: true }).catch(() => {});
-    moved++;
-  }
-  return moved;
 }
 
 /**
@@ -2081,10 +2200,8 @@ async function costingChatFor(
        * will add those images in the folder manually."* So a newer `contents.jpg` there is the one
        * the chat gets.
        */
-      const theirs = row.ourSku
-        ? await photoPath(row.ourSku, "contents.jpg", PHOTO_ROOTS.latchedOnly()).catch(() => null) ??
-          (await photoPath(row.ourSku, "contents.jpg", PHOTO_ROOTS.final()).catch(() => null))
-        : null;
+      const folder = row.ourSku ? await existingFolder(row.ourSku) : null;
+      const theirs = folder ? path.join(downloads(), ...folder.split("/"), "contents.jpg") : null;
       if (theirs && existsSync(theirs)) {
         const [mine, hand] = [statSync(file).mtimeMs, statSync(theirs).mtimeMs];
         if (hand > mine) file = theirs;
