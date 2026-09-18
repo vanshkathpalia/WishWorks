@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "The answers every row of the Meesho bulk sheet shares. Keys are the template's column headers",
+    "exactly (meesho-party-items.xlsx, sheet 'Party-Items-Fill this'); a key that matches no header",
+    "stops the sheet being written rather than filling the wrong column. Keys starting with _ are notes.",
+    "",
+    "HSN 950300, not Flipkart's 95030020: Meesho's dropdown does not offer 95030020, and 950300 is the",
+    "same toys heading at six digits. Vansh chose it, 2026-09-18.",
+    "WishWorks is the Meesho trade name for manufacturer and packer (PartyDreams is Flipkart's only).",
+    "Address from Vansh, 2026-09-18; 'Haryana' added because the template asks for the state.",
+    "MRP 999 is the figure every latch form is filled with (LATCH_PRICES in gui/main.ts).",
+    "Stock 100 is the Flipkart default. Origin is India only, so the Importer columns say Not Required."
+  ],
+  "Variation": "Free Size",
+  "MRP": 999,
+  "GST %": "5",
+  "HSN ID": "950300",
+  "Inventory": 100,
+  "Country of Origin": "India",
+  "Manufacturer Name": "WishWorks",
+  "Manufacturer Address": "HN 701, Ram Dwar, Urban Estate II, Hisar, Haryana",
+  "Manufacturer Pincode": "125005",
+  "Packer Name": "WishWorks",
+  "Packer Address": "HN 701, Ram Dwar, Urban Estate II, Hisar, Haryana",
+  "Packer Pincode": "125005",
+  "Net Quantity (N)": "1"
+}
