@@ -1036,6 +1036,68 @@ ipcMain.handle("addLabels", async (_e, file: string): Promise<Attempt<unknown>> 
   };
 });
 
+/**
+ * The costing JSON out of this kit's own ChatGPT chat, with OUR SKU written into it.
+ *
+ * Vansh, 2026-09-18, on the Costing screen's paste box: *"this redirect will be really useful only
+ * when it would fill this session… from the automated ChatGPT's JSON, and storing that SKU name at
+ * the appropriate place at top of this JSON."* The chat is opened by the address saved when it was
+ * sent — no searching the sidebar — and nothing is sent or changed in it.
+ */
+ipcMain.handle("costingReply", async (_e, sku: string): Promise<Attempt<string>> => {
+  const { readLatches } = await latchEngine();
+  const { normalizeId } = await import("../src/id.js");
+  const row = (await readLatches()).rows.find(
+    (r) => r.ourSku && normalizeId(r.ourSku) === normalizeId(sku) && r.costingChatUrl,
+  );
+  const known = (await readLatches()).rows.find((r) => r.ourSku && normalizeId(r.ourSku) === normalizeId(sku));
+  if (!row && !known) return { ok: false, message: "" }; // nothing of ours by that SKU
+  const { chatTab } = await import("../src/browser-core.js");
+  const { lastReply, jsonFromReply, findChatByTitle } = await import("../src/chat-core.js");
+  let tab;
+  try {
+    tab = await chatTab();
+    let url = row?.costingChatUrl ?? null;
+    if (!url) {
+      /**
+       * Sent before the address was ever saved: find it by the name the app gives these chats. Saved
+       * onto the row when found, so this search happens once per kit.
+       */
+      url = await findChatByTitle(tab, known!.ourSku!);
+      if (!url) return { ok: false, message: "" };
+      const book = await readLatches();
+      const mine = book.rows.find((r) => r.sku === known!.sku);
+      if (mine) {
+        mine.costingChatUrl = url;
+        await (await latchEngine()).writeLatches(book);
+      }
+    }
+    await tab.goto(url, { waitUntil: "domcontentloaded" });
+    await tab.waitForTimeout(6000);
+    const data = jsonFromReply(await lastReply(tab));
+    if (data === null) return { ok: false, message: "That chat has no JSON reply yet — send it, then try again." };
+    // Our SKU goes in at the top, where the Costing screen reads it from.
+    const mineSku = row?.ourSku ?? known?.ourSku ?? sku;
+    const kit = { ...(data as Record<string, unknown>), sku: mineSku };
+    return { ok: true, result: JSON.stringify(kit, null, 2), note: `Read from ${mineSku}'s costing chat.` };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  } finally {
+    await tab?.close().catch(() => {});
+  }
+});
+
+/** Put a turned-down product back in the queue — it was a wrong shortlist, not a decision. */
+ipcMain.handle("showAgain", async (_e, fsn: string): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches } = await latchEngine();
+  const book = await readLatches();
+  const row = book.rows.find((r) => r.fsn === fsn);
+  if (!row) return { ok: false, message: "That product is not in your latch list." };
+  delete row.turnedDownOn;
+  await writeLatches(book);
+  return { ok: true, result: book, note: `${row.title?.slice(0, 60) ?? fsn} is back in the queue.` };
+});
+
 ipcMain.handle("latches", async () => (await latchEngine()).readLatches());
 
 /**
