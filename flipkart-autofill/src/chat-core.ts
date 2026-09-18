@@ -500,9 +500,11 @@ export async function findChatByTitle(page: Page, key: string): Promise<string |
   if (!(await row.count().catch(() => 0))) return null;
   const href = await row.getAttribute("href").catch(() => null);
   if (!href) return null;
-  await row.click({ timeout: 8_000 }).catch(() => {});
-  await page.waitForTimeout(4000);
-  return new URL(href, "https://chatgpt.com").toString();
+  // Straight to the address rather than clicking the row and waiting for the sidebar to catch up —
+  // the click took seconds and the answer is already in the href (Vansh: *"that too was slow"*).
+  const url = new URL(href, "https://chatgpt.com").toString();
+  await page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
+  return url;
 }
 
 /**

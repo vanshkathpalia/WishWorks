@@ -1853,14 +1853,32 @@ ipcMain.handle("runMeta", async (e, sku: string): Promise<Attempt<unknown>> => {
 ipcMain.handle("meeshoQueue", async (): Promise<Attempt<unknown>> => {
   const { readLatches, forMeesho } = await latchEngine();
   const { findById } = await import("../src/id.js");
+  const { listKits } = await inventoryEngine();
+  const { normalizeId } = await import("../src/id.js");
+  const book = await readLatches();
   const rows = await Promise.all(
-    forMeesho(await readLatches()).map(async (r) => ({
+    forMeesho(book).map(async (r) => ({
       ourSku: r.ourSku!,
       title: r.title,
       latchedOn: r.latchedOn!,
       costed: !!(await findById(KITS_DIR, r.ourSku!)),
     })),
   );
+  /**
+   * **Every costed kit with no Meesho price belongs here too**, not only what this app latched.
+   * Vansh, 2026-09-18: *"right now Which go on Meesho is giving me 5 listings… there are many like
+   * this that even have a SKU JSON."* Most of his kits predate the latch list entirely.
+   */
+  const already = new Set(rows.map((r) => normalizeId(r.ourSku)));
+  for (const k of listKits(KITS_DIR)) {
+    if (!k.sku || already.has(normalizeId(k.sku))) continue;
+    const kit = await readFile(k.file, "utf8").then((t) => JSON.parse(t), () => null);
+    const meesho = kit?.marketplaces?.meesho ?? {};
+    if ((meesho.pricePaise ?? meesho.settlementPaise ?? 0) > 0) continue; // already sells there
+    const row = book.rows.find((r) => r.ourSku && normalizeId(r.ourSku) === normalizeId(k.sku));
+    if (row?.meeshoOn) continue;
+    rows.push({ ourSku: k.sku, title: row?.title ?? kit?.sku ?? k.sku, latchedOn: row?.latchedOn ?? "", costed: true });
+  }
   return { ok: true, result: rows };
 });
 

@@ -794,3 +794,16 @@ carrying it, saving the address on the row so the search happens once per kit. S
 not by `<SKU> — costing`: the em dash cost the first attempt — the fake page served it mangled and the
 match failed, which is exactly what a renamed chat would do. Checked on a fake sidebar: found and
 opened the right chat, and answered "not found" for a SKU with no chat. Reads only; sends nothing.
+
+**Fixed, 2026-09-18 — three SKU faults and a Meesho list that showed 5 of 34.**
+- **Made-up numbers drove the series.** HBD100/HBD101/GTB-100/HBD-sonic100 are Vansh's jokes; counting
+  from them gave HBD102 to TWO products while the real run was at 009. Numbers ≥ 100 no longer set the
+  next one (they still count as taken). His rows were re-numbered HBD006, HBD007, HBD-sonic02.
+- **A number inside a longer name was invisible.** `HBD005 - 1 year` and `HBD-sonic01 - 5yr` are real
+  kits, and the first re-numbering run picked exactly those — caught before it was saved, backup
+  restored. The owned-number rule now reads a number that a longer name carries.
+- **"Which go on Meesho?" listed only what this app latched** (5), when 34 costed kits have no Meesho
+  price: *"there are many like this that even have a SKU JSON."* Every costed kit with no Meesho price
+  is on the list now, latched here or not.
+- **Finding a costing chat was slow**: it clicked the search row and waited. It goes straight to the
+  chat's address instead.

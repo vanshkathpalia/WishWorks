@@ -98,14 +98,26 @@ export function nextSku(title: string, taken: string[]): string | null {
   const prefix = themeFor(title);
   if (!prefix) return null;
 
-  const owned = new RegExp(`^${prefix.replace(/-/g, "\\-")}-?0*(\\d+)$`, "i");
+  /**
+   * The number this prefix owns — and a name that CARRIES it counts: `HBD005 - 1 year` and
+   * `HBD-sonic01 - 5yr` are real kits, and reading them as "no number" is how a re-numbering nearly
+   * handed HBD005 out a second time (2026-09-18).
+   */
+  const owned = new RegExp(`^${prefix.replace(/-/g, "\\-")}-?0*(\\d+)(?![0-9])`, "i");
+  /**
+   * **Numbers at 100 and above are not part of the run.** Vansh named a few kits HBD100, HBD101,
+   * GTB-100, HBD-sonic100 *"just for fun"*, and counting from them handed out HBD102 — twice, to two
+   * different products — while the real series was at 009: *"there should not be a listing name as
+   * 100+, we fixed it earlier."* They still count as TAKEN below, so nothing can collide with them.
+   */
+  const FUN = 100;
   let highest = 0;
   const used = new Set<string>();
   for (const raw of taken) {
     const t = raw.trim();
     used.add(t.toUpperCase().replace(/-/g, "").replace(/(\d+)$/, (d) => String(Number(d))));
     const m = owned.exec(t);
-    if (m) highest = Math.max(highest, Number(m[1]));
+    if (m && Number(m[1]) < FUN) highest = Math.max(highest, Number(m[1]));
   }
 
   for (let n = highest + 1; n < highest + 1000; n++) {

@@ -44,7 +44,23 @@ describe("choosing the next SKU", () => {
   it("uses ONE format, whatever the old ones look like", () => {
     expect(nextSku("Some Annaprashan Decoration Kit", onDisk)).toBe("ANP004");
     expect(nextSku("Haldi Ceremony Decoration Set", onDisk)).toBe("HAL004");
-    expect(nextSku("ZYRIC Happy Birthday Black and Gold Decoration Kit", ["HBD001", "HBD101"])).toBe("HBD102");
+    // HBD101 is a made-up name, so the run continues from 001 — see the test below.
+    expect(nextSku("ZYRIC Happy Birthday Black and Gold Decoration Kit", ["HBD001", "HBD101"])).toBe("HBD002");
+  });
+
+  it("counts a number inside a longer name, so it cannot be handed out twice", () => {
+    // Real kits on his disk: `HBD005 - 1 year`, `HBD-sonic01 - 5yr`.
+    expect(nextSku("ZYRIC Happy Birthday Kit", ["HBD001", "HBD005 - 1 year"])).toBe("HBD006");
+    expect(nextSku("Sonic Theme Birthday Kit", ["HBD-sonic01 - 5yr", "HBD-sonic01 - 8yr"])).toBe("HBD-sonic02");
+  });
+
+  it("counts up from the real series, not from a name someone made up at 100", () => {
+    // HBD100/HBD101 are Vansh's own jokes; the series is at 009, so the next is 010 — and 100/101
+    // still count as taken.
+    expect(nextSku("ZYRIC Happy Birthday Kit", ["HBD001", "HBD009", "HBD100", "HBD101"])).toBe("HBD010");
+    expect(nextSku("Sonic Theme Birthday Kit", ["HBD-sonic01", "HBD-sonic100"])).toBe("HBD-sonic02");
+    // Nothing but made-up numbers: fall back to counting past them rather than colliding.
+    expect(nextSku("ZYRIC Happy Birthday Kit", ["HBD100", "HBD101"])).toBe("HBD001");
   });
 
   it("gives a character birthday kit two digits, like the listings already live", () => {
