@@ -807,3 +807,22 @@ opened the right chat, and answered "not found" for a SKU with no chat. Reads on
   is on the list now, latched here or not.
 - **Finding a costing chat was slow**: it clicked the search row and waited. It goes straight to the
   chat's address instead.
+**Added, 2026-09-18 — the Flipkart account as the truth, and three photo folders.** Vansh: separate
+"flipkart only, meesho only, and if both — that's in whatsapp dw", and study what is latched on
+Flipkart with no data here. Latch screen → **Your Flipkart account**:
+- **Sync from Flipkart** reads every listing (the Listings page's own data call, replayed for 500 rows
+  per state) into `latch/flipkart-live.json`, corrects each latched row's SKU by FSN (C-087) and adds
+  live listings the list never knew, under a "live on Flipkart" pack. Measured: 49 live, 1 archived.
+- **Where each SKU sells**: on Flipkart = live at the last sync; on Meesho = the kit has a Meesho
+  price. `Whatsapp DW` = both, `Flipkart only`, `Meesho only`. Kit and listing names are joined by
+  `skuKey` (`ANP015` = `ANP15`, `WKU001-ANP001` = `ANP001`).
+- **Sort the photo folders** shows the moves and does nothing until "Move these N". Dry run on the real
+  folders: 15 moves (11 to Meesho only, 4 to Flipkart only). Priced-nowhere kits (HBD100, HBD101…)
+  stay put. Replaces the uncommitted auto-graduation, which had a parent-folder bug (C-088).
+- **Save every listing's photos**: every gallery photo as 1.jpg, 2.jpg… in the listing's folder; a
+  folder with a 1.jpg is skipped; unmatched SKU names go under `<root>/unsorted/`. Stoppable.
+- **Costing chats for the N with no kit**: the existing costing chat, unsent, for each live listing with
+  no kit (17 on 2026-09-18: HBD002, HBD005, HBD006–009, HBD-car01, HBD-dore03, HBD-sonic-org, WH001,
+  MEH01, MEH02, HAL01, JM001, SKU001…).
+Not run through the app yet: the sync call was proven by hand against the account the same day.
+

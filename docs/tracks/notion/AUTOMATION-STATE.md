@@ -49,6 +49,10 @@ Where work moves between Flipkart, Meesho, ChatGPT and this computer's folders. 
 
 ## Built, never run against the real thing
 
+- **Your Flipkart account panel** (2026-09-18): sync from the live account, three photo roots, save
+  every listing's photos, costing chats for live listings with no kit. The listings call was proven by
+  hand against the account; the buttons have not been pressed in the app yet.
+
 - **The meta + product JSON chat** — the 2026-09-14 file called this "the big one, NOT built"; it is
   built now. `runMetaChat` uploads the finished images and the kit JSON, runs `PROMPT-meta` then
   `PROMPT-product` in one chat, and `saveReplyJson` downloads each `.json` reply as a FILE (falling

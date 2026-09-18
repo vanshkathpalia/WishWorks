@@ -115,6 +115,12 @@ const api: WwApi = {
   meeshoQueue: () => ipcRenderer.invoke("meeshoQueue"),
   meeshoSheet: (skus: string[]) => ipcRenderer.invoke("meeshoSheet", skus),
   meeshoDone: (skus: string[]) => ipcRenderer.invoke("meeshoDone", skus),
+  accountView: () => ipcRenderer.invoke("accountView"),
+  syncFlipkart: () => ipcRenderer.invoke("syncFlipkart"),
+  photoPlan: () => ipcRenderer.invoke("photoPlan"),
+  applyPhotoPlan: (skus: string[]) => ipcRenderer.invoke("applyPhotoPlan", skus),
+  saveListingPhotos: () => ipcRenderer.invoke("saveListingPhotos"),
+  costNoKit: () => ipcRenderer.invoke("costNoKit"),
   onImageStep: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
     ipcRenderer.on("imageStep", handler);
