@@ -25,7 +25,9 @@
 > back in the SAME chat: the photos must still be in context when the second one runs.
 > **`PROMPT-meesho-only.md` replaces both** when a product is never going on Flipkart: name,
 > description and pack contents as three blocks of text, no file, no ID — there is no
-> `products/<ID>.json`, so nothing downstream would read one. It duplicates the banned-words,
+> `products/<ID>.json`, so nothing downstream would read one. The app's Meesho bulk sheet sends it with the kit's
+> pack, then **`PROMPT-meesho-sheet.md`** as a follow-up for the six dropdowns — whose lists a test
+> keeps identical to `meesho-core.ts` `LISTS`. It duplicates the banned-words,
 > brand-collision and buyer-word rules rather than referencing them, for the same reason
 > `PROMPT-product.md` does: each file has to survive select-all-copy alone (WW-081).
 > **`PROMPT-clean-image.md`** is the newest and belongs to the LATCH flow, not this one: a photo

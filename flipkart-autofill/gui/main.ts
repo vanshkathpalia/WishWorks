@@ -1759,6 +1759,117 @@ ipcMain.handle("runMeta", async (e, sku: string): Promise<Attempt<unknown>> => {
   };
 });
 
+/** Latched, with our SKU, not yet on Meesho — oldest first. See `forMeesho`. */
+ipcMain.handle("meeshoQueue", async (): Promise<Attempt<unknown>> => {
+  const { readLatches, forMeesho } = await latchEngine();
+  const { findById } = await import("../src/id.js");
+  const rows = await Promise.all(
+    forMeesho(await readLatches()).map(async (r) => ({
+      ourSku: r.ourSku!,
+      title: r.title,
+      latchedOn: r.latchedOn!,
+      costed: !!(await findById(KITS_DIR, r.ourSku!)),
+    })),
+  );
+  return { ok: true, result: rows };
+});
+
+/**
+ * One Meesho bulk sheet for these SKUs: a ChatGPT chat per kit for the copy and dropdowns, the price
+ * and weight from the costed kit, the rest from `meesho-sheet.json` — written into Meesho's own
+ * template in Downloads. Image links stay blank: they come from the supplier panel's uploader.
+ * Marks nothing; "I uploaded these" does, once the sheet has actually gone in.
+ */
+ipcMain.handle("meeshoSheet", async (e, skus: string[]): Promise<Attempt<unknown>> => {
+  const { findById } = await import("../src/id.js");
+  const { readKit, costKit, loadMaterials } = await inventoryEngine();
+  const { loadPackaging, parcelFor } = await import("../src/packaging.js");
+  const { runMeeshoChat, chatTitle } = await import("../src/chat-core.js");
+  const { chatTab } = await import("../src/browser-core.js");
+  const m = await import("../src/meesho-core.js");
+  const { CATEGORIES_DIR } = await import("../src/paths.js");
+
+  const fixed = Object.fromEntries(
+    Object.entries(JSON.parse(await readFile(path.join(CATEGORIES_DIR, "meesho-sheet.json"), "utf8"))).filter(([k]) => !k.startsWith("_")),
+  ) as import("../src/meesho-core.js").SheetRow;
+  const prompts = await promptsEngine();
+  const [copyPrompt, sheetPrompt] = await Promise.all(
+    ["PROMPT-meesho-only.md", "PROMPT-meesho-sheet.md"].map(async (n) => (await prompts.readPrompt(promptDirs(), n)).text),
+  );
+  const materials = loadMaterials();
+  const spec = loadPackaging();
+
+  const rows: import("../src/meesho-core.js").SheetRow[] = [];
+  const done: string[] = [];
+  const notes: string[] = [];
+  for (const sku of skus) {
+    const found = await findById(KITS_DIR, sku);
+    if (!found) {
+      notes.push(`${sku}: not costed — skipped`);
+      continue;
+    }
+    const kit = readKit(found.file);
+    const lines = kit.lines.map((l, i) => ({ ...l, qty: kit.counts?.[i] ?? l.qty }));
+    const costed = costKit(kit.lines, materials, kit.overrides, kit.sku, kit.prices, kit.counts, kit.resolved);
+    const pieces = lines.reduce((n, l) => n + l.qty, 0);
+    const started = Date.now();
+    e.sender.send("imageStep", { sku, prompt: "Meesho copy", file: null, seconds: 0, missing: false });
+
+    let chat;
+    try {
+      chat = await runMeeshoChat(await chatTab(), {
+        copyPrompt: m.withPack(copyPrompt, m.packText(lines)),
+        sheetPrompt,
+        title: chatTitle("meesho", sku),
+      });
+    } catch (err) {
+      notes.push(`${sku}: the chat failed (${err instanceof Error ? err.message : String(err)}) — skipped`);
+      continue;
+    }
+    const copy = m.parseCopy(chat.copyReply);
+    const row = m.sheetRow({
+      fixed,
+      sku,
+      copy,
+      picks: m.parsePicks(chat.sheetReply),
+      pricePaise: m.meeshoPrice(costed.totalPaise, kit.flatPaise ?? 60_00) * 100,
+      pieces,
+      grams: spec ? parcelFor(lines, materials, spec, kit.parcel ?? {}).grams : null,
+    });
+    rows.push(row);
+    done.push(sku);
+
+    const problems = [
+      ...(copy ? m.checkCopy(copy, pieces) : ["the copy did not come back in its three blocks"]),
+      ...(costed.uncosted ? [`${costed.uncosted} line${costed.uncosted === 1 ? "" : "s"} unpriced, so ₹${row["Meesho Price"]} is too low`] : []),
+      ...(Number(row["Meesho Price"]) >= Number(row.MRP) ? [`price ₹${row["Meesho Price"]} is not under the MRP`] : []),
+      ...(chat.timedOut ? ["ChatGPT was still writing when it timed out"] : []),
+    ];
+    const gaps = m.missing(row);
+    if (gaps.length) problems.push(`fill by hand: ${gaps.join(", ")}`);
+    notes.push(`${sku}: ₹${row["Meesho Price"]}${problems.length ? ` — ${problems.join("; ")}` : ""}`);
+    e.sender.send("imageStep", { sku, prompt: "Meesho copy", file: null, seconds: Math.round((Date.now() - started) / 1000), missing: !copy });
+  }
+  if (!rows.length) return { ok: false, message: notes.join("\n") || "Nothing to write." };
+
+  const template = await readFile(path.join(CATEGORIES_DIR, "meesho-party-items.xlsx"));
+  const out = path.join(app.getPath("downloads"), `meesho-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-")}.xlsx`);
+  await writeFile(out, m.fillSheet(template, rows));
+  shell.showItemInFolder(out);
+  return {
+    ok: true,
+    result: done,
+    note: `${path.basename(out)} in Downloads, ${rows.length} row${rows.length === 1 ? "" : "s"}. Image links are blank — upload the photos in the supplier panel and paste its links in.\n${notes.join("\n")}`,
+  };
+});
+
+/** Take these off the Meesho list — pressed once the sheet has been uploaded. */
+ipcMain.handle("meeshoDone", async (_e, skus: string[]): Promise<Attempt<unknown>> => {
+  const { readLatches, writeLatches, markMeesho } = await latchEngine();
+  await writeLatches(markMeesho(await readLatches(), skus));
+  return { ok: true, result: skus.length };
+});
+
 /** The latchable list as a message for a partner, put straight on the clipboard. */
 ipcMain.handle("shareLatches", async (_e, pack: string | null): Promise<string> => {
   const { readLatches, shareText } = await latchEngine();

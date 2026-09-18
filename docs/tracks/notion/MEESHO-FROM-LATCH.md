@@ -54,8 +54,19 @@ image legal. The ones that pass untouched are the plain product shots.
   markup set on the kit — the `flatPaise` figure in the costing panel, ₹60 by default and editable
   per kit. This is the same rule as the Flipkart side and must read the same field, not a copy.
 
-## What exists today
+## What exists today (2026-09-18)
 
-`forMeesho(book)` — everything latched, with our SKU, not yet prepared, **oldest first**, because
-here the question is what has been waiting rather than what is riskiest. `markMeesho(book, skus)`
-takes a batch out. Neither is on screen yet.
+**Latch screen → "Which go on Meesho?"** lists `forMeesho(book)` — latched, with our SKU, not yet
+done, **oldest first**. **"Write the Meesho sheet"** runs one ChatGPT chat per costed kit
+(`PROMPT-meesho-only.md` with the pack, then `PROMPT-meesho-sheet.md` for the six dropdowns, chat
+named `<SKU> — meesho`) and writes every row into Meesho's own template, in Downloads
+(`meesho-core.ts`, `categories/meesho-party-items.xlsx`). **"I uploaded these"** calls `markMeesho`.
+
+- **Price** = (materials + the kit's `flatPaise`) + 5% GST, rounded up — the settlement rule above.
+- **Fixed answers** in `categories/meesho-sheet.json`: WishWorks + the Hisar address, HSN **950300**
+  (Meesho offers no 95030020), GST 5, MRP 999, stock 100, origin India, importer Not Required.
+- **Still by hand:** the four image links (upload in the supplier panel, paste its links), and any
+  column the result note names. Every row's problems are listed in that note: an unpriced line, a
+  name whose piece count disagrees with the kit, a field over its limit, a dropdown ChatGPT missed.
+- **Never run against real ChatGPT or a real Meesho upload.** Round-tripped through openpyxl only.
+- Not built: skipping the extreme-delivery listings, and anything that uploads images.
