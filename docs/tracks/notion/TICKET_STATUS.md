@@ -840,3 +840,16 @@ stopped run keeps what it got) → **Costing chat** (from the photo already take
 **Said plainly on screen, because it is his risk to take:** those photos are the other seller's, so the
 panel says they are kept apart and worth replacing with his own shot before the listing goes live.
 Latching is different — there the catalog entry is shared, not the picture.
+
+## WW-248 — The packing queue shows the newest manifest's day and the day before, nothing older
+
+**Done, 2026-09-25.** The queue listed every unticked parcel ever read, with its date, so a manifest
+from the 25th came up under leftovers from days back. Vansh: *"if I am uploading a manifest which is of
+25 September then it should appear… or a date from 24 at max — we never unclear any package from two
+days ago."* `outstanding()` now drops anything first seen before (newest manifest date − 1 day).
+Hidden, not deleted — the ledger still holds them. 1 test.
+
+**Where the packing pictures come from (answered, no change):** the *Finished images (the ready
+folder)* setting — `~/Downloads/wishworks-ready` on Vansh's Mac — searched through every subfolder.
+`~/Downloads/Flipkart only` and `~/Downloads/meesho` sit OUTSIDE it, so their pictures never show.
+Move them inside (e.g. `wishworks-ready/Flipkart only/`) and they are found.

@@ -180,6 +180,16 @@ describe("the parcel ledger", () => {
     ]);
   });
 
+  it("shows only the newest manifest's day and the day before", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003")], "2026-09-23", "a.pdf");
+    l = mergeShipments(l, [parcel("2", "ANP003")], "2026-09-24", "b.pdf");
+    l = mergeShipments(l, [parcel("3", "ANP003")], "2026-09-25", "c.pdf");
+    expect(outstanding(l.subOrders)[0].byDay).toEqual([
+      { date: "2026-09-24", qty: 1 },
+      { date: "2026-09-25", qty: 1 },
+    ]);
+  });
+
   /**
    * The cancelled order. Vansh, 2026-08-31: *"it had nineteen orders, but later on one of those
    * orders got cancelled… I would like to erase that so that it does not change my inventory

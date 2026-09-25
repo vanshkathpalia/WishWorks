@@ -249,9 +249,18 @@ export function outstanding(
   oldest: string;
   subOrders: SubOrder[];
 }[] {
+  /**
+   * **Only the newest manifest's day and the one before it.** Vansh, 2026-09-25: *"if I am
+   * uploading a manifest which is of 25 September then it should appear… or a date from 24 at max
+   * — we never unclear any package from two days ago."* Anything older still unticked went out
+   * without anyone ticking it, and listing it only buries today's work. Hidden, not deleted — the
+   * ledger keeps it.
+   */
+  const newest = subOrders.reduce((m, p) => (p.firstSeen > m ? p.firstSeen : m), "");
+  const cutoff = newest && new Date(Date.parse(newest) - 86_400_000).toISOString().slice(0, 10);
   const by = new Map<string, SubOrder[]>();
   for (const p of subOrders) {
-    if (p.packedOn) continue;
+    if (p.packedOn || p.firstSeen < cutoff) continue;
     if (!by.has(p.sku)) by.set(p.sku, []);
     by.get(p.sku)!.push(p);
   }
