@@ -236,6 +236,19 @@ export function mergeShipments(
   };
 }
 
+/**
+ * **The oldest day still open: the newest manifest's day and the one before it.** Vansh,
+ * 2026-09-25: *"if I am uploading a manifest which is of 25 September then it should appear… or a
+ * date from 24 at max — we never unclear any package from two days ago."* Anything older still
+ * unticked went out without anyone ticking it. It is hidden, not deleted — and it is out of reach
+ * of the tick too, or ticking today's SKU would pay someone for last week's parcels.
+ * Pass every ledger's parcels: at the turn of a month the newest day is in the other file.
+ */
+export function openFrom(subOrders: SubOrder[]): string {
+  const newest = subOrders.reduce((m, p) => (p.firstSeen > m ? p.firstSeen : m), "");
+  return newest && new Date(Date.parse(newest) - 86_400_000).toISOString().slice(0, 10);
+}
+
 /** Still to pack, grouped by SKU, most first — the list the packing screen works down. */
 export function outstanding(
   subOrders: SubOrder[],
@@ -249,15 +262,7 @@ export function outstanding(
   oldest: string;
   subOrders: SubOrder[];
 }[] {
-  /**
-   * **Only the newest manifest's day and the one before it.** Vansh, 2026-09-25: *"if I am
-   * uploading a manifest which is of 25 September then it should appear… or a date from 24 at max
-   * — we never unclear any package from two days ago."* Anything older still unticked went out
-   * without anyone ticking it, and listing it only buries today's work. Hidden, not deleted — the
-   * ledger keeps it.
-   */
-  const newest = subOrders.reduce((m, p) => (p.firstSeen > m ? p.firstSeen : m), "");
-  const cutoff = newest && new Date(Date.parse(newest) - 86_400_000).toISOString().slice(0, 10);
+  const cutoff = openFrom(subOrders);
   const by = new Map<string, SubOrder[]>();
   for (const p of subOrders) {
     if (p.packedOn || p.firstSeen < cutoff) continue;
@@ -331,12 +336,14 @@ export function packSku(
    * is left without a snapshot — a real state, not a zero.
    */
   priceAt: (p: SubOrder) => { paidPaise: number; materialsPaise: number } | null = () => null,
+  /** `openFrom` of every ledger — older parcels are hidden and a tick must not reach them. */
+  from = "",
 ): Ledger {
   let left = limit;
   return {
     ...ledger,
     subOrders: ledger.subOrders.map((p) => {
-      if (p.sku !== sku || p.packedOn || left <= 0) return p;
+      if (p.sku !== sku || p.packedOn || p.firstSeen < from || left <= 0) return p;
       left -= p.qty;
       return { ...p, packedOn: on, packedAt: new Date().toISOString(), packedBy: by, ...(priceAt(p) ?? {}) };
     }),
@@ -344,8 +351,8 @@ export function packSku(
 }
 
 /** How many packets of one SKU are still to do — what the queue shows, and what a limit counts. */
-export const leftToPack = (ledger: Ledger, sku: string): number =>
-  ledger.subOrders.filter((p) => p.sku === sku && !p.packedOn).reduce((n, p) => n + p.qty, 0);
+export const leftToPack = (ledger: Ledger, sku: string, from = ""): number =>
+  ledger.subOrders.filter((p) => p.sku === sku && !p.packedOn && p.firstSeen >= from).reduce((n, p) => n + p.qty, 0);
 
 /**
  * Undo the tick for one SKU on one day — everything it marked, and nothing anyone else did.
@@ -553,7 +560,7 @@ export function daySummary(ledgers: Ledger[], on: string) {
     unnamedBySku: rank(
       packed.filter((p) => !p.packedBy?.length).reduce((m, p) => m.set(p.sku, (m.get(p.sku) ?? 0) + p.qty), new Map<string, number>()),
     ),
-    left: ledgers.flatMap((l) => l.subOrders).filter((p) => !p.packedOn).reduce((n, p) => n + p.qty, 0),
+    left: outstanding(ledgers.flatMap((l) => l.subOrders)).reduce((n, r) => n + r.qty, 0),
     bySku: rank(bySku).map((r) => ({ ...r, by: [...(whoBySku.get(r.name) ?? [])] })),
     byPacker: rank(byPacker),
     byCourier: rank(byCourier),

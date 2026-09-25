@@ -2750,3 +2750,29 @@ Nothing was wrong with the code either time.
 machine no longer decides whether the build is green.
 
 **Lesson.** Test time limits are a property of the slowest machine that runs them, not of the code.
+
+## C-093 — hiding old parcels, but leaving them in reach of the tick
+
+**What went wrong.** WW-248 hid parcels older than the newest manifest's day minus one from the
+packing queue, in `outstanding()` only. The tick (`packSku`) still marks *every* unpacked parcel of the
+SKU, so ticking today's HAL001 would have packed last week's hidden HAL001 too — credited to today's
+packer and taken off stock — and a "packed 2" would have spent the two OLDEST, hidden ones first. The
+"still to pack" total counted them as well. Caught by the audit the same day, before any release.
+
+**Fix.** `openFrom()` is the one cutoff; `outstanding`, `packSku`, `leftToPack` and the day summary's
+`left` all use it, computed over every ledger so the turn of a month does not shift it.
+
+**Lesson.** Hiding something from a list is not the same as taking it out of play. Grep every place that
+acts on the same records, not just the one that draws them.
+
+## C-094 — suggesting a folder layout that was already decided the other way
+
+**What went wrong.** Asked where the packing pictures come from, I suggested moving `Flipkart only` and
+`Meesho only` inside `wishworks-ready`, then added a "photos folder" setting for `Whatsapp DW`. Both
+contradicted 2026-09-18's three fixed photo roots in Downloads, which I had not read. Vansh: *"i think
+there was a reason behind we having a separate folder."*
+
+**Fix.** The setting was dropped before commit; the packing screen reuses `existingFolder()`, the rule
+the latch files photos by (WW-249).
+
+**Lesson.** Before proposing where files should live, grep TICKET_STATUS for the folder names first.

@@ -20,7 +20,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  addSkuImage, adSpend, slotPicture, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
+  addSkuImage, adSpend, slotPicture, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, openFrom, outstanding,
   clearBack, dropParcel, type Ledger, howItSells, idsInFile, type KitMaterials, type KitMoney, kitForSku, leftToPack, markBack, mergeOrdersCsv, money,
   packSku, packerPay, parcelCredit, parseManifest, readOrdersCsv, unpackSku, workerCredit,
 } from "../src/orders-core.js";
@@ -188,6 +188,10 @@ describe("the parcel ledger", () => {
       { date: "2026-09-24", qty: 1 },
       { date: "2026-09-25", qty: 1 },
     ]);
+    // The tick reaches only what is shown — the 23rd's parcel is nobody's pay today.
+    const packed = packSku(l, "ANP003", "2026-09-25", ["Asha"], Infinity, () => null, openFrom(l.subOrders));
+    expect(packed.subOrders.filter((p) => p.packedOn).map((p) => p.subOrder)).toEqual(["2", "3"]);
+    expect(daySummary([l], "2026-09-25").left).toBe(2);
   });
 
   /**
