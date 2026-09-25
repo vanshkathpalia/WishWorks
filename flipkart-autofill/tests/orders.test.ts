@@ -20,7 +20,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  addSkuImage, adSpend, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
+  addSkuImage, adSpend, slotPicture, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, outstanding,
   clearBack, dropParcel, type Ledger, howItSells, idsInFile, type KitMaterials, type KitMoney, kitForSku, leftToPack, markBack, mergeOrdersCsv, money,
   packSku, packerPay, parcelCredit, parseManifest, readOrdersCsv, unpackSku, workerCredit,
 } from "../src/orders-core.js";
@@ -763,6 +763,16 @@ describe("the pictures on a SKU", () => {
     expect(await imageForSku(dir, "ANP-9", 2)).toMatch(/-2\.jpg$/);
     expect(await imageForSku(dir, "ANP-9", 1)).toMatch(/-1\.jpg$/);
     expect(await imageForSku(dir, "SVP025", 2)).toBeNull();
+  });
+
+  it("finds a slot in a kit's photo folder by number or by the latch's own names", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "kit-"));
+    writeFileSync(path.join(dir, "12.png"), "");
+    writeFileSync(path.join(dir, "2.PNG"), "");
+    writeFileSync(path.join(dir, "main.jpg"), "");
+    expect(await slotPicture(dir, 2)).toBe(path.join(dir, "2.PNG"));
+    expect(await slotPicture(dir, 1)).toBe(path.join(dir, "main.jpg"));
+    expect(await slotPicture(dir, 3)).toBeNull();
   });
 
   /**

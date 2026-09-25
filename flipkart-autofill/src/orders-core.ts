@@ -1013,6 +1013,18 @@ export async function imageForSku(readyDir: string, sku: string, position = 2): 
 }
 
 /**
+ * A slot's picture inside ONE kit's photo folder (`Whatsapp DW/HAL/HAL 1/`), the packing screen's
+ * fallback when the ready folder has none. Those folders name files by slot alone — `2.png` — or,
+ * when the latch saved them, `main.jpg` (slot 1) and `contents.jpg` (slot 2). Null when neither.
+ */
+export async function slotPicture(kitDir: string, position = 2): Promise<string | null> {
+  const names = await readdir(kitDir).catch(() => [] as string[]);
+  const named = { 1: "main", 2: "contents" }[position];
+  const hit = names.find((n) => new RegExp(`^(${position}${named ? `|${named}` : ""})\\.(jpe?g|png|webp)$`, "i").test(n));
+  return hit ? path.join(kitDir, hit) : null;
+}
+
+/**
  * Put a picture on a SKU by hand, filed where the finished ones live.
  *
  * Vansh, 2026-08-19: *"my image files have the SKU name and all, the partner has not"* — his own

@@ -3400,9 +3400,18 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("skuImage", async (_e, sku: string, position: number) =>
-  (await ordersEngine()).imageForSku(FOLDERS.ready.dir, sku, position),
-);
+/**
+ * The finished image first; failing that, the kit's own photo folder in whichever of the three
+ * roots holds it (`Whatsapp DW`, `Flipkart only`, `Meesho only`) — found by `existingFolder`, the
+ * same rule the latch files photos by, so the packing screen and the latch can never disagree.
+ */
+ipcMain.handle("skuImage", async (_e, sku: string, position: number) => {
+  const { imageForSku, slotPicture } = await ordersEngine();
+  const ready = await imageForSku(FOLDERS.ready.dir, sku, position);
+  if (ready) return ready;
+  const kit = await existingFolder(sku);
+  return kit ? slotPicture(path.join(downloads(), kit), position) : null;
+});
 ipcMain.handle("addSkuImage", async (_e, sku: string, position: number, file: string) =>
   (await ordersEngine()).addSkuImage(FOLDERS.ready.dir, sku, position, file),
 );

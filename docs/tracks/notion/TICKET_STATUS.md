@@ -853,3 +853,14 @@ Hidden, not deleted — the ledger still holds them. 1 test.
 folder)* setting — `~/Downloads/wishworks-ready` on Vansh's Mac — searched through every subfolder.
 `~/Downloads/Flipkart only` and `~/Downloads/meesho` sit OUTSIDE it, so their pictures never show.
 Move them inside (e.g. `wishworks-ready/Flipkart only/`) and they are found.
+
+## WW-249 — The packing screen falls back to the three photo folders
+
+**Done, 2026-09-25.** Most SKUs have no finished image in the ready folder, but their raw photos sit
+in the three roots of 2026-09-18 — `Downloads/Whatsapp DW` (both), `Flipkart only`, `Meesho only`.
+When the ready folder has no picture, the packing screen now asks `existingFolder()` — the SAME rule
+the latch files photos by, so the two can never disagree about where a kit lives — and takes `2.*`
+or `contents.jpg` (slot 1: `1.*` / `main.jpg`) from that kit's folder. No new setting: a separate
+"photos folder" setting was built first and dropped, because it duplicated the three fixed roots.
+Checked on the real folders: HAL001/003, HBD101, HBD-peppa01 from Whatsapp DW; HBD009, HAL004 from
+Flipkart only. 1 test.
