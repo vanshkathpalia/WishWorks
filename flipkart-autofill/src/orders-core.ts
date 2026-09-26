@@ -17,7 +17,7 @@
  */
 
 import zlib from "node:zlib";
-import { copyFile, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
+import { copyFile, readdir, readFile, rename, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { leadCode, themeIn } from "./id.js";
 import { ROOT } from "./paths.js";
@@ -237,21 +237,39 @@ export function mergeShipments(
 }
 
 /**
- * **The oldest day still open: the newest manifest's day and the one before it.** Vansh,
- * 2026-09-25: *"if I am uploading a manifest which is of 25 September then it should appear… or a
- * date from 24 at max — we never unclear any package from two days ago."* Anything older still
- * unticked went out without anyone ticking it. It is hidden, not deleted — and it is out of reach
- * of the tick too, or ticking today's SKU would pay someone for last week's parcels.
- * Pass every ledger's parcels: at the turn of a month the newest day is in the other file.
+ * **Every manifest date with something still unticked, newest first — and the screen shows ONE.**
+ *
+ * Replaces a rule that guessed (WW-248: *the newest day and the one before*). Vansh, 2026-09-26:
+ * *"why are you having your own logic there… instead of doing +2 for newer, you should just give
+ * option to select 25 or 26."* A date's parcels stay that date's: nothing carries forward into
+ * another day's list, and nothing is hidden. Pass every ledger's parcels — a month's turn splits
+ * the days across two files.
  */
-export function openFrom(subOrders: SubOrder[]): string {
-  const newest = subOrders.reduce((m, p) => (p.firstSeen > m ? p.firstSeen : m), "");
-  return newest && new Date(Date.parse(newest) - 86_400_000).toISOString().slice(0, 10);
+export function openDays(subOrders: SubOrder[]): { date: string; qty: number }[] {
+  const m = new Map<string, number>();
+  for (const p of subOrders) if (!p.packedOn) m.set(p.firstSeen, (m.get(p.firstSeen) ?? 0) + p.qty);
+  return [...m].map(([date, qty]) => ({ date, qty })).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * The order the couriers come to the door in — Vansh, 2026-09-26: *"topmost Delhivery bcz that
+ * delivery guy comes the first, then Express, then Shadowfax, then Valmo."* Matched on a word of
+ * the manifest's `Courier :` header, which says `Xpress Bees`, not "Express". A courier not on the
+ * list sorts after these four, and a parcel with no courier (an orders CSV) after that.
+ */
+export const COURIER_ORDER = ["delhivery", "xpress", "shadowfax", "valmo"];
+
+export function courierRank(courier: string): number {
+  if (!courier) return COURIER_ORDER.length + 1;
+  const i = COURIER_ORDER.findIndex((c) => courier.toLowerCase().includes(c));
+  return i === -1 ? COURIER_ORDER.length : i;
 }
 
 /** Still to pack, grouped by SKU, most first — the list the packing screen works down. */
 export function outstanding(
   subOrders: SubOrder[],
+  /** One manifest date's parcels only. Empty means every date — the tally's *still waiting* total. */
+  day = "",
 ): {
   sku: string;
   qty: number;
@@ -260,12 +278,15 @@ export function outstanding(
   byDay: { date: string; qty: number }[];
   /** The oldest day in this row — only the old can be late, so it is what the queue sorts on. */
   oldest: string;
+  /** Which courier takes each parcel, in the order they come to collect (`rank`, 0 = Delhivery). */
+  byCourier: { name: string; qty: number; rank: number }[];
+  /** The earliest courier in this row — what *sort by courier* sorts on. */
+  courierRank: number;
   subOrders: SubOrder[];
 }[] {
-  const cutoff = openFrom(subOrders);
   const by = new Map<string, SubOrder[]>();
   for (const p of subOrders) {
-    if (p.packedOn || p.firstSeen < cutoff) continue;
+    if (p.packedOn || (day && p.firstSeen !== day)) continue;
     if (!by.has(p.sku)) by.set(p.sku, []);
     by.get(p.sku)!.push(p);
   }
@@ -284,6 +305,11 @@ export function outstanding(
        */
       const days = new Map<string, number>();
       for (const p of ps) days.set(p.firstSeen, (days.get(p.firstSeen) ?? 0) + p.qty);
+      const couriers = new Map<string, number>();
+      for (const p of ps) couriers.set(p.courier, (couriers.get(p.courier) ?? 0) + p.qty);
+      const byCourier = [...couriers]
+        .map(([name, qty]) => ({ name, qty, rank: courierRank(name) }))
+        .sort((a, b) => a.rank - b.rank);
 
       return {
         sku,
@@ -293,6 +319,8 @@ export function outstanding(
         byDay: [...days].map(([date, qty]) => ({ date, qty })).sort((a, b) => a.date.localeCompare(b.date)),
         /** The day the oldest one arrived — what the whole row is sorted and flagged on. */
         oldest: [...days.keys()].sort()[0] ?? "",
+        byCourier,
+        courierRank: courierRank(byCourier[0]?.name ?? ""),
         subOrders: ps,
       };
     })
@@ -336,14 +364,17 @@ export function packSku(
    * is left without a snapshot — a real state, not a zero.
    */
   priceAt: (p: SubOrder) => { paidPaise: number; materialsPaise: number } | null = () => null,
-  /** `openFrom` of every ledger — older parcels are hidden and a tick must not reach them. */
-  from = "",
+  /**
+   * Only this manifest date's parcels. The screen passes the date it is showing, so ticking WB005 on
+   * the 25th's list never reaches the 26th's WB005 — they are different days' work. Empty = any.
+   */
+  day = "",
 ): Ledger {
   let left = limit;
   return {
     ...ledger,
     subOrders: ledger.subOrders.map((p) => {
-      if (p.sku !== sku || p.packedOn || p.firstSeen < from || left <= 0) return p;
+      if (p.sku !== sku || p.packedOn || (day && p.firstSeen !== day) || left <= 0) return p;
       left -= p.qty;
       return { ...p, packedOn: on, packedAt: new Date().toISOString(), packedBy: by, ...(priceAt(p) ?? {}) };
     }),
@@ -351,8 +382,8 @@ export function packSku(
 }
 
 /** How many packets of one SKU are still to do — what the queue shows, and what a limit counts. */
-export const leftToPack = (ledger: Ledger, sku: string, from = ""): number =>
-  ledger.subOrders.filter((p) => p.sku === sku && !p.packedOn && p.firstSeen >= from).reduce((n, p) => n + p.qty, 0);
+export const leftToPack = (ledger: Ledger, sku: string, day = ""): number =>
+  ledger.subOrders.filter((p) => p.sku === sku && !p.packedOn && (!day || p.firstSeen === day)).reduce((n, p) => n + p.qty, 0);
 
 /**
  * Undo the tick for one SKU on one day — everything it marked, and nothing anyone else did.
@@ -473,17 +504,33 @@ export async function readLedger(month: string): Promise<Ledger | null> {
   return text === null ? null : (JSON.parse(text) as Ledger);
 }
 
+/**
+ * Written whole or not at all: to a temporary file, then renamed over the real one. A rename is one
+ * step, so a reader never sees half a month and two writers can never leave one's tail on the other's
+ * file — which is how `2026-09.json` broke on 2026-09-26 and emptied the packing screen.
+ */
 export async function writeLedger(ledger: Ledger): Promise<void> {
   await mkdir(ORDERS_DIR, { recursive: true });
-  await writeFile(ledgerFile(ledger.month), JSON.stringify(ledger, null, 2));
+  const file = ledgerFile(ledger.month);
+  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
+  await writeFile(tmp, JSON.stringify(ledger, null, 2));
+  await rename(tmp, file);
 }
 
 /** Every month on file, newest first. Small files, and pay day reads more than one of them. */
 export async function listLedgers(): Promise<Ledger[]> {
   const names = (await readdir(ORDERS_DIR).catch(() => [])).filter((n) => /^\d{4}-\d{2}\.json$/.test(n));
+  // A month that will not parse is an ERROR, not an empty month: skipping it showed "Nothing to
+  // pack" on 2026-09-26 while 80 parcels sat in a damaged file, and would pay nobody for them.
   const all = await Promise.all(
     names.map((n) =>
-      readFile(path.join(ORDERS_DIR, n), "utf8").then((t) => JSON.parse(t) as Ledger).catch(() => null),
+      readFile(path.join(ORDERS_DIR, n), "utf8").then((t) => {
+        try {
+          return JSON.parse(t) as Ledger;
+        } catch (e) {
+          throw new Error(`orders/${n} is damaged and cannot be read (${(e as Error).message}). Nothing was changed.`);
+        }
+      }),
     ),
   );
   return all

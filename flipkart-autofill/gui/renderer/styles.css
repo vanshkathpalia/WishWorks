@@ -2529,14 +2529,72 @@ button.chosen:hover {
   color: var(--ink);
 }
 
-/* Which day's manifest a queue row's parcels came from. Only drawn when some are from an earlier
-   day — those are the ones that can breach their dispatch, and they sort to the top. */
-.sku-list li button .from-day {
-  display: block;
+
+/* Several SKUs picked for one "Mark all packed". Distinct from .chosen, the one on show. */
+.sku-list li button.picked {
+  border-color: var(--accent);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+.sku-list li button {
+  user-select: none;
+}
+
+.queue-tools,
+.picked-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.queue-tools button {
+  white-space: nowrap;
+}
+.queue-tools .seg {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+.queue-tools .seg button.chosen,
+.day-chips button.chosen {
+  border-color: var(--accent);
+  background: var(--chosen);
+}
+/* One chip per manifest date, with its unticked count. */
+.day-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.day-chips button em {
+  margin-left: 6px;
+  font-style: normal;
+  color: var(--muted);
+}
+/* A courier's section: a header that opens it, and its rows only while open. */
+.courier-sec {
+  margin-bottom: 6px;
+}
+.courier-head {
+  display: flex;
+  justify-content: space-between;
   width: 100%;
-  margin-top: 3px;
-  font-size: 11.5px;
-  color: var(--warn);
+  padding: 10px 12px;
+  text-align: left;
+}
+.courier-sec.open .courier-head {
+  border-color: var(--accent);
+  margin-bottom: 4px;
+}
+.courier-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.picked-bar span {
+  margin-right: auto;
+  font-weight: 600;
 }
 
 /* Adding another colour of a material, inline on the row it is built from. */

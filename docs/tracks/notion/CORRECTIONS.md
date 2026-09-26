@@ -2776,3 +2776,32 @@ there was a reason behind we having a separate folder."*
 the latch files photos by (WW-249).
 
 **Lesson.** Before proposing where files should live, grep TICKET_STATUS for the folder names first.
+
+## C-095 — a kit key that only worked when WKU came first
+
+**What went wrong.** Vansh renamed kit `WKU001-ANP001` to `ANP001-WKU001` and saved it, and after that
+it "got lost". The kit file moved correctly (`inventory/ANP001-WKU001.json`). But `skuKey`, which
+links a kit to its live Flipkart listing (photo root, latch, placement), only removed a **leading**
+`WKU\d+`. `WKU001-ANP001` reduced to `ANP1` and matched the live listing `ANP001`. `ANP001-WKU001`
+reduced to `ANP1WKU1` and matched nothing, so the listing looked uncosted and the kit looked unlisted.
+
+**Fix.** Strip `WKU<n>` at either end (WW-252). The kit list and `kitForSku` were already fine,
+because they match any code in the name.
+
+**Lesson.** A key that normalises names must not depend on word order when people are the ones
+typing the names.
+
+## C-096 — two saves of one month at once
+
+**What went wrong.** Each ledger action read `orders/2026-09.json`, changed it and wrote it back,
+and nothing stopped two of them running together. A long write and a short write landed on the
+same file and left the long one's last 245 characters after the short one's closing brace. The
+month then failed to parse, and `listLedgers` skipped it without a word, so the packing screen said
+*Nothing to pack* with 80 parcels outstanding. The race was always there. WW-250's *Mark all
+packed* and multi-SKU naming send several saves in quick succession, which made an overlap much
+more likely.
+
+**Fix.** WW-253: atomic write, one ledger handler at a time, and a loud error for a damaged month.
+
+**Lesson.** Any file that is read, changed and written back needs one writer at a time and an
+atomic replace. And a read that fails must never look the same as a read that found nothing.

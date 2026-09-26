@@ -881,10 +881,17 @@ function today(): string {
  * or "this month's packets" mean, and one shape means one place for those definitions to live.
  * Every action below returns this same view, so the screen never has to ask twice.
  */
-async function ordersView(on = today()) {
-  const { listLedgers, listDays, outstanding, parcelCredit, daySummary, workerCredit } = await ordersEngine();
+/**
+ * `day` is the manifest date on screen — the one the list, the ticks and the tally are about.
+ * Absent means the newest date with anything still open (or today, when everything is done).
+ */
+async function ordersView(day?: string) {
+  const { listLedgers, listDays, outstanding, parcelCredit, daySummary, workerCredit, openDays } = await ordersEngine();
   const ledgers = await listLedgers();
+  const on = today();
   const month = on.slice(0, 7);
+  const open = openDays(ledgers.flatMap((l) => l.subOrders));
+  const shown = day ?? open[0]?.date ?? on;
 
   // Pay counts the old per-day files too. They are the fortnight before the ledger existed, they
   // are somebody's actual work, and dropping them from a month's total would be a silent pay cut.
@@ -894,9 +901,12 @@ async function ordersView(on = today()) {
 
   return {
     today: on,
-    outstanding: outstanding(ledgers.flatMap((l) => l.subOrders))
-      .map(({ sku, qty, byMarket, byDay, oldest }) => ({ sku, qty, byMarket, byDay, oldest })),
-    summary: daySummary(ledgers, on),
+    day: shown,
+    // The date on screen stays a chip even once it is all ticked, so its tally can still be named.
+    days: open.some((d) => d.date === shown) ? open : [...open, { date: shown, qty: 0 }].sort((a, b) => b.date.localeCompare(a.date)),
+    outstanding: outstanding(ledgers.flatMap((l) => l.subOrders), shown)
+      .map(({ sku, qty, byMarket, byDay, oldest, byCourier, courierRank }) => ({ sku, qty, byMarket, byDay, oldest, byCourier, courierRank })),
+    summary: daySummary(ledgers, shown),
     monthPay: Object.entries(credit)
       .map(([name, qty]) => ({ name, qty: Number(qty.toFixed(2)) }))
       .sort((a, b) => b.qty - a.qty),
@@ -909,13 +919,33 @@ async function ordersView(on = today()) {
 }
 
 /**
+ * The handlers that read a month's ledger and write it back, one at a time.
+ *
+ * 2026-09-26: `orders/2026-09.json` was found with a second copy's tail hanging off the end, and the
+ * packing screen came up empty because the month would not parse. Two of these ran together — each
+ * read the file, changed it and wrote it — and a short write landed over a long one. Queued, the
+ * second one reads what the first one wrote, so neither loses the other's change.
+ */
+let ledgerQueue: Promise<unknown> = Promise.resolve();
+function handleLedger<A extends unknown[]>(
+  channel: string,
+  fn: (e: Electron.IpcMainInvokeEvent, ...args: A) => Promise<unknown>,
+): void {
+  ipcMain.handle(channel, (e, ...args) => {
+    const run = ledgerQueue.then(() => fn(e, ...(args as A)));
+    ledgerQueue = run.catch(() => {});
+    return run;
+  });
+}
+
+/**
  * Read a manifest PDF into the month it belongs to.
  *
  * **Parcels, not totals.** Every parcel carries Meesho's own sub-order number, so a manifest
  * re-downloaded an hour later — which lists everything still to ship, including what was already
  * there — adds only what is genuinely new. See `mergeShipments`.
  */
-ipcMain.handle("addManifest", async (_e, file: string): Promise<Attempt<unknown>> => {
+handleLedger("addManifest", async (_e, file: string): Promise<Attempt<unknown>> => {
   const engine = await ordersEngine();
   const { parseManifest, mergeShipments, readLedger, writeLedger } = engine;
 
@@ -968,7 +998,7 @@ ipcMain.handle("addManifest", async (_e, file: string): Promise<Attempt<unknown>
   return { ok: true, result: await ordersView() };
 });
 
-ipcMain.handle("orders", () => ordersView());
+ipcMain.handle("orders", (_e, day?: string) => ordersView(day));
 
 // ---------------------------------------------------------------- latching
 
@@ -3261,7 +3291,7 @@ ipcMain.handle("setAds", async (_e, on: string, market: string, paise: number) =
  * The parcel is found by its sub-order number, which is what the marketplace's own RTO and returns
  * reports carry — so when those files get parsed, they will drive exactly this.
  */
-ipcMain.handle(
+handleLedger(
   "returned",
   async (_e, subOrder: string, status: "rto" | "returned" | null, on: string) => {
     const engine = await ordersEngine();
@@ -3287,7 +3317,7 @@ ipcMain.handle(
  * The status comes from which button was used rather than from the file, because an RTO report
  * and a returns report are two different downloads and the person doing it knows which is which.
  */
-ipcMain.handle(
+handleLedger(
   "readReport",
   async (_e, file: string, status: "rto" | "returned"): Promise<Attempt<unknown>> => {
     const engine = await ordersEngine();
@@ -3340,7 +3370,7 @@ ipcMain.handle("sent", async () => {
  * Every ledger is searched rather than the current month, because a parcel from the 31st sits in
  * last month's file and is exactly the one somebody cancels on the 1st.
  */
-ipcMain.handle("dropParcel", async (_e, subOrder: string) => {
+handleLedger("dropParcel", async (_e, subOrder: string) => {
   const engine = await ordersEngine();
   for (const ledger of await engine.listLedgers()) {
     const next = engine.dropParcel(ledger, subOrder);
@@ -3356,7 +3386,7 @@ ipcMain.handle("dropParcel", async (_e, subOrder: string) => {
  * A SKU's outstanding subOrders can sit in TWO months' files at the turn of a month, so every
  * ledger is offered the change and only the ones that actually moved are written.
  */
-ipcMain.handle(
+handleLedger(
   "packing",
   async (
     _e,
@@ -3387,15 +3417,16 @@ ipcMain.handle(
     // across ledgers rather than applied to each — otherwise "packed 2" would pack 2 per file.
     let left = opts.limit ?? Infinity;
     const ledgers = await engine.listLedgers();
-    const from = engine.openFrom(ledgers.flatMap((l) => l.subOrders));
+    // `on` is the manifest date on screen: the tick reaches only that date's parcels and is recorded
+    // under it — the 25th's list ticked on the 26th is still the 25th's work (WW-254).
     for (const ledger of ledgers) {
-      const before = engine.leftToPack(ledger, sku, from);
+      const before = engine.leftToPack(ledger, sku, on);
       const next =
-        action === "pack" ? engine.packSku(ledger, sku, on, opts.by ?? [], left, priceAt, from)
+        action === "pack" ? engine.packSku(ledger, sku, on, opts.by ?? [], left, priceAt, on)
         : action === "unpack" ? engine.unpackSku(ledger, sku, on)
         : engine.creditSku(ledger, sku, on, opts.by ?? [], opts.replacing ?? []);
       if (JSON.stringify(next.subOrders) === JSON.stringify(ledger.subOrders)) continue;
-      if (action === "pack") left -= before - engine.leftToPack(next, sku, from);
+      if (action === "pack") left -= before - engine.leftToPack(next, sku, on);
       await engine.writeLedger(next);
     }
     return ordersView(on);

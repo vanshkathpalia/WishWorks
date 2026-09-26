@@ -5,10 +5,10 @@
  * Vansh, 2026-08-19: *"we are checking which order had come and we are manually writing it on a
  * page — that is a very time consuming thing, it can cause errors."*
  *
- * **It is a queue, not a day.** Orders arrive across an afternoon and get packed the next morning,
- * and tomorrow's dispatch often gets packed today. So the left-hand list is *everything still to
- * pack*, and the date only decides who gets paid for it — see `SubOrder` in the engine for why
- * `firstSeen` and `packedOn` are two different dates.
+ * **One manifest date at a time** (WW-254). It used to be a queue of everything unticked, and then a
+ * guessed window of two days; Vansh, 2026-09-26: *"why are you having your own logic there… just
+ * give option to select 25 or 26."* A chip per date with something open; the list, the ticks and
+ * the tally are all about the chosen date, and a tick is recorded under it.
  *
  * **Counting is by parcel, never by SKU total** (WW-181). Meesho's manifest is a snapshot of
  * everything ready to ship, so the 2pm download repeats the 12pm one with more added; two
@@ -31,7 +31,7 @@ import { fileUrl } from "./ui.js";
  * Module-level rather than component state on purpose: the point is that it survives the picture
  * pane being re-rendered for a different SKU, which is the whole of hovering down a list.
  */
-const seenImages = new Map<string, string | null>();
+const seenImages = new Map<string, string>();
 
 /**
  * A SKU's picture, from the remembered answer when there is one.
@@ -45,7 +45,9 @@ function findPicture(sku: string, position: number, fresh = false): Promise<stri
   const seen = seenImages.get(key);
   if (!fresh && seen !== undefined) return Promise.resolve(seen);
   return window.ww.skuImage(sku, position).catch(() => null).then((found) => {
-    seenImages.set(key, found);
+    // Only a FOUND picture is remembered. Remembering "none" meant a folder renamed or added while
+    // the app was open never showed up — FBD01, 2026-09-26, after renaming its folder to `FBD 1`.
+    if (found) seenImages.set(key, found);
     return found;
   });
 }
@@ -459,8 +461,39 @@ export function Orders() {
    * named*. It lives HERE and not in the tick, because ticking removes the SKU from the queue and
    * anything hanging off that row is unmounted with it (WW-183).
    */
-  const [naming, setNaming] = useState<{ sku: string; qty: number } | null>(null);
+  const [naming, setNaming] = useState<{ skus: string[]; qty: number } | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
+  /**
+   * Several SKUs picked at once — Vansh, 2026-09-26: *"select all or left click drag down to select
+   * those options."* A morning's packing is done in a pile, and ticking nine SKUs one at a time
+   * means nine clicks, nine pictures and nine naming strips for what was one job.
+   * Drag down the list, shift-click a range, ctrl/⌘-click one more, or *Select all*.
+   */
+  const [picked, setPicked] = useState<string[]>([]);
+  const dragFrom = useRef<number | null>(null);
+  /**
+   * *By SKU*, or *By delivery partner* — Vansh, 2026-09-26: *"two options on top… when I click any
+   * delivery partner it toggles its dropdown open and the rest close."* Delhivery comes first
+   * because his van is the first at the door. Remembered per machine.
+   */
+  const [byCourier, setByCourier] = useState(() => {
+    try {
+      return localStorage.getItem("orders.byCourier") === "1";
+    } catch {
+      return false;
+    }
+  });
+  /** The one courier section open. `undefined` = the first one; `null` = all closed. */
+  const [openCourier, setOpenCourier] = useState<string | null | undefined>(undefined);
+
+  /** Show another manifest date. Selection belongs to the date it was made on, so it goes. */
+  function openDay(date: string) {
+    setPicked([]);
+    setSku(null);
+    setNaming(null);
+    setOpenCourier(undefined);
+    void window.ww.orders(date).then(setView, (e: Error) => setError(e.message));
+  }
 
   useEffect(() => {
     // Same rule as the picture below: an IPC rejection never settles, so it must be caught here or
@@ -469,6 +502,27 @@ export function Orders() {
     void window.ww.workers().then(setWorkers, () => setWorkers([]));
   }, []);
 
+  const queue = view?.outstanding ?? [];
+  type Row = (typeof queue)[number];
+  /**
+   * One section per courier, in the order they collect. A SKU split across two couriers is in both,
+   * showing that courier's count — ticking it still packs every parcel of it on this date.
+   */
+  const sections: { name: string; rows: { r: Row; qty: number }[] }[] = [];
+  if (byCourier) {
+    const by = new Map<string, { rank: number; rows: { r: Row; qty: number }[] }>();
+    for (const r of queue)
+      for (const c of r.byCourier) {
+        if (!by.has(c.name)) by.set(c.name, { rank: c.rank, rows: [] });
+        by.get(c.name)!.rows.push({ r, qty: c.qty });
+      }
+    for (const [name, v] of [...by].sort((a, b) => a[1].rank - b[1].rank || a[0].localeCompare(b[0])))
+      sections.push({ name, rows: v.rows });
+  }
+  const open = openCourier === undefined ? (sections[0]?.name ?? null) : openCourier;
+  /** What Select all and a drag work over: the open courier's rows, or the whole list. */
+  const visible = byCourier ? (sections.find((x) => x.name === open)?.rows.map((x) => x.r) ?? []) : queue;
+  const pickedQty = queue.filter((r) => picked.includes(r.sku)).reduce((n, r) => n + r.qty, 0);
   const row = view?.outstanding.find((r) => r.sku === sku) ?? null;
   const packets = view?.outstanding.reduce((n, r) => n + r.qty, 0) ?? 0;
   /** The main pane follows the SELECTION. Hovering has its own box; see `hover`. */
@@ -477,21 +531,41 @@ export function Orders() {
 
   /** Tick a batch off and go straight to naming it — the two halves of one action. */
   function pack(target: string, qty: number, limit?: number) {
-    setNaming({ sku: target, qty: limit ?? qty });
+    setNaming({ skus: [target], qty: limit ?? qty });
     setChosen([]);
     void window.ww
-      .packing("pack", target, view!.today, limit === undefined ? {} : { limit })
+      .packing("pack", target, view!.day, limit === undefined ? {} : { limit })
       .then(setView, (e: Error) => setError(e.message));
   }
 
+  /**
+   * Every picked SKU packed, then one naming strip for the lot. One at a time, not in parallel:
+   * each call rewrites the same month file, and two at once would lose one of the writes.
+   */
+  async function packPicked() {
+    const rows = queue.filter((r) => picked.includes(r.sku));
+    setPicked([]);
+    setNaming({ skus: rows.map((r) => r.sku), qty: rows.reduce((n, r) => n + r.qty, 0) });
+    setChosen([]);
+    try {
+      for (const r of rows) setView(await window.ww.packing("pack", r.sku, view!.day, {}));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   /** Name (or rename) the batch on screen. `replacing` keeps a second batch off the first one's. */
-  function credit(names: string[]) {
+  async function credit(names: string[]) {
     if (!naming || !view) return;
     const replacing = chosen;
     setChosen(names);
-    void window.ww
-      .packing("credit", naming.sku, view.today, { by: names, replacing })
-      .then(setView, (e: Error) => setError(e.message));
+    try {
+      // Sequential for the same reason as `packPicked`: one file, one writer at a time.
+      for (const target of naming.skus)
+        setView(await window.ww.packing("credit", target, view.day, { by: names, replacing }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   function addWorker(name: string) {
@@ -520,7 +594,62 @@ export function Orders() {
       }
     }
     setSku(null);
+    setPicked([]);
     setBusy(false);
+  }
+
+  /** One list of rows — the whole queue, or one courier's section. Drag and shift-click range over it. */
+  function rowList(rows: { r: Row; qty: number }[]) {
+    const list = rows.map((x) => x.r);
+    return (
+      <ul onMouseLeave={() => setHover(null)} onMouseUp={() => (dragFrom.current = null)}>
+        {rows.map(({ r, qty }, i) => (
+          <li key={r.sku}>
+            <button
+              className={`${r.sku === sku ? "chosen" : ""} ${picked.includes(r.sku) ? "picked" : ""}`}
+              onMouseDown={(e) => {
+                if (e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey) return;
+                dragFrom.current = i;
+                // Stop the browser starting a text selection under the drag.
+                e.preventDefault();
+              }}
+              onMouseEnter={(e) => {
+                setHover(r.sku);
+                // Button released outside the list: the drag is over, not still going.
+                if (dragFrom.current === null || e.buttons !== 1) return (dragFrom.current = null);
+                const [a, b] = [Math.min(dragFrom.current, i), Math.max(dragFrom.current, i)];
+                setPicked(list.slice(a, b + 1).map((q) => q.sku));
+              }}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey) {
+                  setPicked(picked.includes(r.sku) ? picked.filter((p) => p !== r.sku) : [...picked, r.sku]);
+                  return;
+                }
+                if (e.shiftKey) {
+                  const from = Math.max(0, list.findIndex((q) => q.sku === (picked.at(-1) ?? sku)));
+                  const [a, b] = [Math.min(from, i), Math.max(from, i)];
+                  setPicked(list.slice(a, b + 1).map((q) => q.sku));
+                  return;
+                }
+                setPicked([]);
+                setSku(r.sku);
+                setNaming(null);
+              }}
+            >
+              <span className="qty">{qty}</span>
+              <span className="lid">{r.sku}</span>
+              {/* In a courier section: this courier's share of a SKU split across two. */}
+              {qty !== r.qty && <em>of {r.qty}</em>}
+              {/* The split, when a SKU sold on both. They are not interchangeable: the money
+                  differs per marketplace, and at handover they go to different couriers. */}
+              {r.byMarket.length > 1 && (
+                <em>{r.byMarket.map((m) => `${m.qty}${m.name[0].toUpperCase()}`).join(" ")}</em>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
   }
 
   return (
@@ -603,56 +732,90 @@ export function Orders() {
             <h3>
               To pack
               <small>
-                {view.outstanding.length} SKUs · {packets} packets · {view.summary.packets} packed
-                today
+                {queue.length} SKUs · {packets} packets · {view.summary.packets} packed
               </small>
             </h3>
-            {view.outstanding.length === 0 && (
+            {/* Which manifest date. Each date's parcels stay that date's — nothing carries into
+                another day's list — and a tick here is recorded under this date (WW-254). */}
+            <div className="day-chips">
+              {view.days.map((d) => (
+                <button key={d.date} className={d.date === view.day ? "chosen" : ""} onClick={() => openDay(d.date)}>
+                  {showDay(d.date)}
+                  {d.qty > 0 && <em>{d.qty}</em>}
+                </button>
+              ))}
+            </div>
+            <div className="queue-tools">
+              <div className="seg">
+                {([false, true] as const).map((c) => (
+                  <button
+                    key={String(c)}
+                    className={byCourier === c ? "chosen" : ""}
+                    onClick={() => {
+                      setByCourier(c);
+                      setPicked([]);
+                      try {
+                        localStorage.setItem("orders.byCourier", c ? "1" : "0");
+                      } catch {
+                        // A per-machine convenience; the choice still holds for this session.
+                      }
+                    }}
+                  >
+                    {c ? "By partner" : "By SKU"}
+                  </button>
+                ))}
+              </div>
+              {visible.length > 0 && (
+                <button onClick={() => setPicked(picked.length === visible.length ? [] : visible.map((r) => r.sku))}>
+                  {picked.length === visible.length ? "Select none" : "Select all"}
+                </button>
+              )}
+            </div>
+            {picked.length > 1 && (
+              <div className="picked-bar">
+                <span>
+                  {picked.length} SKUs · {pickedQty} packets
+                </span>
+                <button className="primary" onClick={() => void packPicked()}>
+                  Mark all packed
+                </button>
+                <button onClick={() => setPicked([])}>Clear</button>
+              </div>
+            )}
+            {queue.length === 0 && (
               <p className="muted">
                 {view.summary.packets > 0
-                  ? `Nothing left — ${view.summary.packets} done today.`
+                  ? `Nothing left — ${view.summary.packets} done for ${showDate(view.day)}.`
                   : "Nothing to pack. Drop the manifest in above."}
               </p>
             )}
-            <ul onMouseLeave={() => setHover(null)}>
-              {view.outstanding.map((r) => (
-                <li key={r.sku}>
+            {byCourier ? (
+              sections.map((sec) => (
+                <div key={sec.name} className={`courier-sec ${open === sec.name ? "open" : ""}`}>
                   <button
-                    className={r.sku === sku ? "chosen" : ""}
-                    onMouseEnter={() => setHover(r.sku)}
+                    className="courier-head"
                     onClick={() => {
-                      setSku(r.sku);
-                      setNaming(null);
+                      setPicked([]);
+                      setOpenCourier(open === sec.name ? null : sec.name);
                     }}
                   >
-                    <span className="qty">{r.qty}</span>
-                    <span className="lid">{r.sku}</span>
-                    {/* The split, when a SKU sold on both. They are not interchangeable: the money
-                        differs per marketplace, and at handover they go to different couriers. */}
-                    {r.byMarket.length > 1 && (
-                      <em>{r.byMarket.map((m) => `${m.qty}${m.name[0].toUpperCase()}`).join(" ")}</em>
-                    )}
-                    {/**
-                      * Which day these came from. Two manifests in the queue look like one pile
-                      * otherwise, and the OLD ones are the only ones that can be late — Vansh:
-                      * *"it should be separate based on order date, the breaching one."*
-                      * Only shown when it says something: one day is the ordinary case.
-                      */}
-                    {r.oldest !== "" && r.oldest < view.today && (
-                      <span className="from-day" title={r.byDay.map((d) => `${d.qty} from ${showDate(d.date)}`).join(" · ")}>
-                        {r.byDay.length > 1
-                          ? `${r.byDay[0].qty} from ${showDay(r.byDay[0].date)}, +${r.qty - r.byDay[0].qty} newer`
-                          : `from ${showDay(r.oldest)}`}
-                      </span>
-                    )}
+                    <b>{sec.name || "No courier"}</b>
+                    <span>
+                      {sec.rows.length} SKU{sec.rows.length === 1 ? "" : "s"} · {sec.rows.reduce((n, x) => n + x.qty, 0)} packets
+                    </span>
                   </button>
-                </li>
-              ))}
-            </ul>
+                  {open === sec.name && rowList(sec.rows)}
+                </div>
+              ))
+            ) : (
+              rowList(queue.map((r) => ({ r, qty: r.qty })))
+            )}
 
             {/* Sticks to the bottom of the list, so it is in the same place whichever row the
                 cursor is on, and it does not reflow the list it sits under. */}
-            {hover !== null && hover !== sku && <Peek sku={hover} />}
+            {/* Only a SKU still in the list: ticking the last one empties the list under the cursor, so no
+                mouse-leave ever fires and the old hover would sit here from a previous manifest. */}
+            {hover !== null && hover !== sku && queue.some((r) => r.sku === hover) && <Peek sku={hover} />}
 
             {/* Where a cancelled order goes. Said here because this is where the wrong count is
                 noticed — the queue says 19 and the marketplace has cancelled one of them. */}
@@ -675,10 +838,12 @@ export function Orders() {
                   {view.summary.unnamedBySku.map((r) => (
                     <li key={r.name}>
                       <button
-                        className={`unnamed ${naming?.sku === r.name ? "chosen" : ""}`}
+                        className={`unnamed ${naming?.skus.length === 1 && naming.skus[0] === r.name ? "chosen" : ""}`}
                         onClick={() => {
-                          setNaming({ sku: r.name, qty: r.qty });
+                          setNaming({ skus: [r.name], qty: r.qty });
                           setChosen([]);
+                          // And its picture — it has left the queue, but it is what you are naming.
+                          setSku(r.name);
                         }}
                       >
                         <span className="lid">{r.name}</span>
@@ -715,11 +880,11 @@ export function Orders() {
                 at with a form. It is the same multi-select; it just no longer evicts the screen. */}
             {naming !== null && (
               <WhoPacked
-                sku={naming.sku}
+                sku={naming.skus.join(", ")}
                 qty={naming.qty}
                 workers={workers}
                 chosen={chosen}
-                onPick={credit}
+                onPick={(names) => void credit(names)}
                 onAddWorker={addWorker}
                 onDone={() => setNaming(null)}
               />
@@ -768,16 +933,16 @@ export function Orders() {
           onRename={(target, qty, by) => {
             // The names already on it become `chosen`, so `credit` REPLACES them rather than
             // adding a second set beside the first — see `creditSku`'s `replacing`.
-            setNaming({ sku: target, qty });
+            setNaming({ skus: [target], qty });
             setChosen(by);
             setTally(false);
           }}
           onUnpack={(target) => {
             // The batch being named may be the one going back; leaving that strip up would offer
             // to credit packets that no longer exist.
-            if (naming?.sku === target) setNaming(null);
+            if (naming?.skus.includes(target)) setNaming(null);
             void window.ww
-              .packing("unpack", target, view.today, {})
+              .packing("unpack", target, view.day, {})
               .then(setView, (e: Error) => setError(e.message));
           }}
         />

@@ -80,6 +80,10 @@ export interface PhotoMove {
 export interface OrdersView {
   /** The local working day, decided by the engine so every screen agrees on it. */
   today: string;
+  /** The manifest date on screen. Ticks, names and the tally are all about this date. */
+  day: string;
+  /** Every date with something unticked, newest first, plus `day` itself. */
+  days: { date: string; qty: number }[];
   /**
    * Still to pack, by SKU, most first — with the marketplace split, because one code sells on both
    * and the two are not interchangeable: different money, and different couriers at handover.
@@ -92,6 +96,10 @@ export interface OrdersView {
     byDay: { date: string; qty: number }[];
     /** The oldest day in this row — what the queue is sorted on, because only the old can be late. */
     oldest: string;
+    /** Which courier takes each parcel, in the order they come to collect. */
+    byCourier: { name: string; qty: number; rank: number }[];
+    /** The earliest-arriving courier in this row — Delhivery 0, Xpress Bees 1, Shadowfax 2, Valmo 3. */
+    courierRank: number;
   }[];
   summary: DaySummary;
   /** Packets per person this month — parcels, plus the older per-day records. */
@@ -848,7 +856,8 @@ export interface WwApi {
   /** Progress while a check or a latch run is going. */
   onLatchRow(cb: (p: { done: number; of: number; row: LatchRecord }) => void): () => void;
   /** The whole packing screen: what is left, today's tally, this month's packets. */
-  orders(): Promise<OrdersView>;
+  /** One manifest date's view; absent = the newest date with anything open. */
+  orders(day?: string): Promise<OrdersView>;
   /**
    * What a stretch of days was worth, and what it owes the packers.
    *

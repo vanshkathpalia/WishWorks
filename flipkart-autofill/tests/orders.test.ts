@@ -20,7 +20,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  addSkuImage, adSpend, slotPicture, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, openFrom, outstanding,
+  addSkuImage, adSpend, slotPicture, creditSku, daySummary, imageForSku, mergeManifest, mergeShipments, openDays, outstanding,
   clearBack, dropParcel, type Ledger, howItSells, idsInFile, type KitMaterials, type KitMoney, kitForSku, leftToPack, markBack, mergeOrdersCsv, money,
   packSku, packerPay, parcelCredit, parseManifest, readOrdersCsv, unpackSku, workerCredit,
 } from "../src/orders-core.js";
@@ -175,23 +175,43 @@ describe("the parcel ledger", () => {
         // The day it arrived on rides along, so the queue can say which parcels are the old ones.
         byDay: [{ date: "2026-08-21", qty: 1 }],
         oldest: "2026-08-21",
+        byCourier: [{ name: "Delhivery", qty: 1, rank: 0 }],
+        courierRank: 0,
         subOrders: [expect.objectContaining({ subOrder: "3" })],
       },
     ]);
   });
 
-  it("shows only the newest manifest's day and the day before", () => {
-    let l = mergeShipments(null, [parcel("1", "ANP003")], "2026-09-23", "a.pdf");
-    l = mergeShipments(l, [parcel("2", "ANP003")], "2026-09-24", "b.pdf");
-    l = mergeShipments(l, [parcel("3", "ANP003")], "2026-09-25", "c.pdf");
-    expect(outstanding(l.subOrders)[0].byDay).toEqual([
-      { date: "2026-09-24", qty: 1 },
+  it("ranks couriers in the order they collect: Delhivery, Xpress Bees, Shadowfax, Valmo", () => {
+    const l = mergeShipments(
+      null,
+      [parcel("1", "V1", "Valmo"), parcel("2", "S1", "Shadowfax"), parcel("3", "X1", "Xpress Bees"), parcel("4", "X1", "Delhivery"), parcel("5", "N1", "")],
+      "2026-09-26",
+      "a.pdf",
+    );
+    const rows = outstanding(l.subOrders);
+    expect(rows.find((r) => r.sku === "X1")).toMatchObject({
+      courierRank: 0,
+      byCourier: [{ name: "Delhivery", qty: 1, rank: 0 }, { name: "Xpress Bees", qty: 1, rank: 1 }],
+    });
+    expect([...rows].sort((a, b) => a.courierRank - b.courierRank).map((r) => r.sku)).toEqual(["X1", "S1", "V1", "N1"]);
+  });
+
+  it("keeps each manifest date to itself: one date's list, one date's tick", () => {
+    let l = mergeShipments(null, [parcel("1", "ANP003")], "2026-09-14", "a.pdf");
+    l = mergeShipments(l, [parcel("2", "ANP003")], "2026-09-25", "b.pdf");
+    l = mergeShipments(l, [parcel("3", "ANP003"), parcel("4", "WB005")], "2026-09-26", "c.pdf");
+    // Every date with something open, newest first — nothing hidden, nothing merged.
+    expect(openDays(l.subOrders)).toEqual([
+      { date: "2026-09-26", qty: 2 },
       { date: "2026-09-25", qty: 1 },
+      { date: "2026-09-14", qty: 1 },
     ]);
-    // The tick reaches only what is shown — the 23rd's parcel is nobody's pay today.
-    const packed = packSku(l, "ANP003", "2026-09-25", ["Asha"], Infinity, () => null, openFrom(l.subOrders));
-    expect(packed.subOrders.filter((p) => p.packedOn).map((p) => p.subOrder)).toEqual(["2", "3"]);
-    expect(daySummary([l], "2026-09-25").left).toBe(2);
+    expect(outstanding(l.subOrders, "2026-09-25")).toMatchObject([{ sku: "ANP003", qty: 1 }]);
+    // Ticked on the 25th's list, it is recorded under the 25th and leaves the 26th's ANP003 alone.
+    const packed = packSku(l, "ANP003", "2026-09-25", ["Asha"], Infinity, () => null, "2026-09-25");
+    expect(packed.subOrders.filter((p) => p.packedOn).map((p) => [p.subOrder, p.packedOn])).toEqual([["2", "2026-09-25"]]);
+    expect(outstanding(packed.subOrders, "2026-09-26").map((r) => r.sku)).toEqual(["ANP003", "WB005"]);
   });
 
   /**

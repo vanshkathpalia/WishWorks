@@ -864,3 +864,54 @@ or `contents.jpg` (slot 1: `1.*` / `main.jpg`) from that kit's folder. No new se
 "photos folder" setting was built first and dropped, because it duplicated the three fixed roots.
 Checked on the real folders: HAL001/003, HBD101, HBD-peppa01 from Whatsapp DW; HBD009, HAL004 from
 Flipkart only. 1 test.
+
+## WW-250 — Pack several SKUs at once, and put the queue in courier order
+
+**Done, 2026-09-26.** Vansh: *"select all or left click drag down to select those options"* and
+*"sort on the basis of delivery partner… topmost Delhivery bcz that delivery guy comes the first, then
+Express, then Shadowfax, then Valmo."* The queue now takes a drag down the list, shift-click (a range),
+ctrl/⌘-click (one more) or **Select all**, and **Mark all packed** ticks the lot with one naming strip
+for all of it. The **Courier order** checkbox sorts rows by the earliest courier in each
+(`COURIER_ORDER` in `orders-core.ts`: Delhivery, Xpress Bees, Shadowfax, Valmo, then anything else,
+then no courier) and shows each row's split. A SKU that has a Delhivery parcel goes to the top whole,
+because ticking still packs every outstanding parcel of that SKU. The checkbox is remembered per machine. 1 test.
+
+## WW-251 — Theme kit photo folders renamed so the packing screen finds them
+
+**Done, 2026-09-26.** HBD-bb02 showed no picture. `photoFolder` looks for `HBD-T/babyboss/bb02`,
+and the folder on disk was `HBD-T/babyboss/02`. I renamed the five bare-number folders in
+`Downloads/Whatsapp DW/HBD-T` at Vansh's request: `babyboss/01→bb01`, `babyboss/02→bb02`,
+`kitti/01→kitty01`, `sonic/02→sonic02`, `space/01→space01`. The code now also ignores a name in
+brackets after the code, so `bb02 (baby boss)` still matches. Checked on disk: all six HBD-T kits in
+the manifest/product files now find their `2.*`. 1 test.
+Still not found: the sonic kits (`HBD-sonic01 - 5yr/8yr`), because the ` - 5yr` suffix does not fit
+the theme pattern, and they have no folder anyway.
+
+## WW-252 — A kit renamed `ANP001-WKU001` dropped off its Flipkart listing
+
+**Done, 2026-09-26.** See C-095. `skuKey` now drops `WKU<n>` whether it comes first or last. 1 test.
+
+## WW-253 — The month's orders file broke, and the packing screen showed it as empty
+
+**Done, 2026-09-26.** Loading a manifest failed with `SyntaxError: Unexpected non-whitespace
+character after JSON at position 19356`, and the queue read *0 SKUs*. See C-096. Repaired by hand
+(85 parcels, today's 5 ticks intact; the damaged copy is kept as `orders/2026-09.json.broken-2026-09-26`).
+`writeLedger` now writes a temp file and renames it over the real one, so a month is written whole or not at all. Every handler
+that reads and rewrites a ledger (`addManifest`, `packing`, `returned`, `readReport`, `dropParcel`)
+now takes its turn through `handleLedger`. A damaged month is now an error naming the file, not a
+silently empty queue. The hover picture also stops showing a SKU that has left the list: that was the
+GTB001 left over from an earlier manifest. 2 tests, both failing on the old code.
+
+## WW-254 — The packing screen shows one manifest date at a time, by SKU or by delivery partner
+
+**Done, 2026-09-26.** This replaces WW-248's two-day window and the *"3 from 25 Sept, +2 newer"*
+rows. Vansh: *"why are you having your own logic there… just give option to select 25 or 26… if we
+don't [clear it that day] i want an option to save 25th sept here to go under 25th only and not 26th."*
+- A chip for every date with something unticked (`openDays`), newest first, each with its count.
+- The list, the ticks, the naming and the tally are all for the chosen date.
+- `packSku(…, day)` reaches only that date's parcels and records `packedOn` as that date.
+- **By SKU / By partner**: *By partner* gives one section per courier, in collection order. Clicking one
+  opens it and closes the rest. A SKU split across couriers appears in each section as *2 of 5*.
+- Select all and drag work over the open section.
+- Also: *Nobody named yet* now shows the SKU's picture, and a SKU with no picture is looked up again next time instead of being
+  remembered as "none" (FBD01 stayed blank after its folder was renamed to `FBD/FBD 1`). 1 test replaces WW-248's.
