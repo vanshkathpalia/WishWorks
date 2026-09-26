@@ -881,9 +881,10 @@ export const imageFor = (sku: string): string => path.join(latchDir(), "images",
  * Null when the SKU names no line, because a photo in the wrong kit's folder is worse than none.
  */
 export function photoFolder(sku: string, dirs: string[]): string | null {
-  const same = (a: string, b: string) =>
-    a.toUpperCase().replace(/[^A-Z0-9]+/g, "").replace(/([A-Z])0+(\d)/g, "$1$2") ===
-    b.toUpperCase().replace(/[^A-Z0-9]+/g, "").replace(/([A-Z])0+(\d)/g, "$1$2");
+  // A name in brackets after the code is for people — `bb02 (baby boss)` is still `bb02`.
+  const norm = (x: string) =>
+    x.replace(/\s*\(.*\)\s*$/, "").toUpperCase().replace(/[^A-Z0-9]+/g, "").replace(/([A-Z])0+(\d)/g, "$1$2");
+  const same = (a: string, b: string) => norm(a) === norm(b);
   const themed = /^HBD-([a-z]+?)(\d+)$/i.exec(sku);
   let parent: string;
   let leaf: string;

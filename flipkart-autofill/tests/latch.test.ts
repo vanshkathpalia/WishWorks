@@ -743,6 +743,8 @@ describe("reviewing a batch before listing it", () => {
     expect(photoFolder("HBD-bb02", dirs)).toBe("HBD-T/babyboss/bb02");
     expect(photoFolder("HBD-Kitty02", dirs)).toBe("HBD-T/kitti/kitty02");
     expect(photoFolder("WH001", dirs)).toBe("WH/WH 1"); // the same kit, his spelling
+    // A name in brackets is for people and does not stop the match.
+    expect(photoFolder("HBD-bb01", [...dirs, "HBD-T/babyboss/bb01 (baby boss)"])).toBe("HBD-T/babyboss/bb01 (baby boss)");
     expect(photoFolder("ANP016", dirs)).toBe("ANP/ANP016");
     expect(photoFolder("HBD102", dirs)).toBe("HBD/HBD102");
     expect(photoFolder("FKUP023", dirs)).toBe("FKUP/FKUP023"); // shape only; callers pass OUR SKU
