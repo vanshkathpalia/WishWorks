@@ -29,12 +29,14 @@ Rules:
 
   The SHAPE to aim for — these are not names to copy, they are how much a name has to say:
 
-  | too little        | enough                          | why |
-  |-------------------|---------------------------------|-----|
-  | `Balloons`        | `Dark Pink Pastel Balloons`     | thirty-four balloon rows fit "Balloons" |
-  | `Welcome Baby Foil` | `Blue Welcome Baby Foil`      | the same foil is stocked in two colours |
-  | `Curtain`         | `Silver Fringe Curtain`         | ten curtain rows differ only by colour |
-  | `Star Foil`       | `Golden Star Foil`              | six star rows, and one of them is a different product |
+  | too little          | enough                                      | why |
+  |---------------------|---------------------------------------------|-----|
+  | `<kind>`            | `<colour> <finish> <kind>`                  | thirty-four balloon rows fit the kind alone |
+  | `<wording> <kind>`  | `<colour> <wording> <kind>`                 | the same printed foil is stocked in two colours |
+  | `<kind>`            | `<colour> <style> <kind>`                   | ten curtain rows differ only by colour |
+  | `<shape> <kind>`    | `<colour> <shape> <kind>`                   | six rows share a shape, and one is a different product |
+
+  Every slot is filled from the sheet in front of you — the placeholders say how many words, not which.
 - **The pictures are part of the sheet, not decoration — LOOK at them.** A caption is usually
   shorter than the thing it names, and the word it leaves out is usually the colour or the finish.
   Where a caption names only the kind of item and the photograph beside it shows that item plainly
