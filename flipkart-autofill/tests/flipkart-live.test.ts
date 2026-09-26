@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { place, planMoves, skuKey, syncBook, toLive, type LiveListing } from "../src/flipkart-live.js";
+import { listingsIn, place, planMoves, skuKey, syncBook, toLive, type LiveListing } from "../src/flipkart-live.js";
 import type { LatchBook } from "../src/latch-core.js";
 
 const live = (sku: string, fsn: string, state = "ACTIVE"): LiveListing =>
@@ -91,5 +91,33 @@ describe("place and planMoves", () => {
       { sku: "ANP001", from: "Whatsapp DW/ANP/ANP 1", to: "Flipkart only/ANP/ANP 1" },
       { sku: "GTB003", from: "Whatsapp DW/GTB/GTB 3 done", to: "Meesho only/GTB/GTB 3 done" },
     ]);
+  });
+});
+
+describe("listingsIn", () => {
+  it("reads the listings out of a reply", () => {
+    expect(listingsIn('{"count":1,"listing_data_response":[{"sku_id":"HBD008"}]}')).toEqual([{ sku_id: "HBD008" }]);
+  });
+
+  it("throws on a refusal instead of reading it as no listings (the 0-live sync of 2026-09-26)", () => {
+    const refusal = '{"error":{"statusCode":400,"error":{"errors":[{"description":"batchSize must be between 1 and 100"}]}}}';
+    expect(() => listingsIn(refusal)).toThrow(/batchSize must be between 1 and 100/);
+    expect(() => listingsIn("<html>")).toThrow(/not JSON/);
+  });
+});
+
+describe("syncBook — a live SKU is not free on another product", () => {
+  it("takes the SKU off a row that was only ever SUGGESTED it (HBD008 twice, 2026-09-26)", () => {
+    const book: LatchBook = {
+      packs: [],
+      rows: [
+        { sku: "A", description: "Partyfox kit", title: "Partyfox kit", checkedOn: null, seen: 0, fsn: "LIVE1", ourSku: "HBD007", state: "form" },
+        { sku: "B", description: "Giftzadda 18th", title: "Giftzadda 18th", checkedOn: null, seen: 0, fsn: "OTHER", ourSku: "HBD008", state: "form" },
+      ],
+    };
+    const { book: out, fixed } = syncBook(book, [live("HBD008", "LIVE1")], "2026-09-26");
+    expect(out.rows.find((r) => r.fsn === "LIVE1")?.ourSku).toBe("HBD008");
+    expect(out.rows.find((r) => r.fsn === "OTHER")?.ourSku).toBeUndefined();
+    expect(fixed).toContainEqual({ fsn: "OTHER", was: "HBD008", now: "" });
   });
 });

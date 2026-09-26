@@ -46,13 +46,35 @@ export function toLive(raw: Record<string, unknown>): LiveListing {
   };
 }
 
+/** Flipkart's own ceiling on one page of listings, measured 2026-09-26. */
+const PAGE = 100;
+
+/** The listings in one reply — or a thrown error, never an empty list standing in for a refusal. */
+export function listingsIn(text: string): Record<string, unknown>[] {
+  let data: { listing_data_response?: Record<string, unknown>[] };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Flipkart's listings reply was not JSON: ${text.slice(0, 120)}`);
+  }
+  if (!Array.isArray(data.listing_data_response)) {
+    throw new Error(`Flipkart refused the listings call: ${text.slice(0, 200)}`);
+  }
+  return data.listing_data_response;
+}
+
 const STATES = ["ACTIVE", "READY_FOR_ACTIVATION", "INACTIVE", "INACTIVATED_BY_FLIPKART", "ARCHIVED"];
 
 /**
  * Every listing on the account, from a logged-in seller tab.
  *
  * The page's own call carries a CSRF header we cannot make up, so we open the Listings page, borrow
- * the headers off the request it makes, and replay it once per state with room for 500 rows.
+ * the headers off the request it makes, and replay it per state, 100 rows a page.
+ *
+ * **100, not 500 — Flipkart's limit, and it changed under us.** On 2026-09-26 the call answered
+ * `batchSize must be between 1 and 100`; that error has no `listing_data_response`, so it read as
+ * "no listings" and the sync reported *0 live* on an account with 56 — and saved the empty list over
+ * the good one. Now it pages, and a reply without the listings in it THROWS instead of meaning zero.
  */
 export async function fetchLive(page: Page): Promise<LiveListing[]> {
   const first = page.waitForRequest(/\/napi\/listing\/listingsDataForStates/, { timeout: 60_000 });
@@ -64,18 +86,21 @@ export async function fetchLive(page: Page): Promise<LiveListing[]> {
   );
   const out: LiveListing[] = [];
   for (const state of STATES) {
-    const body = JSON.stringify({
-      search_text: "",
-      search_filters: { internal_state: state },
-      column: { sort: { column_name: "demand_weight", sort_by: "DESC" }, pagination: { batch_no: 0, batch_size: 500 } },
-    });
-    const text = await page.evaluate(
-      async ([h, b]) =>
-        (await fetch("/napi/listing/listingsDataForStates", { method: "POST", headers: h, body: b, credentials: "include" })).text(),
-      [headers, body] as const,
-    );
-    const rows = (JSON.parse(text) as { listing_data_response?: Record<string, unknown>[] }).listing_data_response ?? [];
-    out.push(...rows.map(toLive));
+    for (let batch = 0; batch < 50; batch++) {
+      const body = JSON.stringify({
+        search_text: "",
+        search_filters: { internal_state: state },
+        column: { sort: { column_name: "demand_weight", sort_by: "DESC" }, pagination: { batch_no: batch, batch_size: PAGE } },
+      });
+      const text = await page.evaluate(
+        async ([h, b]) =>
+          (await fetch("/napi/listing/listingsDataForStates", { method: "POST", headers: h, body: b, credentials: "include" })).text(),
+        [headers, body] as const,
+      );
+      const rows = listingsIn(text);
+      out.push(...rows.map(toLive));
+      if (rows.length < PAGE) break;
+    }
   }
   return out;
 }
@@ -102,9 +127,21 @@ export function syncBook(book: LatchBook, live: LiveListing[], on: string): {
 } {
   const fixed: { fsn: string; was: string | undefined; now: string }[] = [];
   const byFsn = new Map(live.map((l) => [l.fsn, l]));
+  /**
+   * **A SKU that is live on one product is not free on another.** Measured 2026-09-26: after the sync
+   * put HBD008/HBD009 on the products they are really saved on, two 2026-09-18 rows still carried
+   * HBD008/HBD009 — numbers the app had SUGGESTED for them and nobody ever saved — so one SKU named two
+   * kits, and the Meesho list offered both. Such a row loses the SKU; the next latch gives it a free one.
+   */
+  const liveSku = new Map(live.map((l) => [skuKey(l.sku), l.fsn]));
   const rows: LatchRecord[] = book.rows.map((r) => {
     const l = r.fsn ? byFsn.get(r.fsn) : undefined;
-    if (!l) return r;
+    if (!l) {
+      const owner = r.ourSku ? liveSku.get(skuKey(r.ourSku)) : undefined;
+      if (!owner || owner === r.fsn) return r;
+      fixed.push({ fsn: r.fsn ?? r.sku, was: r.ourSku, now: "" });
+      return { ...r, ourSku: undefined };
+    }
     if (r.ourSku !== l.sku) fixed.push({ fsn: l.fsn, was: r.ourSku, now: l.sku });
     return { ...r, ourSku: l.sku, latchedOn: r.latchedOn ?? l.releasedOn, state: "selling", checkedOn: on };
   });
