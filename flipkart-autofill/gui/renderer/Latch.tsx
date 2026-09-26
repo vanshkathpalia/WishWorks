@@ -92,6 +92,8 @@ export function Latch({ n }: { n: number }) {
    * markup and on being signed in, and a latch run should never wait on either.
    */
   const [costing, setCosting] = useState(true);
+  /** Send each costing chat instead of leaving it for a look first. Off unless ticked, every time. */
+  const [send, setSend] = useState(false);
   const [term, setTerm] = useState("party decoration");
   const [minutes, setMinutes] = useState(60);
   /** What the sweep is up to. Its own state because it reports per product, not per batch. */
@@ -505,7 +507,7 @@ export function Latch({ n }: { n: number }) {
               disabled={!!busy}
               onClick={() =>
                 // Cleared only on success: a refused run (logged out) leaves this button in place.
-                void run("latching", () => window.ww.latchOpen(costing)).then((ok) => ok && setBatch([]))
+                void run("latching", () => window.ww.latchOpen(costing, costing && send)).then((ok) => ok && setBatch([]))
               }
             >
               Latch the ones still open
@@ -578,6 +580,10 @@ export function Latch({ n }: { n: number }) {
           <label className="latch-costing">
             <input type="checkbox" checked={costing} disabled={!!busy} onChange={(e) => setCosting(e.target.checked)} />
             {" "}…and open a costing chat with the contents photo
+          </label>
+          <label className="latch-costing">
+            <input type="checkbox" checked={send} disabled={!!busy || !costing} onChange={(e) => setSend(e.target.checked)} />
+            {" "}…and send it without my look (replies wait under Costing)
           </label>
           </div>
 
@@ -1018,7 +1024,7 @@ export function Latch({ n }: { n: number }) {
                           Open approval form
                         </button>
                       ) : (
-                        <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.latchOne(r.fsn!, costing))}>
+                        <button disabled={!!busy} onClick={() => void run("latching", () => window.ww.latchOne(r.fsn!, costing, costing && send))}>
                           Latch
                         </button>
                       )}{" "}

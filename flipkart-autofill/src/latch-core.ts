@@ -906,7 +906,7 @@ export function photoFolder(sku: string, dirs: string[]): string | null {
 // ---------------------------------------------------------------- handing it to ChatGPT
 
 /** What became of an attempt to set a costing chat up. `manual` means the tab is open, do it yourself. */
-export type ChatState = "ready" | "login" | "manual";
+export type ChatState = "ready" | "login" | "manual" | "nophoto";
 
 /**
  * Open a ChatGPT tab with the contents picture attached and the costing prompt typed in.
@@ -938,15 +938,28 @@ export async function askChatGpt(page: Page, image: string, prompt: string): Pro
   try {
     // `setInputFiles` on the hidden input, never a click on the paperclip: the picker it opens is
     // an OS dialog, which is outside the page and cannot be driven from here at all.
-    await page.locator("input[type=file]").first().setInputFiles(image, { timeout: 15_000 });
     /**
-     * Wait for the upload BEFORE filling the composer.
+     * Attach, then SEE the picture in the composer before going on — once more if it is not there.
      *
-     * ChatGPT re-renders the composer while a picture is going up, and a paste into it lands
-     * nowhere — measured: `ready` returned over an empty box. The prompt goes in after the picture
-     * has arrived, not beside it.
+     * A fixed wait used to stand in for this, and on 2026-09-26, on a Mac deep in swap, chats came back
+     * `ready` with the prompt typed and no picture at all (Vansh's screenshot). A costing chat with no
+     * picture is a question about nothing, so it is reported as `nophoto` rather than `ready`.
+     * The preview is a `blob:` image; ChatGPT has drawn it that way since uploads existed.
      */
-    await page.waitForTimeout(6000);
+    const previews = () => page.locator('img[src^="blob:"]').count().catch(() => 0);
+    const before = await previews();
+    let attached = false;
+    for (let attempt = 0; attempt < 2 && !attached; attempt++) {
+      await page.locator("input[type=file]").first().setInputFiles(image, { timeout: 15_000 });
+      for (let i = 0; i < 30 && !attached; i++) {
+        await page.waitForTimeout(500);
+        attached = (await previews()) > before;
+      }
+    }
+    if (!attached) return "nophoto";
+    // The upload itself finishing: ChatGPT re-renders the composer while a picture is going up, and a
+    // paste into it lands nowhere — measured: `ready` returned over an empty box.
+    await page.waitForTimeout(3000);
     /**
      * The composer is filled by `putInComposer` and NOT sent.
      *
@@ -1697,7 +1710,9 @@ export async function recordApprovalForm(page: Page, fsn: string, shotTo: (n: nu
     documentOptions = await form
       .locator("[role=option], [role=listbox] li, .Select-option, [class*=option i]")
       .allInnerTexts()
-      .then((t) => [...new Set(t.map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean))])
+      // `CheckProfile`, `CheckLog Out`…: the account menu matches the option selector too (measured on
+      // three live forms, 2026-09-26). Never a document, so never counted as one.
+      .then((t) => [...new Set(t.map((s) => s.replace(/\s+/g, " ").trim()).filter((s) => s && !/^Check[A-Z]/.test(s)))])
       .catch(() => []);
     await form.keyboard.press("Escape").catch(() => {});
   }

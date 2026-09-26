@@ -330,7 +330,12 @@ export function Inventory({ n }: { n: number }) {
     setMarket((m) => ({ ...m, [id]: { ...m[id], [field]: v } }));
   }
 
-  const refreshSaved = useCallback(() => void window.ww.listKits().then(setSaved), []);
+  /** SKUs whose costing chat was sent and answered, parked until somebody reviews them. */
+  const [queued, setQueued] = useState<string[]>([]);
+  const refreshSaved = useCallback(() => {
+    void window.ww.listKits().then(setSaved);
+    void window.ww.costingQueue().then(setQueued);
+  }, []);
 
   // The list is read off the folder every time, so a kit renamed, added or deleted in Finder is
   // picked up — on coming back to the window, which is when you have just been in there.
@@ -991,6 +996,24 @@ export function Inventory({ n }: { n: number }) {
             </div>
           </div>
 
+          {queued.length > 0 && (
+            <>
+              {/* The sent latch run's replies, one button each: pressing one puts the reply in the
+                  table exactly as a paste would, and Keep takes it off this list. */}
+              <h3>Waiting for your review ({queued.length})</h3>
+              <p className="muted">
+                Costing replies from a latch run that sent its chats. Open one, check it against the
+                picture, and press Keep — it leaves this list once it is a saved kit.
+              </p>
+              <p>
+                {queued.map((s) => (
+                  <button key={s} onClick={() => window.dispatchEvent(new CustomEvent("ww:cost-kit", { detail: s }))}>
+                    {s}
+                  </button>
+                ))}
+              </p>
+            </>
+          )}
           {/* Folded away by default: this list only grows, and it sits between the two things
               actually used on every visit — dropping a reply in, and reading the table. The count
               of off-target kits stays on the heading so closing it never hides the warning. */}

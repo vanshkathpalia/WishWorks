@@ -139,12 +139,13 @@ const api: WwApi = {
   checkLatches: (all: boolean, pack: string | null) => ipcRenderer.invoke("checkLatches", all, pack),
   showBatch: (size: number, pack: string | null, kind: "form" | "approval" = "form") =>
     ipcRenderer.invoke("showBatch", size, pack, kind),
-  latchOpen: (withCosting: boolean) => ipcRenderer.invoke("latchOpen", withCosting),
+  latchOpen: (withCosting: boolean, send = false) => ipcRenderer.invoke("latchOpen", withCosting, send),
   fillFrontLatch: (withCosting: boolean) => ipcRenderer.invoke("fillFrontLatch", withCosting),
   costingFront: () => ipcRenderer.invoke("costingFront"),
   saveForLater: (unpark: string | null) => ipcRenderer.invoke("saveForLater", unpark),
   showAgain: (fsn: string) => ipcRenderer.invoke("showAgain", fsn),
   costingReply: (sku: string) => ipcRenderer.invoke("costingReply", sku),
+  costingQueue: () => ipcRenderer.invoke("costingQueue"),
   openProduct: (fsn: string) => ipcRenderer.invoke("openProduct", fsn),
   recordApproval: (pasted: string) => ipcRenderer.invoke("recordApproval", pasted),
   approvalOpen: (pack: string | null, only: string[] | null) => ipcRenderer.invoke("approvalOpen", pack, only),
@@ -152,7 +153,7 @@ const api: WwApi = {
   openApprovalForm: (fsn: string) => ipcRenderer.invoke("openApprovalForm", fsn),
   markApplied: (fsn: string, withCosting: boolean) => ipcRenderer.invoke("markApplied", fsn, withCosting),
   copyProductLink: (fsn: string) => ipcRenderer.invoke("copyProductLink", fsn),
-  latchOne: (fsn: string, withCosting: boolean) => ipcRenderer.invoke("latchOne", fsn, withCosting),
+  latchOne: (fsn: string, withCosting: boolean, send = false) => ipcRenderer.invoke("latchOne", fsn, withCosting, send),
   onLatchRow: (cb) => {
     const handler = (_e: unknown, p: Parameters<typeof cb>[0]) => cb(p);
     ipcRenderer.on("latchRow", handler);

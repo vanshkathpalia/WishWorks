@@ -15,6 +15,7 @@
  * needs Node or npm on the machine — Electron is the runtime and Chrome is already there.
  */
 
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import {
@@ -65,6 +66,9 @@ export async function openSession(url = APP_URL): Promise<SessionStatus> {
   // A real navigation is what turns "unknown" into an answer; failures are ignored because an
   // offline machine should show "can't tell", not throw.
   await page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
+  // In front, or the sign-in page opens behind the app and nobody sees it — Vansh, 2026-09-26, with
+  // the screen saying "sign in in the Chrome window that just opened": *"it never opened any window."*
+  await page.bringToFront().catch(() => {});
   // The SPA resolves auth a moment after load, so read the answer rather than the first paint.
   await page.waitForTimeout(3000).catch(() => {});
   return statusOf(session.context);
@@ -314,13 +318,65 @@ export async function newTab(): Promise<Page> {
     // Closed from the title bar since: the old handle only throws "Target page, context or browser
     // has been closed" for ever. Forget it and open a fresh one.
     try {
-      return await session.context.newPage();
+      return await backgroundTab(session.context);
     } catch {
       session = null;
     }
   }
+  const was = frontApp();
   session = await openBrowser();
-  return session.context.newPage();
+  const page = await backgroundTab(session.context);
+  giveFocusBack(was);
+  return page;
+}
+
+/**
+ * **Automated tabs open BEHIND, and Chrome never takes the screen.** `newPage()` makes the tab active,
+ * and on a Mac an active new tab brings Chrome over whatever app is in front — measured 2026-09-26: a
+ * plain Flipkart tab took focus from VS Code, every time. Vansh: *"can't I just focus on other windows
+ * meanwhile that is happening without irritating me?"* Chrome's own `background: true` makes the tab
+ * without activating it (measured: loaded, clicked, VS Code stayed in front). Falls back to `newPage`
+ * if the CDP call is refused. The LOGIN is the one place that should come forward — `openSession`
+ * does that on purpose.
+ */
+async function backgroundTab(context: BrowserContext): Promise<Page> {
+  const any = context.pages().find((p) => !p.isClosed());
+  if (!any) return context.newPage();
+  try {
+    const cdp = await context.newCDPSession(any);
+    const made = context.waitForEvent("page", { timeout: 10_000 });
+    await cdp.send("Target.createTarget", { url: "about:blank", background: true });
+    const page = await made;
+    await cdp.detach().catch(() => {});
+    return page;
+  } catch {
+    return context.newPage();
+  }
+}
+
+/**
+ * The app in front on a Mac, so a Chrome LAUNCH can hand focus back — macOS brings any app it starts
+ * to the front, and no Chrome switch prevents it. Null off a Mac, or if AppleScript says no.
+ */
+function frontApp(): string | null {
+  if (process.platform !== "darwin") return null;
+  try {
+    return execFileSync("osascript", ["-e", 'tell application "System Events" to get name of first process whose frontmost is true'], {
+      encoding: "utf8",
+      timeout: 3000,
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function giveFocusBack(name: string | null): void {
+  if (!name || /chrome/i.test(name)) return;
+  try {
+    execFileSync("osascript", ["-e", `tell application "System Events" to set frontmost of process ${JSON.stringify(name)} to true`], { timeout: 3000 });
+  } catch {
+    /* not worth failing a run over */
+  }
 }
 
 
@@ -343,13 +399,16 @@ export async function chatTab(): Promise<Page> {
   if (chat) {
     // Same as `newTab`: a window closed by hand leaves a dead handle behind.
     try {
-      return await chat.context.newPage();
+      return await backgroundTab(chat.context);
     } catch {
       chat = null;
     }
   }
+  const was = frontApp();
   chat = await openChatBrowser();
-  return chat.context.newPage();
+  const page = await backgroundTab(chat.context);
+  giveFocusBack(was);
+  return page;
 }
 
 /** Close the ChatGPT window gracefully, so its login is written to disk. Never automatic. */

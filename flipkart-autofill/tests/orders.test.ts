@@ -797,6 +797,9 @@ describe("the pictures on a SKU", () => {
     expect(await slotPicture(dir, 2)).toBe(path.join(dir, "2.PNG"));
     expect(await slotPicture(dir, 1)).toBe(path.join(dir, "main.jpg"));
     expect(await slotPicture(dir, 3)).toBeNull();
+    // Meesho downloads are AVIF — `HBD-T/jungle/jungle01/1.avif` is one on disk.
+    writeFileSync(path.join(dir, "3.avif"), "");
+    expect(await slotPicture(dir, 3)).toBe(path.join(dir, "3.avif"));
   });
 
   /**

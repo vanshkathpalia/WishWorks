@@ -1082,6 +1082,9 @@ ipcMain.handle("costingReply", async (_e, sku: string): Promise<Attempt<string>>
   );
   const known = (await readLatches()).rows.find((r) => r.ourSku && normalizeId(r.ourSku) === normalizeId(sku));
   if (!row && !known) return { ok: false, message: "" }; // nothing of ours by that SKU
+  // A reply already queued by a sent run is read from disk — no ChatGPT window at all.
+  const queued = await readFile(await costingQueueFile((row ?? known)!.ourSku!), "utf8").catch(() => null);
+  if (queued) return { ok: true, result: queued, note: `Read from ${(row ?? known)!.ourSku}'s queued costing reply.` };
   const { chatTab } = await import("../src/browser-core.js");
   const { lastReply, jsonFromReply, findChatByTitle } = await import("../src/chat-core.js");
   let tab;
@@ -1360,7 +1363,7 @@ ipcMain.handle("copyProductLink", async (_e, fsn: string): Promise<string | null
 });
 
 /** Latch one product from the list — the parked one whose stock has arrived. */
-ipcMain.handle("latchOne", (e, fsn: string, withCosting: boolean) => latchThese(e, [fsn], withCosting, ""));
+ipcMain.handle("latchOne", (e, fsn: string, withCosting: boolean, send = false) => latchThese(e, [fsn], withCosting, "", send));
 
 /**
  * Sweep a search term for latchable products, for up to `minutes`.
@@ -1561,18 +1564,27 @@ ipcMain.handle("showBatch", async (_e, size: number, pack: string | null, kind: 
         : "Nothing left to look at — sweep for more, or read a label pack.",
     };
   }
+  /**
+   * **Only pages that actually loaded join the batch.** A page whose load failed sits on about:blank,
+   * which `survivors` cannot tell from a tab he closed — so it was turned down for ever without
+   * anybody seeing it. Measured 2026-09-26 on an 8 GB Mac under memory pressure: 10 asked, 6 loaded.
+   */
+  const shown: typeof rows = [];
   for (const r of rows) {
     const tab = await newTab();
     // The shopper's page, never the latch form — see `productPage`.
-    await tab.goto(productPage(r)!, { waitUntil: "domcontentloaded" }).catch(() => {});
+    const loaded = await tab.goto(productPage(r)!, { waitUntil: "domcontentloaded" }).then(() => true, () => false);
+    if (loaded) shown.push(r);
+    else await tab.close().catch(() => {});
   }
-  if (kind === "form") batch = rows.map((r) => r.fsn!);
-  else approvalBatch = rows.map((r) => r.fsn!);
+  if (kind === "form") batch = shown.map((r) => r.fsn!);
+  else approvalBatch = shown.map((r) => r.fsn!);
   return {
     ok: true,
-    result: rows.map((r) => ({ fsn: r.fsn, title: r.title ?? r.description, listed: r.listed ?? null })),
+    result: shown.map((r) => ({ fsn: r.fsn, title: r.title ?? r.description, listed: r.listed ?? null })),
     note:
-      `${rows.length} open in Chrome. Close the tabs for the ones you do not want, then press ` +
+      (shown.length < rows.length ? `${rows.length - shown.length} would not load and are left for next time. ` : "") +
+      `${shown.length} open in Chrome. Close the tabs for the ones you do not want, then press ` +
       (kind === "form" ? `"Latch the ones still open".` : `"Open approval forms for the ones still open".`),
   };
 });
@@ -1583,7 +1595,7 @@ ipcMain.handle("showBatch", async (_e, size: number, pack: string | null, kind: 
  * The tabs are read BEFORE anything is opened, because latching opens tabs of its own and they
  * would otherwise count themselves as survivors.
  */
-ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unknown>> => {
+ipcMain.handle("latchOpen", async (e, withCosting: boolean, send = false): Promise<Attempt<unknown>> => {
   const { survivors, readLatches } = await latchEngine();
   const { openTabs } = await import("../src/browser-core.js");
   /**
@@ -1604,7 +1616,7 @@ ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unk
     if (open.length === 0) {
       return { ok: false, message: 'No latchable product page is open in Chrome — open one, or press "Show me the next 10".' };
     }
-    return latchThese(e, open, withCosting, `${open.length} open${adopted.added ? `, ${adopted.added} new to the list` : ""}.`);
+    return latchThese(e, open, withCosting, `${open.length} open${adopted.added ? `, ${adopted.added} new to the list` : ""}.`, send);
   }
   const keep = survivors(batch, openTabs().map((t) => t.url()));
   // Shown and closed is a decision: do not offer them again when he asks for the next ten.
@@ -1614,7 +1626,7 @@ ipcMain.handle("latchOpen", async (e, withCosting: boolean): Promise<Attempt<unk
     batch = [];
     return { ok: true, result: await readLatches(), note: `All ${reviewed} closed — none latched. Ask for the next ten.` };
   }
-  const r = await latchThese(e, keep, withCosting, `${keep.length} of ${reviewed} kept.`);
+  const r = await latchThese(e, keep, withCosting, `${keep.length} of ${reviewed} kept.`, send);
   // A refused run (logged out) keeps the batch, so pressing again after logging in still works.
   if (r.ok) batch = [];
   return r;
@@ -1887,7 +1899,8 @@ ipcMain.handle("meeshoQueue", async (): Promise<Attempt<unknown>> => {
       ourSku: r.ourSku!,
       title: r.title,
       latchedOn: r.latchedOn!,
-      costed: !!(await findById(KITS_DIR, r.ourSku!)),
+      // A queued costing reply counts: the sheet can be written from it, flagged unreviewed.
+      costed: !!(await findById(KITS_DIR, r.ourSku!)) || existsSync(await costingQueueFile(r.ourSku!)),
     })),
   );
   /**
@@ -1916,7 +1929,7 @@ ipcMain.handle("meeshoQueue", async (): Promise<Attempt<unknown>> => {
  */
 ipcMain.handle("meeshoSheet", async (e, skus: string[]): Promise<Attempt<unknown>> => {
   const { findById } = await import("../src/id.js");
-  const { readKit, costKit, loadMaterials } = await inventoryEngine();
+  const { readKit, readKitFile, costKit, loadMaterials } = await inventoryEngine();
   const { loadPackaging, parcelFor } = await import("../src/packaging.js");
   const { runMeeshoChat, chatTitle } = await import("../src/chat-core.js");
   const { chatTab } = await import("../src/browser-core.js");
@@ -1938,11 +1951,20 @@ ipcMain.handle("meeshoSheet", async (e, skus: string[]): Promise<Attempt<unknown
   const notes: string[] = [];
   for (const sku of skus) {
     const found = await findById(KITS_DIR, sku);
-    if (!found) {
+    /**
+     * **No saved kit, but a queued costing reply: write the row from that, and say so.** A sent latch
+     * run parks each reply in `costing-queue/` for a person to review later (Vansh, 2026-09-26: *"we
+     * would batch that, I would review it once I get the time"*) — and without this the sheet skipped
+     * every one of them as "not costed". Priced off the price list's own matching, unchecked.
+     */
+    const queued = found ? null : await readFile(await costingQueueFile(sku), "utf8").then((t) => JSON.parse(t), () => null);
+    if (!found && !queued) {
       notes.push(`${sku}: not costed — skipped`);
       continue;
     }
-    const kit = readKit(found.file);
+    const kit = found
+      ? readKit(found.file)
+      : ({ sku, lines: readKitFile(queued).lines } as unknown as ReturnType<typeof readKit>);
     const lines = kit.lines.map((l, i) => ({ ...l, qty: kit.counts?.[i] ?? l.qty }));
     const costed = costKit(kit.lines, materials, kit.overrides, kit.sku, kit.prices, kit.counts, kit.resolved);
     const pieces = lines.reduce((n, l) => n + l.qty, 0);
@@ -1950,8 +1972,11 @@ ipcMain.handle("meeshoSheet", async (e, skus: string[]): Promise<Attempt<unknown
     e.sender.send("imageStep", { sku, prompt: "Meesho copy", file: null, seconds: 0, missing: false });
 
     let chat;
+    // One tab per kit, closed when its answers are in — the chat stays in ChatGPT's sidebar under its
+    // name. Left open, a ten-kit sheet stacked ten ChatGPT tabs on an 8 GB Mac (C-097).
+    const tab = await chatTab();
     try {
-      chat = await runMeeshoChat(await chatTab(), {
+      chat = await runMeeshoChat(tab, {
         copyPrompt: m.withPack(copyPrompt, m.packText(lines)),
         sheetPrompt,
         title: chatTitle("meesho", sku),
@@ -1959,6 +1984,8 @@ ipcMain.handle("meeshoSheet", async (e, skus: string[]): Promise<Attempt<unknown
     } catch (err) {
       notes.push(`${sku}: the chat failed (${err instanceof Error ? err.message : String(err)}) — skipped`);
       continue;
+    } finally {
+      await tab.close().catch(() => {});
     }
     const copy = m.parseCopy(chat.copyReply);
     const row = m.sheetRow({
@@ -1974,6 +2001,7 @@ ipcMain.handle("meeshoSheet", async (e, skus: string[]): Promise<Attempt<unknown
     done.push(sku);
 
     const problems = [
+      ...(found ? [] : ["costed from the unreviewed ChatGPT reply — check it under Costing before uploading"]),
       ...(copy ? m.checkCopy(copy, pieces) : ["the copy did not come back in its three blocks"]),
       ...(costed.uncosted ? [`${costed.uncosted} line${costed.uncosted === 1 ? "" : "s"} unpriced, so ₹${row["Meesho Price"]} is too low`] : []),
       ...(Number(row["Meesho Price"]) >= Number(row.MRP) ? [`price ₹${row["Meesho Price"]} is not under the MRP`] : []),
@@ -2043,14 +2071,27 @@ ipcMain.handle("meeshoOnlyPhotos", async (e, fsns: string[]): Promise<Attempt<un
   const tab = await newTab();
   let done = 0;
   const missed: string[] = [];
+  /** Rows with no page to take photos from, whose folder was made for photos added by hand. */
+  const byHand: string[] = [];
   for (const row of todo) {
-    const page = productPage(row);
-    if (!page) {
-      missed.push(`${row.title?.slice(0, 40)} (no product page)`);
-      continue;
-    }
     row.ourSku ??= nextSku(row.title ?? row.description, taken) ?? undefined;
     if (row.ourSku && !taken.includes(row.ourSku)) taken.push(row.ourSku);
+    const page = productPage(row);
+    if (!page) {
+      /**
+       * **No catalog entry means no page, ever** — these came off a label pack and Flipkart's search
+       * found nothing. Every one of the 8 on file (2026-09-26) was reported "no product page" and left
+       * there. The folder is made instead, so the photos have somewhere to go by hand; "photos ✓"
+       * reads that same folder's contents.jpg, and the costing chat takes it from there.
+       */
+      const dir = row.ourSku ? await photoPath(row.ourSku, "", root, true).catch(() => null) : null;
+      if (dir) {
+        await mkdir(dir, { recursive: true });
+        byHand.push(path.relative(downloads(), dir));
+      } else missed.push(`${row.title?.slice(0, 40)} (no product page, and the title names none of our lines, so no SKU)`);
+      await writeLatches(book);
+      continue;
+    }
     try {
       await tab.goto(page, { waitUntil: "domcontentloaded" });
       await tab.waitForTimeout(6000);
@@ -2062,10 +2103,13 @@ ipcMain.handle("meeshoOnlyPhotos", async (e, fsns: string[]): Promise<Attempt<un
       // The app's own copy too, so the costing chat can reuse it without fetching again.
       const contents = await saveImage(tab, gallery[Math.min(1, gallery.length - 1)], imageFor(row.sku));
       const main = await saveImage(tab, gallery[0], imageFor(`${row.sku}-main`)).catch(() => null);
-      if (row.ourSku) {
-        await fileInWhatsappFolder(row.ourSku, contents, "contents.jpg", root).catch(() => null);
-        if (main) await fileInWhatsappFolder(row.ourSku, main, "main.jpg", root).catch(() => null);
+      if (!row.ourSku) {
+        // Kept by the app, but a folder is named by SKU — so there is nowhere in Downloads to put it.
+        missed.push(`${row.title?.slice(0, 40)} (photos kept in the app only: the title names none of our lines, so no SKU)`);
+        continue;
       }
+      await fileInWhatsappFolder(row.ourSku, contents, "contents.jpg", root).catch(() => null);
+      if (main) await fileInWhatsappFolder(row.ourSku, main, "main.jpg", root).catch(() => null);
       row.meeshoPhotosOn = todayStamp();
       done++;
       e.sender.send("latchRow", { done, of: todo.length, row });
@@ -2081,6 +2125,9 @@ ipcMain.handle("meeshoOnlyPhotos", async (e, fsns: string[]): Promise<Attempt<un
     result: book,
     note:
       `Photos for ${done} of ${todo.length} in Downloads/${ROOT_FOR.meesho}/ — main.jpg and contents.jpg each. ` +
+      (byHand.length
+        ? `${byHand.length} have no Flipkart page to take photos from — put main.jpg and contents.jpg in: ${byHand.join(", ")}. `
+        : "") +
       (missed.length ? `No photos for: ${missed.join("; ")}. ` : "") +
       `Next: a costing chat, then "Which go on Meesho?".`,
   };
@@ -2510,6 +2557,58 @@ async function openProducts(): Promise<{ fsn: string; title: string; url: string
   return out;
 }
 
+/** Every queued costing reply not yet saved as a kit, by SKU. Saving the kit is what clears one. */
+ipcMain.handle("costingQueue", async (): Promise<string[]> => {
+  const { findById } = await import("../src/id.js");
+  const dir = path.dirname(await costingQueueFile("x"));
+  const skus = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
+  const out: string[] = [];
+  for (const s of skus) if (!(await findById(KITS_DIR, s))) out.push(s);
+  return out.sort();
+});
+
+/** Where a sent costing chat's reply waits for a person: `latch/costing-queue/<SKU>.json`. */
+async function costingQueueFile(sku: string): Promise<string> {
+  const { latchDir } = await latchEngine();
+  return path.join(latchDir(), "costing-queue", `${sku}.json`);
+}
+
+/**
+ * Send a filled costing chat, and see it through: address saved, chat named, reply queued, tab closed.
+ * In a straight line rather than through `nameWhenSent`'s watcher, because the tab is closed at the end
+ * and a watcher that had not fired yet would never name it.
+ */
+async function sendAndQueue(row: import("../src/latch-core.js").LatchRecord, chat: import("playwright").Page): Promise<string> {
+  const { renameChat, waitUntilIdle, saveReplyJson } = await import("../src/chat-core.js");
+  const sku = row.ourSku ?? row.sku;
+  try {
+    await chat.locator("#prompt-textarea").first().click({ timeout: 10_000 });
+    await chat.keyboard.press("Enter");
+    await chat.waitForURL(/\/c\/[^/?#]+/, { timeout: 60_000 });
+    const { readLatches, writeLatches } = await latchEngine();
+    const book = await readLatches();
+    const mine = book.rows.find((r) => r.sku === row.sku);
+    if (mine) {
+      mine.costingChatUrl = chat.url();
+      await writeLatches(book);
+    }
+    row.costingChatUrl = chat.url();
+    if (!(await waitUntilIdle(chat, { timeoutMs: 300_000 }))) return "sent, but no answer within 5 minutes — the chat is open";
+    await chat.waitForTimeout(2500); // the last chunk lands a beat after the stream ends
+    const to = await costingQueueFile(sku);
+    const got = await saveReplyJson(chat, to);
+    if (!got) return "sent, but the answer held no JSON — the chat is open";
+    // Filed under OUR SKU whatever the model wrote in it.
+    const data = JSON.parse(await readFile(to, "utf8"));
+    await writeFile(to, `${JSON.stringify({ ...data, sku }, null, 2)}\n`);
+    await renameChat(chat, `${sku} — costing`).catch(() => false);
+    await chat.close().catch(() => {});
+    return "ready";
+  } catch (err) {
+    return `sent, but ${err instanceof Error ? err.message.split("\n")[0].slice(0, 60) : String(err)} — the chat is open`;
+  }
+}
+
 /**
  * Set up one product's costing chat: the contents photo attached, the prompt typed, NOT sent.
  *
@@ -2523,6 +2622,13 @@ async function costingChatFor(
   shelf: import("playwright").Page,
   prompt: string,
   reusePhoto: boolean,
+  /**
+   * Press Enter instead of leaving the chat for a look, wait for the answer, put it in the costing
+   * queue (`costingQueueFile`) and close the tab. Vansh, 2026-09-26, for a full trial run: *"this time
+   * enter the ChatGPT prompt… we would review it once I get the time, meanwhile add it into a stack."*
+   * Also what keeps a batch from piling ten ChatGPT tabs onto an 8 GB Mac — one is open at a time.
+   */
+  send = false,
 ): Promise<string> {
   const { galleryImages, saveImage, imageFor, askChatGpt, productPage } = await latchEngine();
   const { chatTab } = await import("../src/browser-core.js");
@@ -2536,6 +2642,13 @@ async function costingChatFor(
      * see it, or it would cost a styled photo instead of the contents laid out.
      */
     let main: string | null = null;
+    // A contents photo put in the kit's folder by hand, when the app has none of its own — the only
+    // photo a product with no Flipkart page will ever have (the Meesho-only "no catalog entry" rows).
+    if (reusePhoto && !existsSync(file) && row.ourSku) {
+      const folder = await existingFolder(row.ourSku);
+      const hand = folder ? path.join(downloads(), ...folder.split("/"), "contents.jpg") : null;
+      if (hand && existsSync(hand)) file = hand;
+    }
     if (!(reusePhoto && existsSync(file))) {
       const page = productPage(row);
       if (!page) return "no product page to take the photo from";
@@ -2565,7 +2678,11 @@ async function costingChatFor(
       if (main) await fileInWhatsappFolder(row.ourSku, main, "main.jpg").catch(() => null);
     }
     const chat = await chatTab();
-    const answer = await askChatGpt(chat, file, prompt);
+    // Our SKU in the question, so the JSON that comes back is already filed under it — the sheet's
+    // own code is the other seller's, and the kit is saved under ours (Vansh, 2026-09-26).
+    const ask = row.ourSku ? `Our SKU for this kit is ${row.ourSku} — use exactly that as "sku".\n\n${prompt}` : prompt;
+    const answer = await askChatGpt(chat, file, ask);
+    if (answer === "ready" && send) return await sendAndQueue(row, chat);
     if (answer === "ready") {
       // The chat's address is written onto the row the moment it is sent, so "cost this kit" can
       // fetch the reply back instead of asking a person to copy it out of ChatGPT.
@@ -2580,7 +2697,12 @@ async function costingChatFor(
         })();
       });
     }
-    return { ready: "ready", login: "ChatGPT signed out", manual: "the prompt did not go in — the tab is open, paste it by hand" }[answer];
+    return {
+      ready: "ready",
+      login: "ChatGPT signed out",
+      manual: "the prompt did not go in — the tab is open, paste it by hand",
+      nophoto: "the photo did not attach — the tab is open, attach it by hand",
+    }[answer];
   } catch (err) {
     return `failed: ${err instanceof Error ? err.message.split("\n")[0].slice(0, 80) : String(err)}`;
   }
@@ -2634,12 +2756,14 @@ async function latchThese(
   only: string[] | null,
   withCosting: boolean,
   prefix = "",
+  /** Press Enter on each costing chat, queue the reply, close the tab. See `costingChatFor`. */
+  send = false,
 ): Promise<Attempt<unknown>> {
   const {
     readLatches, writeLatches, latchValues, openLatchForm, startSellingUrl, todayStamp, productPage,
   } = await latchEngine();
   const { nextSku } = await import("../src/sku-core.js");
-  const { newTab, chatTab } = await import("../src/browser-core.js");
+  const { newTab, chatTab, openTabs } = await import("../src/browser-core.js");
   const book = await readLatches();
   const rows = book.rows;
   const todo = only
@@ -2682,6 +2806,9 @@ async function latchThese(
 
   for (const row of todo) {
     const tab = await newTab();
+    // No pictures, fonts or video on the form tab — nothing on it is looked at but the fields, and on
+    // an 8 GB Mac ten of these beside the ChatGPT window froze the machine (2026-09-26, C-097).
+    await tab.route(/\.(png|jpe?g|webp|gif|avif|svg|woff2?|ttf|otf|mp4|webm)(\?|$)/i, (r) => r.abort()).catch(() => {});
     await tab.goto(startSellingUrl(row.fsn!), { waitUntil: "domcontentloaded" }).catch(() => {});
     /**
      * Our own SKU, worked out from the catalog title.
@@ -2696,8 +2823,13 @@ async function latchThese(
      * list it under a SKU its costing is not filed under, and the later price change would miss it.
      */
     const mine = row.ourSku ?? nextSku(row.title ?? row.description, taken);
-    if (mine && !taken.includes(mine)) taken.push(mine);
     const state = await openLatchForm(tab, values, mine ?? undefined).catch(() => "stuck" as const);
+    // Taken only once it is really used: a stuck form burnt HBD018 and the run went 017 → 019.
+    if (state === "form" && mine && !taken.includes(mine)) taken.push(mine);
+    if (state === "form") {
+      // Its product page has done its job — the form is open. Left open, ten of them cost ~2.6 GB.
+      for (const t of openTabs()) if (t !== tab && t.url().includes(`pid=${row.fsn}`)) await t.close().catch(() => {});
+    }
     const at = rows.findIndex((r) => r.sku === row.sku);
     // A tab that opened is a latch STARTED, so the day is recorded now rather than on save —
     // nothing here can see the save, and a form filled and abandoned is still worth knowing about.
@@ -2732,7 +2864,7 @@ async function latchThese(
       // `productPage`, not `row.url`: a label-pack row has no stored URL and silently got no chat.
       const page = productPage(row);
       if (now.state !== "form" || !page) continue;
-      const outcome = loggedOut ? "ChatGPT signed out" : await costingChatFor(now, shelf, prompt, false);
+      const outcome = loggedOut ? "ChatGPT signed out" : await costingChatFor(now, shelf, prompt, false, send);
       now.costingChat = outcome;
       if (outcome === "ready") costing++;
       else missed.push(`${now.ourSku || row.title?.slice(0, 40) || row.sku} (${outcome})`);
@@ -2746,13 +2878,17 @@ async function latchThese(
     result: book,
     note:
       `${prefix ? prefix + " " : ""}${opened} form${opened === 1 ? "" : "s"} open in Chrome, ` +
-      `everything filled but the SKU. ` +
-      (costing ? `${costing} costing chat${costing === 1 ? "" : "s"} ready to send. ` : "") +
+      `SKU filled wherever the title named one of our lines. ` +
+      (costing
+        ? send
+          ? `${costing} costing chat${costing === 1 ? "" : "s"} sent — the replies wait under Costing. `
+          : `${costing} costing chat${costing === 1 ? "" : "s"} ready to send. `
+        : "") +
       (missed.length ? `No costing chat for: ${missed.join("; ")}. ` : "") +
       (loggedOut
         ? "ChatGPT is signed out — log in once in that tab and the session sticks, like Flipkart's. "
         : "") +
-      `Type your SKU in each and save it. Nothing was closed.`,
+      `Check each form and press Start Selling yourself — nothing was saved.`,
   };
 }
 

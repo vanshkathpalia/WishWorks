@@ -820,7 +820,8 @@ export interface WwApi {
    * Only the batch's own products count: your other tabs mean nothing here, and a product you
    * closed is not offered again.
    */
-  latchOpen(withCosting: boolean): Promise<Attempt<LatchBook>>;
+  /** `send` presses Enter on each costing chat and queues its reply — see `costingChatFor`. */
+  latchOpen(withCosting: boolean, send?: boolean): Promise<Attempt<LatchBook>>;
   /**
    * The product showing in Chrome, only that one: a Start Selling page is refilled; a shopper page
    * is latched (its own form tab, and a costing chat when asked). Never saves.
@@ -832,6 +833,8 @@ export interface WwApi {
   saveForLater(unpark: string | null): Promise<Attempt<LatchBook>>;
   /** This kit's costing JSON out of its own ChatGPT chat, with our SKU in it. Reads only. */
   costingReply(sku: string): Promise<Attempt<string>>;
+  /** SKUs with a queued costing reply and no saved kit yet — the review list on Cost a kit. */
+  costingQueue(): Promise<string[]>;
   /** Put a turned-down product back in the review queue. */
   showAgain(fsn: string): Promise<Attempt<LatchBook>>;
   /** Record what a product's approval form asks for — a pasted link/FSN, or the tab in front. Never submits. */
@@ -852,7 +855,7 @@ export interface WwApi {
   /** Copy a product's shopper link. Null when it has none. */
   copyProductLink(fsn: string): Promise<string | null>;
   /** Latch one product from the list, with its costing chat when asked. Never saves. */
-  latchOne(fsn: string, withCosting: boolean): Promise<Attempt<LatchBook>>;
+  latchOne(fsn: string, withCosting: boolean, send?: boolean): Promise<Attempt<LatchBook>>;
   /** Progress while a check or a latch run is going. */
   onLatchRow(cb: (p: { done: number; of: number; row: LatchRecord }) => void): () => void;
   /** The whole packing screen: what is left, today's tally, this month's packets. */

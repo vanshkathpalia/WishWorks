@@ -1074,7 +1074,7 @@ export async function imageForSku(readyDir: string, sku: string, position = 2): 
 export async function slotPicture(kitDir: string, position = 2): Promise<string | null> {
   const names = await readdir(kitDir).catch(() => [] as string[]);
   const named = { 1: "main", 2: "contents" }[position];
-  const hit = names.find((n) => new RegExp(`^(${position}${named ? `|${named}` : ""})\\.(jpe?g|png|webp)$`, "i").test(n));
+  const hit = names.find((n) => new RegExp(`^(${position}${named ? `|${named}` : ""})\\.(jpe?g|png|webp|avif)$`, "i").test(n));
   return hit ? path.join(kitDir, hit) : null;
 }
 

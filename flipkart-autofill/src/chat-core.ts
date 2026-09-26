@@ -74,22 +74,18 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
  */
 export async function putInComposer(page: Page, text: string): Promise<void> {
   const composer = page.locator("#prompt-textarea").first();
-  /**
-   * **In front first.** The clipboard write is refused ("Document is not focused") by a tab whose
-   * window is behind another, and a latch run loads each product page in the FLIPKART window between
-   * one costing chat and the next — so on 2026-09-17 only the first chat of each run (WH001 at 18:07,
-   * the first product at 19:16) got its prompt, and every later one was silently abandoned.
-   */
-  await page.bringToFront().catch(() => {});
   await composer.click({ timeout: 30_000 });
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Delete");
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "https://chatgpt.com" });
-  const copied = await page.evaluate((t) => navigator.clipboard.writeText(t).then(() => true, () => false), text);
-  if (copied) await page.keyboard.press("ControlOrMeta+V");
-  // Still refused: insert the text directly. One input event, not typed keys, so no newline is
-  // turned into an Enter (docs/learning/21) — the reason paste was chosen over typing at all.
-  else await page.keyboard.insertText(text);
+  /**
+   * **Inserted, not pasted — so the window never has to come to the front.** The clipboard refuses a
+   * tab whose window is behind another ("Document is not focused"), so the paste used to be preceded
+   * by `bringToFront`, and every chat in a run yanked ChatGPT over whatever Vansh was doing — *"can't
+   * I just focus on other windows meanwhile… without irritating me?"* (2026-09-26). `insertText` is one
+   * input event, not typed keys, so no newline turns into an Enter (docs/learning/21), and it works in a
+   * window that is behind. It was already the fallback; now it is the only way in.
+   */
+  await page.keyboard.insertText(text);
 
   /**
    * **Wait for the text to actually be there, rather than guessing how long a paste takes.**
