@@ -915,3 +915,48 @@ don't [clear it that day] i want an option to save 25th sept here to go under 25
 - Select all and drag work over the open section.
 - Also: *Nobody named yet* now shows the SKU's picture, and a SKU with no picture is looked up again next time instead of being
   remembered as "none" (FBD01 stayed blank after its folder was renamed to `FBD/FBD 1`). 1 test replaces WW-248's.
+## WW-255 — A latch run light enough for an 8 GB Mac, and a full trial run of the flow
+
+**Done, 2026-09-26.** A 10-product latch run froze Vansh's MacBook (8 GB) and lost the Flipkart login.
+Profiled before touching anything: the app alone ~330 MB; each product page ~260 MB; the ChatGPT browser
+~1 GB plus ~200 MB a tab. The run kept every product page, every form and one ChatGPT tab per product
+open at once — an estimated 6–7 GB. Now: a product's page closes the moment its form opens; form tabs
+load no pictures or fonts; a sent costing chat closes once its reply is saved; the Meesho sheet closes
+each kit's chat. **Measured on the same 10-product run: peak 3.0 GB for the app and both Chromes, steady
+~2.3 GB, no freeze.** Swap still grew because the machine was already 2.4 GB into it before the run.
+
+Also in this ticket:
+- **Send without my look** (Latch screen, off at every start): each costing chat is sent, its JSON
+  reply parked in `latch/costing-queue/<SKU>.json`, the chat named `<SKU> — costing`, the tab closed.
+  Cost a kit shows **Waiting for your review** — one button per parked reply; Keep takes it off.
+- Our SKU goes into the costing prompt, so the reply is filed under it.
+- The photo is SEEN in the ChatGPT composer before the prompt goes in (once more if not); otherwise
+  `nophoto`, never `ready`.
+- Automated tabs open in the background (Chrome's `background: true`) and a Chrome launch hands focus
+  back — measured: a plain new tab used to take the screen from VS Code every time. The login still
+  comes forward on purpose. Prompts are inserted, not pasted, so no clipboard and no `bringToFront`.
+- "Show me the next 10" keeps only pages that loaded (10 asked, 6 loaded under memory pressure; the
+  other 4 would have been turned down for ever).
+- A stuck form no longer burns a SKU number (HBD018 was skipped).
+- Approval-form reading drops the account-menu items it picked up (`CheckProfile`…).
+- Meesho-only rows with no Flipkart page get their folder made to drop photos into by hand; rows
+  whose title names none of our lines are said to have no SKU instead of "filed".
+- The packing screen reads `.avif` photos in a kit folder.
+- The Meesho sheet writes a row from a parked costing reply when no kit is saved, flagged unreviewed.
+- `PROMPT-inventory.md`'s name examples are placeholder shapes, not real names — six replies echoed
+  "Dark Pink Pastel Balloon" from the old table.
+
+**The trial itself (Vansh asked for everything automated once):** 10 latched and costed; 7 submitted
+by hand from the session and confirmed live — HBD020, HBD021, HBD022, HBD023, HBD024, HBD028,
+HBD-masha04, all Active at ₹220 / MRP ₹999 (placeholder prices — deactivate or reprice). HBD025–027
+were refused: MRP must be near ₹1499 for that catalog entry. The app itself still never submits.
+Meesho sheet `meesho-2026-09-25-21-41.xlsx`: 7 rows, every compulsory column filled except the main
+image link (the supplier panel's uploader gives it); prices low where lines are unmatched.
+
+## WW-256 — Flipkart sync read 0 listings and wiped the saved list
+
+**Done, 2026-09-26.** Flipkart now refuses a listings page over 100 (`batchSize must be between 1 and
+100`); the sync asked for 500, read the refusal as "no listings", reported *0 live* on an account with
+56, and wrote `[]` over `latch/flipkart-live.json`. Pages of 100 now, and a reply without listings
+throws. Re-run: 56 live, 14 SKUs corrected, 34 listings added. Also: a SKU live on one product is taken
+off any other row that was only ever suggested it (HBD008/HBD009 each named two kits). 3 tests.

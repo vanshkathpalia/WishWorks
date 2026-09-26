@@ -2805,3 +2805,26 @@ more likely.
 
 **Lesson.** Any file that is read, changed and written back needs one writer at a time and an
 atomic replace. And a read that fails must never look the same as a read that found nothing.
+## C-097 — a latch run that froze an 8 GB Mac
+
+**What went wrong.** The latch run opened a Start Selling form per product, left each product page
+open behind it, then opened one ChatGPT tab per product and left every one open, unsent, with a photo
+attached. Nobody had measured what that costs. On Vansh's 8 GB MacBook it froze the machine mid-run,
+and Chrome dying hard took the Flipkart login with it.
+
+**Fix.** Measured first (app ~330 MB, product page ~260 MB, ChatGPT browser ~1 GB + ~200 MB a tab), then
+closed what had done its job and blocked pictures on form tabs. Same run afterwards: peak 3.0 GB.
+
+**Lesson.** A batch that opens heavy pages needs a memory number before it ships, on the smallest
+machine that will run it — not the one it was written on.
+
+## C-098 — an error read as zero
+
+**What went wrong.** The Flipkart sync treated any reply without `listing_data_response` as an empty
+account. When Flipkart lowered its page limit, the refusal became "0 live", and the empty list was
+saved over the good one. Nothing said anything was wrong.
+
+**Fix.** A missing list throws, with Flipkart's own words; pages of 100.
+
+**Lesson.** `?? []` on a reply from somebody else's API turns every refusal into a confident zero.
+Absent is an error until proven empty.
