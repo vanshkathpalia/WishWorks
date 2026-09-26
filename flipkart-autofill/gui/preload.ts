@@ -101,6 +101,8 @@ const api: WwApi = {
     ipcRenderer.invoke("applyParcel", id, dimensions),
 
   addManifest: (file: string) => ipcRenderer.invoke("addManifest", file),
+  payments: () => ipcRenderer.invoke("payments"),
+  addPayments: (files: string[]) => ipcRenderer.invoke("addPayments", files),
   orders: (day?: string) => ipcRenderer.invoke("orders", day),
   addLabels: (file: string) => ipcRenderer.invoke("addLabels", file),
   latches: () => ipcRenderer.invoke("latches"),

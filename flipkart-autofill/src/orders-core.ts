@@ -1667,32 +1667,41 @@ function textIn(bytes: Buffer): string {
     return cells(bytes).map((c) => c.text).join("\n");
   }
   if (bytes.subarray(0, 2).toString("latin1") === "PK") {
-    // A zip. Walk the local file headers and inflate each entry — for an XLSX the numbers live in
-    // `sharedStrings.xml` and the sheet XML, and both come out as text.
-    const out: string[] = [];
-    let i = 0;
-    while ((i = bytes.indexOf("PK\x03\x04", i, "latin1")) !== -1) {
-      const method = bytes.readUInt16LE(i + 8);
-      const nameLen = bytes.readUInt16LE(i + 26);
-      const extraLen = bytes.readUInt16LE(i + 28);
-      const start = i + 30 + nameLen + extraLen;
-      let size = bytes.readUInt32LE(i + 18);
-      // A streamed entry writes its size afterwards, so read to the next header instead.
-      if (size === 0) {
-        const next = bytes.indexOf("PK\x03\x04", start, "latin1");
-        size = (next === -1 ? bytes.length : next) - start;
-      }
-      const chunk = bytes.subarray(start, start + size);
-      try {
-        out.push((method === 0 ? chunk : zlib.inflateRawSync(chunk)).toString("utf8"));
-      } catch {
-        // A compression this build cannot read, or a truncated entry — skip it, keep the rest.
-      }
-      i = start + size;
-    }
+    // A zip — for an XLSX the numbers live in `sharedStrings.xml` and the sheet XML.
+    const out = [...zipEntries(bytes).values()];
     if (out.length > 0) return out.join("\n");
   }
   return bytes.toString("utf8");
+}
+
+/**
+ * Every entry of a zip, by name, as text. Walks the local file headers and inflates each one.
+ * Enough for an XLSX (a zip of XML); `payments-core.ts` reads sheets by name through it.
+ */
+export function zipEntries(bytes: Buffer): Map<string, string> {
+  const out = new Map<string, string>();
+  let i = 0;
+  while ((i = bytes.indexOf("PK\x03\x04", i, "latin1")) !== -1) {
+    const method = bytes.readUInt16LE(i + 8);
+    const nameLen = bytes.readUInt16LE(i + 26);
+    const extraLen = bytes.readUInt16LE(i + 28);
+    const name = bytes.subarray(i + 30, i + 30 + nameLen).toString("utf8");
+    const start = i + 30 + nameLen + extraLen;
+    let size = bytes.readUInt32LE(i + 18);
+    // A streamed entry writes its size afterwards, so read to the next header instead.
+    if (size === 0) {
+      const next = bytes.indexOf("PK\x03\x04", start, "latin1");
+      size = (next === -1 ? bytes.length : next) - start;
+    }
+    const chunk = bytes.subarray(start, start + size);
+    try {
+      out.set(name, (method === 0 ? chunk : zlib.inflateRawSync(chunk)).toString("utf8"));
+    } catch {
+      // A compression this build cannot read, or a truncated entry — skip it, keep the rest.
+    }
+    i = start + size;
+  }
+  return out;
 }
 
 /**

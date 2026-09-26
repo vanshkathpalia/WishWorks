@@ -974,3 +974,22 @@ Checked on the live list: 43 kits costed; HBD-masha04 shows room ₹5 — a bad 
 
 Also: one copy of the app at a time (two were running, each killing the other's Chrome), and when two
 Chrome windows each show a product, the one looked at last is latched instead of refusing.
+
+## WW-258 — Payments: what Meesho actually paid, from its payment file
+
+**Built, 2026-09-26, branch `payments`.** Vansh: *"is there any system that reads the payment and tells me
+what we actually earn — return 0, RTO 0 income, only delivered… meesho and flipkart provide a pdf or excel
+for payments, let's use that."* The new **Payments** step, under Orders after Money, reads Meesho's
+*Previous / Upcoming payments* xlsx (`payments-core.ts`).
+- Each sub-order counts Meesho's own **Final Settlement Amount**, so RTO = ₹0 and a customer return
+  counts its charge as a minus. Ads and compensation come from the file's own tabs.
+- **Received** is paid on or before today; **Still to come** is dated later. Materials are subtracted
+  for delivered orders from the costed kits. A SKU with no kit is listed, not counted as free.
+- Stored in `orders/payments.json`, merged per sub-order: a newer file wins, and re-reading one is a no-op.
+- `zipEntries` was lifted out of `textIn` so both use one zip reader. No spreadsheet dependency.
+- Checked on the real 25 Jul–24 Aug file: 10 delivered ₹1,385.57, 1 RTO ₹0, materials ₹839.00,
+  earned ₹546.57. 3 tests.
+
+**Not built yet:** Flipkart. Its source is Seller Hub → Reports → Payment Reports → *Settled
+Transactions* (paid), plus Fulfilment Reports → Orders (to see what is still unpaid). Its reader
+waits for a real file, because guessing columns is guessing about money.

@@ -77,6 +77,24 @@ export interface PhotoMove {
  * one place (`ordersView` in main.ts). A screen that recomputed any of it would be a second
  * definition of what a person is owed.
  */
+/** One marketplace's payments, as `paymentSummary` adds them up. Money in paise. */
+export interface PaymentsView {
+  summary: {
+    market: string;
+    from: string;
+    to: string;
+    by: Record<"delivered" | "rto" | "return" | "other", { orders: number; settledPaise: number }>;
+    receivedPaise: number;
+    toComePaise: number;
+    adsPaise: number;
+    compensationPaise: number;
+    materialsPaise: number;
+    uncosted: string[];
+    earnedPaise: number;
+  }[];
+  files: string[];
+}
+
 export interface OrdersView {
   /** The local working day, decided by the engine so every screen agrees on it. */
   today: string;
@@ -690,6 +708,10 @@ export interface WwApi {
    * decide, since "6 then 10" and "6 plus 4" look identical and need opposite answers.
    */
   addManifest(file: string): Promise<Attempt<OrdersView>>;
+  /** What the marketplaces' own payment files add up to. */
+  payments(): Promise<PaymentsView>;
+  /** Read Meesho payment files (.xlsx) in; re-reading one changes nothing. */
+  addPayments(files: string[]): Promise<Attempt<PaymentsView>>;
 
   /**
    * Read a Flipkart label pack into the latch list.

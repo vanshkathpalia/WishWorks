@@ -1,7 +1,7 @@
 /**
  * Money.tsx — what the packing was worth, what it owes the packers, and what came back.
  *
- * Three screens off one idea: the parcel ledger says what went out and when, the costed kits say
+ * Four screens off one idea (the fourth, `Payments`, reads what the marketplace itself paid): the parcel ledger says what went out and when, the costed kits say
  * what each SKU earns and costs, and multiplying them is the day's money. **Nothing is stored
  * twice.** Vansh asked for a separate expenses file; there is deliberately none, because the
  * materials cost already lives in the kit and the revenue already lives in that kit's marketplace
@@ -14,7 +14,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import type { AdSpend, BackRate, HowItSells, Money as MoneyTotals, PackerPay, SubOrder } from "../shared.js";
+import type { AdSpend, BackRate, HowItSells, Money as MoneyTotals, PackerPay, PaymentsView, SubOrder } from "../shared.js";
 
 const rupees = (paise: number) =>
   `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -953,6 +953,166 @@ export function Returns({ n }: { n: number }) {
       )}
       {shown.length > 200 && (
         <p className="muted">Showing the 200 most recent — search to narrow it down.</p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * What the marketplaces actually paid, off their own payment files — Vansh, 2026-09-26: *"what we
+ * actually earn — return 0, RTO 0 income, only delivered."* The Money screen above is the estimate;
+ * this is the figure the marketplace wrote down. See `payments-core.ts`.
+ */
+export function Payments({ n }: { n: number }) {
+  const [view, setView] = useState<PaymentsView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [over, setOver] = useState(false);
+
+  useEffect(() => void window.ww.payments().then(setView, (e: Error) => setError(e.message)), []);
+
+  async function add(files: string[]) {
+    if (files.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await window.ww.addPayments(files);
+      if (r.ok) setView(r.result);
+      else setError(r.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  }
+
+  const kinds = [
+    ["delivered", "Delivered"],
+    ["return", "Customer return"],
+    ["rto", "RTO"],
+    ["other", "Anything else"],
+  ] as const;
+
+  return (
+    <section className="panel orders">
+      <header>
+        <h1>{n === 0 ? "Payments" : `${n}. Payments`}</h1>
+        <p>
+          What Meesho actually paid, straight from its payment file. Each order counts its{" "}
+          <b>Final Settlement Amount</b> — after commission, shipping, return charges and tax — so a
+          delivered order counts what reached the bank, an <b>RTO counts ₹0</b>, and a{" "}
+          <b>customer return</b> counts its charge as a minus. Get the file from the Supplier Panel:{" "}
+          <b>Payments → Previous payments</b> (paid) and <b>Upcoming payments</b> (still to come),
+          download, and drop it here. Dropping the same file twice changes nothing.
+        </p>
+      </header>
+
+      <div
+        className={`drop small ${over ? "over" : ""} ${busy ? "busy" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          void add([...e.dataTransfer.files].map((f) => window.ww.pathForFile(f)).filter(Boolean));
+        }}
+      >
+        <strong>{busy ? "Reading it…" : "Drop Meesho payment files (.xlsx)"}</strong>
+        <div className="picks">
+          <button onClick={() => void window.ww.pick("orders", "files").then(add)}>Choose files…</button>
+        </div>
+      </div>
+      {error && <p className="error">{error}</p>}
+
+      {view === null ? (
+        <p className="muted">Looking…</p>
+      ) : view.summary.length === 0 ? (
+        <p className="muted">No payment file read yet.</p>
+      ) : (
+        view.summary.map((m) => (
+          <div key={m.market}>
+            <h2>
+              {shopName(m.market)}{" "}
+              <small>
+                orders from {m.from} to {m.to}
+              </small>
+            </h2>
+            <div className="money-tiles">
+              <div>
+                <b>{rupees(m.receivedPaise)}</b>
+                <span>received</span>
+              </div>
+              <div>
+                <b>{rupees(m.toComePaise)}</b>
+                <span>still to come</span>
+              </div>
+              <div>
+                <b>{rupees(m.earnedPaise)}</b>
+                <span>earned, after materials</span>
+              </div>
+            </div>
+            <table className="rows inv-table">
+              <tbody>
+                {kinds.map(([k, label]) =>
+                  m.by[k].orders === 0 ? null : (
+                    <tr key={k}>
+                      <td>{label}</td>
+                      <td>{m.by[k].orders} order{m.by[k].orders === 1 ? "" : "s"}</td>
+                      <td>{rupees(m.by[k].settledPaise)}</td>
+                    </tr>
+                  ),
+                )}
+                <tr>
+                  <td><b>Received</b></td>
+                  <td>paid on or before today</td>
+                  <td><b>{rupees(m.receivedPaise)}</b></td>
+                </tr>
+                <tr>
+                  <td>Still to come</td>
+                  <td>dated after today</td>
+                  <td>{rupees(m.toComePaise)}</td>
+                </tr>
+                {m.adsPaise !== 0 && (
+                  <tr>
+                    <td>Ads</td>
+                    <td>deducted separately</td>
+                    <td>{rupees(m.adsPaise)}</td>
+                  </tr>
+                )}
+                {m.compensationPaise !== 0 && (
+                  <tr>
+                    <td>Compensation / recovery</td>
+                    <td></td>
+                    <td>{rupees(m.compensationPaise)}</td>
+                  </tr>
+                )}
+                <tr>
+                  <td>Materials</td>
+                  <td>delivered orders, from the costed kits</td>
+                  <td>−{rupees(m.materialsPaise)}</td>
+                </tr>
+                <tr>
+                  <td><b>Earned</b></td>
+                  <td>received + to come − ads − materials</td>
+                  <td><b>{rupees(m.earnedPaise)}</b></td>
+                </tr>
+              </tbody>
+            </table>
+            {m.uncosted.length > 0 && (
+              <p className="error">
+                No costed kit for {m.uncosted.join(", ")} — their materials are NOT in the figure above,
+                so the real earning is lower. Cost them in the Costing tab.
+              </p>
+            )}
+          </div>
+        ))
+      )}
+      {view && view.files.length > 0 && (
+        <p className="muted">
+          <small>Files read: {view.files.join(" · ")}</small>
+        </p>
       )}
     </section>
   );

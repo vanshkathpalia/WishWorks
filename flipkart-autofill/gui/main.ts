@@ -1000,6 +1000,40 @@ handleLedger("addManifest", async (_e, file: string): Promise<Attempt<unknown>> 
 
 ipcMain.handle("orders", (_e, day?: string) => ordersView(day));
 
+// ---------------------------------------------------------------- payments
+
+const paymentsEngine = () => import("../src/payments-core.js");
+
+/** What the payment files add up to, per marketplace — materials from the costed kits. */
+async function paymentsView() {
+  const { readPayments, paymentSummary } = await paymentsEngine();
+  const { kitForSku } = await ordersEngine();
+  const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
+  const kits = listKits(KITS_DIR, loadMaterials());
+  const book = await readPayments();
+  return {
+    summary: paymentSummary(book, today(), (sku) => kitForSku(sku, kits)?.costPaise ?? null),
+    files: book.files,
+  };
+}
+ipcMain.handle("payments", () => paymentsView());
+/**
+ * Read payment files in. Queued with the ledger handlers — one writer at a time for the orders
+ * folder (WW-253). A file that is not Meesho's payment layout says so rather than adding nothing.
+ */
+handleLedger("addPayments", async (_e, files: string[]): Promise<Attempt<unknown>> => {
+  const { readMeeshoPayments, readPayments, mergePayments, writePayments } = await paymentsEngine();
+  let book = await readPayments();
+  for (const file of files) {
+    const read = readMeeshoPayments(await readFile(file));
+    if (read.payments.length === 0 && read.other.length === 0)
+      return { ok: false, message: `${path.basename(file)} is not a Meesho payment file — no "Order Payments" sheet with sub-orders in it. Nothing was added.` };
+    book = mergePayments(book, read, path.basename(file));
+  }
+  await writePayments(book);
+  return { ok: true, result: await paymentsView() };
+});
+
 // ---------------------------------------------------------------- latching
 
 const latchEngine = () => import("../src/latch-core.js");
