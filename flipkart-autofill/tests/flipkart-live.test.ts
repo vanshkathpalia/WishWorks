@@ -14,6 +14,7 @@ describe("skuKey", () => {
   it("joins the spellings one SKU has had", () => {
     expect(skuKey("ANP015")).toBe(skuKey("ANP15"));
     expect(skuKey("WKU001-ANP001")).toBe(skuKey("ANP001"));
+    expect(skuKey("ANP001-WKU001")).toBe(skuKey("ANP001")); // the same kit, renamed the other way round
     expect(skuKey("HBD-sonic01 - 8yr")).toBe(skuKey("HBD-sonic01 - 8 yr"));
     expect(skuKey("GTb11")).toBe(skuKey("GTB11"));
   });

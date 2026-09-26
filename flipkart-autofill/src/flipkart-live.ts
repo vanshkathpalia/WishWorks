@@ -83,9 +83,12 @@ export async function fetchLive(page: Page): Promise<LiveListing[]> {
 /**
  * The key two spellings of one SKU share. `ANP015` = `ANP15`, `HBD-sonic01 - 8yr` = `HBD-sonic01 - 8 yr`,
  * and a kit saved as `WKU001-ANP001` is the listing `ANP001` — the WKU prefix is an old kit numbering.
+ * **First or last**: Vansh renamed that kit `ANP001-WKU001` on 2026-09-26 and it dropped off its live
+ * listing, because only a LEADING `WKU` was stripped — `ANP1WKU1` matched nothing.
  */
 export const skuKey = (sku: string): string =>
-  sku.toUpperCase().replace(/[^A-Z0-9]+/g, "").replace(/([A-Z])0+(\d)/g, "$1$2").replace(/^WKU\d+(?=[A-Z])/, "");
+  sku.toUpperCase().replace(/[^A-Z0-9]+/g, "").replace(/([A-Z])0+(\d)/g, "$1$2")
+    .replace(/^WKU\d+(?=[A-Z])/, "").replace(/(?<=\d)WKU\d+$/, "");
 
 /**
  * Put what the account says into the latch list: each live listing's row gets the SKU it was SAVED
