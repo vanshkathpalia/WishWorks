@@ -97,3 +97,34 @@ export function checkReady(reply: string, c: KitCount): string | null {
     ? `ChatGPT read the kit as ${got[0]} lines / ${got[1]} displayed / ${got[2]} total — ours is ${want[0]} / ${want[1]} / ${want[2]}. Stopped before any image.`
     : `ChatGPT did not confirm the kit with a READY line. Stopped before any image.`;
 }
+
+/**
+ * A count check put under the HERO prompt, written from the kit — WW-267.
+ *
+ * The first live run read the counts right (READY 9 / 66 / 69) and still drew ~100 balloons for 40 and
+ * 6 heart foils for 8. `PROMPT-main-image.md` says "use the DISPLAYED numbers from the list" and
+ * "treat balloon counts as caps", but leaves the model to find the numbers again in a list several
+ * messages back. This puts the exact numbers right under the instruction to draw, and says outright
+ * that a thin garland at the true count is the right answer.
+ */
+export function countCheck(c: KitCount): string {
+  return [
+    ``,
+    `COUNT CHECK — draw exactly these on the wall, each at exactly this number, and nothing else:`,
+    ...c.displayed.map((r) => `- ${r.qty} x ${r.name}`),
+    `That is ${c.displayedPieces} pieces. Count every group in your picture before you finish. Balloons`,
+    `are the easiest to overdo: if the garland looks thin at the true count, leave it thin. A fuller`,
+    `picture than the box is a return.`,
+  ].join("\n");
+}
+
+/** The hero prompt, recognised by its opening line — the only prompt `countCheck` goes under. */
+export const isHeroPrompt = (name: string): boolean => /^PROMPT-main-image/.test(name);
+
+/** `PROMPT-redo-image.md` with its two slots filled. Throws when a slot is gone, like `withInventory`. */
+export function redoPrompt(template: string, n: number, wrong: string): string {
+  if (!template.includes("<IMAGE NUMBER>") || !template.includes("<WHAT IS WRONG>")) {
+    throw new Error("PROMPT-redo-image.md has lost its <IMAGE NUMBER> or <WHAT IS WRONG> slot");
+  }
+  return template.replaceAll("<IMAGE NUMBER>", String(n)).replace("<WHAT IS WRONG>", () => wrong.trim() || "The counts do not match the kit list.");
+}

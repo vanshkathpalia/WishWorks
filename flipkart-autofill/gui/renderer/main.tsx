@@ -19,6 +19,7 @@ import { Inventory } from "./Inventory.js";
 import { Latch } from "./Latch.js";
 import { Orders } from "./Orders.js";
 import { Money, Packers, Payments, Returns, Sells } from "./Money.js";
+import { NewListing } from "./NewListing.js";
 import { Stock } from "./Stock.js";
 import { Flipkart } from "./Flipkart.js";
 import { Check, Finish, ListingCopy, Meesho } from "./steps.js";
@@ -67,6 +68,8 @@ const STEPS = [
   { name: "Latch on", does: "Drop a rival's label pack, see what we can still list against" },
   // 15, appended so every saved step number still means the same screen. Shown after Money.
   { name: "Payments", does: "What the marketplace actually paid, from its payment file" },
+  // 16. The whole listing flow behind one button per stage (WW-267); the numbered steps are its parts.
+  { name: "New listing, one button", does: "Costed kit to filled Flipkart draft; you check images and the draft" },
 ];
 
 /**
@@ -83,6 +86,8 @@ const SECTIONS = [
   // One word each, because three tabs share a 250px rail and "New listing" / "Cost a kit" wrapped
   // onto three lines apiece. The step under each tab carries the longer name and the `does` line.
   { tab: "Orders", steps: [8, 9, 15, 10, 11, 12, 13], numbered: false },
+  // Its own tab, not step 1 of Listing: that would renumber seven panels whose headings print their number.
+  { tab: "New", steps: [16], numbered: false },
   { tab: "Listing", steps: [0, 1, 2, 3, 4, 5, 6], numbered: true },
   { tab: "Costing", steps: [7], numbered: false },
   { tab: "Latch", steps: [14], numbered: false },
@@ -126,6 +131,8 @@ function Panel({ step }: { step: number }) {
       return <Latch n={0} />;
     case 15:
       return <Payments n={0} />;
+    case 16:
+      return <NewListing n={0} />;
     default:
       return null;
   }

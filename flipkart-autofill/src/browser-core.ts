@@ -226,6 +226,8 @@ export async function fillListing(
    * this tab already carries, so a pricing-tab field never gets typed on the description tab.
    */
   over: Values = {},
+  /** The form to fill. Absent: whatever Chrome shows (the Fill button). The new-listing flow passes its own. */
+  onPage?: Page,
 ): Promise<FillResult> {
   if (!session) throw new FillBlocked("Chrome is not open — open it first.");
 
@@ -246,7 +248,7 @@ export async function fillListing(
   // Additional Description tab from 35/66 to 58/66 (WW-195). Drop the third argument to go back.
   const fillable = fillableValues(values as Values, problems, category);
 
-  const page = await activePage(session.context);
+  const page = onPage ?? (await activePage(session.context));
   const rows: FieldRow[] = [];
   const report = await fillAll(page, fillable, (row) => {
     rows.push(row);

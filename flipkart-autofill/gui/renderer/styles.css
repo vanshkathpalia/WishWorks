@@ -2950,3 +2950,25 @@ h3 > button.tiny {
 .payments h2 small {
   margin-left: 8px;
 }
+
+/* New listing, one button (WW-267). */
+.nl-steps { display: flex; gap: 8px; padding: 0; margin: 12px 0 0; list-style: none; counter-reset: nl; }
+.nl-steps li { flex: 1; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 8px; counter-increment: nl; }
+.nl-steps li::before { content: counter(nl) ". "; font-weight: 700; }
+.nl-steps li.yours { border-color: var(--accent); }
+.nl-steps small { display: block; color: var(--dim); }
+.nl-card { border: 1px solid var(--line-soft); border-radius: 10px; padding: 12px 14px; margin: 14px 0; }
+.nl-card.stage-review, .nl-card.stage-done { border-color: var(--accent); }
+.nl-card.stage-failed { border-color: var(--bad-line, #c55); }
+.nl-images { display: flex; gap: 12px; flex-wrap: wrap; }
+.nl-images figure { margin: 0; width: 300px; }
+.nl-images img { width: 300px; height: 300px; object-fit: contain; background: var(--well); border-radius: 6px; }
+.nl-images figcaption { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.nl-sizes pre { white-space: pre-wrap; max-height: 220px; overflow: auto; background: var(--well); padding: 8px; border-radius: 6px; font-size: 12px; }
+.nl-sizes textarea { width: 100%; }
+.nl-log { font-size: 12px; color: var(--dim); margin: 6px 0 0; }
+.new-listing .thumb img { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; }
+/* The one button to press next: lit, and gently pulsing so the eye finds it. */
+button.next-up { outline: 3px solid var(--accent); outline-offset: 2px; animation: next-up 1.6s ease-in-out infinite; }
+@keyframes next-up { 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { button.next-up { animation: none; } }

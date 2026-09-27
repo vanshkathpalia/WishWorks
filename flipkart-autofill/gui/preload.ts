@@ -117,6 +117,19 @@ const api: WwApi = {
   imageQueue: () => ipcRenderer.invoke("imageQueue"),
   runImages: (sku: string, counts?: "kit" | "photo") => ipcRenderer.invoke("runImages", sku, counts),
   runMeta: (sku: string) => ipcRenderer.invoke("runMeta", sku),
+  nlList: () => ipcRenderer.invoke("nlList"),
+  nlStart: (skus: string[]) => ipcRenderer.invoke("nlStart", skus),
+  nlRedo: (sku: string, n: number, wrong: string) => ipcRenderer.invoke("nlRedo", sku, n, wrong),
+  nlSizes: (sku: string, answer: string) => ipcRenderer.invoke("nlSizes", sku, answer),
+  nlDrop: (sku: string, n: number) => ipcRenderer.invoke("nlDrop", sku, n),
+  nlContinue: (sku: string) => ipcRenderer.invoke("nlContinue", sku),
+  nlRetry: (sku: string) => ipcRenderer.invoke("nlRetry", sku),
+  nlOpenDraft: (sku: string) => ipcRenderer.invoke("nlOpenDraft", sku),
+  onNlChanged: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("nlChanged", handler);
+    return () => void ipcRenderer.off("nlChanged", handler);
+  },
   meeshoQueue: () => ipcRenderer.invoke("meeshoQueue"),
   meeshoOnlyQueue: () => ipcRenderer.invoke("meeshoOnlyQueue"),
   meeshoOnlyPhotos: (fsns: string[]) => ipcRenderer.invoke("meeshoOnlyPhotos", fsns),

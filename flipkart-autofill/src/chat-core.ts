@@ -328,7 +328,7 @@ export async function runImageChat(
     /** What to call the chat afterwards — `ANP018 — images`. Skipped when absent. */
     title?: string;
     /** Applied to every prompt before it is sent — `withKit` puts the counted inventory in. */
-    fill?: (text: string) => string;
+    fill?: (text: string, prompt: string) => string;
     /** Reads a text step's reply; a message stops the run before any image is spent on it. */
     verify?: (reply: string) => string | null;
   },
@@ -343,7 +343,7 @@ export async function runImageChat(
 
   for (const step of opts.steps) {
     const raw = await opts.readPrompt(step.prompt);
-    const text = opts.fill ? opts.fill(raw) : raw;
+    const text = opts.fill ? opts.fill(raw, step.prompt) : raw;
     const started = Date.now();
 
     if (step.image === null) {

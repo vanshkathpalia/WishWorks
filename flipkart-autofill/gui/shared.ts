@@ -86,6 +86,12 @@ export type PaymentsQuery = {
 };
 
 /** Everything the Payments screen draws — see `paymentsView` in main and `payments-core.ts`. */
+/** One kit on the New listing screen. */
+export type NlRow = import("../src/new-listing-flow.js").Candidate & {
+  blocked: string | null;
+  next: "start" | "review" | "continue" | "open-draft" | "retry" | null;
+};
+
 export interface PaymentsView {
   summary: Summary;
   markets: { market: string; summary: Summary }[];
@@ -794,6 +800,26 @@ export interface WwApi {
   runImages(sku: string, counts?: "kit" | "photo"): Promise<Attempt<unknown>>;
   /** Describe those images and fill the Flipkart fields — `PROMPT-meta` then `PROMPT-product`, one chat. */
   runMeta(sku: string): Promise<Attempt<unknown>>;
+
+  // The one-button new listing (WW-267) — see `new-listing-flow.ts`.
+  /** Every kit, whether it can start, its row in the flow and the one button to press next. */
+  nlList(): Promise<{ busy: string | null; rows: NlRow[] }>;
+  /** Make the images for these kits, one after another. Resolves when the last is ready for review. */
+  nlStart(skus: string[]): Promise<Attempt<unknown>>;
+  /** Redo image `n` in the kit's own chat, told what is wrong. */
+  nlRedo(sku: string, n: number, wrong: string): Promise<Attempt<unknown>>;
+  /** Answer ChatGPT's sizes question; it then draws image 3. */
+  nlSizes(sku: string, answer: string): Promise<Attempt<unknown>>;
+  /** Leave image `n` (3 or later) out of the listing. */
+  nlDrop(sku: string, n: number): Promise<void>;
+  /** After the check: text, files, finish, Flipkart draft filled. Never Send to QC. */
+  nlContinue(sku: string): Promise<Attempt<unknown>>;
+  /** Run a failed kit again from where it stopped. */
+  nlRetry(sku: string): Promise<Attempt<unknown>>;
+  /** Show the filled draft in the app's Chrome. */
+  nlOpenDraft(sku: string): Promise<Attempt<unknown>>;
+  /** Fires whenever any kit's row changes. */
+  onNlChanged(cb: () => void): () => void;
   /** What Flipkart will not take but Meesho could: no catalog entry, or an approval he cannot get. */
   meeshoOnlyQueue(): Promise<Attempt<MeeshoOnlyJob[]>>;
   /** Take the two photos for these (empty = all) into the Meesho only folder, and give each a SKU. */
