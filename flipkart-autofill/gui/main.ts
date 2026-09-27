@@ -406,6 +406,8 @@ ipcMain.handle("pick", async (e, step: StepId, mode: "folder" | "files"): Promis
           ? [{ name: "Manifest or orders export", extensions: ["pdf", "csv"] }]
           : step === "labels"
             ? [{ name: "Flipkart label pack", extensions: ["pdf"] }]
+          : step === "payments"
+            ? [{ name: "Meesho or Flipkart payment file", extensions: ["xlsx"] }]
           : step === "orders-report"
             // Whatever the marketplace exports. Nothing here reads their columns — the ids are
             // found in the text — so the list is about what they hand out, not what we parse.
@@ -999,6 +1001,71 @@ handleLedger("addManifest", async (_e, file: string): Promise<Attempt<unknown>> 
 });
 
 ipcMain.handle("orders", (_e, day?: string) => ordersView(day));
+
+// ---------------------------------------------------------------- payments
+
+const paymentsEngine = () => import("../src/payments-core.js");
+type PaymentsQuery = { from?: string; to?: string; market?: "meesho" | "flipkart" | ""; logisticsPaise?: number };
+
+/**
+ * Everything the Payments screen draws, for one range of payment dates and one marketplace (or
+ * both). Pocket cost is the costed kit's; the packed parcels come from the packing ledger, for the
+ * *payment against order* table.
+ */
+async function paymentsView(q: PaymentsQuery = {}) {
+  const { readPayments, summarise, paymentVsOrder, DEFAULT_SETTINGS } = await paymentsEngine();
+  const { kitForSku, listLedgers } = await ordersEngine();
+  const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
+  const kits = listKits(KITS_DIR, loadMaterials());
+  const book = await readPayments();
+  const costOf = (sku: string) => kitForSku(sku, kits)?.costPaise ?? null;
+  const market = q.market || undefined;
+  return {
+    summary: summarise(book, { ...q, market, costOf }),
+    // Each marketplace alone too, so the screen can show them side by side under the combined one.
+    markets: [...new Set(book.payments.map((p) => p.market))].map((m) => ({
+      market: m,
+      summary: summarise(book, { from: q.from, to: q.to, market: m, costOf }),
+    })),
+    vsOrder: paymentVsOrder(book, (await listLedgers()).flatMap((l) => l.subOrders.filter((p) => p.packedOn)) as never, q),
+    settings: { ...DEFAULT_SETTINGS, ...book.settings },
+    files: book.files,
+  };
+}
+ipcMain.handle("payments", (_e, q: PaymentsQuery) => paymentsView(q));
+/**
+ * Read payment files in — either marketplace's, told apart by their sheets. Queued with the ledger
+ * handlers: one writer at a time for the orders folder (WW-253). A file that is neither says so.
+ */
+handleLedger("addPayments", async (_e, files: string[], q: PaymentsQuery): Promise<Attempt<unknown>> => {
+  const { readPaymentFile, readPayments, mergePayments, writePayments } = await paymentsEngine();
+  let book = await readPayments();
+  const unread: string[] = [];
+  for (const file of files) {
+    const read = readPaymentFile(await readFile(file));
+    unread.push(...read.unread.map((tab) => `"${tab}" in ${path.basename(file)}`));
+    if (read.market === null || (read.payments.length === 0 && read.other.length === 0))
+      return {
+        ok: false,
+        message: `${path.basename(file)} is not a payment file this app knows — Meesho's (Payments → Previous payments) or Flipkart's (Reports → Payment Reports → Settled Transactions). Nothing was added.`,
+      };
+    book = mergePayments(book, read, path.basename(file));
+  }
+  await writePayments(book);
+  return {
+    ok: true,
+    result: await paymentsView(q),
+    // A tab with numbers the reader could not place — a new kind of deduction, e.g. boost. Said out
+    // loud, because leaving it out quietly would make the profit look better than it is.
+    note: unread.length ? `Not read — send this file to be looked at: ${unread.join(", ")}. The figures below leave it out.` : undefined,
+  };
+});
+/** Vansh's own RTO, return and parcel figures — saved in the payment book, one place. */
+handleLedger("paymentSettings", async (_e, settings: unknown, q: PaymentsQuery) => {
+  const { readPayments, writePayments } = await paymentsEngine();
+  await writePayments({ ...(await readPayments()), settings: settings as never });
+  return paymentsView(q);
+});
 
 // ---------------------------------------------------------------- latching
 

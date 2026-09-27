@@ -1,7 +1,7 @@
 /**
  * Money.tsx — what the packing was worth, what it owes the packers, and what came back.
  *
- * Three screens off one idea: the parcel ledger says what went out and when, the costed kits say
+ * Four screens off one idea (the fourth, `Payments`, reads what the marketplace itself paid): the parcel ledger says what went out and when, the costed kits say
  * what each SKU earns and costs, and multiplying them is the day's money. **Nothing is stored
  * twice.** Vansh asked for a separate expenses file; there is deliberately none, because the
  * materials cost already lives in the kit and the revenue already lives in that kit's marketplace
@@ -14,10 +14,11 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import type { AdSpend, BackRate, HowItSells, Money as MoneyTotals, PackerPay, SubOrder } from "../shared.js";
+import type { AdSpend, BackRate, HowItSells, Money as MoneyTotals, PackerPay, PaymentsView, SubOrder } from "../shared.js";
 
+/** `-1045` → `−₹10.45` — the sign before the ₹, the way a statement prints a loss. */
 const rupees = (paise: number) =>
-  `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `${paise < 0 ? "−" : ""}₹${(Math.abs(paise) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** `meesho` → `Meesho`. The market id is stored lower-case; nobody writes it that way. */
 const shopName = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
@@ -953,6 +954,385 @@ export function Returns({ n }: { n: number }) {
       )}
       {shown.length > 200 && (
         <p className="muted">Showing the 200 most recent — search to narrow it down.</p>
+      )}
+    </section>
+  );
+}
+
+/** `YYYY-MM-DD` of a local date. */
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** The quick ranges, by payment date. Computed when clicked, so "this month" is always this month. */
+function preset(which: "this" | "last" | "all"): { from: string; to: string } {
+  const now = new Date();
+  if (which === "all") return { from: "", to: "" };
+  if (which === "this") return { from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: ymd(now) };
+  return { from: ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: ymd(new Date(now.getFullYear(), now.getMonth(), 0)) };
+}
+
+/** Rupees typed in a box → paise; empty stays undefined. */
+const typedPaise = (s: string) => (s.trim() === "" || !Number.isFinite(Number(s)) ? undefined : Math.round(Number(s) * 100));
+
+/**
+ * What the marketplaces actually paid and what that left, off their own payment files — per SKU
+ * and all together. Vansh, 2026-09-26: *"what we actually earn — return 0, RTO 0 income, only
+ * delivered."* It replaces his partner's *Meesho calculator* workbook: the same sums, with nothing
+ * pasted and the pocket cost taken from the costed kits. See `payments-core.ts`.
+ */
+export function Payments({ n }: { n: number }) {
+  const [view, setView] = useState<PaymentsView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [over, setOver] = useState(false);
+  const [range, setRange] = useState(() => preset("this"));
+  const [market, setMarket] = useState<"" | "meesho" | "flipkart">("");
+  /** A real logistics spend for the range, typed — used instead of the per-parcel figure. */
+  const [logistics, setLogistics] = useState("");
+  /** The settings boxes as typed; saved when a box is left. */
+  const [typed, setTyped] = useState<Record<string, string>>({});
+
+  const q = { ...range, market, logisticsPaise: typedPaise(logistics) ?? 0 };
+  const load = useCallback(() => {
+    void window.ww.payments(q).then(setView, (e: Error) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.from, range.to, market, logistics]);
+  useEffect(load, [load]);
+
+  async function add(files: string[]) {
+    if (files.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await window.ww.addPayments(files, q);
+      if (r.ok) {
+        setView(r.result);
+        if (r.note) setError(r.note);
+      } else setError(r.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  }
+
+  function saveSetting(key: "rtoLossPaise" | "returnLossPaise" | "parcelPaise" | "parcelOn", value: number | boolean) {
+    if (!view) return;
+    void window.ww.paymentSettings({ ...view.settings, [key]: value }, q).then(setView, (e: Error) => setError(e.message));
+  }
+
+  /** A settings box: rupees shown, paise saved, saved when you leave the box. */
+  const money = (key: "rtoLossPaise" | "returnLossPaise" | "parcelPaise") => (
+    <input
+      type="number"
+      min={0}
+      step="0.5"
+      value={typed[key] ?? (view ? String(view.settings[key] / 100) : "")}
+      onChange={(e) => setTyped({ ...typed, [key]: e.target.value })}
+      onBlur={() => {
+        const v = typedPaise(typed[key] ?? "");
+        if (v !== undefined) saveSetting(key, v);
+        setTyped(({ [key]: _gone, ...rest }) => rest);
+      }}
+    />
+  );
+
+  const s = view?.summary;
+  const c = s?.total.counts;
+  const handled = c ? c.delivered + c.rto + c.return + c.other : 0;
+
+  return (
+    <section className="panel orders payments">
+      <header>
+        <h1>{n === 0 ? "Payments" : `${n}. Payments`}</h1>
+        <p>
+          What Meesho and Flipkart actually paid, from their own payment files, and what that left
+          after the kits and your losses. A delivered order counts what reached the bank, an{" "}
+          <b>RTO counts ₹0</b>, a <b>return</b> counts its charge as a minus — the marketplace&apos;s
+          own settlement, not a guess. Meesho: <b>Payments → Previous payments</b>. Flipkart:{" "}
+          <b>Reports → Payment Reports → Settled Transactions</b>. Dropping the same file twice
+          changes nothing; a later file that takes money back is subtracted.
+        </p>
+      </header>
+
+      <div
+        className={`drop small ${over ? "over" : ""} ${busy ? "busy" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          void add([...e.dataTransfer.files].map((f) => window.ww.pathForFile(f)).filter(Boolean));
+        }}
+      >
+        <strong>{busy ? "Reading it…" : "Drop Meesho or Flipkart payment files (.xlsx)"}</strong>
+        <div className="picks">
+          <button onClick={() => void window.ww.pick("payments", "files").then(add)}>Choose files…</button>
+        </div>
+      </div>
+      {error && <p className="error">{error}</p>}
+
+      <div className="pay-controls">
+        <div className="seg">
+          {(["this", "last", "all"] as const).map((w) => {
+            const p = preset(w);
+            return (
+              <button key={w} className={p.from === range.from && p.to === range.to ? "chosen" : ""} onClick={() => setRange(p)}>
+                {w === "this" ? "This month" : w === "last" ? "Last month" : "All time"}
+              </button>
+            );
+          })}
+        </div>
+        <label>
+          paid from <input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} />
+        </label>
+        <label>
+          to <input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} />
+        </label>
+        <div className="seg">
+          {(["", "meesho", "flipkart"] as const).map((m) => (
+            <button key={m || "both"} className={market === m ? "chosen" : ""} onClick={() => setMarket(m)}>
+              {m === "" ? "Both" : shopName(m)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {view && (
+        <div className="pay-controls pay-settings">
+          <label>RTO loss ₹{money("rtoLossPaise")}</label>
+          <label>Return loss ₹{money("returnLossPaise")}</label>
+          <label>
+            <input
+              type="checkbox"
+              checked={view.settings.parcelOn}
+              onChange={(e) => saveSetting("parcelOn", e.target.checked)}
+            />
+            Parcel ₹{money("parcelPaise")} each
+          </label>
+          <label title="What logistics really cost in this range — from UPI, say. Used instead of the per-parcel figure.">
+            or logistics spent ₹
+            <input type="number" min={0} placeholder="—" value={logistics} onChange={(e) => setLogistics(e.target.value)} />
+          </label>
+        </div>
+      )}
+
+      {!view || !s ? (
+        <p className="muted">Looking…</p>
+      ) : view.files.length === 0 ? (
+        <p className="muted">No payment file read yet.</p>
+      ) : (
+        <>
+          <div className="money-tiles">
+            <div>
+              <b>{rupees(s.total.paidPaise)}</b>
+              <span>paid in</span>
+            </div>
+            <div>
+              <b>{rupees(s.netPaise)}</b>
+              <span>profit</span>
+            </div>
+            <div>
+              <b>{rupees(Math.max(0, s.gst.payablePaise))}</b>
+              <span>GST to pay (estimate)</span>
+            </div>
+            <div>
+              <b>{rupees(s.afterGstPaise)}</b>
+              <span>profit after GST</span>
+            </div>
+          </div>
+
+          <table className="rows inv-table">
+            <tbody>
+              <tr>
+                <td>Paid in</td>
+                <td>
+                  {c!.delivered} delivered · {c!.rto} RTO ({handled ? Math.round((c!.rto / handled) * 100) : 0}%) ·{" "}
+                  {c!.return} returned{c!.other ? ` · ${c!.other} other` : ""}
+                </td>
+                <td>{rupees(s.total.paidPaise)}</td>
+              </tr>
+              <tr>
+                <td>Pocket cost</td>
+                <td>kit cost × delivered, from the Costing tab</td>
+                <td>−{rupees(s.total.pocketPaise)}</td>
+              </tr>
+              <tr>
+                <td>Losses</td>
+                <td>
+                  RTO ₹{view.settings.rtoLossPaise / 100} × {c!.rto}, return ₹{view.settings.returnLossPaise / 100} × {c!.return}
+                  {view.settings.parcelOn && !s.logisticsPaise ? `, parcel ₹${view.settings.parcelPaise / 100} × ${handled}` : ""}
+                </td>
+                <td>−{rupees(s.total.lossesPaise)}</td>
+              </tr>
+              {s.logisticsPaise > 0 && (
+                <tr>
+                  <td>Logistics</td>
+                  <td>typed for this range</td>
+                  <td>−{rupees(s.logisticsPaise)}</td>
+                </tr>
+              )}
+              <tr>
+                <td>Ads and boost</td>
+                <td>by the day they ran, in this range</td>
+                <td>{rupees(s.ads.totalPaise)}</td>
+              </tr>
+              {s.otherPaise !== 0 && (
+                <tr>
+                  <td>Other fees and compensation</td>
+                  <td>not tied to an order</td>
+                  <td>{rupees(s.otherPaise)}</td>
+                </tr>
+              )}
+              <tr>
+                <td><b>Profit</b></td>
+                <td></td>
+                <td><b>{rupees(s.netPaise)}</b></td>
+              </tr>
+              <tr>
+                <td>GST (estimate)</td>
+                <td>
+                  {rupees(s.gst.outputPaise)} on delivered sales − {rupees(s.gst.creditPaise)} claimable (GST in the
+                  marketplace fees + TCS)
+                  {s.gst.payablePaise < 0 ? " — a credit to carry forward" : ""}
+                </td>
+                <td>−{rupees(Math.max(0, s.gst.payablePaise))}</td>
+              </tr>
+              <tr>
+                <td><b>Profit after GST</b></td>
+                <td>TDS {rupees(s.gst.tdsPaise)} is claimed back at income-tax filing, not here</td>
+                <td><b>{rupees(s.afterGstPaise)}</b></td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="muted">
+            <small>GST is an estimate for your CA, for a regular GST registration. Check it against the return you file.</small>
+          </p>
+
+          {market === "" && view.markets.length > 1 && (
+            <>
+              <h2>Each marketplace</h2>
+              <table className="rows inv-table">
+                <thead>
+                  <tr><th>Marketplace</th><th>Delivered</th><th>RTO</th><th>Returns</th><th>Paid in</th><th>Profit</th></tr>
+                </thead>
+                <tbody>
+                  {view.markets.map((m) => (
+                    <tr key={m.market}>
+                      <td>{shopName(m.market)}</td>
+                      <td>{m.summary.total.counts.delivered}</td>
+                      <td>{m.summary.total.counts.rto}</td>
+                      <td>{m.summary.total.counts.return}</td>
+                      <td>{rupees(m.summary.total.paidPaise)}</td>
+                      <td>{rupees(m.summary.netPaise)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          <h2>Per SKU <small>most profit first · ads are not split per SKU</small></h2>
+          <table className="rows inv-table">
+            <thead>
+              <tr>
+                <th>SKU</th><th>Delivered</th><th>RTO</th><th>RTO %</th><th>Returns</th><th>Paid in</th>
+                <th>Pocket</th><th>Losses</th><th>Profit</th><th>Per order</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.bySku.map((r) => (
+                <tr key={r.sku}>
+                  <td>{r.sku}{r.uncosted && <em className="warnpill"> no kit</em>}</td>
+                  <td>{r.counts.delivered}</td>
+                  <td>{r.counts.rto}</td>
+                  <td>{r.rtoPercent}%</td>
+                  <td>{r.counts.return}</td>
+                  <td>{rupees(r.paidPaise)}</td>
+                  <td>{r.uncosted ? "?" : `−${rupees(r.pocketPaise)}`}</td>
+                  <td>−{rupees(r.lossesPaise)}</td>
+                  <td><b>{rupees(r.profitPaise)}</b></td>
+                  <td>{rupees(r.perOrderPaise)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {s.uncosted.length > 0 && (
+            <p className="error">
+              No costed kit for {s.uncosted.join(", ")} — their pocket cost is NOT taken off, so the real
+              profit is lower. Cost them in the Costing tab.
+            </p>
+          )}
+
+          <h2>Ads</h2>
+          {s.ads.byCampaign.length === 0 ? (
+            <p className="muted">No ad spend in these files for this range.</p>
+          ) : (
+            <table className="rows inv-table">
+              <thead>
+                <tr><th>Campaign</th><th>Marketplace</th><th>Spent</th></tr>
+              </thead>
+              <tbody>
+                {s.ads.byCampaign.map((a) => (
+                  <tr key={`${a.market}|${a.campaign}`}>
+                    <td>{a.campaign || "—"}</td>
+                    <td>{shopName(a.market)}</td>
+                    <td>{rupees(a.paise)}</td>
+                  </tr>
+                ))}
+                <tr><td><b>All together</b></td><td></td><td><b>{rupees(s.ads.totalPaise)}</b></td></tr>
+              </tbody>
+            </table>
+          )}
+          {s.adEffect && (
+            <table className="rows inv-table">
+              <thead>
+                <tr><th>Orders</th><th>Delivered</th><th>RTO</th><th>Returns</th><th>Profit</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>From ads (ad spend charged here)</td>
+                  <td>{s.adEffect.ad.counts.delivered}</td>
+                  <td>{s.adEffect.ad.counts.rto}</td>
+                  <td>{s.adEffect.ad.counts.return}</td>
+                  <td>{rupees(s.adEffect.ad.profitPaise)}</td>
+                </tr>
+                <tr>
+                  <td>Without ads</td>
+                  <td>{s.adEffect.organic.counts.delivered}</td>
+                  <td>{s.adEffect.organic.counts.rto}</td>
+                  <td>{s.adEffect.organic.counts.return}</td>
+                  <td>{rupees(s.adEffect.organic.profitPaise)}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+
+          <h2>Payment against order <small>orders placed in this range, by month</small></h2>
+          <table className="rows inv-table">
+            <thead>
+              <tr><th>Ordered in</th><th>Delivered &amp; paid</th><th>RTO</th><th>Returned</th><th>Packed, no payment yet</th></tr>
+            </thead>
+            <tbody>
+              {view.vsOrder.map((r) => (
+                <tr key={r.month}>
+                  <td>{r.month}</td>
+                  <td>{r.delivered}</td>
+                  <td>{r.rto}</td>
+                  <td>{r.return}</td>
+                  <td>{r.waiting ? `${r.waiting} (oldest packed ${r.oldestWaiting})` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      {view && view.files.length > 0 && (
+        <p className="muted">
+          <small>Files read: {view.files.join(" · ")}</small>
+        </p>
       )}
     </section>
   );

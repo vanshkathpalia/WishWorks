@@ -975,6 +975,51 @@ Checked on the live list: 43 kits costed; HBD-masha04 shows room ₹5 — a bad 
 Also: one copy of the app at a time (two were running, each killing the other's Chrome), and when two
 Chrome windows each show a product, the one looked at last is latched instead of refusing.
 
+## WW-258 — Payments: what Meesho and Flipkart actually paid, per SKU and all together
+
+**Built, 2026-09-27, branch `payments`.** Vansh: *"is there any system that reads the payment and tells me
+what we actually earn — return 0, RTO 0 income, only delivered."* It replaces his partner's
+*Meesho calculator* workbook (the same sums, with nothing pasted) and adds Flipkart. The **Payments**
+step sits under Orders, after Money (`payments-core.ts`).
+- **Reads both files:** Meesho's *Previous/Upcoming payments* and Flipkart's *Settled Transactions*,
+  told apart by their sheets. Each order counts the marketplace's own settlement: RTO ₹0, a return minus.
+  Checked on the partner's 289 Meesho orders: every return's settlement equals its return shipping
+  charge, so this is his formula. Flipkart reads ₹1,370.16 against its own summary's ₹1,370.177.
+- **Every payment line is kept.** A later file that takes money back counts as a minus instead of
+  overwriting the payment.
+- **Per SKU and all together,** by payment date (This month / Last month / All time / custom), for
+  Both / Meesho / Flipkart:
+  - paid in, minus pocket cost (costed kit × delivered)
+  - minus Vansh's own losses: RTO ₹5, return ₹10, parcel ₹3 on/off, or a real logistics spend
+    typed for the range. All saved and editable.
+  - minus ads, plus fees and compensation = profit
+  - GST estimate: 5/105 of delivered sales, minus the GST inside marketplace fees and TCS
+    (Flipkart states its credit per order). TDS is shown for income tax.
+  - Profit after GST.
+- **Ads:** all together, per campaign, and by the days they ran. Meesho *Ad order* sales against the rest.
+- **Payment against order:** per month ordered, how many were paid, RTO'd or returned, and how many
+  packed parcels no payment file has mentioned yet.
+- The upcoming-payments file is not treated as money in hand, since it can still turn into RTOs.
+- 11 tests on the two real files.
+- **First real finding:** ANP15 on Flipkart loses ₹34 an order (₹112 kit, ~₹78 paid in).
+
+**Added the same day, after Vansh's review:**
+- **Boost and anything new.** Meesho's *boost a listing* (₹100 a day) has not appeared in any file
+  yet, so any tab the reader does not know is read as dated amounts. A tab named ads, boost or
+  promotion counts as ad spend. A tab with numbers it cannot place is named on screen after upload
+  instead of being left out. Meesho's *Referral Payments* tab is now read too.
+- **One range for everything:** *payment against order* now follows the range as well, by the day
+  the order was placed.
+- **Fixed:** *Choose files…* used the manifest picker, which only offers .pdf and .csv, so a
+  payment .xlsx could only be dragged in. It has its own picker now.
+- **Fixed:** an order paid and later taken back counted as two parcels and kept its kit's pocket
+  cost. A follow-up line adds no parcel, and a delivered order that becomes a return gives the kit
+  cost back in that later range. The ₹10 return loss still applies.
+- 13 tests; production build checked. The other chat's pending `new-listing-flow` changes apply on
+  top of this with no code conflict. Its docs were renumbered to WW-259, WW-260 and C-100 when it merged main.
+
+**Not built:** matching bank credits (ICICI statement) to payouts. That waits for a real statement PDF.
+
 ## WW-259 — The image run gets its counts from the kit, not from the photo
 
 **Done, 2026-09-27.** First step of the one-button new listing (costing chat → images → your pick →

@@ -2829,6 +2829,34 @@ saved over the good one. Nothing said anything was wrong.
 **Lesson.** `?? []` on a reply from somebody else's API turns every refusal into a confident zero.
 Absent is an error until proven empty.
 
+## C-099 — three wrong claims about the partner's calculator, and a merge that would have eaten a take-back
+
+**What went wrong.** Reviewing *Meesho calculator 20260912*, I said three things without checking the data:
+- that "shipped" orders got pocket cost before they were paid (the payment file has no shipped
+  orders: 231 Delivered, 47 RTO, 11 Return)
+- that returns were half counted (all 11 returns settle at exactly their return shipping charge,
+  so his formula is exact)
+- that 5% GST on the settlement was simply wrong, before working the example
+
+Separately, my first `mergePayments` kept one line per order and let a newer file replace it. A
+return after payout would have overwritten the payment instead of subtracting from it.
+
+**Fix.** Checked every claim against his 289 rows. Retracted the first two, and worked the GST case
+with the real ₹200 order (≈ ₹0 payable, not ₹7.13). A payment line is now its order AND its
+transfer, and both lines count (WW-258).
+
+**Lesson.** Before calling someone's formula wrong, run it on their own data. And a record that can
+be corrected later is a ledger of lines, not one row per order.
+
+**Found in the audit the same day, both mine:**
+- The payments picker reused the manifest's file filter (.pdf, .csv), so "Choose files…" could not
+  pick the .xlsx it exists to read.
+- Keeping every line fixed the take-back but double-counted it: two parcels, and pocket cost kept
+  on a kit that came back.
+
+Both are fixed with tests. **Lesson:** after changing how records are stored, re-check every sum
+that counts them, and click every button once.
+
 ## C-100 — the automated image run sent two prompts with their inventory slot still empty
 
 **What went wrong.** WW-191's run sent `PROMPT-infographic.md` with the literal line

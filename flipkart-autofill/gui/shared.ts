@@ -14,6 +14,7 @@
 // The engine's own row type, imported rather than re-declared. Type-only, so nothing from
 // images-core.ts is bundled into the renderer.
 import type { Row } from "../src/images-core.js";
+import type { PaymentSettings, Summary, paymentVsOrder } from "../src/payments-core.js";
 import type { FinishResult } from "../src/finish-core.js";
 import type { InboxItem, ImportResult } from "../src/inbox.js";
 import type { Listing } from "../src/listings.js";
@@ -77,6 +78,18 @@ export interface PhotoMove {
  * one place (`ordersView` in main.ts). A screen that recomputed any of it would be a second
  * definition of what a person is owed.
  */
+/** What the Payments screen asks for: a range of PAYMENT dates, and one marketplace or both. */
+export type PaymentsQuery = { from?: string; to?: string; market?: "meesho" | "flipkart" | ""; logisticsPaise?: number };
+
+/** Everything the Payments screen draws — see `paymentsView` in main and `payments-core.ts`. */
+export interface PaymentsView {
+  summary: Summary;
+  markets: { market: string; summary: Summary }[];
+  vsOrder: ReturnType<typeof paymentVsOrder>;
+  settings: PaymentSettings;
+  files: string[];
+}
+
 export interface OrdersView {
   /** The local working day, decided by the engine so every screen agrees on it. */
   today: string;
@@ -426,7 +439,9 @@ export type StepId =
   // Three on the orders screen, because they open on different things and accept different files:
   // the manifest is a PDF out of the browser's downloads, a product picture is an image, and a
   // returns report is whatever the marketplace exports — CSV, Excel or PDF.
-  | "orders" | "orders-image" | "orders-report" | "labels";
+  | "orders" | "orders-image" | "orders-report" | "labels"
+  // The marketplaces' payment files — always .xlsx; the manifest picker would not offer one.
+  | "payments";
 
 /**
  * The tag clean-up, which belongs on this step because the engine does it here: cropping and
@@ -690,6 +705,12 @@ export interface WwApi {
    * decide, since "6 then 10" and "6 plus 4" look identical and need opposite answers.
    */
   addManifest(file: string): Promise<Attempt<OrdersView>>;
+  /** What the marketplaces' own payment files add up to, for a range of payment dates. */
+  payments(q: PaymentsQuery): Promise<PaymentsView>;
+  /** Read Meesho or Flipkart payment files (.xlsx) in; re-reading one changes nothing. */
+  addPayments(files: string[], q: PaymentsQuery): Promise<Attempt<PaymentsView>>;
+  /** Save the RTO / return / parcel figures, and draw again with them. */
+  paymentSettings(settings: PaymentSettings, q: PaymentsQuery): Promise<PaymentsView>;
 
   /**
    * Read a Flipkart label pack into the latch list.
