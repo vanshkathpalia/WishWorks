@@ -2033,7 +2033,7 @@ const errText = (err: unknown) => (err instanceof Error ? err.message.split("\n"
 /** A ChatGPT tab on `url` (a fresh chat when absent), given time to draw. */
 async function nlChat(url = "https://chatgpt.com/") {
   const { chatTab } = await import("../src/browser-core.js");
-  const tab = await chatTab();
+  const tab = await chatTab({ visible: true });
   await tab.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
   await tab.waitForTimeout(7000);
   return tab;

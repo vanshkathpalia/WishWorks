@@ -133,15 +133,27 @@ export async function attachPhoto(page: Page, files: string | string[]): Promise
   const previews = () => page.locator('img[src^="blob:"]').count().catch(() => 0);
   const before = await previews();
   for (let attempt = 0; attempt < 2; attempt++) {
+    /**
+     * Either signal is enough: the preview drawn, or ChatGPT's own upload call answering OK. A tab in
+     * the BACKGROUND (how the app runs chats, so they never take the screen) does not draw the preview
+     * at all — measured 2026-09-27 — but it still uploads.
+     */
+    let uploaded = 0;
+    const onResponse = (r: import("playwright").Response) => {
+      if (r.request().method() !== "GET" && /backend-api\/files/.test(r.url()) && r.ok()) uploaded++;
+    };
+    page.on("response", onResponse);
     await page.locator("input[type=file]").first().setInputFiles(list, { timeout: 15_000 });
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 60; i++) {
       await page.waitForTimeout(500);
-      if ((await previews()) >= before + want) {
+      if ((await previews()) >= before + want || uploaded >= want) {
+        page.off("response", onResponse);
         // The upload itself finishing: ChatGPT re-renders the composer while a picture goes up.
         await page.waitForTimeout(3000);
         return true;
       }
     }
+    page.off("response", onResponse);
   }
   return false;
 }

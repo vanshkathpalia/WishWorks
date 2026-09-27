@@ -58,15 +58,27 @@ async function closeVariantsPopup(page: Page): Promise<void> {
  * not the form.
  */
 export async function openNewListing(page: Page, brand: string): Promise<string> {
-  await page.goto(NEW_LISTING_URL, { waitUntil: "domcontentloaded" });
+  /**
+   * Dashboard first, THEN the form. Opened cold, the seller app loads its dashboard and drops the
+   * address it was given — measured 2026-09-27: logged in, on the dashboard, no brand box for 10 min.
+   * Once the app is up, the same address routes properly. Tried twice before giving up.
+   */
   const box = page.getByPlaceholder("Enter Brand Name");
-  await box.waitFor({ timeout: 30_000 });
+  await page.goto("https://seller.flipkart.com/index.html#dashboard", { waitUntil: "domcontentloaded" });
+  await page.getByText("Listings", { exact: true }).filter({ visible: true }).first().waitFor({ timeout: 60_000 }).catch(() => {});
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.goto(NEW_LISTING_URL, { waitUntil: "domcontentloaded" });
+    if (await box.waitFor({ timeout: 20_000 }).then(() => true, () => false)) break;
+  }
+  await box.waitFor({ timeout: 5_000 });
   await box.fill(brand);
   await page.getByRole("button", { name: "Check Brand" }).click();
-  const go = page.getByRole("button", { name: "Continue", exact: true });
+  // "Create new listing" on the page today (measured 2026-09-27); Flipkart's own analytics calls it
+  // "Brand Continue", and older builds said Continue. Either one is the same step.
+  const go = page.getByRole("button", { name: /^(Create new listing|Continue)$/ }).first();
   await go.waitFor({ timeout: 20_000 }).catch(async () => {
     const said = (await page.locator("main, body").first().innerText().catch(() => "")).slice(0, 300);
-    throw new Error(`Flipkart did not offer Continue for brand "${brand}". The page says: ${said}`);
+    throw new Error(`Flipkart did not offer Create new listing for brand "${brand}". The page says: ${said}`);
   });
   await go.click();
   await page.waitForURL(/requestId=/, { timeout: 30_000 });
@@ -97,7 +109,14 @@ async function markTiles(page: Page): Promise<{ count: number; filled: boolean[]
     while (row && (row.textContent ?? "").split("Image").length < 4) row = row.parentElement;
     const tiles = row ? [...row.children] : [];
     tiles.forEach((t, i) => t.setAttribute("data-ww-tile", String(i)));
-    return { count: tiles.length, filled: tiles.map((t) => t.querySelectorAll("img").length > 0) };
+    // Filled = a picture WE uploaded (Flipkart's upload store, or the local preview). An empty Front
+    // View tile shows Flipkart's own "SAMPLE" image, which is an <img> too — counting any <img> called
+    // a fresh draft's first tile full (measured 2026-09-27).
+    // Inline, not a named helper: esbuild wraps named functions in `__name`, which does not exist in the page.
+    return {
+      count: tiles.length,
+      filled: tiles.map((t) => [...t.querySelectorAll("img")].some((i) => /fkmpimages|pre-catalog|^blob:|^data:/.test(i.currentSrc || i.src))),
+    };
   });
 }
 

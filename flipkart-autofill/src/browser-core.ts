@@ -403,19 +403,26 @@ export function openTabs(): Page[] {
  */
 let chat: Session | null = null;
 
-export async function chatTab(): Promise<Page> {
+export async function chatTab(opts: { visible?: boolean } = {}): Promise<Page> {
+  /**
+   * `visible`: a normal tab rather than a background one. ChatGPT does not take a photo in a background
+   * tab — measured 2026-09-27, the new-listing image run failed twice with "the photo never showed"
+   * while every foreground run passed. Latch costing keeps the background tab: it worked there, and
+   * it is the run that must not take the screen from whatever Vansh is doing.
+   */
+  const open = (c: Session) => (opts.visible ? c.context.newPage() : backgroundTab(c.context));
   if (chat) {
     // Same as `newTab`: a window closed by hand leaves a dead handle behind.
     try {
-      return await backgroundTab(chat.context);
+      return await open(chat);
     } catch {
       chat = null;
     }
   }
   const was = frontApp();
   chat = await openChatBrowser();
-  const page = await backgroundTab(chat.context);
-  giveFocusBack(was);
+  const page = await open(chat);
+  if (!opts.visible) giveFocusBack(was);
   return page;
 }
 
