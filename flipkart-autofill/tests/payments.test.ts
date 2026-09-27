@@ -144,7 +144,7 @@ describe("upcoming payments — Meesho's outstanding file", () => {
   it("keeps estimates apart: out of the settled book, counted only when asked", () => {
     expect(book.payments.every((p) => p.expected)).toBe(true);
     expect(settledOnly(book).payments).toHaveLength(0);
-    expect(upcoming(book)).toMatchObject({ paise: 31000 - 165, orders: 2, shipped: 1, from: "2026-09-30", to: "2026-10-05" });
+    expect(upcoming(book)).toMatchObject({ paise: 31000 - 165, orders: 2, shipped: 1, undated: 0, from: "2026-09-30", to: "2026-10-05" });
     expect(summarise(book).total.paidPaise).toBe(31000);
     expect(summarise(settledOnly(book)).total.paidPaise).toBe(0);
   });

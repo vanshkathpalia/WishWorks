@@ -403,6 +403,8 @@ export function upcoming(book: PaymentBook, market?: Market) {
   return {
     paise: lines.reduce((n, p) => n + p.settledPaise, 0) + others.reduce((n, o) => n + o.paise, 0),
     orders: new Set(lines.map((p) => p.subOrder)).size,
+    /** Meesho's "unscheduled": no payment date yet — mostly not delivered, or delivered too recently. */
+    undated: lines.filter((p) => !p.paymentDate).length,
     /** Still `Shipped` — the estimate that is likeliest to change, into an RTO at ₹0. */
     shipped: lines.filter((p) => p.kind === "other" && /ship/i.test(p.status)).length,
     from: dates[0] ?? "",

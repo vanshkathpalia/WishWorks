@@ -1100,3 +1100,13 @@ different line and both would add. Now:
   and how many are still only shipped show either way.
 On his data (copy, not saved): ₹29,970 upcoming for 204 orders, due 28 Sep – 5 Oct, 49 still shipped.
 Paid ₹35,727 → ₹65,733 with it on. 3 tests.
+
+## WW-264 — Payments by day, week and 30 days; undated estimates said out loud
+
+**Done, 2026-09-27.** Vansh: *"can I have last 30 days… this week or last day instead of just month
+range?"* The range buttons are now Today, Yesterday, This week (from Monday), Last 7 days, Last 30 days,
+This month, Last month, All time, all by payment date. Also: **77 of the 204 outstanding lines have no
+payment date** (Meesho writes "unscheduled": 27 delivered, 49 shipped, 1 cancelled). The upcoming line
+showed only the dated ones, so it looked as if nothing came after 5 Oct; it now counts the undated.
+Received on file (Meesho only, paid up to 24 Sep): last 30 days ₹34,193 against ₹54,717 the buyers paid
+for those same orders.

@@ -964,11 +964,28 @@ const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /** The quick ranges, by payment date. Computed when clicked, so "this month" is always this month. */
-function preset(which: "this" | "last" | "all"): { from: string; to: string } {
+/**
+ * The range buttons, by PAYMENT date. Vansh, 2026-09-27: *"can I have last 30 days… this week or last
+ * day instead of just month range?"* A week starts on Monday.
+ */
+const PRESETS = [
+  ["today", "Today"], ["yesterday", "Yesterday"], ["week", "This week"], ["7", "Last 7 days"],
+  ["30", "Last 30 days"], ["this", "This month"], ["last", "Last month"], ["all", "All time"],
+] as const;
+function preset(which: (typeof PRESETS)[number][0]): { from: string; to: string } {
   const now = new Date();
-  if (which === "all") return { from: "", to: "" };
-  if (which === "this") return { from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: ymd(now) };
-  return { from: ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: ymd(new Date(now.getFullYear(), now.getMonth(), 0)) };
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  const back = (days: number) => ymd(new Date(y, m, d - days));
+  switch (which) {
+    case "all": return { from: "", to: "" };
+    case "today": return { from: back(0), to: back(0) };
+    case "yesterday": return { from: back(1), to: back(1) };
+    case "week": return { from: back((now.getDay() + 6) % 7), to: back(0) };
+    case "7": return { from: back(6), to: back(0) };
+    case "30": return { from: back(29), to: back(0) };
+    case "this": return { from: ymd(new Date(y, m, 1)), to: back(0) };
+    case "last": return { from: ymd(new Date(y, m - 1, 1)), to: ymd(new Date(y, m, 0)) };
+  }
 }
 
 /** Rupees typed in a box → paise; empty stays undefined. */
@@ -1079,11 +1096,11 @@ export function Payments({ n }: { n: number }) {
 
       <div className="pay-controls">
         <div className="seg">
-          {(["this", "last", "all"] as const).map((w) => {
+          {PRESETS.map(([w, label]) => {
             const p = preset(w);
             return (
               <button key={w} className={p.from === range.from && p.to === range.to ? "chosen" : ""} onClick={() => setRange(p)}>
-                {w === "this" ? "This month" : w === "last" ? "Last month" : "All time"}
+                {label}
               </button>
             );
           })}
@@ -1111,7 +1128,8 @@ export function Payments({ n }: { n: number }) {
           </label>
           <span className={withUpcoming ? "warn" : "muted"}>
             {rupees(view.upcoming.paise)} expected for {view.upcoming.orders} orders
-            {view.upcoming.from && `, due ${view.upcoming.from}${view.upcoming.to !== view.upcoming.from ? ` to ${view.upcoming.to}` : ""}`}
+            {view.upcoming.from && `, dated ${view.upcoming.from}${view.upcoming.to !== view.upcoming.from ? ` to ${view.upcoming.to}` : ""}`}
+            {view.upcoming.undated > 0 && ` — ${view.upcoming.undated} with no date yet (Meesho's "unscheduled"; they are paid after delivery)`}
             {view.upcoming.shipped > 0 && ` — ${view.upcoming.shipped} still only shipped, and may come back as RTO`}.{" "}
             {withUpcoming
               ? "Counted below as if paid: Meesho's estimate, not money received yet."
