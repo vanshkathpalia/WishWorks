@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { CATEGORIES_DIR, ROOT } from "./paths.js";
+import { leadCode } from "./id.js";
 import { normalize, tokens } from "./inventory-core.js";
 
 export interface LatchItem {
@@ -910,6 +911,26 @@ export function photoFolder(sku: string, dirs: string[]): string | null {
   }
   const existing = dirs.find((d) => path.posix.dirname(d) === parent && same(path.posix.basename(d), leaf));
   return existing ?? `${parent}/${leaf}`;
+}
+
+/** The name a kit's inventory photo goes by in its folder: `contents.jpg` (latch) or `2.png` (by hand). */
+export const INVENTORY_PHOTO = /^(contents|2)\.(jpe?g|png|webp|avif)$/i;
+
+/**
+ * The folder that holds a kit's photos, for finding its inventory photo — or null.
+ *
+ * `photoFolder`'s exact match first. Then a folder whose name STARTS with the kit's code, because
+ * that is how the hand-sorted ones are named — `GTB 11 ready cost high` is GTb11's. Only when one
+ * folder claims the code: `GTB 2 done` and `GTB 2 if rate not change` may hold different packs, and a
+ * photo of the wrong pack is worse than none. `dirs` are relative, as `photoFolder` takes them.
+ */
+export function kitFolder(sku: string, dirs: string[]): string | null {
+  const exact = photoFolder(sku, dirs);
+  if (exact && dirs.includes(exact)) return exact;
+  const code = leadCode(sku);
+  if (!code) return null;
+  const hits = dirs.filter((d) => leadCode(path.posix.basename(d)) === code);
+  return hits.length === 1 ? hits[0] : null;
 }
 
 // ---------------------------------------------------------------- handing it to ChatGPT
@@ -2011,8 +2032,11 @@ export interface ImageJob {
 export function imageJobs(
   book: LatchBook,
   opts: {
-    /** Contents photo per rival SKU, from `imageFor`. Absent means it was never downloaded. */
-    photoFor: (sku: string) => string | null;
+    /**
+     * Contents photo per rival SKU, from `imageFor` — or, failing that, the kit's own inventory photo
+     * in its folder (`ourSku`). Absent means neither exists.
+     */
+    photoFor: (sku: string, ourSku: string) => string | null;
     /** How many images `1-raw/<ourSku>/` already holds. */
     haveFor: (ourSku: string) => number;
   },
@@ -2021,11 +2045,11 @@ export function imageJobs(
     .filter((r) => r.latchedOn)
     .map((r) => {
       const ourSku = r.ourSku ?? "";
-      const contentsPhoto = ourSku ? opts.photoFor(r.sku) : null;
+      const contentsPhoto = ourSku ? opts.photoFor(r.sku, ourSku) : null;
       const have = ourSku ? opts.haveFor(ourSku) : 0;
       const blockedBy: string[] = [];
       if (!ourSku) blockedBy.push("no SKU of ours yet");
-      else if (!contentsPhoto) blockedBy.push("no contents photo — it was never downloaded");
+      else if (!contentsPhoto) blockedBy.push("no contents photo — not downloaded, and no 2.* or contents.* in the kit's folder");
       return { sku: r.sku, ourSku, title: r.title ?? r.description, contentsPhoto, have, blockedBy };
     })
     // Ready first, then blocked; within each, the ones with nothing yet before the ones part-done.

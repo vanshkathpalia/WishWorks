@@ -991,3 +991,26 @@ either infographic prompt (C-099), so ChatGPT counted the photo. Now, when the S
   from the sheet or the price list, so the sizes prompt's rule 1 ("the inventory wins") has input.
 Checked on all 68 saved kits: every aid is tape, glue or a pump; ribbon stays displayed. 7 tests.
 No kit saved, and the run reads the pack as before.
+
+## WW-259 — Both ways to count, and the kit's own inventory photo as the reference
+
+**Done, 2026-09-27.** Vansh: *"some inventory images are really bad… don't just remove anything, we
+should have both the options."* Each image-run row now has two buttons: **counts from kit** (WW-258,
+checked by the READY line) and **ChatGPT reads photo** (the old run, kept for kits whose reading was
+bad). No saved kit, and only the second one is offered.
+
+None of the 68 kits kept the photo they were costed from (`image` is null on all of them). The run now
+falls back to the kit's own folder in Downloads: `contents.*` or `2.*`, found by `photoFolder`'s exact
+match, else by a folder whose name starts with the code (`GTB 11 ready cost high` → GTb11), but only
+when one folder claims it. **37 of 68 kits get a photo this way.** The other 31 have no folder, or
+none with a `2.*` in it. 4 tests.
+
+## WW-030 — Combo Generator: the rules Vansh set, 2026-09-27 (not built)
+
+- ChatGPT proposes new combinations from our inventory and what sells, **5–10 at a time**, like a latch batch.
+- Vansh accepts one or many. **Accepted ones go through the one-button new-listing flow, one by one.**
+- **Every proposal is saved**, rejected ones too. He may tweak a rejected one (two or three lines) and
+  send it on again. **A combo leaves the list after its second rejection.**
+- Needs **one small photo per inventory item** (compressed JPG around 512px) so ChatGPT can compose a
+  hero from items without an inventory photo. Source: the `2.*` inventory photos already in the
+  listing folders, cut into items; one copy per material, repeats dropped.

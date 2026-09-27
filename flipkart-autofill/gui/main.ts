@@ -1747,10 +1747,11 @@ async function sweepBrands(
 ipcMain.handle("imageQueue", async (): Promise<Attempt<unknown>> => {
   const { readLatches, imageJobs, imageFor } = await latchEngine();
   const book = await readLatches();
+  const theirs = await kitPhotos(book);
   const rows = imageJobs(book, {
-    photoFor: (sku) => {
+    photoFor: (sku, ourSku) => {
       const f = imageFor(sku);
-      return existsSync(f) ? f : null;
+      return existsSync(f) ? f : (theirs.get(ourSku) ?? null);
     },
     haveFor: (ourSku) => {
       try {
@@ -1782,10 +1783,11 @@ ipcMain.handle("runImages", async (e, sku: string, counts: "kit" | "photo" = "ki
   const { chatTab } = await import("../src/browser-core.js");
 
   const book = await readLatches();
+  const theirs = await kitPhotos(book);
   const job = imageJobs(book, {
-    photoFor: (s) => {
+    photoFor: (s, ourSku) => {
       const f = imageFor(s);
-      return existsSync(f) ? f : null;
+      return existsSync(f) ? f : (theirs.get(ourSku) ?? null);
     },
     haveFor: () => 0,
   }).find((j) => j.sku === sku);
@@ -2502,6 +2504,12 @@ async function photoPath(sku: string, as: string, root: string, make = false): P
     if (!make) return null;
     await mkdir(root, { recursive: true });
   }
+  const rel = photoFolder(sku, await subdirs(root));
+  return rel ? path.join(root, ...rel.split("/"), as) : null;
+}
+
+/** Every folder under `root`, three levels deep, relative with `/` — what `photoFolder` reads. */
+async function subdirs(root: string): Promise<string[]> {
   const dirs: string[] = [];
   const walk = async (rel: string, depth: number) => {
     for (const d of await readdir(path.join(root, rel), { withFileTypes: true }).catch(() => [])) {
@@ -2512,8 +2520,38 @@ async function photoPath(sku: string, as: string, root: string, make = false): P
     }
   };
   await walk("", 1);
-  const rel = photoFolder(sku, dirs);
-  return rel ? path.join(root, ...rel.split("/"), as) : null;
+  return dirs;
+}
+
+/**
+ * The kit's inventory photo from its folder in Downloads — `contents.jpg` or `2.png` — or null.
+ *
+ * None of the 68 saved kits kept the photo it was costed from (`SavedKit.image` is null on every
+ * one), but 37 of them have it sitting in their photo folder already. This is the reference photo
+ * the image run falls back to when there is no latched contents photo.
+ */
+async function kitPhoto(sku: string): Promise<string | null> {
+  const { kitFolder, INVENTORY_PHOTO } = await latchEngine();
+  const { ROOT_FOR } = await import("../src/flipkart-live.js");
+  for (const name of Object.values(ROOT_FOR)) {
+    const root = path.join(downloads(), name);
+    const rel = kitFolder(sku, await subdirs(root));
+    if (!rel) continue;
+    const dir = path.join(root, ...rel.split("/"));
+    const f = (await readdir(dir).catch(() => [] as string[])).find((n) => INVENTORY_PHOTO.test(n));
+    if (f) return path.join(dir, f);
+  }
+  return null;
+}
+
+/** `kitPhoto` for every latched SKU of ours, up front — `imageJobs` asks synchronously. */
+async function kitPhotos(book: { rows: { ourSku?: string | null }[] }): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (const s of new Set(book.rows.map((r) => r.ourSku).filter((s): s is string => !!s))) {
+    const f = await kitPhoto(s);
+    if (f) out.set(s, f);
+  }
+  return out;
 }
 
 /** The kit's folder as it is today, in whichever root — `<root>/<rel>` relative to Downloads — or null. */

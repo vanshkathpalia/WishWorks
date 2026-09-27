@@ -21,7 +21,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  approvedBrands, blocking, withoutNeverSweep, bouncedToLogin, meeshoOnly, parseSharedList, productPage, frontLatchTab, photoFolder, inPack, adoptOpened, productTitle, approvalEase, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
+  kitFolder, approvedBrands, blocking, withoutNeverSweep, bouncedToLogin, meeshoOnly, parseSharedList, productPage, frontLatchTab, photoFolder, inPack, adoptOpened, productTitle, approvalEase, cardState, forgetUnsaved, forMeesho, imageJobs, labelKey, markMeesho, nextBatch, latchValues, matchOption, mergeFound, mergeLabels, parseApprovals, parseLabelText, parseListed, pendingPrices, riskOf, pickProduct, readLatches, searchHistory, searchPage, shareText, survivors, toPause, weSell,
   searchTerms,
   startSellingUrl,
   type LatchBook,
@@ -1031,7 +1031,7 @@ describe("what qualifies for the image run", () => {
     // happened, and the product sits there for ever.
     const all = jobs(["001"]);
     expect(all.find((j) => j.sku === "002")!.blockedBy).toEqual([
-      "no contents photo — it was never downloaded",
+      "no contents photo — not downloaded, and no 2.* or contents.* in the kit's folder",
     ]);
     expect(all.find((j) => j.sku === "003")!.blockedBy).toEqual(["no SKU of ours yet"]);
   });
@@ -1045,4 +1045,12 @@ describe("what qualifies for the image run", () => {
     // Four prompts again, overwriting images somebody may already have corrected by hand.
     expect(jobs(["001"], { ANP001: 3 }).find((j) => j.sku === "001")!.have).toBe(3);
   });
+});
+
+describe("kitFolder — where a kit's inventory photo lives", () => {
+  const dirs = ["GTB", "GTB/GTB 11 ready cost high", "GTB/GTB 2 done", "GTB/GTB 2 if rate not change", "HBD", "HBD/HBD101"];
+  it("takes the exact folder first", () => expect(kitFolder("HBD101", dirs)).toBe("HBD/HBD101"));
+  it("reads a hand-named folder by the code it starts with", () => expect(kitFolder("GTb11", dirs)).toBe("GTB/GTB 11 ready cost high"));
+  it("refuses when two folders claim the same code", () => expect(kitFolder("GTB002", dirs)).toBeNull());
+  it("says nothing when no folder exists", () => expect(kitFolder("WB009", dirs)).toBeNull());
 });
