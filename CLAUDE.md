@@ -35,6 +35,9 @@
 > and Meesho's bulk template rejects a primary image with text, a logo or a price on it. It strips
 > what was added ON TOP and changes nothing about the product — wording printed on a banner or a
 > foil balloon is the product and stays.
+> **`PROMPT-kit-list.md`** is step 1 of the *automated* image run when the SKU has a costed kit: code
+> writes the counted list into it (`kit-prompt.ts`), and the run stops unless ChatGPT's READY line
+> repeats our totals. It replaces `PROMPT-read-pack.md`, which makes ChatGPT count the photo (C-099).
 > `docs/image-playbook.md` is the *reasoning* behind them, not a thing to copy from.
 > `docs/guides/SHIPPING-COST.md` — Meesho's shipping fee is set by the main image, but **fourteen
 > tests found no way to steer it. Closed, don't re-run.** Two rules survive: read the shipping

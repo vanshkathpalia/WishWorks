@@ -974,3 +974,20 @@ Checked on the live list: 43 kits costed; HBD-masha04 shows room ₹5 — a bad 
 
 Also: one copy of the app at a time (two were running, each killing the other's Chrome), and when two
 Chrome windows each show a product, the one looked at last is latched instead of refusing.
+
+## WW-258 — The image run gets its counts from the kit, not from the photo
+
+**Done, 2026-09-27.** First step of the one-button new listing (costing chat → images → your pick →
+meta/product → finish → Flipkart form). Vansh: *"be precise with your prompts so ChatGPT doesn't make
+any counting error or add irrelevant stuff."* The automated run had never filled the inventory slot in
+either infographic prompt (C-099), so ChatGPT counted the photo. Now, when the SKU has a saved kit:
+- `kit-prompt.ts` lists every line with its count, splits DISPLAYED from ASSEMBLY AIDS using the
+  material's category (the human's match, not a guess), drops packaging, and adds both totals up.
+- `PROMPT-kit-list.md` replaces `PROMPT-read-pack.md` as step 1: the photo is for looks only, the list
+  is for items and counts. ChatGPT has to reply `READY — N lines, D displayed pieces, T total pieces`.
+- **Code checks those three numbers.** Wrong or missing, and the run stops before any image, so it
+  doesn't spend three generations drawing a miscount.
+- The same block fills `[PASTE INVENTORY TABLE HERE]` and `<paste your typed inventory>`. Sizes come
+  from the sheet or the price list, so the sizes prompt's rule 1 ("the inventory wins") has input.
+Checked on all 68 saved kits: every aid is tape, glue or a pump; ribbon stays displayed. 7 tests.
+No kit saved, and the run reads the pack as before.

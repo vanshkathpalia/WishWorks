@@ -1773,8 +1773,10 @@ ipcMain.handle("imageQueue", async (): Promise<Attempt<unknown>> => {
  */
 ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> => {
   const { readLatches, imageJobs, imageFor } = await latchEngine();
-  const { runImageChat, STANDARD_RUN, chatTitle } = await import("../src/chat-core.js");
+  const { runImageChat, STANDARD_RUN, KIT_RUN, chatTitle } = await import("../src/chat-core.js");
   const { rawFileFor } = await import("../src/sku-core.js");
+  const { countKit, kitBlock, withKit, checkReady } = await import("../src/kit-prompt.js");
+  const { findById } = await import("../src/id.js");
   const { chatTab } = await import("../src/browser-core.js");
 
   const book = await readLatches();
@@ -1788,6 +1790,17 @@ ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> =>
   if (!job) return { ok: false, message: "That product is not in the list any more." };
   if (job.blockedBy.length) return { ok: false, message: job.blockedBy.join("; ") };
 
+  // A costed kit means the counts are already known: ChatGPT is handed them rather than asked to
+  // read them off the photo. No kit yet, and the run reads the pack as it always did.
+  const kitFile = await findById(KITS_DIR, job.ourSku);
+  let kit = null;
+  if (kitFile) {
+    const { readKit, loadMaterials } = await inventoryEngine();
+    const saved = readKit(kitFile.file);
+    const sizes = new Map(loadMaterials().map((m) => [m.material, m.size]));
+    kit = countKit(saved.lines, saved.resolved ?? {}, (m) => sizes.get(m));
+  }
+
   const prompts = await promptsEngine();
   let tab;
   try {
@@ -1800,8 +1813,12 @@ ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> =>
 
   const done = await runImageChat(tab, {
     contentsPhoto: job.contentsPhoto ?? undefined,
-    steps: STANDARD_RUN,
+    steps: kit ? KIT_RUN : STANDARD_RUN,
     readPrompt: async (name) => (await prompts.readPrompt(promptDirs(), name)).text,
+    ...(kit && {
+      fill: (text: string) => withKit(text, kitBlock(job.ourSku, kit)),
+      verify: (reply: string) => checkReady(reply, kit),
+    }),
     fileFor: (n) => rawFileFor(IMAGES_DIR, job.ourSku, n),
     onStep: (r) => e.sender.send("imageStep", { sku, ...r }),
     // So the sidebar says `ANP018 — images` rather than "Generate Balloon Image", and the chat
@@ -1811,6 +1828,8 @@ ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> =>
 
   const made = done.filter((d) => d.file).length;
   const missed = done.filter((d) => d.missing).map((d) => d.prompt);
+  const stopped = done.find((d) => d.error)?.error;
+  if (stopped) return { ok: false, message: `${job.ourSku}: ${stopped} The chat is still open.` };
   return {
     ok: true,
     result: done,

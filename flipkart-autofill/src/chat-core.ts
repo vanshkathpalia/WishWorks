@@ -238,6 +238,12 @@ export const STANDARD_RUN: Step[] = [
   { prompt: "PROMPT-infographic-sizes.md", image: 3, waits: true },
 ];
 
+/**
+ * The same run for a kit we have costed: `PROMPT-kit-list` hands ChatGPT the counted list instead of
+ * asking it to read the pack off a photo. See `kit-prompt.ts` for why that matters.
+ */
+export const KIT_RUN: Step[] = [{ prompt: "PROMPT-kit-list.md", image: null }, ...STANDARD_RUN.slice(1)];
+
 export interface RunResult {
   prompt: string;
   /** Where the image landed, null for a text step or when none arrived. */
@@ -248,6 +254,8 @@ export interface RunResult {
   missing: boolean;
   /** Set when the prompt stopped to ask something. Not a failure — the chat is waiting for you. */
   awaiting?: boolean;
+  /** Why the run stopped here, when a text step's reply failed `verify`. */
+  error?: string;
 }
 
 /**
@@ -278,6 +286,10 @@ export async function runImageChat(
     timeoutMs?: number;
     /** What to call the chat afterwards — `ANP018 — images`. Skipped when absent. */
     title?: string;
+    /** Applied to every prompt before it is sent — `withKit` puts the counted inventory in. */
+    fill?: (text: string) => string;
+    /** Reads a text step's reply; a message stops the run before any image is spent on it. */
+    verify?: (reply: string) => string | null;
   },
 ): Promise<RunResult[]> {
   const out: RunResult[] = [];
@@ -289,21 +301,26 @@ export async function runImageChat(
   }
 
   for (const step of opts.steps) {
-    const text = await opts.readPrompt(step.prompt);
+    const raw = await opts.readPrompt(step.prompt);
+    const text = opts.fill ? opts.fill(raw) : raw;
     const started = Date.now();
 
     if (step.image === null) {
       await sendPrompt(page, text);
       const ok = await waitUntilIdle(page, { timeoutMs: opts.timeoutMs ?? 240_000 });
+      await page.waitForTimeout(2000);
+      const error = opts.verify ? (opts.verify(await lastReply(page)) ?? undefined) : undefined;
       const r = {
         prompt: step.prompt,
         file: null,
         seconds: Math.round((Date.now() - started) / 1000),
         timedOut: !ok,
         missing: false,
+        error,
       };
       out.push(r);
       opts.onStep?.(r);
+      if (error) break;
       continue;
     }
 
