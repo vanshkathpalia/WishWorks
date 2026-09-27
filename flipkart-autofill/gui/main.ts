@@ -2561,6 +2561,36 @@ ipcMain.handle("costingQueue", async (): Promise<string[]> => {
   return out.sort();
 });
 
+/**
+ * What each latched kit costs us in materials, by our SKU — the saved kit when there is one, else the
+ * queued ChatGPT reply matched against the price list (`reviewed: false`). Vansh, 2026-09-27: *"just
+ * before submitting the listing I want to compare the seller's MRP and selling price with our
+ * inventory cost, and I will then pick the rate."* Materials only: there is no Flipkart fee model
+ * here, only settlements typed from statements, and a guessed commission would be a made-up number.
+ */
+ipcMain.handle("latchCosts", async () => {
+  const { readLatches } = await latchEngine();
+  const { findById } = await import("../src/id.js");
+  const { readKit, readKitFile, costKit, loadMaterials } = await inventoryEngine();
+  const materials = loadMaterials();
+  const out: Record<string, { costPaise: number; uncosted: number; reviewed: boolean }> = {};
+  const skus = new Set((await readLatches()).rows.map((r) => r.ourSku).filter((s): s is string => !!s));
+  for (const sku of skus) {
+    const found = await findById(KITS_DIR, sku).catch(() => null);
+    if (found) {
+      const k = readKit(found.file);
+      const c = costKit(k.lines, materials, k.overrides, k.sku, k.prices, k.counts, k.resolved);
+      out[sku] = { costPaise: c.totalPaise, uncosted: c.uncosted, reviewed: true };
+      continue;
+    }
+    const queued = await readFile(await costingQueueFile(sku), "utf8").then((t) => JSON.parse(t), () => null);
+    if (!queued) continue;
+    const c = costKit(readKitFile(queued).lines, materials);
+    out[sku] = { costPaise: c.totalPaise, uncosted: c.uncosted, reviewed: false };
+  }
+  return out;
+});
+
 /** Where a sent costing chat's reply waits for a person: `latch/costing-queue/<SKU>.json`. */
 async function costingQueueFile(sku: string): Promise<string> {
   const { latchDir } = await latchEngine();
@@ -2685,10 +2715,24 @@ async function costingChatFor(
           const { readLatches, writeLatches } = await latchEngine();
           const book = await readLatches();
           const mine = book.rows.find((r) => r.sku === row.sku);
-          if (!mine || mine.costingChatUrl === url) return;
-          mine.costingChatUrl = url;
-          await writeLatches(book);
-        })();
+          if (mine && mine.costingChatUrl !== url) {
+            mine.costingChatUrl = url;
+            await writeLatches(book);
+          }
+          // His send, then ChatGPT's answer: parked in the queue exactly as a sent run parks it, so the
+          // Latch screen can show the cost beside the rival's price before Start Selling is pressed.
+          const sku = row.ourSku;
+          if (!sku) return;
+          const { findById } = await import("../src/id.js");
+          const to = await costingQueueFile(sku);
+          if (existsSync(to) || (await findById(KITS_DIR, sku).catch(() => null))) return;
+          const { waitUntilIdle, saveReplyJson } = await import("../src/chat-core.js");
+          if (!(await waitUntilIdle(chat, { timeoutMs: 300_000 }).catch(() => false))) return;
+          await chat.waitForTimeout(2500).catch(() => {});
+          if (!(await saveReplyJson(chat, to).catch(() => null))) return;
+          const data = JSON.parse(await readFile(to, "utf8"));
+          await writeFile(to, `${JSON.stringify({ ...data, sku }, null, 2)}\n`);
+        })().catch(() => {});
       });
     }
     return {

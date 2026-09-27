@@ -960,3 +960,17 @@ image link (the supplier panel's uploader gives it); prices low where lines are 
 56, and wrote `[]` over `latch/flipkart-live.json`. Pages of 100 now, and a reply without listings
 throws. Re-run: 56 live, 14 SKUs corrected, 34 listings added. Also: a SKU live on one product is taken
 off any other row that was only ever suggested it (HBD008/HBD009 each named two kits). 3 tests.
+
+## WW-257 — The rival's price beside what the kit costs us, before Start Selling
+
+**Done, 2026-09-27.** Vansh: *"just before submitting the listing I want to compare the seller's MRP and
+selling price with our inventory cost, and I will then pick the rate."* The Latch list compared every
+rival against a flat ₹220 placeholder. Each row with a SKU of ours now shows their price, their MRP,
+our materials cost and the room between — from the saved kit, or from the queued ChatGPT reply
+(marked *unreviewed*, with unpriced lines counted). Room under ₹60 is flagged. Materials only, and it
+says so: there is no Flipkart fee model, and a guessed commission would be an invented number.
+Replies are now queued when he sends the costing chat himself too, not only in "send without my look".
+Checked on the live list: 43 kits costed; HBD-masha04 shows room ₹5 — a bad match to review.
+
+Also: one copy of the app at a time (two were running, each killing the other's Chrome), and when two
+Chrome windows each show a product, the one looked at last is latched instead of refusing.

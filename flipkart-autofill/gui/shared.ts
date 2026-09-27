@@ -835,6 +835,8 @@ export interface WwApi {
   costingReply(sku: string): Promise<Attempt<string>>;
   /** SKUs with a queued costing reply and no saved kit yet — the review list on Cost a kit. */
   costingQueue(): Promise<string[]>;
+  /** Materials cost per latched kit, by our SKU: saved kit, else the queued reply (`reviewed: false`). */
+  latchCosts(): Promise<Record<string, { costPaise: number; uncosted: number; reviewed: boolean }>>;
   /** Put a turned-down product back in the review queue. */
   showAgain(fsn: string): Promise<Attempt<LatchBook>>;
   /** Record what a product's approval form asks for — a pasted link/FSN, or the tab in front. Never submits. */

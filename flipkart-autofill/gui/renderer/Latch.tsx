@@ -136,6 +136,14 @@ export function Latch({ n }: { n: number }) {
   >(null);
 
   useEffect(() => void window.ww.latches().then(setBook), []);
+  /** Our materials cost per SKU, re-read whenever the list changes or the window comes back. */
+  const [costs, setCosts] = useState<Record<string, { costPaise: number; uncosted: number; reviewed: boolean }>>({});
+  useEffect(() => {
+    const load = () => void window.ww.latchCosts().then(setCosts).catch(() => {});
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, [book]);
   useEffect(() => void window.ww.accountView().then((r) => r.ok && r.result.live && setAccount(r.result)), []);
   useEffect(
     () => window.ww.onLatchRow((p) => setProgress({ done: p.done, of: p.of, sku: p.row.sku })),
@@ -1168,11 +1176,26 @@ export function Latch({ n }: { n: number }) {
                       {r.listed ? (
                         <>
                           {rupees(r.listed.pricePaise)}
-                          <span className={r.listed.pricePaise < OURS ? "dearer" : "cheaper"}>
-                            {r.listed.pricePaise < OURS
-                              ? ` we're +${rupees(OURS - r.listed.pricePaise)}`
-                              : ` we're −${rupees(r.listed.pricePaise - OURS)}`}
-                          </span>
+                          {r.listed.mrpPaise ? <span className="muted"> MRP {rupees(r.listed.mrpPaise)}</span> : null}
+                          {r.ourSku && costs[r.ourSku] ? (
+                            // Their price against what the kit costs us — the number to pick a rate
+                            // from. Materials only, said so; unreviewed costing is marked as such.
+                            <div className="muted" title={costs[r.ourSku].reviewed ? "from the saved kit" : "from the ChatGPT reply, not reviewed yet"}>
+                              cost {rupees(costs[r.ourSku].costPaise)}
+                              {costs[r.ourSku].uncosted ? `+? (${costs[r.ourSku].uncosted} unpriced)` : ""}
+                              {" · room "}
+                              <span className={r.listed.pricePaise - costs[r.ourSku].costPaise < 60_00 ? "dearer" : "cheaper"}>
+                                {rupees(r.listed.pricePaise - costs[r.ourSku].costPaise)}
+                              </span>
+                              {costs[r.ourSku].reviewed ? "" : " · unreviewed"}
+                            </div>
+                          ) : (
+                            <span className={r.listed.pricePaise < OURS ? "dearer" : "cheaper"}>
+                              {r.listed.pricePaise < OURS
+                                ? ` we're +${rupees(OURS - r.listed.pricePaise)}`
+                                : ` we're −${rupees(r.listed.pricePaise - OURS)}`}
+                            </span>
+                          )}
                         </>
                       ) : null}
                     </td>
