@@ -2829,14 +2829,14 @@ saved over the good one. Nothing said anything was wrong.
 **Lesson.** `?? []` on a reply from somebody else's API turns every refusal into a confident zero.
 Absent is an error until proven empty.
 
-## C-099 — the automated image run sent two prompts with their inventory slot still empty
+## C-100 — the automated image run sent two prompts with their inventory slot still empty
 
 **What went wrong.** WW-191's run sent `PROMPT-infographic.md` with the literal line
 `[PASTE INVENTORY TABLE HERE]` and `PROMPT-infographic-sizes.md` with `<paste your typed inventory>`.
 Nothing filled either. With no list, ChatGPT recounted the contents photo, which is the counting
 error both prompts spend a page forbidding. Nobody read the prompt as it was actually sent.
 
-**Fix.** WW-258: when the SKU has a costed kit, code counts it and fills every slot, and the run stops
+**Fix.** WW-259: when the SKU has a costed kit, code counts it and fills every slot, and the run stops
 before the first image unless ChatGPT repeats our exact line and piece totals.
 
 **Lesson.** A prompt that works when a person pastes it needs its paste done by the code once it's

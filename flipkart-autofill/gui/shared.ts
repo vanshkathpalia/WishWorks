@@ -753,7 +753,7 @@ export interface WwApi {
    * One at a time on purpose: each run is minutes of compute and produces work a person then
    * checks. Ten queued would be thirty images arriving with nobody having looked at the first.
    *
-   * `counts`: `kit` hands ChatGPT the saved kit's counted list (WW-258); `photo` makes it read the
+   * `counts`: `kit` hands ChatGPT the saved kit's counted list (WW-259); `photo` makes it read the
    * pack off the contents photo, as before. Both stay: a bad kit reading and a bad photo are both real.
    */
   runImages(sku: string, counts?: "kit" | "photo"): Promise<Attempt<unknown>>;

@@ -975,12 +975,12 @@ Checked on the live list: 43 kits costed; HBD-masha04 shows room ₹5 — a bad 
 Also: one copy of the app at a time (two were running, each killing the other's Chrome), and when two
 Chrome windows each show a product, the one looked at last is latched instead of refusing.
 
-## WW-258 — The image run gets its counts from the kit, not from the photo
+## WW-259 — The image run gets its counts from the kit, not from the photo
 
 **Done, 2026-09-27.** First step of the one-button new listing (costing chat → images → your pick →
 meta/product → finish → Flipkart form). Vansh: *"be precise with your prompts so ChatGPT doesn't make
 any counting error or add irrelevant stuff."* The automated run had never filled the inventory slot in
-either infographic prompt (C-099), so ChatGPT counted the photo. Now, when the SKU has a saved kit:
+either infographic prompt (C-100), so ChatGPT counted the photo. Now, when the SKU has a saved kit:
 - `kit-prompt.ts` lists every line with its count, splits DISPLAYED from ASSEMBLY AIDS using the
   material's category (the human's match, not a guess), drops packaging, and adds both totals up.
 - `PROMPT-kit-list.md` replaces `PROMPT-read-pack.md` as step 1: the photo is for looks only, the list
@@ -992,10 +992,10 @@ either infographic prompt (C-099), so ChatGPT counted the photo. Now, when the S
 Checked on all 68 saved kits: every aid is tape, glue or a pump; ribbon stays displayed. 7 tests.
 No kit saved, and the run reads the pack as before.
 
-## WW-259 — Both ways to count, and the kit's own inventory photo as the reference
+## WW-260 — Both ways to count, and the kit's own inventory photo as the reference
 
 **Done, 2026-09-27.** Vansh: *"some inventory images are really bad… don't just remove anything, we
-should have both the options."* Each image-run row now has two buttons: **counts from kit** (WW-258,
+should have both the options."* Each image-run row now has two buttons: **counts from kit** (WW-259,
 checked by the READY line) and **ChatGPT reads photo** (the old run, kept for kits whose reading was
 bad). No saved kit, and only the second one is offered.
 

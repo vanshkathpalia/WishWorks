@@ -760,7 +760,7 @@ export function Latch({ n }: { n: number }) {
                     {j.blockedBy.length ? j.blockedBy.join("; ") : j.have ? `${j.have} already there` : ""}
                   </td>
                   <td className="when">
-                    {/* Two ways to get the counts, both kept (WW-258): the saved kit's list, checked by a
+                    {/* Two ways to get the counts, both kept (WW-259): the saved kit's list, checked by a
                         READY line, or ChatGPT reading the photo — for a kit whose reading was bad. */}
                     {(["kit", "photo"] as const).map((counts) => (
                       <button
