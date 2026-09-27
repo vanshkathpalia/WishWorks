@@ -12,9 +12,10 @@
  *    (`napi/scf/uploadImage` → `contentValidationResult.valid`), the input disappears, and moving to
  *    another tab saves the draft ("Changes saved!", `Image addition (1/5)`).
  *
- * **Not yet seen: tiles 2–5.** The recording uploaded one image. Clicking the next tile to bring the
- * upload box back is the assumption here, so every image is checked twice — Flipkart's own `valid`
- * reply, then the tab's count — and the run stops, naming the tile, the moment either disagrees.
+ * **Tiles 2–5, measured on his test draft (WW-266):** clicking an empty tile selects it and brings the
+ * upload box back. A FILLED tile keeps its label "Image", so tiles are picked by position in the row,
+ * never by their text — picking "the first tile called Image" chose the filled one again. Every image
+ * is checked three ways: Flipkart's own `valid` reply, the tile showing a picture, and the tab's count.
  */
 
 import type { Page } from "playwright";
@@ -83,25 +84,52 @@ export interface UploadRow {
 }
 
 /**
- * Put `files` into the image tiles in order — `files[0]` is the Front View. Stops at the first failure.
- *
- * Each upload waits for Flipkart's own answer to it, so "uploaded" means Flipkart said valid, not that
- * a file was handed to an input. Then it moves to the Price tab, which is what saves the draft, and reads
- * the count back.
+ * Mark the five image tiles `data-ww-tile="0".."4"` so they can be clicked by position. Found from the
+ * "Front View" label up to the row that holds all five — the class names are build hashes and change.
+ * Returns how many tiles there are and which already hold a picture.
  */
-export async function uploadImages(page: Page, files: string[], onRow?: (r: UploadRow) => void): Promise<UploadRow[]> {
+async function markTiles(page: Page): Promise<{ count: number; filled: boolean[] }> {
+  return page.evaluate(() => {
+    const label = [...document.querySelectorAll("*")].find(
+      (e) => e.children.length === 0 && /^Front Vi/.test((e as HTMLElement).innerText ?? ""),
+    );
+    let row: Element | null = label ?? null;
+    while (row && (row.textContent ?? "").split("Image").length < 4) row = row.parentElement;
+    const tiles = row ? [...row.children] : [];
+    tiles.forEach((t, i) => t.setAttribute("data-ww-tile", String(i)));
+    return { count: tiles.length, filled: tiles.map((t) => t.querySelectorAll("img").length > 0) };
+  });
+}
+
+/**
+ * Put `files` into the image tiles in order, from tile `start` (0 = Front View). Stops at the first
+ * failure. "Uploaded" means Flipkart said valid AND the tile shows it, not that a file met an input.
+ * Then it moves to the Price tab, which is what saves the draft, and reads the count back.
+ */
+export async function uploadImages(
+  page: Page,
+  files: string[],
+  onRow?: (r: UploadRow) => void,
+  start = 0,
+): Promise<UploadRow[]> {
   const problem = imagesProblem(files);
   if (problem) throw new Error(problem);
+  if (start + files.length > MAX_IMAGES) throw new Error(`Only ${MAX_IMAGES - start} tiles left from tile ${start + 1}.`);
   await closeVariantsPopup(page);
   await page.getByText(/Image addition \(/).first().click();
+  await page.waitForTimeout(1500);
+  const before = imageCount(await page.getByText(/Image addition \(/).first().innerText().catch(() => "")) ?? 0;
 
   const rows: UploadRow[] = [];
   for (const [i, file] of files.entries()) {
-    const row: UploadRow = { file, tile: i + 1, ok: false };
+    const tile = start + i;
+    const row: UploadRow = { file, tile: tile + 1, ok: false };
     rows.push(row);
     try {
-      // Tile 1 is already chosen when the tab opens; later ones have to be picked to get an upload box.
-      if (i > 0) await page.locator("text=/^Image$/").nth(i - 1).click({ timeout: 10_000 });
+      const { count, filled } = await markTiles(page);
+      if (count !== MAX_IMAGES) throw new Error(`found ${count} tiles, expected ${MAX_IMAGES}`);
+      if (filled[tile]) throw new Error("it already holds a picture");
+      await page.locator(`[data-ww-tile="${tile}"]`).click({ timeout: 10_000 });
       const input = page.locator("input#upload-image");
       await input.waitFor({ state: "attached", timeout: 10_000 });
       const [res] = await Promise.all([
@@ -112,9 +140,13 @@ export async function uploadImages(page: Page, files: string[], onRow?: (r: Uplo
       const verdict = body?.contentValidationResult;
       if (!verdict?.valid) {
         row.why = `Flipkart refused it: ${JSON.stringify(verdict?.contentValidationErrors ?? body ?? res.status())}`;
-      } else row.ok = true;
+      } else {
+        await page.waitForTimeout(2500);
+        row.ok = (await markTiles(page)).filled[tile];
+        if (!row.ok) row.why = "Flipkart accepted it but the tile shows no picture.";
+      }
     } catch (err) {
-      row.why = `Tile ${i + 1} did not behave as recorded: ${err instanceof Error ? err.message.split("\n")[0] : String(err)}`;
+      row.why = `Tile ${tile + 1}: ${err instanceof Error ? err.message.split("\n")[0] : String(err)}`;
     }
     onRow?.(row);
     if (!row.ok) return rows;
@@ -122,10 +154,10 @@ export async function uploadImages(page: Page, files: string[], onRow?: (r: Uplo
 
   // Leaving the tab is what saves; the count on it is the proof.
   await page.getByText(/Price, Stock and Shipping/).first().click();
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(4000);
   const count = imageCount(await page.getByText(/Image addition \(/).first().innerText().catch(() => ""));
-  if (count !== files.length) {
-    rows.push({ file: "", tile: 0, ok: false, why: `The tab reads ${count ?? "nothing"} of ${MAX_IMAGES} after ${files.length} uploads.` });
+  if (count !== before + files.length) {
+    rows.push({ file: "", tile: 0, ok: false, why: `The tab reads ${count ?? "nothing"} of ${MAX_IMAGES}; expected ${before + files.length}.` });
   }
   return rows;
 }

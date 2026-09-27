@@ -1127,3 +1127,13 @@ the sizes table stopped to ask, as it should. By eye:
 - **1.png wrong counts**: 6 heart foils for 8, about 100 balloons for 40. ChatGPT read the counts right
   (READY) and the image model still drew them wrong. Code cannot count balloons in a picture, which is
   why the flow needs Keep/Redo per image before anything is listed.
+
+## WW-266 — Flipkart image tiles 2–5 proven on the test draft
+
+**Done, 2026-09-27, draft REQQN6TLXHHK9NIKEX, with Vansh's OK. Nothing sent to QC.** Clicking an empty
+tile does bring the upload box back. But a FILLED tile keeps its label "Image", so the first version
+picked tile 2 again for the third image and timed out. Tiles are now marked by position in the row
+(found from the Front View label, not from class names, which are build hashes) and each upload is
+checked three ways: Flipkart's `valid` reply, the tile showing the picture, and the tab count. Re-run
+live: tiles 2 and 3 filled, "Changes saved!", tab reads **Image addition (3/5)**. `uploadImages` takes
+a start tile, so a half-filled draft carries on where it stopped.
