@@ -121,10 +121,18 @@ export function countCheck(c: KitCount): string {
 /** The hero prompt, recognised by its opening line — the only prompt `countCheck` goes under. */
 export const isHeroPrompt = (name: string): boolean => /^PROMPT-main-image/.test(name);
 
+/**
+ * Which picture a number is, in words ChatGPT can act on. Our 1/2/3 are OUR numbers — measured
+ * 2026-09-27, "make image 1 again" got *"please upload the image you want me to remake"*, and the chat
+ * had already been told the photo is IMAGE 2. So the redo attaches the picture and names it.
+ */
+export const pictureName = (n: number): string =>
+  n === 1 ? "the main decoration photo" : n === 2 ? `the "what's in the box" infographic` : "the items-included sizes infographic";
+
 /** `PROMPT-redo-image.md` with its two slots filled. Throws when a slot is gone, like `withInventory`. */
 export function redoPrompt(template: string, n: number, wrong: string): string {
-  if (!template.includes("<IMAGE NUMBER>") || !template.includes("<WHAT IS WRONG>")) {
-    throw new Error("PROMPT-redo-image.md has lost its <IMAGE NUMBER> or <WHAT IS WRONG> slot");
+  if (!template.includes("<WHICH PICTURE>") || !template.includes("<WHAT IS WRONG>")) {
+    throw new Error("PROMPT-redo-image.md has lost its <WHICH PICTURE> or <WHAT IS WRONG> slot");
   }
-  return template.replaceAll("<IMAGE NUMBER>", String(n)).replace("<WHAT IS WRONG>", () => wrong.trim() || "The counts do not match the kit list.");
+  return template.replace("<WHICH PICTURE>", () => pictureName(n)).replace("<WHAT IS WRONG>", () => wrong.trim() || "The counts do not match the kit list.");
 }

@@ -2220,6 +2220,11 @@ ipcMain.handle("nlRedo", async (e, sku: string, n: number, wrong: string): Promi
     const tab = await nlChat(job.chatUrl);
     const to = rawFileFor(IMAGES_DIR, sku, n);
     await nlSave(e, sku, {}, `redoing image ${n}: ${wrong.trim() || "counts"}`);
+    // The picture itself goes with the prompt — ChatGPT does not know our numbering.
+    const { attachPhoto } = await import("../src/chat-core.js");
+    if (job.images[String(n)] && !(await attachPhoto(tab, job.images[String(n)]))) {
+      return { ok: false, message: `Image ${n} would not attach in ChatGPT — nothing was sent.` };
+    }
     const got = await generateImage(tab, redoPrompt(template, n, wrong), to);
     if (!got.file) return { ok: false, message: `No new image ${n} came back — the chat is open in ChatGPT.` };
     await nlSave(e, sku, { images: { ...job.images, [n]: got.file } }, `image ${n} redone (${got.seconds}s)`);

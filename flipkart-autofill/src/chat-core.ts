@@ -18,8 +18,10 @@
  */
 
 import type { Page } from "playwright";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import sharp from "sharp";
 
 /** Images ChatGPT serves from its own backend — generated ones and uploads both live here. */
 const CONTENT = /chatgpt\.com\/backend-api\/[^"']*content\?/;
@@ -45,7 +47,9 @@ export async function imagesOn(page: Page): Promise<string[]> {
   return page.evaluate((min) =>
     [...new Set(
       [...document.querySelectorAll("img")]
-        .filter((i) => i.naturalWidth >= min && /chatgpt\.com\/backend-api\/[^"']*content\?/.test(i.currentSrc || i.src))
+        // Not in one of OUR turns: an upload is served from the same backend, and a redo attaches the
+        // picture it is redoing — without this, a failed redo would save the upload back as "new".
+        .filter((i) => i.naturalWidth >= min && !i.closest("[data-message-author-role=user]") && /chatgpt\.com\/backend-api\/[^"']*content\?/.test(i.currentSrc || i.src))
         .map((i) => i.currentSrc || i.src),
     )], REAL_IMAGE);
 }
@@ -60,6 +64,13 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
   await putInComposer(page, text);
   const turns = () => page.locator("[data-message-author-role=user]").count().catch(() => 0);
   const before = await turns();
+  /**
+   * **Wait for Send to be pressable.** While an attached picture is still uploading, ChatGPT shows the
+   * preview but greys Send out, and Enter does nothing — measured 2026-09-27 on a 2 MB PNG: the
+   * preview was there, Send stayed disabled for 12 s and more. The preview is not the upload.
+   */
+  const send = page.locator('[data-testid="send-button"]').first();
+  for (let i = 0; i < 180 && (await send.isDisabled().catch(() => false)); i++) await page.waitForTimeout(500);
   // **The only Enter in this file.** Splitting `sendPrompt` left one behind in `putInComposer` as
   // well, so the costing chat — whose whole point is to hand a human a filled composer to READ —
   // sent it instead, and `sendPrompt` pressed Enter twice. It cost an hour to find because both
@@ -70,14 +81,42 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
    * the photo, nothing was sent, and the run read the empty page as a reply. A new user turn is the
    * proof. If Enter did nothing, the send button once; still nothing, and it says so.
    */
+  // Sent = any ONE of: a new turn of ours, ChatGPT working (the stop button), or the box emptied.
+  // Turns alone gave a false "not sent" on a message with a picture attached, measured 2026-09-27:
+  // the chat was already drawing the reply when the check gave up.
+  const composer = page.locator("#prompt-textarea").first();
+  const sent = async () =>
+    (await turns()) > before ||
+    (await page.locator('[data-testid="stop-button"], button[aria-label*="Stop"]').count().catch(() => 0)) > 0 ||
+    (await composer.innerText().catch(() => "")).trim().length < 5;
+  // Two minutes: ChatGPT takes Enter at once but HOLDS the message until an attached picture has
+  // uploaded — 50 s for a 2 MB PNG, measured. Held is sent; giving up at 15 s called it a failure.
   for (let attempt = 0; attempt < 2; attempt++) {
-    for (let i = 0; i < 30; i++) {
-      if ((await turns()) > before) return;
+    for (let i = 0; i < 120; i++) {
+      if (await sent()) return;
       await page.waitForTimeout(500);
     }
     await page.locator('[data-testid="send-button"], button[aria-label*="Send" i]').first().click({ timeout: 5000 }).catch(() => {});
   }
   throw new Error("ChatGPT did not take the message: it is still in the box, unsent.");
+}
+
+/** Longest side of a picture sent to ChatGPT. Enough to read counts and printed wording. */
+const SEND_PX = 1280;
+
+/**
+ * A light copy of a picture for ChatGPT: at most 1280 px, JPEG 85, about 200 KB. Vansh, 2026-09-27:
+ * *"make sure some low size but decent quality image we save… so that sending it to ChatGPT is fast"*.
+ * A 2 MB PNG took ~50 s to upload and held the message that long (WW-267). Already small JPEGs go as
+ * they are. The original is never touched; ChatGPT only ever reads the copy.
+ */
+export async function small(file: string): Promise<string> {
+  const size = (await stat(file)).size;
+  if (/\.jpe?g$/i.test(file) && size <= 400_000) return file;
+  const to = path.join(os.tmpdir(), "ww-send", `${path.basename(file).replace(/\.\w+$/, "")}-${size}.jpg`);
+  await mkdir(path.dirname(to), { recursive: true });
+  await sharp(file).rotate().resize(SEND_PX, SEND_PX, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(to);
+  return to;
 }
 
 /**
@@ -89,11 +128,12 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
  * until WW-265. `setInputFiles` on the hidden input, never the paperclip: that opens an OS dialog.
  */
 export async function attachPhoto(page: Page, files: string | string[]): Promise<boolean> {
-  const want = Array.isArray(files) ? files.length : 1;
+  const list = await Promise.all((Array.isArray(files) ? files : [files]).map(small));
+  const want = list.length;
   const previews = () => page.locator('img[src^="blob:"]').count().catch(() => 0);
   const before = await previews();
   for (let attempt = 0; attempt < 2; attempt++) {
-    await page.locator("input[type=file]").first().setInputFiles(files, { timeout: 15_000 });
+    await page.locator("input[type=file]").first().setInputFiles(list, { timeout: 15_000 });
     for (let i = 0; i < 40; i++) {
       await page.waitForTimeout(500);
       if ((await previews()) >= before + want) {

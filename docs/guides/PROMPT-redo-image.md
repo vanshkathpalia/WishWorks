@@ -1,4 +1,4 @@
-Make image <IMAGE NUMBER> again. Only that image, one picture, same shape and same style.
+Make the attached picture again: <WHICH PICTURE>. One picture, same shape and same style.
 
 What is wrong with it:
 <WHAT IS WRONG>

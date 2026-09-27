@@ -52,9 +52,9 @@ describe("the hero's count check and the redo prompt", () => {
   });
   it("fills the redo prompt's two slots and refuses one that lost them", () => {
     const out = redoPrompt(guide("PROMPT-redo-image.md"), 1, "6 hearts, the kit has 8");
-    expect(out).toContain("Make image 1 again");
+    expect(out).toContain("Make the attached picture again: the main decoration photo.");
     expect(out).toContain("6 hearts, the kit has 8");
-    expect(out).not.toMatch(/<IMAGE NUMBER>|<WHAT IS WRONG>/);
+    expect(out).not.toMatch(/<WHICH PICTURE>|<WHAT IS WRONG>/);
     expect(() => redoPrompt("no slots", 1, "x")).toThrow(/lost/);
   });
 });
