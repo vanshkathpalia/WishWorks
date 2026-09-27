@@ -287,6 +287,30 @@ function ThemeToggle() {
   );
 }
 
+/** The name this account sells under on Flipkart: brand on a new listing, Manufacturer and Packer on every form. */
+function FlipkartName() {
+  const [saved, setSaved] = useState("");
+  const [typed, setTyped] = useState("");
+  useEffect(() => {
+    void window.ww.flipkartName().then((n) => (setSaved(n), setTyped(n)));
+  }, []);
+  const save = () => void window.ww.setFlipkartName(typed).then((n) => (setSaved(n), setTyped(n)));
+  return (
+    <>
+      <h3>Flipkart trade name</h3>
+      <div className="picks">
+        <input value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && save()} />
+        <button disabled={typed.trim() === saved} onClick={save}>Save</button>
+      </div>
+      <p className="muted">
+        Used as the <b>brand</b> on a new listing, and as <b>Manufacturer</b> and <b>Packer Details</b> on
+        every latch and every filled form, from the next one on. Listings already live keep what they have.
+        Belongs to the account above. Empty goes back to PartyDreams. Meesho is not affected.
+      </p>
+    </>
+  );
+}
+
 function Settings({ close }: { close: () => void }) {
   const [folders, setFolders] = useState<Record<string, string>>({});
   const [workspace, setWorkspace] = useState("");
@@ -304,6 +328,8 @@ function Settings({ close }: { close: () => void }) {
         <h2>Settings</h2>
 
         <Accounts />
+
+        <FlipkartName />
 
         <h3>Remembered folders</h3>
         {Object.keys(folders).length === 0 ? (

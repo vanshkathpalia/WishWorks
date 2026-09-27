@@ -221,6 +221,11 @@ export async function fillListing(
   id: string,
   onField?: (row: FieldRow) => void,
   tab?: DefaultsTab,
+  /**
+   * Values that win over the defaults file — the account's Flipkart trade name. Applied only to labels
+   * this tab already carries, so a pricing-tab field never gets typed on the description tab.
+   */
+  over: Values = {},
 ): Promise<FillResult> {
   if (!session) throw new FillBlocked("Chrome is not open — open it first.");
 
@@ -230,6 +235,7 @@ export async function fillListing(
   // The tab decides which defaults file applies. Passing it is what keeps an inches Height off
   // the centimetres tab — see DefaultsTab. Omitted (the CLI), it merges everything as before.
   const { values, usedDefaults, category, unmapped, asks } = loadProduct(match.file, undefined, tab);
+  for (const [label, value] of Object.entries(over)) if (label in values) (values as Values)[label] = value;
   // A problem skips its own field and blocks nothing. It used to throw, so two placeholders cost
   // you sixty good fields and the form got typed by hand — Vansh, 2026-08-12: "we should have the
   // freedom to let it continue even if any issue comes, just flag it later on". What is skipped is

@@ -112,6 +112,8 @@ interface Settings {
    * the source, so he asked for the switch; the Settings panel says what it costs.
    */
   editPrompts?: boolean;
+  /** The Flipkart trade name when there are no accounts. See `Account.flipkartName`. */
+  flipkartName?: string;
   /** The people who pack, for ticking off a day's orders. Names only; no other state. */
   workers?: string[];
   /** Pages worth returning to, saved by the user from whatever they navigated to. */
@@ -485,6 +487,28 @@ ipcMain.handle("savePrompt", async (_e, file: string, text: string) =>
 );
 ipcMain.handle("editPrompts", () => promptDirs().canEditShipped);
 ipcMain.handle("setEditPrompts", async (_e, on: boolean) => writeSettings({ editPrompts: on }));
+
+/**
+ * The name this account sells under on Flipkart. One setting, three places it goes: the brand on a new
+ * listing, and Manufacturer and Packer Details on the latch form and the 66-field fill. Before this it
+ * was typed into the defaults file, so changing it meant editing JSON by hand.
+ */
+const DEFAULT_FLIPKART_NAME = "PartyDreams";
+function flipkartName(): string {
+  return activeAccount()?.flipkartName?.trim() || readSettings().flipkartName?.trim() || DEFAULT_FLIPKART_NAME;
+}
+/** What the trade name overwrites on a form. The defaults file's own values are the fallback. */
+const traderFields = () => ({ "Manufacturer Details": flipkartName(), "Packer Details": flipkartName() });
+ipcMain.handle("flipkartName", () => flipkartName());
+ipcMain.handle("setFlipkartName", async (_e, name: string) => {
+  const flipkartName_ = name.trim() || undefined;
+  const st = readSettings();
+  const i = st.activeAccount ?? 0;
+  // Per account, like the saved pages: two sellers on one machine sell under two names.
+  if (st.accounts?.[i]) await writeSettings({ accounts: st.accounts.map((a, n) => (n === i ? { ...a, flipkartName: flipkartName_ } : a)) });
+  else await writeSettings({ flipkartName: flipkartName_ });
+  return flipkartName();
+});
 
 ipcMain.handle("readVersion", async (_e, file: string) =>
   (await promptsEngine()).readVersion(file),
@@ -2944,7 +2968,7 @@ async function latchThese(
   if (!probe.ok) return { ok: false, message: `${probe.message} The tabs you kept are still counted.` };
   await probe.result.close().catch(() => {});
 
-  const values = latchValues(LATCH_PRICES);
+  const values = latchValues({ ...LATCH_PRICES, ...traderFields() });
   /**
    * SKUs handed out as we go, so ten annaprashan kits in one batch get ten different numbers.
    * Seeded with everything already on disk; each one assigned is added before the next is chosen.
@@ -3096,7 +3120,7 @@ ipcMain.handle("fillFrontLatch", async (e, withCosting: boolean): Promise<Attemp
   const at = book.rows.findIndex((r) => r.fsn === front.fsn);
   const row = at === -1 ? null : book.rows[at];
   const sku = row?.ourSku ?? (row ? nextSku(row.title ?? row.description, await skusInUse().catch(() => [])) : null);
-  const state = await openLatchForm(front.tab.page, latchValues(LATCH_PRICES), sku ?? undefined).catch(() => "stuck" as const);
+  const state = await openLatchForm(front.tab.page, latchValues({ ...LATCH_PRICES, ...traderFields() }), sku ?? undefined).catch(() => "stuck" as const);
   if (state !== "form") {
     const why = { selling: "Flipkart says you already sell it.", approval: "it needs brand approval first.", stuck: "the form did not open — is the page loaded and are you logged in?" }[state];
     return { ok: false, message: `Could not fill that tab: ${why}` };
@@ -3896,7 +3920,7 @@ ipcMain.handle("closeChrome", async () => {
 ipcMain.handle("fillListing", (e, id: string, tab?: DefaultsTab) =>
   guarded(async () => {
     const { fillListing } = await browserEngine();
-    const result = await fillListing(id, (row) => e.sender.send("field", row), tab);
+    const result = await fillListing(id, (row) => e.sender.send("field", row), tab, traderFields());
     lastFill = { needsEyes: result.needsEyes };
     return result;
   }),

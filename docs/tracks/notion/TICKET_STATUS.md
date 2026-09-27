@@ -1074,3 +1074,12 @@ while a recorder watched (clicks nothing). What it saw, now in `src/new-listing.
 - `uploadImages` checks each image against Flipkart's own `valid` reply, then the tab count, and stops
   naming the tile if either disagrees. **Clicking the next tile to get a fresh upload box is assumed**;
   the recording only did tile 1. Nothing here sends to QC. 3 tests.
+
+## WW-262 — The Flipkart trade name is a setting
+
+**Done, 2026-09-27.** Vansh: *"can there be an option to change it from the app — for the listings or
+latching from now onwards?"* It lived as `"PartyDreams"` typed into `balloon-decoration.pricing.
+defaults.json`. Now **Settings → Flipkart trade name**, per account, empty = PartyDreams. It goes to:
+Manufacturer and Packer Details on every latch form and every 66-field fill (only on tabs that carry
+those fields), and the brand on a new listing (WW-261). Live listings are not touched; Meesho keeps
+WishWorks.

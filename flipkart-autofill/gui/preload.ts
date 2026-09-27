@@ -28,6 +28,8 @@ const api: WwApi = {
   workspaceDir: () => ipcRenderer.invoke("workspaceDir"),
   editPrompts: () => ipcRenderer.invoke("editPrompts"),
   setEditPrompts: (on: boolean) => ipcRenderer.invoke("setEditPrompts", on),
+  flipkartName: () => ipcRenderer.invoke("flipkartName"),
+  setFlipkartName: (name: string) => ipcRenderer.invoke("setFlipkartName", name),
   chooseWorkspace: () => ipcRenderer.invoke("chooseWorkspace"),
 
   accounts: () => ipcRenderer.invoke("accounts"),

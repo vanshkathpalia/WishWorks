@@ -367,6 +367,11 @@ export interface Account {
   /** Optional. **Unset means no flagging at all** — an account that never wants it never sees it. */
   skuPrefix?: string;
   /**
+   * The name this account sells under on Flipkart — the brand on a new listing, and Manufacturer and
+   * Packer Details on every form. Unset means `PartyDreams` (Vansh, 2026-08-12). Meesho keeps WishWorks.
+   */
+  flipkartName?: string;
+  /**
    * The login. `user` is typed on the launch screen; `password` is a scrypt salt and hash, never
    * the password itself (`src/auth.ts`). Absent on an account made before the login existed —
    * the first sign-in sets one rather than locking anybody out.
@@ -498,6 +503,9 @@ export interface WwApi {
   editPrompts(): Promise<boolean>;
   /** Turn that on or off. Takes effect on the next prompt opened; nothing restarts. */
   setEditPrompts(on: boolean): Promise<void>;
+  /** The Flipkart trade name for this account — see `Account.flipkartName`. */
+  flipkartName(): Promise<string>;
+  setFlipkartName(name: string): Promise<string>;
   /** Pick a new workspace. Relaunches the app on success; false means the user cancelled. */
   chooseWorkspace(): Promise<boolean>;
 
