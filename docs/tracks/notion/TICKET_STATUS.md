@@ -1059,3 +1059,18 @@ none with a `2.*` in it. 4 tests.
 - Needs **one small photo per inventory item** (compressed JPG around 512px) so ChatGPT can compose a
   hero from items without an inventory photo. Source: the `2.*` inventory photos already in the
   listing folders, cut into items; one copy per material, repeats dropped.
+
+## WW-261 — Flipkart new listing: brand step and image upload, measured from one recorded run
+
+**Built, 2026-09-27 — tile 1 measured, tiles 2–5 not yet proven.** Vansh logged in and uploaded one image
+while a recorder watched (clicks nothing). What it saw, now in `src/new-listing.ts`:
+- `#dashboard/addListings/single?vertical=decoration` → **Enter Brand Name** → **Check Brand** →
+  **Continue** creates the draft (`requestId=REQ…` in the address). Brand is **PartyDreams**, the
+  Flipkart trade name.
+- A "new way to add your variants" popup covers the form until its Continue is pressed.
+- Five image tiles, Front View first. An empty tile shows `input#upload-image` (.jpg/.png, one file);
+  choosing a file uploads at once and Flipkart answers `valid: true`. Changing tab saves the draft and
+  the tab reads `Image addition (1/5)`.
+- `uploadImages` checks each image against Flipkart's own `valid` reply, then the tab count, and stops
+  naming the tile if either disagrees. **Clicking the next tile to get a fresh upload box is assumed**;
+  the recording only did tile 1. Nothing here sends to QC. 3 tests.
