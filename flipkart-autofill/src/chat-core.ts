@@ -653,27 +653,25 @@ export function jsonFromReply(text: string): unknown | null {
  */
 export async function saveReplyJson(page: Page, to: string): Promise<"file" | "text" | null> {
   await mkdir(path.dirname(to), { recursive: true });
-  const link = page
-    .locator("[data-message-author-role=assistant]")
-    .last()
-    .locator('a[href^="sandbox:"], a:has-text(".json"), button:has-text(".json")')
-    .last();
-  if (await link.count().catch(() => 0)) {
-    try {
-      const [download] = await Promise.all([page.waitForEvent("download", { timeout: 30_000 }), link.click()]);
-      const part = `${to}.part`;
-      await download.saveAs(part);
-      JSON.parse(await readFile(part, "utf8")); // a download that is not JSON is not an answer
-      await rename(part, to);
-      return "file";
-    } catch {
-      // Fall through to the text: a link that would not download is still worth a look at the words.
-    }
+  const write = async (data: unknown) => writeFile(to, JSON.stringify(data, null, 2) + "\n");
+  const printed = jsonFromReply(await lastReply(page));
+  if (printed !== null) {
+    await write(printed);
+    return "text";
   }
-  const data = jsonFromReply(await lastReply(page));
-  if (data === null) return null;
-  await writeFile(to, JSON.stringify(data, null, 2) + "\n");
-  return "text";
+  /**
+   * **A file reply is never downloaded — it is asked for as text.** Measured 2026-09-27 (WW-267):
+   * clicking the file opens a side panel that hides the composer, and pressing the panel's Download
+   * saves the file and then Chrome CLOSES the background tab it came from, taking the chat with it.
+   * One follow-up in the same chat is slower by a few seconds and cannot fail that way.
+   */
+  await sendPrompt(page, "Print the complete contents of that JSON file here as one JSON code block, exactly as in the file, and nothing else.");
+  await waitUntilIdle(page, { timeoutMs: 180_000 });
+  await page.waitForTimeout(2500);
+  const asked = jsonFromReply(await lastReply(page));
+  if (asked === null) return null;
+  await write(asked);
+  return "file";
 }
 
 /** The two prompts, in order, and which half of the listing each one produces. */

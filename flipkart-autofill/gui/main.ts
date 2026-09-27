@@ -2030,19 +2030,6 @@ async function nlFail(e: Electron.IpcMainInvokeEvent | null, sku: string, error:
 const nlJob = async (sku: string) => (await (await nlEngine()).readJobs(nlFile())).jobs.find((j) => j.sku === sku) ?? null;
 const errText = (err: unknown) => (err instanceof Error ? err.message.split("\n")[0] : String(err));
 
-/** The kit, counted — the same numbers the image prompts quote. */
-async function nlKit(sku: string) {
-  const { findById } = await import("../src/id.js");
-  const { readKit, loadMaterials } = await inventoryEngine();
-  const { countKit } = await import("../src/kit-prompt.js");
-  const file = await findById(KITS_DIR, sku);
-  if (!file) throw new Error(`No kit saved for ${sku} — cost it first.`);
-  const saved = readKit(file.file);
-  const materials = loadMaterials();
-  const sizes = new Map(materials.map((m) => [m.material, m.size]));
-  return { file: file.file, saved, materials, kit: countKit(saved.lines, saved.resolved ?? {}, (m) => sizes.get(m)) };
-}
-
 /** A ChatGPT tab on `url` (a fresh chat when absent), given time to draw. */
 async function nlChat(url = "https://chatgpt.com/") {
   const { chatTab } = await import("../src/browser-core.js");
@@ -2052,120 +2039,38 @@ async function nlChat(url = "https://chatgpt.com/") {
   return tab;
 }
 
-/** Stage 1: the images, in one chat. Ends in `review`, or `failed` with the reason. */
-async function nlImages(e: Electron.IpcMainInvokeEvent, sku: string): Promise<void> {
-  const { runImageChat, KIT_RUN, chatTitle, lastReplyLines } = await import("../src/chat-core.js");
-  const { kitBlock, withKit, checkReady, countCheck, isHeroPrompt } = await import("../src/kit-prompt.js");
-  const { rawFileFor } = await import("../src/sku-core.js");
-  const { kit } = await nlKit(sku);
-  const photo = await kitPhoto(sku);
-  if (!photo) throw new Error("No inventory photo (2.png or contents.jpg) in the kit's folder.");
-  await nlSave(e, sku, { stage: "images", photo, images: {}, sizesQuestion: undefined, error: undefined }, `making images from ${path.basename(photo)}`);
+/** What `new-listing-run.ts` needs from the app, for one kit. The stages themselves live there. */
+async function nlDeps(e: Electron.IpcMainInvokeEvent, sku: string) {
   const prompts = await promptsEngine();
-  const block = kitBlock(sku, kit);
-  const tab = await nlChat();
-  const done = await runImageChat(tab, {
-    contentsPhoto: photo,
-    steps: KIT_RUN,
-    readPrompt: async (name) => (await prompts.readPrompt(promptDirs(), name)).text,
-    fill: (text, name) => withKit(text, block) + (isHeroPrompt(name) ? countCheck(kit) : ""),
-    verify: (reply) => checkReady(reply, kit),
-    fileFor: (n) => rawFileFor(IMAGES_DIR, sku, n),
-    onStep: (r) => {
-      const n = r.file ? /(\d+)\.\w+$/.exec(r.file)?.[1] : null;
-      const job = nlJob(sku);
-      void job.then((j) =>
-        nlSave(e, sku, n ? { images: { ...(j?.images ?? {}), [n]: r.file } } : {},
-          r.error ? r.error : r.file ? `image ${n} made (${r.seconds}s)` : r.awaiting ? "sizes: ChatGPT is asking" : r.missing ? `${r.prompt}: no image came back` : `${r.prompt}: done`),
-      );
-    },
-    title: chatTitle("images", sku),
-  });
-  // onStep saves asynchronously; give the last write a moment before reading the row back.
-  await new Promise((r) => setTimeout(r, 500));
-  const stopped = done.find((d) => d.error)?.error;
-  if (stopped) throw new Error(stopped);
-  const asks = done.some((d) => d.awaiting) ? await lastReplyLines(tab) : undefined;
-  await nlSave(e, sku, { stage: "review", chatUrl: tab.url(), sizesQuestion: asks }, "ready for your check");
+  return {
+    sku,
+    save: async (patch: object, line?: string) => void (await nlSave(e, sku, patch, line)),
+    job: () => nlJob(sku),
+    readPrompt: async (name: string) => (await prompts.readPrompt(promptDirs(), name)).text,
+    kitsDir: KITS_DIR,
+    imagesDir: IMAGES_DIR,
+    productsDir: PRODUCTS_DIR,
+    metaDir: META_DIR,
+    tempDir: app.getPath("temp"),
+    chat: nlChat,
+  };
 }
 
-/** Stage 2, after his check: text chat → files → finish → Flipkart draft, filled. Ends in `done`. */
+/** Stage 1: the images. Ends in `review`. */
+async function nlImages(e: Electron.IpcMainInvokeEvent, sku: string): Promise<void> {
+  const photo = await kitPhoto(sku);
+  if (!photo) throw new Error("No inventory photo (2.png or contents.jpg) in the kit's folder.");
+  await (await import("../src/new-listing-run.js")).makeImages(await nlDeps(e, sku), photo);
+}
+
+/** Stage 2, after his check: everything to a filled Flipkart draft. Ends in `done`. */
 async function nlListing(e: Electron.IpcMainInvokeEvent, sku: string): Promise<void> {
-  const { runMetaChat, chatTitle } = await import("../src/chat-core.js");
-  const { listingImages } = await nlEngine();
-  const { findById } = await import("../src/id.js");
-  const job = await nlJob(sku);
-  if (!job) throw new Error("No such kit in the flow.");
-  const images = listingImages(job);
-  if (images.length < 2) throw new Error("Images 1 and 2 are needed before the listing.");
-  const { file: kitFile, saved, materials } = await nlKit(sku);
-  await nlSave(e, sku, { stage: "listing", error: undefined }, "writing the listing text");
-
-  // The text: PROMPT-meta then PROMPT-product, one chat, filed by the same importer as a hand download.
-  const prompts = await promptsEngine();
-  const saveDir = path.join(app.getPath("temp"), `ww-meta-${sku}`);
-  const tab = await nlChat();
-  const meta = await runMetaChat(tab, {
-    images,
-    kit: { sku, json: await readFile(kitFile, "utf8") },
-    readPrompt: async (name) => (await prompts.readPrompt(promptDirs(), name)).text,
-    saveDir,
-    title: chatTitle("meta", sku),
-  });
-  const missed = meta.filter((m) => !m.file).map((m) => m.prompt);
-  if (missed.length) throw new Error(`Nothing readable came back from ${missed.join(" and ")} — the chat is still open.`);
-  await (await inboxEngine()).importInbox(saveDir, { move: true });
-  if (!(await findById(PRODUCTS_DIR, sku))) throw new Error(`The Flipkart fields did not land in products/ for ${sku}.`);
-  await nlSave(e, sku, {}, "listing text filed (image-meta + products)");
-
-  // The parcel, measured from the kit — the one source for Package Details (C-049).
-  const { loadPackaging, parcelFor, flipkartFields } = await import("../src/packaging.js");
-  const spec = loadPackaging();
-  if (spec) {
-    const f = flipkartFields(parcelFor(saved.lines, materials, spec, (saved.parcel as never) ?? {}));
-    await (await pasteEngine()).applyParcelToListing(sku, { ...f.dimensions, packageDetails: f.packageDetails });
-    await nlSave(e, sku, {}, "parcel size put on the listing");
-  }
-
-  // Finish: named, descriptions embedded, JPEG — what gets uploaded.
-  const outDir = path.join(IMAGES_DIR, "3-final", sku);
-  const { runFinish } = await finishEngine();
-  // From a folder holding EXACTLY the kept images, in order: finish takes every image file it finds,
-  // so finishing 1-raw/<SKU>/ directly would also upload a dropped or leftover one.
-  const staged = path.join(app.getPath("temp"), `ww-finish-${sku}`);
-  await rm(staged, { recursive: true, force: true });
-  await mkdir(staged, { recursive: true });
-  for (const [i, f] of images.entries()) await copyFile(f, path.join(staged, `${i + 1}${path.extname(f)}`));
-  await rm(outDir, { recursive: true, force: true });
-  const fin = await runFinish({ inDir: staged, outDir, id: sku, metaId: sku });
-  if (fin.failures.length) throw new Error(`Finishing failed: ${fin.failures.join("; ")}`);
-  const finals = fin.rows.map((r) => r.to).sort((a, b) => Number(/(\d+)\.jpg$/.exec(a)?.[1]) - Number(/(\d+)\.jpg$/.exec(b)?.[1]));
-  await nlSave(e, sku, {}, `finished ${finals.length} images into images/3-final/${sku}`);
-
-  // Flipkart: a new draft, the images, then the three tabs. Never Send to QC.
   const { newTab, fillListing } = await import("../src/browser-core.js");
-  const { openNewListing, uploadImages } = await import("../src/new-listing.js");
-  const page = await newTab();
-  const draftId = await openNewListing(page, flipkartName()).catch((err) => {
-    throw new Error(/seller\.flipkart\.com\/\?|referral_url/.test(page.url()) ? "Flipkart is logged out — log in once in the app's Chrome." : errText(err));
+  await (await import("../src/new-listing-run.js")).toFlipkart(await nlDeps(e, sku), {
+    newTab,
+    fill: (page, tab) => fillListing(sku, undefined, tab, traderFields(), page),
+    brand: flipkartName(),
   });
-  await nlSave(e, sku, { draftId }, `Flipkart draft ${draftId} opened`);
-  const up = await uploadImages(page, finals);
-  const bad = up.find((r) => !r.ok);
-  if (bad) throw new Error(`Image upload: ${bad.why}`);
-  await nlSave(e, sku, {}, `${finals.length} images uploaded`);
-  let eyes = 0;
-  for (const [label, tabName] of [["Price, Stock and Shipping", "pricing"], ["Product Description", "description"], ["Additional Description", ""]] as const) {
-    await page.getByText(new RegExp(label)).first().click();
-    await page.waitForTimeout(2500);
-    const r = await fillListing(sku, undefined, tabName, traderFields(), page);
-    eyes += r.needsEyes;
-    await nlSave(e, sku, {}, `${label}: ${r.rows.length} fields, ${r.needsEyes} need your eyes`);
-  }
-  // Leaving the last tab is what saves it.
-  await page.getByText(/Image addition \(/).first().click();
-  await page.waitForTimeout(3000);
-  await nlSave(e, sku, { stage: "done" }, eyes ? `draft filled — ${eyes} fields to check before Send to QC` : "draft filled — read it, then Send to QC yourself");
 }
 
 /** Run one stage for one kit, turning any error into a `failed` row instead of a crash. */
