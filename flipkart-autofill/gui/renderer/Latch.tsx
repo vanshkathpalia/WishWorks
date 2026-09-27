@@ -760,19 +760,25 @@ export function Latch({ n }: { n: number }) {
                     {j.blockedBy.length ? j.blockedBy.join("; ") : j.have ? `${j.have} already there` : ""}
                   </td>
                   <td className="when">
-                    <button
-                      disabled={!!busy || !!j.blockedBy.length || !!running}
-                      onClick={() => {
-                        setRunning({ sku: j.ourSku, step: "starting…" });
-                        void window.ww.runImages(j.sku).then((r) => {
-                          setRunning(null);
-                          if (!r.ok) setError(r.message);
-                          else setNote(r.note ?? null);
-                        });
-                      }}
-                    >
-                      {j.have ? "Make them again" : "Make the images"}
-                    </button>{" "}
+                    {/* Two ways to get the counts, both kept (WW-258): the saved kit's list, checked by a
+                        READY line, or ChatGPT reading the photo — for a kit whose reading was bad. */}
+                    {(["kit", "photo"] as const).map((counts) => (
+                      <button
+                        key={counts}
+                        disabled={!!busy || !!j.blockedBy.length || !!running || (counts === "kit" && !j.hasKit)}
+                        title={counts === "kit" ? (j.hasKit ? "ChatGPT gets the kit's counted list" : "No kit saved for this SKU") : "ChatGPT counts the contents photo itself"}
+                        onClick={() => {
+                          setRunning({ sku: j.ourSku, step: "starting…" });
+                          void window.ww.runImages(j.sku, counts).then((r) => {
+                            setRunning(null);
+                            if (!r.ok) setError(r.message);
+                            else setNote(r.note ?? null);
+                          });
+                        }}
+                      >
+                        {j.have ? "Again" : "Images"}, {counts === "kit" ? "counts from kit" : "ChatGPT reads photo"}
+                      </button>
+                    ))}{" "}
                     {j.have >= 2 && (
                       <button
                         disabled={!!busy || !!running}

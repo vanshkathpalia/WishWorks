@@ -1760,6 +1760,8 @@ ipcMain.handle("imageQueue", async (): Promise<Attempt<unknown>> => {
       }
     },
   });
+  const { findById } = await import("../src/id.js");
+  for (const r of rows) r.hasKit = !!r.ourSku && !!(await findById(KITS_DIR, r.ourSku));
   return { ok: true, result: rows };
 });
 
@@ -1771,7 +1773,7 @@ ipcMain.handle("imageQueue", async (): Promise<Attempt<unknown>> => {
  * checked the first. Vansh asked to be ASKED which one goes next, and this is the call that answers
  * that question one product at a time.
  */
-ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> => {
+ipcMain.handle("runImages", async (e, sku: string, counts: "kit" | "photo" = "kit"): Promise<Attempt<unknown>> => {
   const { readLatches, imageJobs, imageFor } = await latchEngine();
   const { runImageChat, STANDARD_RUN, KIT_RUN, chatTitle } = await import("../src/chat-core.js");
   const { rawFileFor } = await import("../src/sku-core.js");
@@ -1791,8 +1793,9 @@ ipcMain.handle("runImages", async (e, sku: string): Promise<Attempt<unknown>> =>
   if (job.blockedBy.length) return { ok: false, message: job.blockedBy.join("; ") };
 
   // A costed kit means the counts are already known: ChatGPT is handed them rather than asked to
-  // read them off the photo. No kit yet, and the run reads the pack as it always did.
-  const kitFile = await findById(KITS_DIR, job.ourSku);
+  // read them off the photo. No kit yet, or `photo` chosen, and the run reads the pack as it always
+  // did — kept because some kit readings are worse than the photo, and only a person can tell.
+  const kitFile = counts === "kit" ? await findById(KITS_DIR, job.ourSku) : null;
   let kit = null;
   if (kitFile) {
     const { readKit, loadMaterials } = await inventoryEngine();

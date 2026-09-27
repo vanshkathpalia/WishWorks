@@ -1993,6 +1993,8 @@ export interface ImageJob {
    * happened. The screen shows it greyed with the reason beside it.
    */
   blockedBy: string[];
+  /** A costed kit is saved for `ourSku`, so the counts can come from it instead of the photo. */
+  hasKit?: boolean;
 }
 
 /**

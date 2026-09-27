@@ -752,8 +752,11 @@ export interface WwApi {
    *
    * One at a time on purpose: each run is minutes of compute and produces work a person then
    * checks. Ten queued would be thirty images arriving with nobody having looked at the first.
+   *
+   * `counts`: `kit` hands ChatGPT the saved kit's counted list (WW-258); `photo` makes it read the
+   * pack off the contents photo, as before. Both stay: a bad kit reading and a bad photo are both real.
    */
-  runImages(sku: string): Promise<Attempt<unknown>>;
+  runImages(sku: string, counts?: "kit" | "photo"): Promise<Attempt<unknown>>;
   /** Describe those images and fill the Flipkart fields — `PROMPT-meta` then `PROMPT-product`, one chat. */
   runMeta(sku: string): Promise<Attempt<unknown>>;
   /** What Flipkart will not take but Meesho could: no catalog entry, or an approval he cannot get. */
