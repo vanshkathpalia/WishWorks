@@ -439,7 +439,9 @@ export type StepId =
   // Three on the orders screen, because they open on different things and accept different files:
   // the manifest is a PDF out of the browser's downloads, a product picture is an image, and a
   // returns report is whatever the marketplace exports — CSV, Excel or PDF.
-  | "orders" | "orders-image" | "orders-report" | "labels";
+  | "orders" | "orders-image" | "orders-report" | "labels"
+  // The marketplaces' payment files — always .xlsx; the manifest picker would not offer one.
+  | "payments";
 
 /**
  * The tag clean-up, which belongs on this step because the engine does it here: cropping and

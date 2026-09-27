@@ -1005,8 +1005,10 @@ export function Payments({ n }: { n: number }) {
     setError(null);
     try {
       const r = await window.ww.addPayments(files, q);
-      if (r.ok) setView(r.result);
-      else setError(r.message);
+      if (r.ok) {
+        setView(r.result);
+        if (r.note) setError(r.note);
+      } else setError(r.message);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -1067,7 +1069,7 @@ export function Payments({ n }: { n: number }) {
       >
         <strong>{busy ? "Reading it…" : "Drop Meesho or Flipkart payment files (.xlsx)"}</strong>
         <div className="picks">
-          <button onClick={() => void window.ww.pick("orders", "files").then(add)}>Choose files…</button>
+          <button onClick={() => void window.ww.pick("payments", "files").then(add)}>Choose files…</button>
         </div>
       </div>
       {error && <p className="error">{error}</p>}
@@ -1173,8 +1175,8 @@ export function Payments({ n }: { n: number }) {
                 </tr>
               )}
               <tr>
-                <td>Ads</td>
-                <td>by the day they ran</td>
+                <td>Ads and boost</td>
+                <td>by the day they ran, in this range</td>
                 <td>{rupees(s.ads.totalPaise)}</td>
               </tr>
               {s.otherPaise !== 0 && (
@@ -1308,7 +1310,7 @@ export function Payments({ n }: { n: number }) {
             </table>
           )}
 
-          <h2>Payment against order <small>by the month orders were placed · all dates</small></h2>
+          <h2>Payment against order <small>orders placed in this range, by month</small></h2>
           <table className="rows inv-table">
             <thead>
               <tr><th>Ordered in</th><th>Delivered &amp; paid</th><th>RTO</th><th>Returned</th><th>Packed, no payment yet</th></tr>

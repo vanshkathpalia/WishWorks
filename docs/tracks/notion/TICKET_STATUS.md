@@ -1003,4 +1003,19 @@ step sits under Orders, after Money (`payments-core.ts`).
 - 11 tests on the two real files.
 - **First real finding:** ANP15 on Flipkart loses ₹34 an order (₹112 kit, ~₹78 paid in).
 
+**Added the same day, after Vansh's review:**
+- **Boost and anything new.** Meesho's *boost a listing* (₹100 a day) has not appeared in any file
+  yet, so any tab the reader does not know is read as dated amounts. A tab named ads, boost or
+  promotion counts as ad spend. A tab with numbers it cannot place is named on screen after upload
+  instead of being left out. Meesho's *Referral Payments* tab is now read too.
+- **One range for everything:** *payment against order* now follows the range as well, by the day
+  the order was placed.
+- **Fixed:** *Choose files…* used the manifest picker, which only offers .pdf and .csv, so a
+  payment .xlsx could only be dragged in. It has its own picker now.
+- **Fixed:** an order paid and later taken back counted as two parcels and kept its kit's pocket
+  cost. A follow-up line adds no parcel, and a delivered order that becomes a return gives the kit
+  cost back in that later range. The ₹10 return loss still applies.
+- 13 tests; production build checked. The other chat's pending `new-listing-flow` changes apply on
+  top of this with no code conflict. Its docs reuse WW-258/C-099 and need renumbering.
+
 **Not built:** matching bank credits (ICICI statement) to payouts. That waits for a real statement PDF.

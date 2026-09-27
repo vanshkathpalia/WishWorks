@@ -2847,3 +2847,12 @@ transfer, and both lines count (WW-258).
 
 **Lesson.** Before calling someone's formula wrong, run it on their own data. And a record that can
 be corrected later is a ledger of lines, not one row per order.
+
+**Found in the audit the same day, both mine:**
+- The payments picker reused the manifest's file filter (.pdf, .csv), so "Choose files…" could not
+  pick the .xlsx it exists to read.
+- Keeping every line fixed the take-back but double-counted it: two parcels, and pocket cost kept
+  on a kit that came back.
+
+Both are fixed with tests. **Lesson:** after changing how records are stored, re-check every sum
+that counts them, and click every button once.

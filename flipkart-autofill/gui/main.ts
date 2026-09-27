@@ -406,6 +406,8 @@ ipcMain.handle("pick", async (e, step: StepId, mode: "folder" | "files"): Promis
           ? [{ name: "Manifest or orders export", extensions: ["pdf", "csv"] }]
           : step === "labels"
             ? [{ name: "Flipkart label pack", extensions: ["pdf"] }]
+          : step === "payments"
+            ? [{ name: "Meesho or Flipkart payment file", extensions: ["xlsx"] }]
           : step === "orders-report"
             // Whatever the marketplace exports. Nothing here reads their columns — the ids are
             // found in the text — so the list is about what they hand out, not what we parse.
@@ -1025,7 +1027,7 @@ async function paymentsView(q: PaymentsQuery = {}) {
       market: m,
       summary: summarise(book, { from: q.from, to: q.to, market: m, costOf }),
     })),
-    vsOrder: paymentVsOrder(book, (await listLedgers()).flatMap((l) => l.subOrders.filter((p) => p.packedOn)) as never),
+    vsOrder: paymentVsOrder(book, (await listLedgers()).flatMap((l) => l.subOrders.filter((p) => p.packedOn)) as never, q),
     settings: { ...DEFAULT_SETTINGS, ...book.settings },
     files: book.files,
   };
@@ -1038,8 +1040,10 @@ ipcMain.handle("payments", (_e, q: PaymentsQuery) => paymentsView(q));
 handleLedger("addPayments", async (_e, files: string[], q: PaymentsQuery): Promise<Attempt<unknown>> => {
   const { readPaymentFile, readPayments, mergePayments, writePayments } = await paymentsEngine();
   let book = await readPayments();
+  const unread: string[] = [];
   for (const file of files) {
     const read = readPaymentFile(await readFile(file));
+    unread.push(...read.unread.map((tab) => `"${tab}" in ${path.basename(file)}`));
     if (read.market === null || (read.payments.length === 0 && read.other.length === 0))
       return {
         ok: false,
@@ -1048,7 +1052,13 @@ handleLedger("addPayments", async (_e, files: string[], q: PaymentsQuery): Promi
     book = mergePayments(book, read, path.basename(file));
   }
   await writePayments(book);
-  return { ok: true, result: await paymentsView(q) };
+  return {
+    ok: true,
+    result: await paymentsView(q),
+    // A tab with numbers the reader could not place — a new kind of deduction, e.g. boost. Said out
+    // loud, because leaving it out quietly would make the profit look better than it is.
+    note: unread.length ? `Not read — send this file to be looked at: ${unread.join(", ")}. The figures below leave it out.` : undefined,
+  };
 });
 /** Vansh's own RTO, return and parcel figures — saved in the payment book, one place. */
 handleLedger("paymentSettings", async (_e, settings: unknown, q: PaymentsQuery) => {

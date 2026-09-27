@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { dayOf, kindOf, mergePayments, paymentVsOrder, readPaymentFile, summarise, type Payment, type PaymentBook } from "../src/payments-core.js";
+import { dayOf, kindOf, mergePayments, paymentVsOrder, readPaymentFile, summarise, unknownTab, type Payment, type PaymentBook } from "../src/payments-core.js";
 
 const fixture = (f: string) => readFileSync(path.join(import.meta.dirname, "fixtures", f));
 const empty = (): PaymentBook => ({ payments: [], other: [], files: [] });
@@ -38,6 +38,23 @@ describe("reading payment files", () => {
     });
   });
 
+  it("reads a tab it has never seen — a boost charge is ad spend, not left out", () => {
+    const boost = [["Boost"], ["Boost Date", "Listing", "Boost Amount"], ["2026-09-20", "ANP001", "100"], ["2026-09-21", "ANP001", "100"]];
+    expect(unknownTab("meesho", "Boost Charges", boost)).toEqual({
+      lines: [
+        { market: "meesho", kind: "ads", date: "2026-09-20", paise: -10000, note: "Boost Charges" },
+        { market: "meesho", kind: "ads", date: "2026-09-21", paise: -10000, note: "Boost Charges" },
+      ],
+      unread: false,
+    });
+    // Numbers but no date/amount columns: reported, never quietly dropped.
+    expect(unknownTab("meesho", "Mystery", [["x"], ["Id", "Units"], ["1", "5"]]).unread).toBe(true);
+    // Meesho's "No data is available" tabs are not an alarm.
+    expect(unknownTab("meesho", "Empty", [["Ads Cost"], ["Deduction Date", "Total Ads Cost"], ["No data is available for these dates."]]).unread).toBe(false);
+    expect(meesho.unread).toEqual([]);
+    expect(flipkart.unread).toEqual([]);
+  });
+
   it("buckets the marketplaces' words, and reads Excel's number dates", () => {
     expect(["Delivered", "RTO", "Customer Return", "Courier Return", "NA", "Shipped"].map(kindOf))
       .toEqual(["delivered", "rto", "return", "rto", "delivered", "other"]);
@@ -57,7 +74,13 @@ describe("adding it up", () => {
     const back: Payment = { ...paid, kind: "return", status: "Return", paymentDate: "2026-09-10", txn: "AXISCN9", settledPaise: -6069 };
     const b = mergePayments(mergePayments(empty(), { payments: [paid], other: [] }, "a"), { payments: [back], other: [] }, "b");
     expect(b.payments).toHaveLength(2);
-    expect(summarise(b).total.paidPaise).toBe(14267 - 6069);
+    const t = summarise(b, { costOf: () => 8000 }).total;
+    expect(t.paidPaise).toBe(14267 - 6069);
+    // One parcel, not two; the kit came back, so no pocket cost; the ₹10 return loss applies.
+    expect(t.pocketPaise).toBe(0);
+    expect(t.lossesPaise).toBe(300 + 1000);
+    // Seen from August alone, it was a delivered sale with its kit used.
+    expect(summarise(b, { to: "2026-08-31", costOf: () => 8000 }).total.pocketPaise).toBe(8000);
   });
 
   it("pays in delivered, 0 for RTO, minus for returns; costs and losses come off", () => {
@@ -102,5 +125,10 @@ describe("adding it up", () => {
     ]);
     expect(rows.find((r) => r.month === "2026-09")).toMatchObject({ waiting: 1, oldestWaiting: "2026-09-20" });
     expect(rows.find((r) => r.month === "2026-07")?.waiting ?? 0).toBe(0);
+  });
+
+  it("limits payment against order to orders placed in the range", () => {
+    const rows = paymentVsOrder(book, [], { from: "2026-08-01", to: "2026-08-31" });
+    expect(rows.map((r) => r.month)).toEqual(["2026-08"]);
   });
 });

@@ -197,8 +197,12 @@ export function kindOf(status: string): Kind {
   return "other";
 }
 
-/** A file's orders and other lines — empty when it is neither marketplace's payment file. */
-export type Read = { market: Market | null; payments: Payment[]; other: OtherLine[] };
+/**
+ * A file's orders and other lines — empty when it is neither marketplace's payment file. `unread`
+ * names any tab that holds numbers this reader could not place, so a new kind of deduction is
+ * reported instead of silently left out of the profit.
+ */
+export type Read = { market: Market | null; payments: Payment[]; other: OtherLine[]; unread: string[] };
 
 /**
  * Meesho's payment file — *Payments → Previous payments* (or *Upcoming*, same layout). Order rows
@@ -251,8 +255,51 @@ function meeshoOther(all: Map<string, string[][]>): OtherLine[] {
       market: "meesho" as const, kind: "compensation" as const, date: dayOf(r["Date"]),
       paise: paise(r["Amount (inc GST) INR"]), note: [r["Program Name"], r["Reason"]].filter(Boolean).join(" — "),
     }));
-  return [...ads, ...comp];
+  const referral = table(all.get("Referral Payments"), "Net Referral Amount")
+    .filter((r) => dayOf(r["Payment Date"]))
+    .map((r) => ({
+      market: "meesho" as const, kind: "compensation" as const, date: dayOf(r["Payment Date"]),
+      paise: paise(r["Net Referral Amount"]), note: ["Referral", r["Reason"]].filter(Boolean).join(" — "),
+    }));
+  return [...ads, ...comp, ...referral];
 }
+
+/**
+ * A tab this reader does not know by name, read as dated amounts — the first column whose header
+ * says *date* and the first that says *amount / cost / value / fee / charge*.
+ *
+ * **Why it exists: boost.** Vansh, 2026-09-27: Meesho's *boost a listing* is ₹100 a day for about
+ * five days and comes off the payout — but no file seen so far has had one, so its tab and columns
+ * are unknown. A tab named for ads, boost or promotion counts as ad spend (always money out);
+ * anything else as a fee, signed as written. A tab with numbers and no such columns is `unread`.
+ */
+export function unknownTab(market: Market, name: string, rows: string[][]): { lines: OtherLine[]; unread: boolean } {
+  const at = rows.findIndex((r) => r.some((h) => /date/i.test(h)) && r.some((h) => /amount|cost|value|fee|charge/i.test(h)));
+  const hasNumbers = rows.slice(2).some((r) => r.some((c) => /^-?\d+(\.\d+)?$/.test(c)));
+  if (at === -1) return { lines: [], unread: hasNumbers };
+  const head = rows[at];
+  const dateCol = head.findIndex((h) => /date/i.test(h));
+  const amountCol = head.findIndex((h) => /amount|cost|value|fee|charge/i.test(h));
+  const ads = /ads|boost|promot/i.test(name);
+  const lines = rows
+    .slice(at + 1)
+    .map((r) => ({ date: dayOf(r[dateCol]), v: r[amountCol] }))
+    .filter((x) => x.date && x.v !== "" && Number.isFinite(Number(x.v)))
+    .map((x) => ({
+      market,
+      kind: ads ? ("ads" as const) : ("fee" as const),
+      date: x.date,
+      paise: ads ? -Math.abs(paise(x.v)) : paise(x.v),
+      note: name,
+    }));
+  return { lines, unread: lines.length === 0 && hasNumbers };
+}
+
+/** Tabs each reader knows by name — the rest go through `unknownTab`. */
+const KNOWN: Record<Market, Set<string>> = {
+  meesho: new Set(["Disclaimer", "Order Payments", "Ads Cost", "Referral Payments", "Compensation and Recovery"]),
+  flipkart: new Set(["Report Help", "Summary of report", "Orders", "GST_Details"]),
+};
 
 /**
  * Flipkart's *Settled Transactions* report (Seller Hub → Reports → Payment Reports), one per payout.
@@ -290,7 +337,7 @@ function flipkart(all: Map<string, string[][]>): Payment[] {
 function flipkartOther(all: Map<string, string[][]>): OtherLine[] {
   const out: OtherLine[] = [];
   for (const [name, rows] of all) {
-    if (name === "Orders" || name === "GST_Details") continue;
+    if (KNOWN.flipkart.has(name)) continue;
     for (const r of table(rows, "Settlement Value")) {
       const v = r["Settlement Value (Rs.)"] ?? r["Settlement Value(Rs.)"];
       const date = dayOf(r["Payment Date"]);
@@ -307,16 +354,21 @@ function flipkartOther(all: Map<string, string[][]>): OtherLine[] {
 /** Either marketplace's payment file, told apart by its sheets. */
 export function readPaymentFile(bytes: Buffer): Read {
   const all = sheets(bytes);
-  if (all.has("Order Payments")) return { market: "meesho", payments: meesho(all), other: meeshoOther(all) };
-  if (all.has("Orders") && all.has("GST_Details")) return { market: "flipkart", payments: flipkart(all), other: flipkartOther(all) };
-  return { market: null, payments: [], other: [] };
+  const market: Market | null = all.has("Order Payments") ? "meesho" : all.has("Orders") && all.has("GST_Details") ? "flipkart" : null;
+  if (market === null) return { market, payments: [], other: [], unread: [] };
+  const payments = market === "meesho" ? meesho(all) : flipkart(all);
+  const other = market === "meesho" ? meeshoOther(all) : flipkartOther(all);
+  const unread: string[] = [];
+  for (const [name, rows] of all) {
+    if (KNOWN[market].has(name)) continue;
+    // Flipkart's other tabs carry a Settlement Value and were read above; a tab that has one is done.
+    if (market === "flipkart" && rows.some((r) => r.some((h) => h.startsWith("Settlement Value")))) continue;
+    const t = unknownTab(market, name, rows);
+    other.push(...t.lines);
+    if (t.unread) unread.push(name);
+  }
+  return { market, payments, other, unread };
 }
-
-/** Kept for the tests and callers written before Flipkart: Meesho's file only. */
-export const readMeeshoPayments = (bytes: Buffer) => {
-  const r = readPaymentFile(bytes);
-  return { payments: r.payments, other: r.other };
-};
 
 /**
  * Fold a file into the book. **A line is its order AND its transfer**: the same order paid in one
@@ -401,16 +453,37 @@ export function summarise(
   // An RTO is often never paid and carries no payment date — its order date places it instead.
   const lines = book.payments.filter((p) => (!market || p.market === market) && inRange(p.paymentDate || p.orderDate));
 
+  /**
+   * Which lines are a FOLLOW-UP — the same order, paid in an earlier payout. Worked out over the
+   * whole book, not the range, because the earlier line may sit in last month. A follow-up is not
+   * a second parcel; and a delivered order that turns into a return gives its kit back (it comes
+   * back usable — Vansh's ₹10 return loss is what it costs), so its pocket cost is credited back.
+   */
+  const earlier = new Map<Payment, Payment>();
+  const byOrder = new Map<string, Payment[]>();
+  for (const p of book.payments) {
+    const k = `${p.market}|${p.subOrder}`;
+    if (!byOrder.has(k)) byOrder.set(k, []);
+    byOrder.get(k)!.push(p);
+  }
+  for (const ps of byOrder.values()) {
+    ps.sort((a, b) => (a.paymentDate || a.orderDate).localeCompare(b.paymentDate || b.orderDate));
+    ps.forEach((p, i) => i > 0 && earlier.set(p, ps[i - 1]));
+  }
+
   const uncosted = new Set<string>();
   const add = (f: Figures, p: Payment) => {
+    const before = earlier.get(p);
     f.counts[p.kind]++;
     f.paidPaise += p.settledPaise;
-    if (p.kind === "delivered") {
+    const kit = () => {
       const c = costOf(p.sku);
       if (c === null) uncosted.add(p.sku);
-      else f.pocketPaise += c;
-    }
-    f.lossesPaise += (p.kind === "rto" ? s.rtoLossPaise : p.kind === "return" ? s.returnLossPaise : 0) + perParcel;
+      return c ?? 0;
+    };
+    if (p.kind === "delivered" && !before) f.pocketPaise += kit();
+    if (p.kind !== "delivered" && before?.kind === "delivered") f.pocketPaise -= kit();
+    f.lossesPaise += (p.kind === "rto" ? s.rtoLossPaise : p.kind === "return" ? s.returnLossPaise : 0) + (before ? 0 : perParcel);
     f.profitPaise = f.paidPaise - f.pocketPaise - f.lossesPaise;
   };
 
@@ -479,7 +552,13 @@ export function summarise(
 export function paymentVsOrder(
   book: PaymentBook,
   packed: { subOrder: string; sku: string; packedOn: string; market: string }[],
+  /**
+   * The screen's range, applied to the day an order was PLACED (and a parcel packed) — Vansh: *"day
+   * range should work on all of these fields"*. The other tables read it as a payment date.
+   */
+  { from = "", to = "" }: { from?: string; to?: string } = {},
 ) {
+  const inRange = (d: string) => (!from || d >= from) && (!to || d <= to);
   const seen = new Set(book.payments.map((p) => `${p.market}|${p.subOrder}`));
   const months = new Map<string, Counts & { waiting: number; oldestWaiting: string }>();
   const month = (m: string) => {
@@ -493,8 +572,9 @@ export function paymentVsOrder(
     const was = latest.get(k);
     if (!was || p.paymentDate >= was.paymentDate) latest.set(k, p);
   }
-  for (const p of latest.values()) month(p.orderDate.slice(0, 7))[p.kind]++;
+  for (const p of latest.values()) if (inRange(p.orderDate)) month(p.orderDate.slice(0, 7))[p.kind]++;
   for (const p of packed) {
+    if (!inRange(p.packedOn)) continue;
     if (seen.has(`${p.market || "meesho"}|${p.subOrder}`)) continue;
     const m = month(p.packedOn.slice(0, 7));
     m.waiting++;
