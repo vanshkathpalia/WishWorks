@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { dayOf, kindOf, mergePayments, paymentVsOrder, readPaymentFile, summarise, unknownTab, type Payment, type PaymentBook } from "../src/payments-core.js";
+import { dayOf, kindOf, mergePayments, paymentVsOrder, readPaymentFile, settledOnly, summarise, unknownTab, upcoming, type Payment, type PaymentBook } from "../src/payments-core.js";
 
 const fixture = (f: string) => readFileSync(path.join(import.meta.dirname, "fixtures", f));
 const empty = (): PaymentBook => ({ payments: [], other: [], files: [] });
@@ -130,5 +130,36 @@ describe("adding it up", () => {
   it("limits payment against order to orders placed in the range", () => {
     const rows = paymentVsOrder(book, [], { from: "2026-08-01", to: "2026-08-31" });
     expect(rows.map((r) => r.month)).toEqual(["2026-08"]);
+  });
+});
+
+describe("upcoming payments — Meesho's outstanding file", () => {
+  const OUT = "4576865_SP_ORDER_ADS_REFERRAL_PAYMENT_FILE_OUTSTANDING_PAYMENT_2026-09-28.xlsx";
+  const PAID = "4576865_SP_ORDER_ADS_REFERRAL_PAYMENT_FILE_PREVIOUS_PAYMENT_2026-09-25_2026-10-24.xlsx";
+  const at = (o: Partial<Payment>): Payment => ({ ...meesho.payments[1], txn: "", subOrder: "A_1", ...o });
+  const est = at({ status: "Delivered", kind: "delivered", settledPaise: 15000, paymentDate: "2026-09-30" });
+  const shipped = at({ subOrder: "B_1", status: "Shipped", kind: "other", settledPaise: 16000, paymentDate: "2026-10-05" });
+  const book = mergePayments(empty(), { payments: [est, shipped], other: [{ market: "meesho", kind: "ads", date: "2026-09-24", paise: -165, note: "1" }] }, OUT);
+
+  it("keeps estimates apart: out of the settled book, counted only when asked", () => {
+    expect(book.payments.every((p) => p.expected)).toBe(true);
+    expect(settledOnly(book).payments).toHaveLength(0);
+    expect(upcoming(book)).toMatchObject({ paise: 31000 - 165, orders: 2, shipped: 1, from: "2026-09-30", to: "2026-10-05" });
+    expect(summarise(book).total.paidPaise).toBe(31000);
+    expect(summarise(settledOnly(book)).total.paidPaise).toBe(0);
+  });
+
+  it("drops an estimate when its real payment arrives, including a shipped one that got delivered", () => {
+    const real = [at({ txn: "AXISCN1", status: "Delivered", kind: "delivered", settledPaise: 14800 }),
+      at({ subOrder: "B_1", txn: "AXISCN1", status: "Delivered", kind: "delivered", settledPaise: 15900 })];
+    const after = mergePayments(book, { payments: real, other: [] }, PAID);
+    expect(after.payments.map((p) => [p.subOrder, p.settledPaise, !!p.expected])).toEqual([["A_1", 14800, false], ["B_1", 15900, false]]);
+  });
+
+  it("lets a newer outstanding file replace the older estimates, and never re-adds a paid one", () => {
+    const paidA = mergePayments(book, { payments: [at({ txn: "AXISCN1", kind: "delivered", status: "Delivered", settledPaise: 14800 })], other: [] }, PAID);
+    const next = mergePayments(paidA, { payments: [est, at({ subOrder: "C_1", kind: "delivered", status: "Delivered", settledPaise: 9000 })], other: [] }, OUT.replace("09-28", "10-05"));
+    expect(next.payments.filter((p) => p.expected).map((p) => p.subOrder)).toEqual(["C_1"]);
+    expect(next.payments.filter((p) => !p.expected).map((p) => p.subOrder)).toEqual(["A_1"]);
   });
 });

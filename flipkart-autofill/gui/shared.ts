@@ -14,7 +14,7 @@
 // The engine's own row type, imported rather than re-declared. Type-only, so nothing from
 // images-core.ts is bundled into the renderer.
 import type { Row } from "../src/images-core.js";
-import type { PaymentSettings, Summary, paymentVsOrder } from "../src/payments-core.js";
+import type { PaymentSettings, Summary, paymentVsOrder, upcoming } from "../src/payments-core.js";
 import type { FinishResult } from "../src/finish-core.js";
 import type { InboxItem, ImportResult } from "../src/inbox.js";
 import type { Listing } from "../src/listings.js";
@@ -79,7 +79,11 @@ export interface PhotoMove {
  * definition of what a person is owed.
  */
 /** What the Payments screen asks for: a range of PAYMENT dates, and one marketplace or both. */
-export type PaymentsQuery = { from?: string; to?: string; market?: "meesho" | "flipkart" | ""; logisticsPaise?: number };
+export type PaymentsQuery = {
+  from?: string; to?: string; market?: "meesho" | "flipkart" | ""; logisticsPaise?: number;
+  /** Count Meesho's outstanding-payment estimates as if paid. Off: only money actually received. */
+  withUpcoming?: boolean;
+};
 
 /** Everything the Payments screen draws — see `paymentsView` in main and `payments-core.ts`. */
 export interface PaymentsView {
@@ -88,6 +92,8 @@ export interface PaymentsView {
   vsOrder: ReturnType<typeof paymentVsOrder>;
   settings: PaymentSettings;
   files: string[];
+  /** Meesho's outstanding estimates, shown apart whether or not they are counted. */
+  upcoming: ReturnType<typeof upcoming>;
 }
 
 export interface OrdersView {

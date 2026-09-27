@@ -1029,7 +1029,7 @@ ipcMain.handle("orders", (_e, day?: string) => ordersView(day));
 // ---------------------------------------------------------------- payments
 
 const paymentsEngine = () => import("../src/payments-core.js");
-type PaymentsQuery = { from?: string; to?: string; market?: "meesho" | "flipkart" | ""; logisticsPaise?: number };
+type PaymentsQuery = { from?: string; to?: string; market?: "meesho" | "flipkart" | ""; logisticsPaise?: number; withUpcoming?: boolean };
 
 /**
  * Everything the Payments screen draws, for one range of payment dates and one marketplace (or
@@ -1037,14 +1037,17 @@ type PaymentsQuery = { from?: string; to?: string; market?: "meesho" | "flipkart
  * *payment against order* table.
  */
 async function paymentsView(q: PaymentsQuery = {}) {
-  const { readPayments, summarise, paymentVsOrder, DEFAULT_SETTINGS } = await paymentsEngine();
+  const { readPayments, summarise, paymentVsOrder, DEFAULT_SETTINGS, settledOnly, upcoming } = await paymentsEngine();
   const { kitForSku, listLedgers } = await ordersEngine();
   const { listKits, loadMaterials, KITS_DIR } = await inventoryEngine();
   const kits = listKits(KITS_DIR, loadMaterials());
-  const book = await readPayments();
+  const all = await readPayments();
+  // The toggle: estimates in, or money actually received only. Everything below reads `book`.
+  const book = q.withUpcoming ? all : settledOnly(all);
   const costOf = (sku: string) => kitForSku(sku, kits)?.costPaise ?? null;
   const market = q.market || undefined;
   return {
+    upcoming: upcoming(all, market),
     summary: summarise(book, { ...q, market, costOf }),
     // Each marketplace alone too, so the screen can show them side by side under the combined one.
     markets: [...new Set(book.payments.map((p) => p.market))].map((m) => ({
@@ -1052,8 +1055,8 @@ async function paymentsView(q: PaymentsQuery = {}) {
       summary: summarise(book, { from: q.from, to: q.to, market: m, costOf }),
     })),
     vsOrder: paymentVsOrder(book, (await listLedgers()).flatMap((l) => l.subOrders.filter((p) => p.packedOn)) as never, q),
-    settings: { ...DEFAULT_SETTINGS, ...book.settings },
-    files: book.files,
+    settings: { ...DEFAULT_SETTINGS, ...all.settings },
+    files: all.files,
   };
 }
 ipcMain.handle("payments", (_e, q: PaymentsQuery) => paymentsView(q));

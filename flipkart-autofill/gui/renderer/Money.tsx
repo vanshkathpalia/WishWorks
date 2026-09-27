@@ -987,16 +987,18 @@ export function Payments({ n }: { n: number }) {
   const [over, setOver] = useState(false);
   const [range, setRange] = useState(() => preset("this"));
   const [market, setMarket] = useState<"" | "meesho" | "flipkart">("");
+  /** Count Meesho's outstanding estimates in the totals. Off at every start: received money only. */
+  const [withUpcoming, setWithUpcoming] = useState(false);
   /** A real logistics spend for the range, typed — used instead of the per-parcel figure. */
   const [logistics, setLogistics] = useState("");
   /** The settings boxes as typed; saved when a box is left. */
   const [typed, setTyped] = useState<Record<string, string>>({});
 
-  const q = { ...range, market, logisticsPaise: typedPaise(logistics) ?? 0 };
+  const q = { ...range, market, logisticsPaise: typedPaise(logistics) ?? 0, withUpcoming };
   const load = useCallback(() => {
     void window.ww.payments(q).then(setView, (e: Error) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range.from, range.to, market, logistics]);
+  }, [range.from, range.to, market, logistics, withUpcoming]);
   useEffect(load, [load]);
 
   async function add(files: string[]) {
@@ -1048,7 +1050,8 @@ export function Payments({ n }: { n: number }) {
           What Meesho and Flipkart actually paid, from their own payment files, and what that left
           after the kits and your losses. A delivered order counts what reached the bank, an{" "}
           <b>RTO counts ₹0</b>, a <b>return</b> counts its charge as a minus — the marketplace&apos;s
-          own settlement, not a guess. Meesho: <b>Payments → Previous payments</b>. Flipkart:{" "}
+          own settlement, not a guess. Meesho: <b>Payments → Previous payments</b>, and{" "}
+          <b>Outstanding payments</b> for what is still to come (kept apart, see the toggle). Flipkart:{" "}
           <b>Reports → Payment Reports → Settled Transactions</b>. Dropping the same file twice
           changes nothing; a later file that takes money back is subtracted.
         </p>
@@ -1099,6 +1102,23 @@ export function Payments({ n }: { n: number }) {
           ))}
         </div>
       </div>
+
+      {view && view.upcoming.orders > 0 && (
+        <div className="pay-controls">
+          <label>
+            <input type="checkbox" checked={withUpcoming} onChange={(e) => setWithUpcoming(e.target.checked)} />
+            Count upcoming payments
+          </label>
+          <span className={withUpcoming ? "warn" : "muted"}>
+            {rupees(view.upcoming.paise)} expected for {view.upcoming.orders} orders
+            {view.upcoming.from && `, due ${view.upcoming.from}${view.upcoming.to !== view.upcoming.from ? ` to ${view.upcoming.to}` : ""}`}
+            {view.upcoming.shipped > 0 && ` — ${view.upcoming.shipped} still only shipped, and may come back as RTO`}.{" "}
+            {withUpcoming
+              ? "Counted below as if paid: Meesho's estimate, not money received yet."
+              : "Not counted below. Each paid file replaces its estimates."}
+          </span>
+        </div>
+      )}
 
       {view && (
         <div className="pay-controls pay-settings">

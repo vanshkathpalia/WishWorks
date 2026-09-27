@@ -1083,3 +1083,20 @@ defaults.json`. Now **Settings → Flipkart trade name**, per account, empty = P
 Manufacturer and Packer Details on every latch form and every 66-field fill (only on tabs that carry
 those fields), and the brand on a new listing (WW-261). Live listings are not touched; Meesho keeps
 WishWorks.
+
+## WW-263 — Upcoming payments: Meesho's outstanding file, kept apart, with a toggle
+
+**Done, 2026-09-27.** Vansh: *"how are we handling the upcoming payment thing… outstanding payment they
+call it"*, then *"have a toggle — for accounts and profit/loss with considering upcoming and not."*
+The outstanding file has the same sheets as a paid one, so the reader took it, but merging it would
+have **double counted**: an estimate has no transaction id, so the real payment a month later is a
+different line and both would add. Now:
+- Lines from a file named `…OUTSTANDING_PAYMENT…` are marked `expected`.
+- A newer outstanding file replaces the older estimates. A paid file drops the estimate for the same
+  order and outcome (a `Shipped` estimate is replaced by whatever it became). An estimate for an
+  outcome already paid is never added.
+- **Payments → "Count upcoming payments"**, off at every start. Off: received money only. On: the
+  estimates count as if paid, and the line above says so. The upcoming total, order count, due dates
+  and how many are still only shipped show either way.
+On his data (copy, not saved): ₹29,970 upcoming for 204 orders, due 28 Sep – 5 Oct, 49 still shipped.
+Paid ₹35,727 → ₹65,733 with it on. 3 tests.

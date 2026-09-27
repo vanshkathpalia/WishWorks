@@ -58,6 +58,8 @@ export interface Payment {
   creditPaise: number;
   /** Income-tax TDS the marketplace deducted — claimed at income-tax filing, not GST. Positive. */
   tdsPaise: number;
+  /** From an OUTSTANDING file: Meesho's estimate of a payment not made yet. See `isUpcomingFile`. */
+  expected?: boolean;
 }
 
 /** A line that is not an order: ads, a fee, a compensation, a recovery. Signed — ads are negative. */
@@ -69,6 +71,8 @@ export interface OtherLine {
   paise: number;
   /** Campaign id for ads; what it was for, otherwise. */
   note: string;
+  /** From an OUTSTANDING file — not deducted yet. */
+  expected?: boolean;
 }
 
 /** Vansh's own figures, in paise. Editable on the screen; these are his 2026-09-27 defaults. */
@@ -371,17 +375,73 @@ export function readPaymentFile(bytes: Buffer): Read {
 }
 
 /**
+ * Meesho's *Outstanding payment* file: what it expects to pay, and when — estimates, per its own
+ * disclaimer, until logistics are settled. Same sheets as a *Previous payment* file, so only the name
+ * tells them apart; its lines also carry no transaction id yet (but so does a paid RTO, so that alone
+ * is not enough).
+ */
+export const isUpcomingFile = (file: string): boolean => /OUTSTANDING/i.test(file);
+
+/**
+ * The same order, and the same thing happening to it — how an estimate finds the payment that
+ * replaces it. `Shipped` (kind other) is an order still on its way: whatever it becomes, the real
+ * line replaces it.
+ */
+const sameOutcome = (est: Payment, paid: Payment) =>
+  est.market === paid.market && est.subOrder === paid.subOrder && (est.kind === paid.kind || est.kind === "other");
+
+/** The book with no estimates in it: money actually received and actually deducted. */
+export function settledOnly(book: PaymentBook): PaymentBook {
+  return { ...book, payments: book.payments.filter((p) => !p.expected), other: book.other.filter((o) => !o.expected) };
+}
+
+/** What is still to come, whatever the range: how much, how many orders, and between which dates. */
+export function upcoming(book: PaymentBook, market?: Market) {
+  const lines = book.payments.filter((p) => p.expected && (!market || p.market === market));
+  const others = book.other.filter((o) => o.expected && (!market || o.market === market));
+  const dates = lines.map((p) => p.paymentDate).filter(Boolean).sort();
+  return {
+    paise: lines.reduce((n, p) => n + p.settledPaise, 0) + others.reduce((n, o) => n + o.paise, 0),
+    orders: new Set(lines.map((p) => p.subOrder)).size,
+    /** Still `Shipped` — the estimate that is likeliest to change, into an RTO at ₹0. */
+    shipped: lines.filter((p) => p.kind === "other" && /ship/i.test(p.status)).length,
+    from: dates[0] ?? "",
+    to: dates[dates.length - 1] ?? "",
+  };
+}
+
+/**
  * Fold a file into the book. **A line is its order AND its transfer**: the same order paid in one
  * payout and taken back in a later one is two lines, and both count. Re-reading a file matches every
  * line it already added, so it changes nothing.
  */
 export function mergePayments(book: PaymentBook, read: { payments: Payment[]; other: OtherLine[] }, file: string): PaymentBook {
+  let old = book.payments;
+  let oldOther = book.other;
+  let incoming = read.payments;
+  let incomingOther = read.other;
+  const markets = new Set([...read.payments, ...read.other].map((x) => x.market));
+  if (isUpcomingFile(file)) {
+    // **The newest outstanding file is the whole picture of what is coming**, so the estimates from an
+    // older one go. ponytail: newest-imported wins, not newest-dated; import an older one last and it
+    // replaces the newer. Estimates for an outcome already paid are not taken at all.
+    old = old.filter((p) => !(p.expected && markets.has(p.market)));
+    oldOther = oldOther.filter((o) => !(o.expected && markets.has(o.market)));
+    incoming = read.payments
+      .filter((e) => !old.some((p) => !p.expected && sameOutcome(e, p)))
+      .map((p) => ({ ...p, expected: true }));
+    incomingOther = read.other.map((o) => ({ ...o, expected: true }));
+  } else {
+    // A real payment arrives: the estimate it replaces goes, or both would count.
+    old = old.filter((e) => !(e.expected && read.payments.some((p) => sameOutcome(e, p))));
+  }
   const key = (p: Payment) => `${p.market}|${p.subOrder}|${p.txn}|${p.paymentDate}|${p.settledPaise}`;
-  const by = new Map(book.payments.map((p) => [key(p), p]));
-  for (const p of read.payments) by.set(key(p), p);
+  const by = new Map(old.map((p) => [key(p), p]));
+  for (const p of incoming) by.set(key(p), p);
+  // Ads are keyed by the day they ran, so the real deduction overwrites its estimate by itself.
   const okey = (o: OtherLine) => `${o.market}|${o.kind}|${o.date}|${o.paise}|${o.note}`;
-  const other = new Map(book.other.map((o) => [okey(o), o]));
-  for (const o of read.other) other.set(okey(o), o);
+  const other = new Map(oldOther.map((o) => [okey(o), o]));
+  for (const o of incomingOther) other.set(okey(o), o);
   return {
     ...book,
     payments: [...by.values()],
