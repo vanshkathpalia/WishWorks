@@ -1110,3 +1110,20 @@ payment date** (Meesho writes "unscheduled": 27 delivered, 49 shipped, 1 cancell
 showed only the dated ones, so it looked as if nothing came after 5 Oct; it now counts the undated.
 Received on file (Meesho only, paid up to 24 Sep): last 30 days ₹34,193 against ₹54,717 the buyers paid
 for those same orders.
+
+## WW-265 — First live run of the kit-count image chat: fixed until it worked, then checked by eye
+
+**2026-09-27, ANP004, photo `Whatsapp DW/ANP/ANP 4/2.png` (matches ANP004's nine lines; ANP014 is a
+different pack).** First run: nothing sent. The run pressed Enter while ChatGPT was still taking the
+photo, never checked, and read the empty page as the reply; the READY check stopped it, as designed.
+Fixed at the root, for every chat: `sendPrompt` now waits for a new user turn (Enter, then the send
+button, then a loud error), and one `attachPhoto` that waits to SEE the preview is shared by the
+image run, the meta chat and the costing chat (only the costing chat checked before).
+Second run, all live: READY `9 lines, 66 displayed, 69 total` (ours exactly) → hero → infographic →
+the sizes table stopped to ask, as it should. By eye:
+- **2.png correct**: 69 Pcs, all nine lines, sizes from the price list. But the cutouts came out
+  blank: `PROMPT-kit-list` said to drop "another seller's labels" and ChatGPT dropped the printing on
+  the product too. Reworded: overlays go, wording printed on a product stays. **Not re-run yet.**
+- **1.png wrong counts**: 6 heart foils for 8, about 100 balloons for 40. ChatGPT read the counts right
+  (READY) and the image model still drew them wrong. Code cannot count balloons in a picture, which is
+  why the flow needs Keep/Redo per image before anything is listed.

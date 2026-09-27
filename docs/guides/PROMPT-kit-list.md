@@ -1,7 +1,9 @@
 The attached photo shows what the products in this kit look like. Use it ONLY for how each item
 looks: colour, shape, finish and any printed wording. Do NOT count anything in it. The photo may
-show more or fewer pieces than we pack, and it may carry another seller's labels, prices or logos,
-which never appear in anything you make. Later messages call this photo IMAGE 2.
+show more or fewer pieces than we pack, and it may carry another seller's labels, prices, codes or
+logos added ON TOP of the picture, which never appear in anything you make. Wording printed ON a
+product itself (a banner, a cutout, a photo prop, a foil) is part of that product: draw it as the
+photo shows it, never blank. Later messages call this photo IMAGE 2.
 
 This is the kit. It is the only source of items and counts for every message that follows:
 

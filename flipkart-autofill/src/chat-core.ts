@@ -58,11 +58,52 @@ export async function imagesOn(page: Page): Promise<string[]> {
  */
 export async function sendPrompt(page: Page, text: string): Promise<void> {
   await putInComposer(page, text);
+  const turns = () => page.locator("[data-message-author-role=user]").count().catch(() => 0);
+  const before = await turns();
   // **The only Enter in this file.** Splitting `sendPrompt` left one behind in `putInComposer` as
   // well, so the costing chat — whose whole point is to hand a human a filled composer to READ —
   // sent it instead, and `sendPrompt` pressed Enter twice. It cost an hour to find because both
   // callers still looked like they worked: one had sent, the other had a chat.
   await page.keyboard.press("Enter");
+  /**
+   * **Then check it went.** Measured 2026-09-27 (WW-265): Enter landed while ChatGPT was still taking
+   * the photo, nothing was sent, and the run read the empty page as a reply. A new user turn is the
+   * proof. If Enter did nothing, the send button once; still nothing, and it says so.
+   */
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (let i = 0; i < 30; i++) {
+      if ((await turns()) > before) return;
+      await page.waitForTimeout(500);
+    }
+    await page.locator('[data-testid="send-button"], button[aria-label*="Send" i]').first().click({ timeout: 5000 }).catch(() => {});
+  }
+  throw new Error("ChatGPT did not take the message: it is still in the box, unsent.");
+}
+
+/**
+ * Attach a picture and SEE it in the composer before going on, once more if it is not there. False
+ * when it never showed, so the caller never sends a prompt about a picture that is not there.
+ *
+ * The preview is a `blob:` image. A fixed wait used to stand in for this, and on a Mac deep in swap
+ * chats went out with no picture (2026-09-26, the costing chat); the image run had the same fixed wait
+ * until WW-265. `setInputFiles` on the hidden input, never the paperclip: that opens an OS dialog.
+ */
+export async function attachPhoto(page: Page, files: string | string[]): Promise<boolean> {
+  const want = Array.isArray(files) ? files.length : 1;
+  const previews = () => page.locator('img[src^="blob:"]').count().catch(() => 0);
+  const before = await previews();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.locator("input[type=file]").first().setInputFiles(files, { timeout: 15_000 });
+    for (let i = 0; i < 40; i++) {
+      await page.waitForTimeout(500);
+      if ((await previews()) >= before + want) {
+        // The upload itself finishing: ChatGPT re-renders the composer while a picture goes up.
+        await page.waitForTimeout(3000);
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -294,10 +335,10 @@ export async function runImageChat(
 ): Promise<RunResult[]> {
   const out: RunResult[] = [];
 
-  if (opts.contentsPhoto) {
-    // The hidden input, never the paperclip: that opens an OS dialog, which is outside the page.
-    await page.locator("input[type=file]").first().setInputFiles(opts.contentsPhoto, { timeout: 30_000 });
-    await page.waitForTimeout(3000);
+  if (opts.contentsPhoto && !(await attachPhoto(page, opts.contentsPhoto))) {
+    const r = { prompt: "(photo)", file: null, seconds: 0, timedOut: false, missing: false, error: "The photo never showed in ChatGPT's box. Nothing was sent." };
+    opts.onStep?.(r);
+    return [r];
   }
 
   for (const step of opts.steps) {
@@ -637,9 +678,9 @@ export async function runMetaChat(
   const texts = await Promise.all(META_RUN.map((s) => opts.readPrompt(s.prompt)));
   texts[0] = withInventory(texts[0], opts.kit.json);
 
-  await page.locator("input[type=file]").first().setInputFiles(opts.images, { timeout: 30_000 });
-  // Uploads have to finish before Enter, or the prompt goes out without its pictures.
-  await page.waitForTimeout(3000 + 2000 * opts.images.length);
+  // Uploads have to show before Enter, or the prompt goes out without its pictures.
+  if (!(await attachPhoto(page, opts.images))) throw new Error("The images never showed in ChatGPT's box. Nothing was sent.");
+  await page.waitForTimeout(1500 * opts.images.length);
 
   const out: MetaResult[] = [];
   for (const [i, step] of META_RUN.entries()) {

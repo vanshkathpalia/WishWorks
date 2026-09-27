@@ -976,20 +976,8 @@ export async function askChatGpt(page: Page, image: string, prompt: string): Pro
      * picture is a question about nothing, so it is reported as `nophoto` rather than `ready`.
      * The preview is a `blob:` image; ChatGPT has drawn it that way since uploads existed.
      */
-    const previews = () => page.locator('img[src^="blob:"]').count().catch(() => 0);
-    const before = await previews();
-    let attached = false;
-    for (let attempt = 0; attempt < 2 && !attached; attempt++) {
-      await page.locator("input[type=file]").first().setInputFiles(image, { timeout: 15_000 });
-      for (let i = 0; i < 30 && !attached; i++) {
-        await page.waitForTimeout(500);
-        attached = (await previews()) > before;
-      }
-    }
-    if (!attached) return "nophoto";
-    // The upload itself finishing: ChatGPT re-renders the composer while a picture is going up, and a
-    // paste into it lands nowhere — measured: `ready` returned over an empty box.
-    await page.waitForTimeout(3000);
+    const { attachPhoto } = await import("./chat-core.js");
+    if (!(await attachPhoto(page, image))) return "nophoto";
     /**
      * The composer is filled by `putInComposer` and NOT sent.
      *
