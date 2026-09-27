@@ -191,6 +191,22 @@ export async function openChatBrowser(): Promise<Session> {
   return { context, close };
 }
 
+/**
+ * Every page remembers when its window last took focus, so "the product showing in Chrome" can be
+ * told apart when two windows each show one — see `frontLatchTab`. Reads nothing, sends nothing.
+ */
+async function markFocus(context: BrowserContext): Promise<void> {
+  await context
+    .addInitScript(() => {
+      const w = window as unknown as { __wwFocus?: number };
+      const mark = () => (w.__wwFocus = Date.now());
+      addEventListener("focus", mark);
+      document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && mark());
+      if (document.hasFocus()) mark();
+    })
+    .catch(() => {});
+}
+
 export async function openBrowser(): Promise<Session> {
   ensureProfileFree();
   let context;
@@ -218,6 +234,8 @@ export async function openBrowser(): Promise<Session> {
   } catch (e) {
     throw friendlyLaunchError(e);
   }
+
+  await markFocus(context);
 
   let closed = false;
   const close = async () => {

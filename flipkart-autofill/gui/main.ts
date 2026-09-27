@@ -1187,13 +1187,7 @@ ipcMain.handle("recordApproval", async (_e, pasted: string): Promise<Attempt<unk
   let fsn = /[?&](?:pid|fsn)=([A-Z0-9]+)/i.exec(pasted)?.[1] ?? (/^[A-Z0-9]{16}$/i.test(pasted.trim()) ? pasted.trim() : null);
   if (!fsn) {
     const { openTabs } = await import("../src/browser-core.js");
-    const tabs = await Promise.all(
-      openTabs().map(async (page) => ({
-        page,
-        url: page.url(),
-        visible: await page.evaluate(() => document.visibilityState === "visible").catch(() => false),
-      })),
-    );
+    const tabs = await shownTabs(openTabs());
     const front = frontLatchTab(tabs);
     if (!front.ok) return { ok: false, message: pasted.trim() ? "No product code in that link." : front.message };
     fsn = front.fsn;
@@ -2718,13 +2712,7 @@ async function costingChatFor(
 ipcMain.handle("costingFront", async (): Promise<Attempt<unknown>> => {
   const { readLatches, writeLatches, frontLatchTab } = await latchEngine();
   const { openTabs, newTab } = await import("../src/browser-core.js");
-  const tabs = await Promise.all(
-    openTabs().map(async (page) => ({
-      page,
-      url: page.url(),
-      visible: await page.evaluate(() => document.visibilityState === "visible").catch(() => false),
-    })),
-  );
+  const tabs = await shownTabs(openTabs());
   const front = frontLatchTab(tabs);
   if (!front.ok) return { ok: false, message: front.message.replace("latched", "costed") };
   const book = await readLatches();
@@ -2892,6 +2880,21 @@ async function latchThese(
   };
 }
 
+/** Each tab with what `frontLatchTab` decides on: is it showing, and when its window last had focus. */
+async function shownTabs(pages: import("playwright").Page[]) {
+  return Promise.all(
+    pages.map(async (page) => {
+      const seen = await page
+        .evaluate(() => ({
+          visible: document.visibilityState === "visible",
+          focusedAt: (window as unknown as { __wwFocus?: number }).__wwFocus ?? 0,
+        }))
+        .catch(() => ({ visible: false, focusedAt: 0 }));
+      return { page, url: page.url(), ...seen };
+    }),
+  );
+}
+
 /** What every latch form is filled with, until prices are set per kit. One place for both callers. */
 const LATCH_PRICES = { MRP: "999", "Your selling price": "220" };
 
@@ -2904,13 +2907,7 @@ ipcMain.handle("fillFrontLatch", async (e, withCosting: boolean): Promise<Attemp
   const { readLatches, writeLatches, latchValues, openLatchForm, todayStamp, frontLatchTab } = await latchEngine();
   const { openTabs } = await import("../src/browser-core.js");
   const { nextSku } = await import("../src/sku-core.js");
-  const tabs = await Promise.all(
-    openTabs().map(async (page) => ({
-      page,
-      url: page.url(),
-      visible: await page.evaluate(() => document.visibilityState === "visible").catch(() => false),
-    })),
-  );
+  const tabs = await shownTabs(openTabs());
   const front = frontLatchTab(tabs);
   if (!front.ok) return { ok: false, message: front.message };
 
@@ -4184,6 +4181,20 @@ async function ensureFolders(): Promise<void> {
     await mkdir(dir, { recursive: true }).catch(() => {});
   }
 }
+
+/**
+ * **One copy of the app at a time.** Two were found running on 2026-09-27 (started 09:57 and 17:41),
+ * both driving the one Chrome profile — and `ensureProfileFree` kills whatever holds it, so the second
+ * copy's Chrome closes the first's, login and half-filled forms included. A second launch now just
+ * brings the running window forward.
+ */
+if (!app.requestSingleInstanceLock()) app.quit();
+app.on("second-instance", () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.focus();
+});
 
 app.whenReady().then(() => {
   /**

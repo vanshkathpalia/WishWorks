@@ -770,6 +770,11 @@ describe("reviewing a batch before listing it", () => {
     const two = frontLatchTab([{ url: form("A"), visible: true }, { url: form("B"), visible: true }]);
     expect(two.ok).toBe(false);
     expect(!two.ok && two.message).toMatch(/More than one/);
+    // Two windows, but one was looked at later: that one (2026-09-27, "code should be ready for it").
+    const later = frontLatchTab([{ url: form("A"), visible: true, focusedAt: 100 }, { url: form("B"), visible: true, focusedAt: 200 }]);
+    expect(later.ok && later.fsn).toBe("B");
+    // A tie says nothing about which — still asks.
+    expect(frontLatchTab([{ url: form("A"), visible: true, focusedAt: 5 }, { url: form("B"), visible: true, focusedAt: 5 }]).ok).toBe(false);
   });
 
   it("reviews a label-pack product on the shopper page, and counts that tab as kept", () => {

@@ -334,7 +334,7 @@ export async function openLatchForm(
  * it — but the front tab of a window stays `visible`, so that is the test. Two windows each showing
  * one is ambiguous, and a refill of the wrong product is worse than asking.
  */
-export function frontLatchTab<T extends { url: string; visible: boolean }>(
+export function frontLatchTab<T extends { url: string; visible: boolean; focusedAt?: number }>(
   tabs: T[],
 ): { ok: true; tab: T; fsn: string; kind: "form" | "shopper" } | { ok: false; message: string } {
   /**
@@ -354,6 +354,15 @@ export function frontLatchTab<T extends { url: string; visible: boolean }>(
     return r ? [{ tab: t, ...r }] : [];
   });
   if (shown.length === 1) return { ok: true, ...shown[0] };
+  /**
+   * **Two windows each showing a product: the one he looked at last.** This used to refuse outright —
+   * Vansh, 2026-09-27: *"what is going to happen sometimes, code should be ready for it."* Each page
+   * records when its window last took focus (`markFocus` in connect.ts); a clear latest wins. Still
+   * asks when nothing says which — a tab opened before the app's Chrome carried the marker, or a tie —
+   * because refilling the wrong product is worse than asking.
+   */
+  const latest = [...shown].sort((a, b) => (b.tab.focusedAt ?? 0) - (a.tab.focusedAt ?? 0));
+  if (latest.length > 1 && (latest[0].tab.focusedAt ?? 0) > (latest[1].tab.focusedAt ?? 0)) return { ok: true, ...latest[0] };
   return {
     ok: false,
     message: shown.length
