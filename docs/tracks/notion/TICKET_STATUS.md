@@ -975,21 +975,32 @@ Checked on the live list: 43 kits costed; HBD-masha04 shows room ₹5 — a bad 
 Also: one copy of the app at a time (two were running, each killing the other's Chrome), and when two
 Chrome windows each show a product, the one looked at last is latched instead of refusing.
 
-## WW-258 — Payments: what Meesho actually paid, from its payment file
+## WW-258 — Payments: what Meesho and Flipkart actually paid, per SKU and all together
 
-**Built, 2026-09-26, branch `payments`.** Vansh: *"is there any system that reads the payment and tells me
-what we actually earn — return 0, RTO 0 income, only delivered… meesho and flipkart provide a pdf or excel
-for payments, let's use that."* The new **Payments** step, under Orders after Money, reads Meesho's
-*Previous / Upcoming payments* xlsx (`payments-core.ts`).
-- Each sub-order counts Meesho's own **Final Settlement Amount**, so RTO = ₹0 and a customer return
-  counts its charge as a minus. Ads and compensation come from the file's own tabs.
-- **Received** is paid on or before today; **Still to come** is dated later. Materials are subtracted
-  for delivered orders from the costed kits. A SKU with no kit is listed, not counted as free.
-- Stored in `orders/payments.json`, merged per sub-order: a newer file wins, and re-reading one is a no-op.
-- `zipEntries` was lifted out of `textIn` so both use one zip reader. No spreadsheet dependency.
-- Checked on the real 25 Jul–24 Aug file: 10 delivered ₹1,385.57, 1 RTO ₹0, materials ₹839.00,
-  earned ₹546.57. 3 tests.
+**Built, 2026-09-27, branch `payments`.** Vansh: *"is there any system that reads the payment and tells me
+what we actually earn — return 0, RTO 0 income, only delivered."* It replaces his partner's
+*Meesho calculator* workbook (the same sums, with nothing pasted) and adds Flipkart. The **Payments**
+step sits under Orders, after Money (`payments-core.ts`).
+- **Reads both files:** Meesho's *Previous/Upcoming payments* and Flipkart's *Settled Transactions*,
+  told apart by their sheets. Each order counts the marketplace's own settlement: RTO ₹0, a return minus.
+  Checked on the partner's 289 Meesho orders: every return's settlement equals its return shipping
+  charge, so this is his formula. Flipkart reads ₹1,370.16 against its own summary's ₹1,370.177.
+- **Every payment line is kept.** A later file that takes money back counts as a minus instead of
+  overwriting the payment.
+- **Per SKU and all together,** by payment date (This month / Last month / All time / custom), for
+  Both / Meesho / Flipkart:
+  - paid in, minus pocket cost (costed kit × delivered)
+  - minus Vansh's own losses: RTO ₹5, return ₹10, parcel ₹3 on/off, or a real logistics spend
+    typed for the range. All saved and editable.
+  - minus ads, plus fees and compensation = profit
+  - GST estimate: 5/105 of delivered sales, minus the GST inside marketplace fees and TCS
+    (Flipkart states its credit per order). TDS is shown for income tax.
+  - Profit after GST.
+- **Ads:** all together, per campaign, and by the days they ran. Meesho *Ad order* sales against the rest.
+- **Payment against order:** per month ordered, how many were paid, RTO'd or returned, and how many
+  packed parcels no payment file has mentioned yet.
+- The upcoming-payments file is not treated as money in hand, since it can still turn into RTOs.
+- 11 tests on the two real files.
+- **First real finding:** ANP15 on Flipkart loses ₹34 an order (₹112 kit, ~₹78 paid in).
 
-**Not built yet:** Flipkart. Its source is Seller Hub → Reports → Payment Reports → *Settled
-Transactions* (paid), plus Fulfilment Reports → Orders (to see what is still unpaid). Its reader
-waits for a real file, because guessing columns is guessing about money.
+**Not built:** matching bank credits (ICICI statement) to payouts. That waits for a real statement PDF.

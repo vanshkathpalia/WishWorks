@@ -14,6 +14,7 @@
 // The engine's own row type, imported rather than re-declared. Type-only, so nothing from
 // images-core.ts is bundled into the renderer.
 import type { Row } from "../src/images-core.js";
+import type { PaymentSettings, Summary, paymentVsOrder } from "../src/payments-core.js";
 import type { FinishResult } from "../src/finish-core.js";
 import type { InboxItem, ImportResult } from "../src/inbox.js";
 import type { Listing } from "../src/listings.js";
@@ -77,21 +78,15 @@ export interface PhotoMove {
  * one place (`ordersView` in main.ts). A screen that recomputed any of it would be a second
  * definition of what a person is owed.
  */
-/** One marketplace's payments, as `paymentSummary` adds them up. Money in paise. */
+/** What the Payments screen asks for: a range of PAYMENT dates, and one marketplace or both. */
+export type PaymentsQuery = { from?: string; to?: string; market?: "meesho" | "flipkart" | ""; logisticsPaise?: number };
+
+/** Everything the Payments screen draws — see `paymentsView` in main and `payments-core.ts`. */
 export interface PaymentsView {
-  summary: {
-    market: string;
-    from: string;
-    to: string;
-    by: Record<"delivered" | "rto" | "return" | "other", { orders: number; settledPaise: number }>;
-    receivedPaise: number;
-    toComePaise: number;
-    adsPaise: number;
-    compensationPaise: number;
-    materialsPaise: number;
-    uncosted: string[];
-    earnedPaise: number;
-  }[];
+  summary: Summary;
+  markets: { market: string; summary: Summary }[];
+  vsOrder: ReturnType<typeof paymentVsOrder>;
+  settings: PaymentSettings;
   files: string[];
 }
 
@@ -708,10 +703,12 @@ export interface WwApi {
    * decide, since "6 then 10" and "6 plus 4" look identical and need opposite answers.
    */
   addManifest(file: string): Promise<Attempt<OrdersView>>;
-  /** What the marketplaces' own payment files add up to. */
-  payments(): Promise<PaymentsView>;
-  /** Read Meesho payment files (.xlsx) in; re-reading one changes nothing. */
-  addPayments(files: string[]): Promise<Attempt<PaymentsView>>;
+  /** What the marketplaces' own payment files add up to, for a range of payment dates. */
+  payments(q: PaymentsQuery): Promise<PaymentsView>;
+  /** Read Meesho or Flipkart payment files (.xlsx) in; re-reading one changes nothing. */
+  addPayments(files: string[], q: PaymentsQuery): Promise<Attempt<PaymentsView>>;
+  /** Save the RTO / return / parcel figures, and draw again with them. */
+  paymentSettings(settings: PaymentSettings, q: PaymentsQuery): Promise<PaymentsView>;
 
   /**
    * Read a Flipkart label pack into the latch list.

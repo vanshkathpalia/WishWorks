@@ -2921,3 +2921,32 @@ h3 > button.tiny {
   line-height: 1;
 }
 .brand .back:disabled { opacity: .35; }
+
+/* Payments: the range, marketplace and settings rows above the figures. */
+.pay-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.pay-controls .seg {
+  display: flex;
+  gap: 4px;
+}
+.pay-controls .seg button.chosen {
+  border-color: var(--accent);
+  background: var(--chosen);
+}
+.pay-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pay-controls input[type="number"] {
+  width: 70px;
+}
+.payments h2 small {
+  margin-left: 8px;
+}
